@@ -102,7 +102,7 @@ export default function JobTracker() {
         .order("applied_date", { ascending: false });
 
       if (error) throw error;
-      setApplications(data || []);
+      setApplications((data || []) as JobApplication[]);
     } catch (error) {
       toast({
         title: "Error loading applications",
