@@ -2,9 +2,14 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Upload, CheckCircle, Sparkles, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import heroImage from "@/assets/hero-resume.jpg";
+import { Session } from "@supabase/supabase-js";
+import heroImage from "@/assets/hero-career.jpg";
 
-export const Hero = () => {
+interface HeroProps {
+  session: Session | null;
+}
+
+export const Hero = ({ session }: HeroProps) => {
   const navigate = useNavigate();
   
   return (
@@ -51,31 +56,47 @@ export const Hero = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button 
-                variant="hero" 
-                size="lg" 
-                className="group"
-                onClick={() => navigate("/upload")}
-              >
-                <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                Upload Your Resume
-              </Button>
-              <Button 
-                variant="outline" 
-                size="lg"
-                onClick={() => navigate("/template")}
-              >
-                <Sparkles className="w-5 h-5 mr-2" />
-                Build from Template
-              </Button>
-              <Button 
-                variant="outline" 
-                size="lg"
-                onClick={() => navigate("/tracker")}
-              >
-                <Briefcase className="w-5 h-5 mr-2" />
-                Track Applications
-              </Button>
+              {session ? (
+                <>
+                  <Button 
+                    variant="hero" 
+                    size="lg" 
+                    className="group"
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    Go to Dashboard
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="lg"
+                    onClick={() => navigate("/dashboard")}
+                  >
+                    <Briefcase className="w-5 h-5 mr-2" />
+                    My Resumes
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    variant="hero" 
+                    size="lg" 
+                    className="group"
+                    onClick={() => navigate("/auth")}
+                  >
+                    <Sparkles className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    Get Started Free
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="lg"
+                    onClick={() => navigate("/auth")}
+                  >
+                    <Upload className="w-5 h-5 mr-2" />
+                    Sign In
+                  </Button>
+                </>
+              )}
             </div>
 
             <div className="flex items-center gap-8 pt-4">
