@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 project_id = "slkltxybkdzlrabidnqp"
 
 [functions.rewrite-resume]
 verify_jwt = false
+=======
+project_id = "hfchxjytxhsiuwqaugmv"
+>>>>>>> b0c944ac173a623e5820647fab24ec07306f3307

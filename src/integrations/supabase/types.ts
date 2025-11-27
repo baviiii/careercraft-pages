@@ -14,6 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
+<<<<<<< HEAD
       job_applications: {
         Row: {
           applied_date: string
@@ -49,6 +50,49 @@ export type Database = {
           reminder_date?: string | null
           status?: Database["public"]["Enums"]["application_status"]
           updated_at?: string
+=======
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+>>>>>>> b0c944ac173a623e5820647fab24ec07306f3307
           user_id?: string
         }
         Relationships: []
@@ -58,10 +102,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+<<<<<<< HEAD
       [_ in never]: never
     }
     Enums: {
       application_status: "applied" | "interview" | "offer" | "rejected"
+=======
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      app_role: "admin" | "user"
+>>>>>>> b0c944ac173a623e5820647fab24ec07306f3307
     }
     CompositeTypes: {
       [_ in never]: never
@@ -189,7 +246,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+<<<<<<< HEAD
       application_status: ["applied", "interview", "offer", "rejected"],
+=======
+      app_role: ["admin", "user"],
+>>>>>>> b0c944ac173a623e5820647fab24ec07306f3307
     },
   },
 } as const
