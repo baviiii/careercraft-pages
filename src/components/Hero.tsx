@@ -1,67 +1,159 @@
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { Upload, CheckCircle, Sparkles, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles } from "lucide-react";
-import heroImage from "@/assets/hero-career.jpg";
+import heroImage from "@/assets/hero-resume.jpg";
 
-const Hero = () => {
+export const Hero = () => {
+  const navigate = useNavigate();
+  
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-subtle-gradient">
-      {/* Background Image with Overlay */}
-      <div className="absolute inset-0 z-0">
-        <img 
-          src={heroImage} 
-          alt="Professional career growth visualization"
-          className="w-full h-full object-cover opacity-20"
-        />
-        <div className="absolute inset-0 bg-hero-gradient opacity-10"></div>
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-subtle">
+      {/* Decorative background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary-glow/10 rounded-full blur-3xl" />
       </div>
 
-      {/* Content */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
-        <div className="max-w-4xl mx-auto text-center space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent-foreground text-sm font-medium shadow-soft">
-            <Sparkles className="w-4 h-4" />
-            <span>Your Career, Reimagined</span>
-          </div>
+      <div className="container mx-auto px-4 py-20 relative z-10">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left Content */}
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="space-y-8"
+          >
+            <div className="space-y-4">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-accent rounded-full text-accent-foreground text-sm font-medium"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI-Powered Resume Optimization
+              </motion.div>
 
-          {/* Main Heading */}
-          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-foreground leading-tight">
-            Transform Your
-            <span className="block bg-hero-gradient bg-clip-text text-transparent mt-2">
-              Professional Journey
-            </span>
-          </h1>
+              <h1 className="text-5xl lg:text-6xl font-bold leading-tight">
+                Beat the ATS.
+                <br />
+                <span className="bg-gradient-hero bg-clip-text text-transparent">
+                  Land Your Dream Job.
+                </span>
+              </h1>
 
-          {/* Subheading */}
-          <p className="text-xl sm:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Discover your potential and build a meaningful career with personalized guidance, 
-            expert insights, and powerful tools designed for your success.
-          </p>
+              <p className="text-xl text-muted-foreground leading-relaxed max-w-xl">
+                Transform your resume into an ATS-optimized masterpiece. Our AI analyzes, 
+                scores, and rewrites your resume to get past automated systems and into 
+                human hands.
+              </p>
+            </div>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-            <Button 
-              size="lg" 
-              className="bg-hero-gradient hover:opacity-90 text-primary-foreground font-semibold px-8 py-6 text-lg shadow-elegant group transition-all duration-300 hover:scale-105"
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button 
+                variant="hero" 
+                size="lg" 
+                className="group"
+                onClick={() => navigate("/upload")}
+              >
+                <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                Upload Your Resume
+              </Button>
+              <Button 
+                variant="outline" 
+                size="lg"
+                onClick={() => navigate("/template")}
+              >
+                <Sparkles className="w-5 h-5 mr-2" />
+                Build from Template
+              </Button>
+              <Button 
+                variant="outline" 
+                size="lg"
+                onClick={() => navigate("/tracker")}
+              >
+                <Briefcase className="w-5 h-5 mr-2" />
+                Track Applications
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-8 pt-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-success" />
+                <span className="text-sm text-muted-foreground">Free ATS Check</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-success" />
+                <span className="text-sm text-muted-foreground">Instant Analysis</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-success" />
+                <span className="text-sm text-muted-foreground">AI Rewrite</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Right Content - Image */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
+            className="relative"
+          >
+            <div className="relative rounded-2xl overflow-hidden shadow-elegant hover:shadow-glow transition-shadow duration-500">
+              <img
+                src={heroImage}
+                alt="Professional ATS-optimized resume preview"
+                className="w-full h-auto"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent" />
+            </div>
+
+            {/* Floating Score Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+              className="absolute -bottom-6 -left-6 bg-card border border-border rounded-xl p-6 shadow-elegant"
             >
-              Start Your Journey
-              <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              className="border-2 border-primary/30 hover:border-primary hover:bg-primary/5 font-semibold px-8 py-6 text-lg transition-all duration-300"
-            >
-              Learn More
-            </Button>
-          </div>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <svg className="w-16 h-16 transform -rotate-90">
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="28"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                      className="text-muted"
+                    />
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="28"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                      strokeDasharray={`${2 * Math.PI * 28}`}
+                      strokeDashoffset={`${2 * Math.PI * 28 * (1 - 0.87)}`}
+                      className="text-success transition-all duration-1000"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-foreground">87</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">ATS Score</p>
+                  <p className="text-xs text-muted-foreground">Excellent Match</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
-
-      {/* Bottom Gradient Fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent z-0"></div>
     </section>
   );
 };
-
-export default Hero;

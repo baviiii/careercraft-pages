@@ -22,10 +22,15 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
@@ -49,20 +54,12 @@ export default {
         },
       },
       backgroundImage: {
-        'hero-gradient': 'var(--hero-gradient)',
-        'accent-gradient': 'var(--accent-gradient)',
-        'subtle-gradient': 'var(--subtle-gradient)',
+        'gradient-hero': 'var(--gradient-hero)',
+        'gradient-subtle': 'var(--gradient-subtle)',
       },
       boxShadow: {
         'elegant': 'var(--shadow-elegant)',
-        'soft': 'var(--shadow-soft)',
-      },
-      transitionTimingFunction: {
-        'smooth': 'var(--transition-smooth)',
-      },
-      fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+        'glow': 'var(--shadow-glow)',
       },
       borderRadius: {
         lg: "var(--radius)",
