@@ -14,43 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-<<<<<<< HEAD
-      job_applications: {
-        Row: {
-          applied_date: string
-          company: string
-          created_at: string
-          id: string
-          job_title: string
-          notes: string | null
-          reminder_date: string | null
-          status: Database["public"]["Enums"]["application_status"]
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          applied_date?: string
-          company: string
-          created_at?: string
-          id?: string
-          job_title: string
-          notes?: string | null
-          reminder_date?: string | null
-          status?: Database["public"]["Enums"]["application_status"]
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          applied_date?: string
-          company?: string
-          created_at?: string
-          id?: string
-          job_title?: string
-          notes?: string | null
-          reminder_date?: string | null
-          status?: Database["public"]["Enums"]["application_status"]
-          updated_at?: string
-=======
       profiles: {
         Row: {
           avatar_url: string | null
@@ -92,7 +55,6 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
->>>>>>> b0c944ac173a623e5820647fab24ec07306f3307
           user_id?: string
         }
         Relationships: []
@@ -102,12 +64,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-<<<<<<< HEAD
-      [_ in never]: never
-    }
-    Enums: {
-      application_status: "applied" | "interview" | "offer" | "rejected"
-=======
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -118,7 +74,6 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
->>>>>>> b0c944ac173a623e5820647fab24ec07306f3307
     }
     CompositeTypes: {
       [_ in never]: never
@@ -246,11 +201,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-<<<<<<< HEAD
-      application_status: ["applied", "interview", "offer", "rejected"],
-=======
       app_role: ["admin", "user"],
->>>>>>> b0c944ac173a623e5820647fab24ec07306f3307
     },
   },
 } as const
