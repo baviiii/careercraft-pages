@@ -77,6 +77,39 @@ export type Database = {
         }
         Relationships: []
       }
+      resumes: {
+        Row: {
+          content: string
+          created_at: string
+          file_type: string | null
+          id: string
+          name: string
+          original_filename: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          file_type?: string | null
+          id?: string
+          name: string
+          original_filename?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_type?: string | null
+          id?: string
+          name?: string
+          original_filename?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
