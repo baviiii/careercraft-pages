@@ -21,9 +21,12 @@ import {
   CheckCircle2,
   Sparkles,
   Briefcase,
+  Save,
+  Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
+import { supabase } from "@/integrations/supabase/client";
 import { ModernTemplate1 } from "@/components/templates/ModernTemplate1";
 import { ModernTemplate2 } from "@/components/templates/ModernTemplate2";
 import { ProfessionalTemplate } from "@/components/templates/ProfessionalTemplate";
@@ -133,6 +136,7 @@ export default function TemplateBuilder() {
     skills: [],
   });
   const [skillInput, setSkillInput] = useState("");
+  const [showPreview, setShowPreview] = useState(true);
 
   const handleTemplateSelect = (templateId: TemplateStyle) => {
     setSelectedTemplate(templateId);
@@ -230,6 +234,44 @@ export default function TemplateBuilder() {
   const handleBack = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const saveToDatabase = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to save your resume.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const resumeContent = JSON.stringify(resumeData);
+      const template = TEMPLATES.find((t) => t.id === selectedTemplate);
+      
+      const { error } = await supabase.from('resumes').insert({
+        user_id: user.id,
+        name: `${resumeData.contact.name || 'Untitled'} - ${template?.title || 'Template'}`,
+        content: resumeContent,
+        file_type: selectedTemplate || 'template',
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Resume saved!",
+        description: "Your template resume has been saved to your database.",
+      });
+    } catch (error) {
+      console.error("Error saving resume:", error);
+      toast({
+        title: "Save failed",
+        description: "Could not save resume to database.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -979,6 +1021,30 @@ export default function TemplateBuilder() {
     return null;
   };
 
+  const renderLivePreview = () => {
+    if (!selectedTemplate || currentStep === 0) return null;
+    
+    const PreviewComponent = TEMPLATES.find(t => t.id === selectedTemplate)?.preview;
+    if (!PreviewComponent) return null;
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold flex items-center gap-2">
+            <Eye className="w-4 h-4" />
+            Live Preview
+          </h3>
+          <Badge className="bg-primary/10 text-primary">Auto-updating</Badge>
+        </div>
+        <Card className="p-6 bg-muted/30 overflow-hidden">
+          <div className="scale-75 origin-top-left">
+            <PreviewComponent />
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
@@ -989,15 +1055,23 @@ export default function TemplateBuilder() {
           >
             ResumeAI
           </button>
-          <Button variant="ghost" onClick={() => navigate("/")}>
-            Exit Builder
-          </Button>
+          <div className="flex gap-2">
+            {currentStep > 0 && selectedTemplate && (
+              <Button variant="outline" onClick={() => setShowPreview(!showPreview)} size="sm">
+                <Eye className="w-4 h-4 mr-2" />
+                {showPreview ? "Hide" : "Show"} Preview
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => navigate("/")}>
+              Exit Builder
+            </Button>
+          </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-8">
         {/* Progress Steps */}
-        <div className="max-w-4xl mx-auto mb-12">
+        <div className="max-w-6xl mx-auto mb-8">
           <div className="flex items-center justify-between">
             {STEPS.map((step, index) => {
               const Icon = step.icon;
@@ -1038,19 +1112,32 @@ export default function TemplateBuilder() {
           </div>
         </div>
 
-        {/* Step Content */}
-        <motion.div
-          key={currentStep}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          className="mb-12"
-        >
-          <Card className="p-8">{renderStepContent()}</Card>
-        </motion.div>
+        {/* Main Content - Split View */}
+        <div className={`grid ${showPreview && currentStep > 0 ? 'lg:grid-cols-2' : 'grid-cols-1'} gap-6 mb-8 max-w-6xl mx-auto`}>
+          {/* Step Content */}
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+          >
+            <Card className="p-8">{renderStepContent()}</Card>
+          </motion.div>
+
+          {/* Live Preview Panel */}
+          {showPreview && currentStep > 0 && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="hidden lg:block sticky top-24 h-fit"
+            >
+              {renderLivePreview()}
+            </motion.div>
+          )}
+        </div>
 
         {/* Navigation Buttons */}
-        <div className="max-w-4xl mx-auto flex justify-between">
+        <div className="max-w-6xl mx-auto flex justify-between">
           <Button
             variant="outline"
             onClick={handleBack}
@@ -1061,12 +1148,19 @@ export default function TemplateBuilder() {
           </Button>
 
           <div className="flex gap-3">
-            {currentStep === STEPS.length - 1 ? (
-              <Button variant="hero" onClick={generatePDF} size="lg">
-                <Download className="w-4 h-4 mr-2" />
-                Download Resume
-              </Button>
-            ) : (
+            {currentStep === STEPS.length - 1 && (
+              <>
+                <Button variant="outline" onClick={saveToDatabase} size="lg">
+                  <Save className="w-4 h-4 mr-2" />
+                  Save to Database
+                </Button>
+                <Button variant="hero" onClick={generatePDF} size="lg">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+              </>
+            )}
+            {currentStep < STEPS.length - 1 && (
               <Button variant="hero" onClick={handleNext}>
                 Next
                 <ArrowRight className="w-4 h-4 ml-2" />
