@@ -21,9 +21,11 @@ import {
   Phone,
   MapPin,
   Save,
+  FileDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ResumeSection {
   id: string;
@@ -38,6 +40,7 @@ export default function Editor() {
   const [sections, setSections] = useState<ResumeSection[]>([]);
   const [activeSection, setActiveSection] = useState("summary");
   const [jobKeywords, setJobKeywords] = useState<string[]>([]);
+  const [resumeId, setResumeId] = useState<string | null>(null);
   
   // Contact Info
   const [contactInfo, setContactInfo] = useState({
@@ -152,15 +155,59 @@ export default function Editor() {
     return highlightedText;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const fullResume = `${contactInfo.name}\n${contactInfo.email} | ${contactInfo.phone} | ${contactInfo.location}\n\n` +
       sections.map(s => `${s.title.toUpperCase()}\n${s.content}`).join("\n\n");
     
     sessionStorage.setItem("resumeText", fullResume);
-    toast({
-      title: "Changes saved",
-      description: "Your resume edits have been saved.",
-    });
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Changes saved locally",
+          description: "Sign in to save to database.",
+        });
+        return;
+      }
+
+      if (resumeId) {
+        // Update existing resume
+        const { error } = await supabase
+          .from('resumes')
+          .update({ content: fullResume })
+          .eq('id', resumeId);
+        
+        if (error) throw error;
+      } else {
+        // Create new resume
+        const { data, error } = await supabase
+          .from('resumes')
+          .insert({
+            user_id: user.id,
+            name: contactInfo.name || 'Edited Resume',
+            content: fullResume,
+            file_type: 'edited',
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        if (data) setResumeId(data.id);
+      }
+
+      toast({
+        title: "Changes saved",
+        description: "Your resume has been saved to database.",
+      });
+    } catch (error) {
+      console.error("Error saving resume:", error);
+      toast({
+        title: "Save failed",
+        description: "Could not save to database, but saved locally.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDownloadPDF = () => {
@@ -198,8 +245,26 @@ export default function Editor() {
 
     doc.save("resume-edited.pdf");
     toast({
-      title: "Download started",
-      description: "Your resume is being downloaded as PDF.",
+      title: "PDF downloaded",
+      description: "Your resume has been exported as PDF.",
+    });
+  };
+
+  const handleDownloadTXT = () => {
+    const fullResume = `${contactInfo.name}\n${contactInfo.email} | ${contactInfo.phone} | ${contactInfo.location}\n\n` +
+      sections.map(s => `${s.title.toUpperCase()}\n${s.content}`).join("\n\n");
+    
+    const blob = new Blob([fullResume], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'resume-edited.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "TXT downloaded",
+      description: "Your resume has been exported as plain text.",
     });
   };
 
@@ -377,7 +442,11 @@ export default function Editor() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
             <Button variant="hero" size="lg" onClick={handleDownloadPDF}>
               <Download className="w-5 h-5 mr-2" />
-              Download as PDF
+              Download PDF
+            </Button>
+            <Button variant="outline" size="lg" onClick={handleDownloadTXT}>
+              <FileDown className="w-5 h-5 mr-2" />
+              Download TXT
             </Button>
             <Button variant="outline" size="lg" onClick={() => navigate("/rewrite")}>
               <Sparkles className="w-5 h-5 mr-2" />

@@ -10,6 +10,7 @@ import { Upload as UploadIcon, FileText, ArrowRight, Sparkles, Image as ImageIco
 import { useToast } from "@/hooks/use-toast";
 import { parseResume } from "@/lib/resumeParser";
 import { parseLinkedInText } from "@/lib/linkedinParser";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Upload() {
   const navigate = useNavigate();
@@ -21,6 +22,25 @@ export default function Upload() {
   const [uploadMethod, setUploadMethod] = useState<"file" | "image" | "linkedin">("file");
   const [linkedinText, setLinkedinText] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
+
+  const saveResumeToDatabase = async (content: string, filename: string, fileType: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase.from('resumes').insert({
+        user_id: user.id,
+        name: filename,
+        content: content,
+        original_filename: filename,
+        file_type: fileType,
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error saving resume:", error);
+    }
+  };
 
   const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -36,11 +56,16 @@ export default function Upload() {
       });
       setResumeText(text);
       
-      const fileType = file.type.startsWith('image/') ? 'Image' : file.type === 'application/pdf' ? 'PDF' : 'Document';
+      const fileType = file.type.startsWith('image/') ? 'image' : file.type === 'application/pdf' ? 'pdf' : 'doc';
+      
+      // Save to database
+      await saveResumeToDatabase(text, file.name, fileType);
+      
+      const displayType = file.type.startsWith('image/') ? 'Image' : file.type === 'application/pdf' ? 'PDF' : 'Document';
       
       toast({
-        title: `✓ ${fileType} processed successfully`,
-        description: `${file.name} parsed and structured. ${text.split(/\s+/).length} words extracted.`,
+        title: `✓ ${displayType} processed successfully`,
+        description: `${file.name} parsed and saved. ${text.split(/\s+/).length} words extracted.`,
       });
     } catch (error) {
       console.error("Resume parsing error:", error);
@@ -72,7 +97,7 @@ export default function Upload() {
     maxFiles: 1,
   });
 
-  const handleLinkedInImport = () => {
+  const handleLinkedInImport = async () => {
     if (!linkedinText.trim()) {
       toast({
         title: "No text entered",
@@ -86,9 +111,12 @@ export default function Upload() {
     setResumeText(formatted);
     setFileName("LinkedIn Profile");
     
+    // Save to database
+    await saveResumeToDatabase(formatted, "LinkedIn Profile", "linkedin");
+    
     toast({
       title: "✓ LinkedIn profile imported",
-      description: `Profile text processed. ${formatted.split(/\s+/).length} words extracted.`,
+      description: `Profile text processed and saved. ${formatted.split(/\s+/).length} words extracted.`,
     });
   };
 
