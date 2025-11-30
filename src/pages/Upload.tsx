@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { motion } from "framer-motion";
@@ -6,11 +6,37 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { Upload as UploadIcon, FileText, ArrowRight, Sparkles, Image as ImageIcon, Linkedin } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Upload as UploadIcon, 
+  FileText, 
+  ArrowRight, 
+  Sparkles, 
+  Image as ImageIcon, 
+  Linkedin,
+  FolderOpen,
+  Pencil,
+  Trash2,
+  Download,
+  Search,
+  Calendar,
+  Tag
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseResume } from "@/lib/resumeParser";
 import { parseLinkedInText } from "@/lib/linkedinParser";
 import { supabase } from "@/integrations/supabase/client";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+interface SavedResume {
+  id: string;
+  name: string;
+  content: string;
+  file_type: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export default function Upload() {
   const navigate = useNavigate();
@@ -19,9 +45,51 @@ export default function Upload() {
   const [jobDescription, setJobDescription] = useState("");
   const [fileName, setFileName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadMethod, setUploadMethod] = useState<"file" | "image" | "linkedin">("file");
+  const [uploadMethod, setUploadMethod] = useState<"file" | "image" | "linkedin" | "manager">("file");
   const [linkedinText, setLinkedinText] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
+  
+  // Resume Manager states
+  const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
+  const [isLoadingResumes, setIsLoadingResumes] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [resumeToDelete, setResumeToDelete] = useState<string | null>(null);
+  const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  // Load saved resumes when manager tab is active
+  useEffect(() => {
+    if (uploadMethod === "manager") {
+      loadSavedResumes();
+    }
+  }, [uploadMethod]);
+
+  const loadSavedResumes = async () => {
+    setIsLoadingResumes(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('resumes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSavedResumes(data || []);
+    } catch (error) {
+      console.error("Error loading resumes:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load your resumes",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingResumes(false);
+    }
+  };
 
   const saveResumeToDatabase = async (content: string, filename: string, fileType: string) => {
     try {
@@ -37,9 +105,87 @@ export default function Upload() {
       });
 
       if (error) throw error;
+      
+      // Reload resumes if on manager tab
+      if (uploadMethod === "manager") {
+        loadSavedResumes();
+      }
     } catch (error) {
       console.error("Error saving resume:", error);
     }
+  };
+
+  const deleteResume = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('resumes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Deleted",
+        description: "Resume deleted successfully",
+      });
+      
+      loadSavedResumes();
+    } catch (error) {
+      console.error("Error deleting resume:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete resume",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateResumeName = async (id: string, newName: string) => {
+    try {
+      const { error } = await supabase
+        .from('resumes')
+        .update({ name: newName })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Updated",
+        description: "Resume name updated successfully",
+      });
+      
+      loadSavedResumes();
+      setEditingResumeId(null);
+    } catch (error) {
+      console.error("Error updating resume:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update resume name",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadResumeIntoEditor = (resume: SavedResume) => {
+    setResumeText(resume.content);
+    setFileName(resume.name);
+    setUploadMethod("file");
+    toast({
+      title: "Loaded",
+      description: `${resume.name} loaded into editor`,
+    });
+  };
+
+  const downloadResumeAsText = (resume: SavedResume) => {
+    const blob = new Blob([resume.content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${resume.name}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const onDrop = async (acceptedFiles: File[]) => {
@@ -204,7 +350,7 @@ export default function Upload() {
 
               {/* Import Method Tabs */}
               <Tabs value={uploadMethod} onValueChange={(v) => setUploadMethod(v as any)}>
-                <TabsList className="grid grid-cols-3 w-full">
+                <TabsList className="grid grid-cols-4 w-full">
                   <TabsTrigger value="file" className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
                     <span className="hidden sm:inline">File</span>
@@ -216,6 +362,10 @@ export default function Upload() {
                   <TabsTrigger value="linkedin" className="flex items-center gap-2">
                     <Linkedin className="w-4 h-4" />
                     <span className="hidden sm:inline">LinkedIn</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="manager" className="flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4" />
+                    <span className="hidden sm:inline">Saved</span>
                   </TabsTrigger>
                 </TabsList>
 
@@ -406,6 +556,171 @@ export default function Upload() {
                     Import LinkedIn Profile
                   </Button>
                 </TabsContent>
+
+                {/* Resume Manager Tab */}
+                <TabsContent value="manager" className="mt-4">
+                  <Card className="p-4 bg-accent/30 mb-4">
+                    <p className="text-sm text-muted-foreground">
+                      📁 Manage all your saved resumes. Edit names, download, load into editor, or delete.
+                    </p>
+                  </Card>
+
+                  {/* Search Bar */}
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search resumes..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+
+                  {/* Resumes List */}
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                    {isLoadingResumes ? (
+                      <div className="text-center py-12">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">Loading resumes...</p>
+                      </div>
+                    ) : savedResumes.filter(resume => 
+                      resume.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      resume.file_type.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).length === 0 ? (
+                      <div className="text-center py-12">
+                        <FolderOpen className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+                        <p className="text-lg font-semibold mb-2">No resumes found</p>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {searchQuery ? "Try a different search term" : "Upload your first resume to get started"}
+                        </p>
+                      </div>
+                    ) : (
+                      savedResumes
+                        .filter(resume => 
+                          resume.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          resume.file_type.toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .map((resume) => (
+                          <motion.div
+                            key={resume.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                          >
+                            <Card className="p-4 hover:shadow-md transition-shadow">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1 min-w-0">
+                                  {editingResumeId === resume.id ? (
+                                    <div className="flex gap-2 mb-2">
+                                      <Input
+                                        value={editingName}
+                                        onChange={(e) => setEditingName(e.target.value)}
+                                        className="flex-1"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            updateResumeName(resume.id, editingName);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingResumeId(null);
+                                          }
+                                        }}
+                                      />
+                                      <Button
+                                        size="sm"
+                                        onClick={() => updateResumeName(resume.id, editingName)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setEditingResumeId(null)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <h3 className="font-semibold text-lg mb-2 flex items-center gap-2 truncate">
+                                      <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+                                      <span className="truncate">{resume.name}</span>
+                                    </h3>
+                                  )}
+                                  
+                                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-3">
+                                    <Badge variant="secondary" className="flex items-center gap-1">
+                                      <Tag className="w-3 h-3" />
+                                      {resume.file_type}
+                                    </Badge>
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      {new Date(resume.created_at).toLocaleDateString()}
+                                    </span>
+                                    <span>
+                                      {resume.content.split(/\s+/).length} words
+                                    </span>
+                                  </div>
+
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {resume.content.substring(0, 150)}...
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => loadResumeIntoEditor(resume)}
+                                    className="whitespace-nowrap"
+                                  >
+                                    <ArrowRight className="w-4 h-4 mr-1" />
+                                    Load
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingResumeId(resume.id);
+                                      setEditingName(resume.name);
+                                    }}
+                                  >
+                                    <Pencil className="w-4 h-4 mr-1" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => downloadResumeAsText(resume)}
+                                  >
+                                    <Download className="w-4 h-4 mr-1" />
+                                    Download
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                      setResumeToDelete(resume.id);
+                                      setDeleteDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-1" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </div>
+                            </Card>
+                          </motion.div>
+                        ))
+                    )}
+                  </div>
+
+                  {/* Stats */}
+                  {savedResumes.length > 0 && (
+                    <div className="mt-4 p-3 bg-accent/30 rounded-lg">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Total: <span className="font-semibold text-foreground">{savedResumes.length}</span> saved resumes
+                      </p>
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
 
               {resumeText && (
@@ -518,6 +833,32 @@ export default function Upload() {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this resume. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (resumeToDelete) {
+                  deleteResume(resumeToDelete);
+                  setResumeToDelete(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
