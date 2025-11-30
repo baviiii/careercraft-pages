@@ -100,24 +100,36 @@ export default function Upload() {
   const handleLinkedInImport = async () => {
     if (!linkedinText.trim()) {
       toast({
-        title: "No text entered",
-        description: "Please paste your LinkedIn profile text.",
+        title: "Error",
+        description: "Please paste your LinkedIn profile text",
         variant: "destructive",
       });
       return;
     }
 
-    const formatted = parseLinkedInText(linkedinText);
-    setResumeText(formatted);
-    setFileName("LinkedIn Profile");
-    
-    // Save to database
-    await saveResumeToDatabase(formatted, "LinkedIn Profile", "linkedin");
-    
-    toast({
-      title: "✓ LinkedIn profile imported",
-      description: `Profile text processed and saved. ${formatted.split(/\s+/).length} words extracted.`,
-    });
+    setIsProcessing(true);
+    try {
+      const formatted = parseLinkedInText(linkedinText);
+      setResumeText(formatted);
+      setFileName("LinkedIn Profile");
+      
+      await saveResumeToDatabase(formatted, "LinkedIn Profile", "text/linkedin");
+      
+      toast({
+        title: "✓ LinkedIn profile imported",
+        description: `Profile text processed and saved. ${formatted.split(/\s+/).length} words extracted.`,
+      });
+      setLinkedinText('');
+    } catch (error) {
+      console.error('LinkedIn import error:', error);
+      toast({
+        title: "Import failed",
+        description: error instanceof Error ? error.message : "Failed to parse LinkedIn text",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleAnalyze = () => {

@@ -2,8 +2,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { parseImageWithOCR, isImageFile } from './ocrParser';
 import { enhancedParseResume, cleanAndFormatResume } from './enhancedResumeParser';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker with proper HTTPS URL
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export async function parseResume(
   file: File,
