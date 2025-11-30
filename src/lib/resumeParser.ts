@@ -1,9 +1,12 @@
 import * as pdfjsLib from 'pdfjs-dist';
+// Use bundled worker to avoid CDN fake worker failures in Vite
+// @ts-ignore Vite worker import with query param
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 import { parseImageWithOCR, isImageFile } from './ocrParser';
 import { enhancedParseResume, cleanAndFormatResume } from './enhancedResumeParser';
 
-// Configure PDF.js worker with proper HTTPS URL
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker using bundled worker URL
+(pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorkerSrc as unknown as string;
 
 export async function parseResume(
   file: File,
