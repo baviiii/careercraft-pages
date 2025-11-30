@@ -51,8 +51,8 @@ export default function Dashboard() {
   const features = [
     {
       icon: Upload,
-      title: "Upload Resume",
-      description: "Upload and parse your resume",
+      title: "Resume Manager",
+      description: "Upload, organize, and manage your resumes",
       path: "/upload",
       gradient: "from-blue-500 to-cyan-500",
     },
