@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,23 +10,24 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Upload as UploadIcon, 
   FileText, 
-  ArrowRight, 
-  Sparkles, 
   Image as ImageIcon, 
   Linkedin,
-  FolderOpen,
   Pencil,
   Trash2,
   Download,
   Search,
-  Calendar,
-  Tag
+  Plus,
+  X,
+  Check,
+  Eye,
+  Filter
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseResume } from "@/lib/resumeParser";
 import { parseLinkedInText } from "@/lib/linkedinParser";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface SavedResume {
   id: string;
@@ -41,29 +41,28 @@ interface SavedResume {
 export default function Upload() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [resumeText, setResumeText] = useState("");
-  const [jobDescription, setJobDescription] = useState("");
   const [fileName, setFileName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadMethod, setUploadMethod] = useState<"file" | "image" | "linkedin" | "manager">("file");
+  const [uploadMethod, setUploadMethod] = useState<"file" | "image" | "linkedin">("file");
   const [linkedinText, setLinkedinText] = useState("");
   const [ocrProgress, setOcrProgress] = useState(0);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   
   // Resume Manager states
   const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
   const [isLoadingResumes, setIsLoadingResumes] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<string>("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [resumeToDelete, setResumeToDelete] = useState<string | null>(null);
   const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [viewingResume, setViewingResume] = useState<SavedResume | null>(null);
 
-  // Load saved resumes when manager tab is active
+  // Load saved resumes on mount
   useEffect(() => {
-    if (uploadMethod === "manager") {
-      loadSavedResumes();
-    }
-  }, [uploadMethod]);
+    loadSavedResumes();
+  }, []);
 
   const loadSavedResumes = async () => {
     setIsLoadingResumes(true);
@@ -106,10 +105,8 @@ export default function Upload() {
 
       if (error) throw error;
       
-      // Reload resumes if on manager tab
-      if (uploadMethod === "manager") {
-        loadSavedResumes();
-      }
+      // Reload resumes after saving
+      loadSavedResumes();
     } catch (error) {
       console.error("Error saving resume:", error);
     }
@@ -166,14 +163,8 @@ export default function Upload() {
     }
   };
 
-  const loadResumeIntoEditor = (resume: SavedResume) => {
-    setResumeText(resume.content);
-    setFileName(resume.name);
-    setUploadMethod("file");
-    toast({
-      title: "Loaded",
-      description: `${resume.name} loaded into editor`,
-    });
+  const viewResume = (resume: SavedResume) => {
+    setViewingResume(resume);
   };
 
   const downloadResumeAsText = (resume: SavedResume) => {
@@ -200,7 +191,6 @@ export default function Upload() {
       const text = await parseResume(file, (progress) => {
         setOcrProgress(progress);
       });
-      setResumeText(text);
       
       const fileType = file.type.startsWith('image/') ? 'image' : file.type === 'application/pdf' ? 'pdf' : 'doc';
       
@@ -213,6 +203,9 @@ export default function Upload() {
         title: `✓ ${displayType} processed successfully`,
         description: `${file.name} parsed and saved. ${text.split(/\s+/).length} words extracted.`,
       });
+      
+      setShowUploadDialog(false);
+      setFileName("");
     } catch (error) {
       console.error("Resume parsing error:", error);
       toast({
@@ -256,8 +249,6 @@ export default function Upload() {
     setIsProcessing(true);
     try {
       const formatted = parseLinkedInText(linkedinText);
-      setResumeText(formatted);
-      setFileName("LinkedIn Profile");
       
       await saveResumeToDatabase(formatted, "LinkedIn Profile", "text/linkedin");
       
@@ -266,6 +257,7 @@ export default function Upload() {
         description: `Profile text processed and saved. ${formatted.split(/\s+/).length} words extracted.`,
       });
       setLinkedinText('');
+      setShowUploadDialog(false);
     } catch (error) {
       console.error('LinkedIn import error:', error);
       toast({
@@ -278,31 +270,24 @@ export default function Upload() {
     }
   };
 
-  const handleAnalyze = () => {
-    if (!resumeText) {
-      toast({
-        title: "Missing resume",
-        description: "Please upload your resume first.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const filteredResumes = savedResumes.filter(resume => {
+    const matchesSearch = resume.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterType === "all" || resume.file_type === filterType;
+    return matchesSearch && matchesFilter;
+  });
 
-    if (!jobDescription) {
-      toast({
-        title: "Missing job description",
-        description: "Please paste the job description to match against.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const getFileTypeIcon = (fileType: string) => {
+    if (fileType === 'pdf') return <FileText className="w-4 h-4" />;
+    if (fileType === 'image') return <ImageIcon className="w-4 h-4" />;
+    if (fileType.includes('linkedin')) return <Linkedin className="w-4 h-4" />;
+    return <FileText className="w-4 h-4" />;
+  };
 
-    // Store data in sessionStorage for the analysis page
-    sessionStorage.setItem("resumeText", resumeText);
-    sessionStorage.setItem("jobDescription", jobDescription);
-    sessionStorage.setItem("fileName", fileName);
-
-    navigate("/analysis");
+  const getFileTypeBadgeColor = (fileType: string) => {
+    if (fileType === 'pdf') return 'bg-red-500/10 text-red-500 border-red-500/20';
+    if (fileType === 'image') return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+    if (fileType.includes('linkedin')) return 'bg-blue-600/10 text-blue-600 border-blue-600/20';
+    return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
   };
 
   return (
@@ -310,537 +295,427 @@ export default function Upload() {
       {/* Header */}
       <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={() => navigate("/")} className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent">
+          <button onClick={() => navigate("/dashboard")} className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent">
             ResumeAI
           </button>
-          <Button variant="ghost" onClick={() => navigate("/")}>
-            Back to Home
+          <Button variant="ghost" onClick={() => navigate("/dashboard")}>
+            Back to Dashboard
           </Button>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="max-w-6xl mx-auto"
         >
-          <div className="text-center mb-12">
-            <h1 className="text-4xl lg:text-5xl font-bold mb-4">
-              Upload Your Resume
-            </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Upload your resume and paste the job description to get instant ATS analysis and optimization
-            </p>
+          {/* Header Section */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h1 className="text-4xl font-bold mb-2 bg-gradient-hero bg-clip-text text-transparent">
+                Resume Manager
+              </h1>
+              <p className="text-muted-foreground">
+                Organize, track, and manage all your resumes in one place
+              </p>
+            </div>
+            <Button
+              onClick={() => setShowUploadDialog(true)}
+              size="lg"
+              className="gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Add Resume
+            </Button>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Resume Upload */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="space-y-4"
-            >
-              <h2 className="text-2xl font-semibold flex items-center gap-2">
-                <FileText className="w-6 h-6 text-primary" />
-                Import Your Resume
-              </h2>
+          {/* Search and Filter Bar */}
+          <Card className="p-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search resumes by name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={filterType === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterType("all")}
+                >
+                  All
+                </Button>
+                <Button
+                  variant={filterType === "pdf" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterType("pdf")}
+                >
+                  PDF
+                </Button>
+                <Button
+                  variant={filterType === "image" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterType("image")}
+                >
+                  Image
+                </Button>
+                <Button
+                  variant={filterType === "text/linkedin" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilterType("text/linkedin")}
+                >
+                  LinkedIn
+                </Button>
+              </div>
+            </div>
+          </Card>
 
-              {/* Import Method Tabs */}
-              <Tabs value={uploadMethod} onValueChange={(v) => setUploadMethod(v as any)}>
-                <TabsList className="grid grid-cols-4 w-full">
-                  <TabsTrigger value="file" className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    <span className="hidden sm:inline">File</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="image" className="flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">Photo</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="linkedin" className="flex items-center gap-2">
-                    <Linkedin className="w-4 h-4" />
-                    <span className="hidden sm:inline">LinkedIn</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="manager" className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4" />
-                    <span className="hidden sm:inline">Saved</span>
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* File Upload Tab */}
-                <TabsContent value="file"  className="mt-4">
-                  <Card className="p-4 bg-accent/30 mb-4">
-                    <p className="text-sm text-muted-foreground">
-                      Upload your resume as PDF, DOC, or DOCX. We'll automatically extract and structure the content.
-                    </p>
-                  </Card>
-                  <div
-                    {...getRootProps()}
-                    className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300 overflow-hidden ${
-                      isDragActive
-                        ? "border-primary bg-primary/10 scale-[1.02]"
-                        : "border-border hover:border-primary hover:bg-accent/30"
-                    }`}
+          {/* Resume List */}
+          {isLoadingResumes ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : filteredResumes.length === 0 ? (
+            <div className="text-center py-20">
+              <FileText className="w-20 h-20 mx-auto text-muted-foreground/30 mb-6" />
+              <h3 className="text-2xl font-semibold mb-2">
+                {searchQuery || filterType !== "all" ? "No resumes found" : "No resumes yet"}
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                {searchQuery || filterType !== "all" 
+                  ? "Try adjusting your search or filters" 
+                  : "Upload your first resume to get started"}
+              </p>
+              <Button onClick={() => setShowUploadDialog(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Your First Resume
+              </Button>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <AnimatePresence>
+                {filteredResumes.map((resume) => (
+                  <motion.div
+                    key={resume.id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
                   >
-                    <input {...getInputProps()} />
-                    
-                    {/* Background gradient effect */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 hover:opacity-100 transition-opacity duration-500" />
-                    
-                    <div className="relative z-10">
-                      <motion.div
-                        animate={isProcessing ? { scale: [1, 1.1, 1] } : {}}
-                        transition={{ repeat: isProcessing ? Infinity : 0, duration: 1.5 }}
-                      >
-                        <UploadIcon className={`w-16 h-16 mx-auto mb-4 transition-colors ${
-                          isDragActive ? "text-primary" : "text-muted-foreground"
-                        }`} />
-                      </motion.div>
-                      
-                      {isProcessing ? (
-                        <motion.div 
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="space-y-3"
-                        >
-                          <p className="text-lg font-semibold">Parsing your resume...</p>
-                          <div className="w-64 h-2 bg-muted rounded-full mx-auto overflow-hidden">
-                            <motion.div 
-                              className="h-full bg-gradient-hero"
-                              initial={{ width: "0%" }}
-                              animate={{ width: "100%" }}
-                              transition={{ duration: 2, ease: "easeInOut" }}
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground">Extracting text and analyzing structure</p>
-                        </motion.div>
-                      ) : fileName ? (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="space-y-2"
-                        >
-                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full">
-                            <FileText className="w-4 h-4 text-primary" />
-                            <p className="text-sm font-medium">{fileName}</p>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Click or drag to replace</p>
-                        </motion.div>
-                      ) : (
-                        <div className="space-y-3">
-                          <p className="text-lg font-semibold">
-                            {isDragActive ? "Drop your resume here" : "Upload your resume"}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Drag & drop or click to browse
-                          </p>
-                          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                            <span className="px-2 py-1 bg-muted rounded">PDF</span>
-                            <span className="px-2 py-1 bg-muted rounded">DOC</span>
-                            <span className="px-2 py-1 bg-muted rounded">DOCX</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                {/* Image Upload Tab */}
-                <TabsContent value="image" className="mt-4">
-                  <Card className="p-4 bg-accent/30 mb-4">
-                    <p className="text-sm text-muted-foreground">
-                      📸 Take a photo or upload an image of your resume. Our OCR will extract the text automatically.
-                    </p>
-                  </Card>
-
-                  <div
-                    {...getRootProps()}
-                    className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300 overflow-hidden ${
-                      isDragActive
-                        ? "border-primary bg-primary/10 scale-[1.02]"
-                        : "border-border hover:border-primary hover:bg-accent/30"
-                    }`}
-                  >
-                    <input {...getInputProps()} />
-                    
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 hover:opacity-100 transition-opacity duration-500" />
-                    
-                    <div className="relative z-10">
-                      <motion.div
-                        animate={isProcessing ? { scale: [1, 1.1, 1] } : {}}
-                        transition={{ repeat: isProcessing ? Infinity : 0, duration: 1.5 }}
-                      >
-                        <ImageIcon className={`w-16 h-16 mx-auto mb-4 transition-colors ${
-                          isDragActive ? "text-primary" : "text-muted-foreground"
-                        }`} />
-                      </motion.div>
-                      
-                      {isProcessing ? (
-                        <motion.div 
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="space-y-3"
-                        >
-                          <p className="text-lg font-semibold">Scanning image with OCR...</p>
-                          {ocrProgress > 0 && (
-                            <div className="w-64 h-2 bg-muted rounded-full mx-auto overflow-hidden">
-                              <motion.div 
-                                className="h-full bg-gradient-hero"
-                                style={{ width: `${ocrProgress}%` }}
-                                transition={{ duration: 0.3 }}
+                    <Card className="h-full hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/50">
+                      <div className="p-6 space-y-4">
+                        {/* Header */}
+                        <div className="space-y-2">
+                          {editingResumeId === resume.id ? (
+                            <div className="flex gap-2">
+                              <Input
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                className="flex-1"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateResumeName(resume.id, editingName);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingResumeId(null);
+                                  }
+                                }}
                               />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => updateResumeName(resume.id, editingName)}
+                              >
+                                <Check className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setEditingResumeId(null)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-bold text-lg line-clamp-2 flex-1">
+                                {resume.name}
+                              </h3>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                  setEditingResumeId(resume.id);
+                                  setEditingName(resume.name);
+                                }}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
                             </div>
                           )}
-                          <p className="text-xs text-muted-foreground">
-                            {ocrProgress > 0 ? `${ocrProgress}% complete` : 'Initializing OCR engine...'}
-                          </p>
-                        </motion.div>
-                      ) : fileName ? (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="space-y-2"
-                        >
-                          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full">
-                            <ImageIcon className="w-4 h-4 text-primary" />
-                            <p className="text-sm font-medium">{fileName}</p>
+
+                          {/* Meta Info */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className={`${getFileTypeBadgeColor(resume.file_type)} flex items-center gap-1`}>
+                              {getFileTypeIcon(resume.file_type)}
+                              {resume.file_type}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(resume.created_at).toLocaleDateString()}
+                            </span>
                           </div>
-                          <p className="text-xs text-muted-foreground">Click or drag to replace</p>
-                        </motion.div>
-                      ) : (
-                        <div className="space-y-3">
-                          <p className="text-lg font-semibold">
-                            {isDragActive ? "Drop your image here" : "Upload resume image"}
+
+                          {/* Preview */}
+                          <p className="text-sm text-muted-foreground line-clamp-3">
+                            {resume.content.substring(0, 120)}...
                           </p>
-                          <p className="text-sm text-muted-foreground">
-                            Drag & drop or click to browse
-                          </p>
-                          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                            <span className="px-2 py-1 bg-muted rounded">JPG</span>
-                            <span className="px-2 py-1 bg-muted rounded">PNG</span>
-                            <span className="px-2 py-1 bg-muted rounded">WEBP</span>
+
+                          {/* Word Count */}
+                          <div className="text-xs text-muted-foreground">
+                            {resume.content.split(/\s+/).length} words
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </TabsContent>
 
-                {/* LinkedIn Tab */}
-                <TabsContent value="linkedin" className="mt-4">
-                  <Card className="p-4 bg-accent/30 mb-4">
-                    <p className="text-sm text-muted-foreground mb-2">
-                      💼 Copy your entire LinkedIn profile text and paste it below.
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Go to your LinkedIn profile → Select all text (Ctrl+A / Cmd+A) → Copy → Paste here
-                    </p>
-                  </Card>
-
-                  <Textarea
-                    placeholder="Paste your LinkedIn profile text here...&#10;&#10;Include your entire profile: headline, about, experience, education, skills, etc."
-                    className="min-h-[300px] text-sm mb-4"
-                    value={linkedinText}
-                    onChange={(e) => setLinkedinText(e.target.value)}
-                  />
-
-                  <Button 
-                    onClick={handleLinkedInImport}
-                    className="w-full"
-                    variant="hero"
-                    disabled={!linkedinText.trim()}
-                  >
-                    <Linkedin className="w-4 h-4 mr-2" />
-                    Import LinkedIn Profile
-                  </Button>
-                </TabsContent>
-
-                {/* Resume Manager Tab */}
-                <TabsContent value="manager" className="mt-4">
-                  <Card className="p-4 bg-accent/30 mb-4">
-                    <p className="text-sm text-muted-foreground">
-                      📁 Manage all your saved resumes. Edit names, download, load into editor, or delete.
-                    </p>
-                  </Card>
-
-                  {/* Search Bar */}
-                  <div className="relative mb-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search resumes..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-
-                  {/* Resumes List */}
-                  <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                    {isLoadingResumes ? (
-                      <div className="text-center py-12">
-                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">Loading resumes...</p>
-                      </div>
-                    ) : savedResumes.filter(resume => 
-                      resume.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      resume.file_type.toLowerCase().includes(searchQuery.toLowerCase())
-                    ).length === 0 ? (
-                      <div className="text-center py-12">
-                        <FolderOpen className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-                        <p className="text-lg font-semibold mb-2">No resumes found</p>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          {searchQuery ? "Try a different search term" : "Upload your first resume to get started"}
-                        </p>
-                      </div>
-                    ) : (
-                      savedResumes
-                        .filter(resume => 
-                          resume.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          resume.file_type.toLowerCase().includes(searchQuery.toLowerCase())
-                        )
-                        .map((resume) => (
-                          <motion.div
-                            key={resume.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
+                        {/* Actions */}
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => viewResume(resume)}
+                            className="gap-2"
                           >
-                            <Card className="p-4 hover:shadow-md transition-shadow">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                  {editingResumeId === resume.id ? (
-                                    <div className="flex gap-2 mb-2">
-                                      <Input
-                                        value={editingName}
-                                        onChange={(e) => setEditingName(e.target.value)}
-                                        className="flex-1"
-                                        autoFocus
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') {
-                                            updateResumeName(resume.id, editingName);
-                                          } else if (e.key === 'Escape') {
-                                            setEditingResumeId(null);
-                                          }
-                                        }}
-                                      />
-                                      <Button
-                                        size="sm"
-                                        onClick={() => updateResumeName(resume.id, editingName)}
-                                      >
-                                        Save
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => setEditingResumeId(null)}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <h3 className="font-semibold text-lg mb-2 flex items-center gap-2 truncate">
-                                      <FileText className="w-5 h-5 text-primary flex-shrink-0" />
-                                      <span className="truncate">{resume.name}</span>
-                                    </h3>
-                                  )}
-                                  
-                                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-3">
-                                    <Badge variant="secondary" className="flex items-center gap-1">
-                                      <Tag className="w-3 h-3" />
-                                      {resume.file_type}
-                                    </Badge>
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="w-3 h-3" />
-                                      {new Date(resume.created_at).toLocaleDateString()}
-                                    </span>
-                                    <span>
-                                      {resume.content.split(/\s+/).length} words
-                                    </span>
-                                  </div>
-
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {resume.content.substring(0, 150)}...
-                                  </p>
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={() => loadResumeIntoEditor(resume)}
-                                    className="whitespace-nowrap"
-                                  >
-                                    <ArrowRight className="w-4 h-4 mr-1" />
-                                    Load
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingResumeId(resume.id);
-                                      setEditingName(resume.name);
-                                    }}
-                                  >
-                                    <Pencil className="w-4 h-4 mr-1" />
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => downloadResumeAsText(resume)}
-                                  >
-                                    <Download className="w-4 h-4 mr-1" />
-                                    Download
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => {
-                                      setResumeToDelete(resume.id);
-                                      setDeleteDialogOpen(true);
-                                    }}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-1" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </div>
-                            </Card>
-                          </motion.div>
-                        ))
-                    )}
-                  </div>
-
-                  {/* Stats */}
-                  {savedResumes.length > 0 && (
-                    <div className="mt-4 p-3 bg-accent/30 rounded-lg">
-                      <p className="text-sm text-muted-foreground text-center">
-                        Total: <span className="font-semibold text-foreground">{savedResumes.length}</span> saved resumes
-                      </p>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-
-              {resumeText && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-card border border-border rounded-lg p-4 shadow-sm"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-primary" />
-                      Extracted Content
-                    </p>
-                    <span className="text-xs text-muted-foreground">
-                      {resumeText.split(/\s+/).length} words
-                    </span>
-                  </div>
-                  <div className="bg-muted/50 rounded-lg p-4 max-h-48 overflow-y-auto border border-border/50">
-                    <p className="text-sm text-foreground whitespace-pre-wrap line-clamp-6 leading-relaxed">
-                      {resumeText}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
-
-            {/* Job Description */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="space-y-4"
-            >
-              <h2 className="text-2xl font-semibold flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-primary" />
-                Job Description
-              </h2>
-              
-              <div className="relative">
-                <Textarea
-                  placeholder="Paste the full job description here...&#10;&#10;Include requirements, qualifications, responsibilities, and any keywords that are important for this role. The more detail you provide, the better we can optimize your resume."
-                  className="min-h-[400px] resize-none text-sm leading-relaxed"
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                />
-                {jobDescription && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full text-xs text-muted-foreground border border-border/50"
-                  >
-                    {jobDescription.split(/\s+/).filter(Boolean).length} words
+                            <Eye className="w-4 h-4" />
+                            View
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadResumeAsText(resume)}
+                            className="gap-2"
+                          >
+                            <Download className="w-4 h-4" />
+                            Export
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              setResumeToDelete(resume.id);
+                              setDeleteDialogOpen(true);
+                            }}
+                            className="col-span-2 gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
                   </motion.div>
-                )}
-              </div>
-
-              {jobDescription && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 text-sm text-muted-foreground"
-                >
-                  <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-                    <motion.div 
-                      className="h-full bg-gradient-hero"
-                      initial={{ width: "0%" }}
-                      animate={{ width: `${Math.min((jobDescription.split(/\s+/).filter(Boolean).length / 300) * 100, 100)}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  </div>
-                  <span className="text-xs">
-                    {jobDescription.split(/\s+/).filter(Boolean).length < 100 ? "Add more details" : 
-                     jobDescription.split(/\s+/).filter(Boolean).length < 300 ? "Good length" : "Excellent detail"}
-                  </span>
-                </motion.div>
-              )}
-            </motion.div>
-          </div>
-
-          {/* Analyze Button */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="mt-12 text-center"
-          >
-            <Button
-              variant="hero"
-              size="lg"
-              className="text-lg px-16 py-6 group shadow-lg hover:shadow-xl transition-all"
-              onClick={handleAnalyze}
-              disabled={!resumeText || !jobDescription}
-            >
-              <Sparkles className="w-5 h-5 mr-2" />
-              Analyze & Optimize Resume
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            
-            {(!resumeText || !jobDescription) && (
-              <motion.p 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-sm text-muted-foreground mt-4"
-              >
-                {!resumeText && !jobDescription ? "Upload your resume and paste a job description to get started" :
-                 !resumeText ? "Upload your resume to continue" :
-                 "Paste a job description to continue"}
-              </motion.p>
-            )}
-          </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
         </motion.div>
       </div>
+
+      {/* Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Add New Resume</DialogTitle>
+          </DialogHeader>
+
+          <Tabs value={uploadMethod} onValueChange={(v) => setUploadMethod(v as any)}>
+            <TabsList className="grid grid-cols-3 w-full">
+              <TabsTrigger value="file" className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                File
+              </TabsTrigger>
+              <TabsTrigger value="image" className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Photo
+              </TabsTrigger>
+              <TabsTrigger value="linkedin" className="flex items-center gap-2">
+                <Linkedin className="w-4 h-4" />
+                LinkedIn
+              </TabsTrigger>
+            </TabsList>
+
+            {/* File Upload Tab */}
+            <TabsContent value="file" className="mt-4">
+              <div
+                {...getRootProps()}
+                className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300 ${
+                  isDragActive
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover:border-primary hover:bg-accent/30"
+                }`}
+              >
+                <input {...getInputProps()} />
+                <motion.div
+                  animate={isProcessing ? { scale: [1, 1.1, 1] } : {}}
+                  transition={{ repeat: isProcessing ? Infinity : 0, duration: 1.5 }}
+                >
+                  <UploadIcon className={`w-16 h-16 mx-auto mb-4 ${
+                    isDragActive ? "text-primary" : "text-muted-foreground"
+                  }`} />
+                </motion.div>
+                
+                {isProcessing ? (
+                  <div className="space-y-3">
+                    <p className="text-lg font-semibold">Processing...</p>
+                    <div className="w-64 h-2 bg-muted rounded-full mx-auto overflow-hidden">
+                      <motion.div 
+                        className="h-full bg-gradient-hero"
+                        initial={{ width: "0%" }}
+                        animate={{ width: "100%" }}
+                        transition={{ duration: 2, ease: "easeInOut", repeat: Infinity }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-lg font-semibold">
+                      {isDragActive ? "Drop your resume here" : "Upload resume file"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">PDF, DOC, or DOCX</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Image Upload Tab */}
+            <TabsContent value="image" className="mt-4">
+              <div
+                {...getRootProps()}
+                className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300 ${
+                  isDragActive
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover:border-primary hover:bg-accent/30"
+                }`}
+              >
+                <input {...getInputProps()} />
+                <motion.div
+                  animate={isProcessing ? { scale: [1, 1.1, 1] } : {}}
+                  transition={{ repeat: isProcessing ? Infinity : 0, duration: 1.5 }}
+                >
+                  <ImageIcon className={`w-16 h-16 mx-auto mb-4 ${
+                    isDragActive ? "text-primary" : "text-muted-foreground"
+                  }`} />
+                </motion.div>
+                
+                {isProcessing ? (
+                  <div className="space-y-3">
+                    <p className="text-lg font-semibold">Scanning with OCR...</p>
+                    {ocrProgress > 0 && (
+                      <div className="w-64 h-2 bg-muted rounded-full mx-auto overflow-hidden">
+                        <motion.div 
+                          className="h-full bg-gradient-hero"
+                          style={{ width: `${ocrProgress}%` }}
+                        />
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {ocrProgress > 0 ? `${ocrProgress}% complete` : 'Starting OCR...'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-lg font-semibold">
+                      {isDragActive ? "Drop your image here" : "Upload resume image"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">JPG, PNG, or WEBP</p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* LinkedIn Tab */}
+            <TabsContent value="linkedin" className="mt-4 space-y-4">
+              <Card className="p-4 bg-accent/30">
+                <p className="text-sm text-muted-foreground">
+                  Copy your entire LinkedIn profile and paste it here. We'll format it into a resume.
+                </p>
+              </Card>
+              
+              <Input
+                placeholder="Paste your LinkedIn profile text..."
+                value={linkedinText}
+                onChange={(e) => setLinkedinText(e.target.value)}
+                className="min-h-[200px]"
+              />
+
+              <Button 
+                onClick={handleLinkedInImport}
+                className="w-full"
+                disabled={!linkedinText.trim() || isProcessing}
+              >
+                <Linkedin className="w-4 h-4 mr-2" />
+                Import LinkedIn Profile
+              </Button>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Resume Dialog */}
+      <Dialog open={!!viewingResume} onOpenChange={() => setViewingResume(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">{viewingResume?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={getFileTypeBadgeColor(viewingResume?.file_type || '')}>
+                {getFileTypeIcon(viewingResume?.file_type || '')}
+                {viewingResume?.file_type}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {viewingResume && new Date(viewingResume.created_at).toLocaleDateString()}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {viewingResume?.content.split(/\s+/).length} words
+              </span>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto border rounded-lg p-6 bg-muted/30">
+              <pre className="whitespace-pre-wrap text-sm font-mono">
+                {viewingResume?.content}
+              </pre>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => viewingResume && downloadResumeAsText(viewingResume)}
+                className="flex-1"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setViewingResume(null)}
+                className="flex-1"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Resume?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this resume. This action cannot be undone.
+              This action cannot be undone. This will permanently delete this resume from your account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -849,6 +724,7 @@ export default function Upload() {
               onClick={() => {
                 if (resumeToDelete) {
                   deleteResume(resumeToDelete);
+                  setDeleteDialogOpen(false);
                   setResumeToDelete(null);
                 }
               }}
