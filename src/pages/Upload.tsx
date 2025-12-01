@@ -709,14 +709,15 @@ export default function Upload() {
         </DialogContent>
       </Dialog>
 
-      {/* View Resume Dialog */}
+      {/* View Resume Dialog - Full Content */}
       <Dialog open={!!viewingResume} onOpenChange={() => setViewingResume(null)}>
-        <DialogContent className="max-w-4xl max-h-[85vh]">
+        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="text-2xl">{viewingResume?.name}</DialogTitle>
+            <DialogTitle className="text-2xl font-bold">{viewingResume?.name}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex-1 flex flex-col gap-4 min-h-0">
+            {/* Stats Bar */}
+            <div className="flex items-center gap-3 p-3 bg-accent/50 rounded-lg flex-wrap">
               <Badge variant="outline" className={getFileTypeBadgeColor(viewingResume?.file_type || '')}>
                 {getFileTypeIcon(viewingResume?.file_type || '')}
                 {viewingResume?.file_type}
@@ -724,16 +725,32 @@ export default function Upload() {
               <span className="text-sm text-muted-foreground">
                 {viewingResume && new Date(viewingResume.created_at).toLocaleDateString()}
               </span>
-              <span className="text-sm text-muted-foreground">
-                {viewingResume?.content.split(/\s+/).length} words
-              </span>
-            </div>
-            <div className="max-h-[55vh] overflow-y-auto border rounded-lg p-6 bg-background">
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {viewingResume?.content || "No content available"}
+              <div className="flex items-center gap-3 ml-auto text-sm">
+                <span className="font-medium">
+                  {viewingResume?.content.split(/\s+/).filter(w => w.length > 0).length || 0} words
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="font-medium">
+                  {viewingResume?.content.length || 0} chars
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="font-medium">
+                  {viewingResume?.content.split(/\n/).length || 0} lines
+                </span>
               </div>
             </div>
-            <div className="flex gap-2">
+
+            {/* Full Content View with Scroll */}
+            <div className="flex-1 overflow-y-auto border-2 rounded-lg p-8 bg-white dark:bg-gray-950 min-h-[60vh] shadow-inner">
+              <div className="max-w-4xl mx-auto">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words">
+                  {viewingResume?.content || "No content available"}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-2 border-t">
               <Button
                 onClick={() => {
                   if (viewingResume) {
@@ -741,7 +758,7 @@ export default function Upload() {
                     setViewingResume(null);
                   }
                 }}
-                variant="default"
+                size="lg"
                 className="flex-1"
               >
                 <Pencil className="w-4 h-4 mr-2" />
@@ -750,14 +767,16 @@ export default function Upload() {
               <Button
                 onClick={() => viewingResume && downloadResumeAsText(viewingResume)}
                 variant="outline"
+                size="lg"
                 className="flex-1"
               >
                 <Download className="w-4 h-4 mr-2" />
-                Download
+                Download TXT
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setViewingResume(null)}
+                size="lg"
               >
                 Close
               </Button>
@@ -768,7 +787,7 @@ export default function Upload() {
 
       {/* Edit Resume Content Dialog */}
       <Dialog open={!!editingContent} onOpenChange={() => setEditingContent(null)}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-6xl max-h-[92vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-2xl flex items-center gap-2">
               <Pencil className="w-6 h-6 text-primary" />
@@ -776,41 +795,65 @@ export default function Upload() {
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 flex flex-col gap-4 min-h-0">
-            <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-lg">
+            {/* Stats Bar */}
+            <div className="flex items-center gap-3 p-3 bg-accent/50 rounded-lg flex-wrap">
               <Badge variant="outline" className={getFileTypeBadgeColor(editingContent?.file_type || '')}>
                 {getFileTypeIcon(editingContent?.file_type || '')}
                 {editingContent?.file_type}
               </Badge>
-              <span className="text-sm text-muted-foreground">
-                {editedText.split(/\s+/).length} words
-              </span>
-              <span className="text-xs text-muted-foreground ml-auto">
-                Select text to edit, copy, paste, or rewrite your resume content
-              </span>
+              <div className="flex items-center gap-3 ml-auto text-sm">
+                <span className="font-medium">
+                  {editedText.split(/\s+/).filter(w => w.length > 0).length} words
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="font-medium">
+                  {editedText.length} chars
+                </span>
+                <span className="text-muted-foreground">•</span>
+                <span className="font-medium">
+                  {editedText.split(/\n/).length} lines
+                </span>
+              </div>
+            </div>
+
+            {/* Info Banner */}
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <p className="text-sm text-blue-600 dark:text-blue-400">
+                ✏️ Full edit mode: Select any text to modify, copy sections, or rewrite your entire resume. All changes are saved to your database.
+              </p>
             </div>
             
+            {/* Large Editable Textarea */}
             <textarea
               value={editedText}
               onChange={(e) => setEditedText(e.target.value)}
-              className="flex-1 w-full min-h-[50vh] p-4 border rounded-lg bg-background text-sm font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex-1 w-full min-h-[55vh] p-6 border-2 rounded-lg bg-white dark:bg-gray-950 text-sm leading-loose resize-none focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
               placeholder="Resume content..."
-              spellCheck={false}
+              spellCheck={true}
             />
 
+            {/* Action Buttons */}
             <div className="flex gap-2 pt-2 border-t">
               <Button
                 onClick={saveEditedContent}
                 className="flex-1"
                 size="lg"
               >
-                <Check className="w-4 h-4 mr-2" />
+                <Check className="w-5 h-5 mr-2" />
                 Save Changes
               </Button>
               <Button
                 variant="outline"
                 onClick={() => {
-                  setEditingContent(null);
-                  setEditedText("");
+                  if (editingContent && editedText !== editingContent.content) {
+                    if (confirm("You have unsaved changes. Are you sure you want to close?")) {
+                      setEditingContent(null);
+                      setEditedText("");
+                    }
+                  } else {
+                    setEditingContent(null);
+                    setEditedText("");
+                  }
                 }}
                 size="lg"
               >
