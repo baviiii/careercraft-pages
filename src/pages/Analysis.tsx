@@ -1,21 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowRight,
+  ArrowLeft,
   AlertCircle,
   CheckCircle2,
   TrendingUp,
   FileText,
-  Target,
-  Edit3,
   Sparkles,
   Wand2,
   Zap,
+  Search,
+  BarChart3,
+  Target,
+  Upload,
 } from "lucide-react";
 import { analyzeResume, ATSAnalysis } from "@/lib/atsAnalyzer";
 import { autoFixFormatting, getRecruiterReview } from "@/lib/aiRewriter";
@@ -37,7 +40,6 @@ export default function Analysis() {
   const [reviewMode, setReviewMode] = useState<"harsh" | "soft" | "tech" | "junior" | "australian">("harsh");
   const [recruiterFeedback, setRecruiterFeedback] = useState<string>("");
   const [isReviewing, setIsReviewing] = useState(false);
-
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
 
@@ -77,6 +79,7 @@ export default function Analysis() {
               Please upload your resume and job description first to use the ATS Analysis tool.
             </p>
             <Button onClick={() => navigate("/upload")}>
+              <Upload className="w-4 h-4 mr-2" />
               Go to Resume Manager
             </Button>
           </Card>
@@ -86,28 +89,26 @@ export default function Analysis() {
   }
 
   const handleAutoFix = async () => {
-    const resumeText = sessionStorage.getItem("resumeText");
     if (!resumeText) return;
 
     setIsFixing(true);
     try {
       const fixed = await autoFixFormatting(resumeText);
       sessionStorage.setItem("resumeText", fixed);
+      setResumeText(fixed);
       
-      // Re-analyze
-      const jobDescription = sessionStorage.getItem("jobDescription");
       if (jobDescription) {
         const newAnalysis = analyzeResume(fixed, jobDescription);
         setAnalysis(newAnalysis);
       }
 
       toast({
-        title: "✓ Formatting fixed",
+        title: "✓ Formatting Fixed",
         description: "Your resume has been automatically optimized for ATS compatibility.",
       });
     } catch (error) {
       toast({
-        title: "Auto-fix failed",
+        title: "Auto-fix Failed",
         description: error instanceof Error ? error.message : "Could not fix formatting",
         variant: "destructive",
       });
@@ -117,8 +118,6 @@ export default function Analysis() {
   };
 
   const handleGetReview = async () => {
-    const resumeText = sessionStorage.getItem("resumeText");
-    const jobDescription = sessionStorage.getItem("jobDescription");
     if (!resumeText || !jobDescription) return;
 
     setIsReviewing(true);
@@ -126,12 +125,12 @@ export default function Analysis() {
       const feedback = await getRecruiterReview(resumeText, jobDescription, reviewMode);
       setRecruiterFeedback(feedback);
       toast({
-        title: "✓ Review complete",
+        title: "✓ Review Complete",
         description: "See your recruiter feedback below.",
       });
     } catch (error) {
       toast({
-        title: "Review failed",
+        title: "Review Failed",
         description: error instanceof Error ? error.message : "Could not get review",
         variant: "destructive",
       });
@@ -142,8 +141,6 @@ export default function Analysis() {
 
   const getTopRecommendations = () => {
     if (!analysis) return [];
-    
-    // Sort issues by severity and return top 10
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     return analysis.issues
       .sort((a, b) => priorityOrder[a.severity] - priorityOrder[b.severity])
@@ -162,9 +159,15 @@ export default function Analysis() {
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-success";
+    if (score >= 80) return "text-green-500";
     if (score >= 60) return "text-yellow-500";
-    return "text-destructive";
+    return "text-red-500";
+  };
+
+  const getScoreGradient = (score: number) => {
+    if (score >= 80) return "from-green-500/20 to-emerald-500/20";
+    if (score >= 60) return "from-yellow-500/20 to-orange-500/20";
+    return "from-red-500/20 to-pink-500/20";
   };
 
   const getScoreLabel = (score: number) => {
@@ -177,340 +180,382 @@ export default function Analysis() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+      <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/dashboard")}
             className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
           >
             ResumeAI
           </button>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => navigate("/upload")}>
+            <Button variant="outline" onClick={() => navigate("/upload")}>
+              <Upload className="w-4 h-4 mr-2" />
               Upload New
+            </Button>
+            <Button variant="hero" onClick={() => navigate("/rewrite")}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              AI Rewrite
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="max-w-5xl mx-auto"
+          className="max-w-7xl mx-auto"
         >
-          {/* Score Card */}
-          <Card className="p-8 mb-8 bg-gradient-subtle">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">ATS Score for</p>
-                <h1 className="text-2xl font-bold mb-4">{fileName}</h1>
-                <div className="flex items-baseline gap-4">
-                  <div className={`text-6xl font-bold ${getScoreColor(analysis.score)}`}>
+          {/* Hero Score Card */}
+          <Card className={`p-8 mb-6 bg-gradient-to-br ${getScoreGradient(analysis.score)} border-2`}>
+            <div className="grid md:grid-cols-3 gap-8 items-center">
+              <div className="md:col-span-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  <p className="text-sm font-medium text-muted-foreground">ATS Compatibility Score</p>
+                </div>
+                <h1 className="text-3xl font-bold mb-4">{fileName}</h1>
+                <div className="flex items-end gap-6">
+                  <div className={`text-7xl font-black ${getScoreColor(analysis.score)}`}>
                     {analysis.score}
                   </div>
-                  <div>
-                    <p className="text-xl font-semibold">{getScoreLabel(analysis.score)}</p>
+                  <div className="pb-2">
+                    <p className="text-2xl font-bold">{getScoreLabel(analysis.score)}</p>
                     <p className="text-sm text-muted-foreground">out of 100</p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>Keyword Match</span>
-                    <span className="font-semibold">
+                    <span className="font-medium">Keyword Match</span>
+                    <span className="font-bold">
                       {analysis.keywords.matchRate.toFixed(0)}%
                     </span>
                   </div>
-                  <Progress value={analysis.keywords.matchRate} className="h-2" />
+                  <Progress value={analysis.keywords.matchRate} className="h-3" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mt-6">
-                  <div className="text-center p-4 bg-background rounded-lg border border-border">
-                    <p className="text-2xl font-bold text-success">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center p-4 bg-background/60 backdrop-blur rounded-xl border border-border">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto mb-1" />
+                    <p className="text-2xl font-bold text-green-500">
                       {analysis.keywords.matched.length}
                     </p>
-                    <p className="text-xs text-muted-foreground">Keywords Matched</p>
+                    <p className="text-xs text-muted-foreground">Matched</p>
                   </div>
-                  <div className="text-center p-4 bg-background rounded-lg border border-border">
-                    <p className="text-2xl font-bold text-destructive">
+                  <div className="text-center p-4 bg-background/60 backdrop-blur rounded-xl border border-border">
+                    <AlertCircle className="w-5 h-5 text-red-500 mx-auto mb-1" />
+                    <p className="text-2xl font-bold text-red-500">
                       {analysis.keywords.missing.length}
                     </p>
-                    <p className="text-xs text-muted-foreground">Keywords Missing</p>
+                    <p className="text-xs text-muted-foreground">Missing</p>
                   </div>
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* Real Recruiter Mode */}
-          <Card className="p-6 mb-8 bg-gradient-to-br from-accent/10 to-primary/5">
-            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-primary" />
-              Real Recruiter Mode
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Get AI-powered feedback from different recruiter perspectives
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 mb-4">
-              <Select value={reviewMode} onValueChange={(value: any) => setReviewMode(value)}>
-                <SelectTrigger className="w-full sm:w-[250px]">
-                  <SelectValue placeholder="Select review type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="harsh">🔥 Harsh Review</SelectItem>
-                  <SelectItem value="soft">💚 Soft Review</SelectItem>
-                  <SelectItem value="tech">💻 Tech Hiring Manager</SelectItem>
-                  <SelectItem value="junior">🌱 Junior-Friendly</SelectItem>
-                  <SelectItem value="australian">🇦🇺 Australian Format</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Button 
-                variant="hero"
-                onClick={handleGetReview}
-                disabled={isReviewing}
-                className="group"
-              >
-                {isReviewing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Reviewing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Get Review
-                  </>
-                )}
-              </Button>
-            </div>
+          <Tabs defaultValue="recommendations" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+              <TabsTrigger value="recommendations" className="flex items-center gap-2 py-3">
+                <Zap className="w-4 h-4" />
+                <span className="hidden sm:inline">Top Issues</span>
+              </TabsTrigger>
+              <TabsTrigger value="recruiter" className="flex items-center gap-2 py-3">
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">AI Review</span>
+              </TabsTrigger>
+              <TabsTrigger value="keywords" className="flex items-center gap-2 py-3">
+                <Search className="w-4 h-4" />
+                <span className="hidden sm:inline">Keywords</span>
+              </TabsTrigger>
+              <TabsTrigger value="all-issues" className="flex items-center gap-2 py-3">
+                <Target className="w-4 h-4" />
+                <span className="hidden sm:inline">All Issues</span>
+              </TabsTrigger>
+            </TabsList>
 
-            {recruiterFeedback && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-background rounded-lg border border-border p-6"
-              >
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  {reviewMode === "harsh" && "🔥 Harsh but Helpful"}
-                  {reviewMode === "soft" && "💚 Supportive Feedback"}
-                  {reviewMode === "tech" && "💻 Tech Manager Perspective"}
-                  {reviewMode === "junior" && "🌱 Entry-Level Focus"}
-                  {reviewMode === "australian" && "🇦🇺 Australian Standards"}
-                </h3>
-                <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-wrap">
-                  {recruiterFeedback}
+            {/* Top Recommendations Tab */}
+            <TabsContent value="recommendations" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <Zap className="w-6 h-6 text-primary" />
+                    Top {Math.min(getTopRecommendations().length, 10)} Priority Fixes
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Focus on these high-impact improvements first
+                  </p>
                 </div>
-              </motion.div>
-            )}
-          </Card>
-
-          {/* Top 10 Recommendations */}
-          <Card className="p-6 mb-8 bg-gradient-to-br from-primary/5 to-accent/5">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <Zap className="w-6 h-6 text-primary" />
-                Top {Math.min(getTopRecommendations().length, 10)} Improvements
-              </h2>
-              <Button 
-                variant="hero" 
-                onClick={handleAutoFix}
-                disabled={isFixing}
-                className="group"
-              >
-                {isFixing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Fixing...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="w-4 h-4 mr-2" />
-                    Auto-Fix Formatting
-                  </>
-                )}
-              </Button>
-            </div>
-            
-            <div className="grid gap-3">
-              {getTopRecommendations().map((issue, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="flex items-start gap-3 p-4 bg-background rounded-lg border border-border hover:border-primary/50 transition-colors"
+                <Button 
+                  size="lg"
+                  variant="hero" 
+                  onClick={handleAutoFix}
+                  disabled={isFixing}
+                  className="group"
                 >
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                    {index + 1}
+                  {isFixing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Fixing...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-5 h-5 mr-2" />
+                      Auto-Fix All
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              <div className="grid gap-4">
+                {getTopRecommendations().map((issue, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Card className="p-6 hover:shadow-lg transition-all hover:border-primary/50">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-lg">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="font-bold text-lg">{issue.title}</h3>
+                            <Badge 
+                              variant={issue.severity === "high" ? "destructive" : issue.severity === "medium" ? "default" : "secondary"}
+                            >
+                              {issue.severity}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {issue.category}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-3">{issue.description}</p>
+                          <div className="bg-primary/5 border border-primary/10 rounded-lg px-4 py-3">
+                            <p className="text-sm">
+                              <span className="font-semibold text-primary">💡 Solution: </span>
+                              {issue.suggestion}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* AI Recruiter Review Tab */}
+            <TabsContent value="recruiter" className="space-y-4">
+              <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5">
+                <div className="flex items-center gap-3 mb-4">
+                  <Sparkles className="w-7 h-7 text-primary" />
+                  <div>
+                    <h2 className="text-2xl font-bold">Real Recruiter Mode</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Get AI-powered feedback from different recruiter perspectives
+                    </p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-sm">{issue.title}</h3>
-                      <Badge 
-                        variant={issue.severity === "high" ? "destructive" : issue.severity === "medium" ? "default" : "secondary"}
-                        className="text-xs"
-                      >
-                        {issue.severity}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">{issue.description}</p>
-                    <div className="bg-accent/50 rounded px-3 py-2">
-                      <p className="text-xs">
-                        <span className="font-semibold text-primary">Fix: </span>
-                        {issue.suggestion}
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <Select value={reviewMode} onValueChange={(value: any) => setReviewMode(value)}>
+                    <SelectTrigger className="w-full sm:w-[280px]">
+                      <SelectValue placeholder="Select review type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="harsh">🔥 Harsh but Honest</SelectItem>
+                      <SelectItem value="soft">💚 Supportive Coach</SelectItem>
+                      <SelectItem value="tech">💻 Tech Hiring Manager</SelectItem>
+                      <SelectItem value="junior">🌱 Junior-Friendly</SelectItem>
+                      <SelectItem value="australian">🇦🇺 Australian Standards</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Button 
+                    size="lg"
+                    variant="hero"
+                    onClick={handleGetReview}
+                    disabled={isReviewing}
+                    className="group sm:w-auto w-full"
+                  >
+                    {isReviewing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Get AI Review
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {recruiterFeedback ? (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="bg-background rounded-xl border-2 border-primary/20 p-6"
+                    >
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="text-2xl">
+                          {reviewMode === "harsh" && "🔥"}
+                          {reviewMode === "soft" && "💚"}
+                          {reviewMode === "tech" && "💻"}
+                          {reviewMode === "junior" && "🌱"}
+                          {reviewMode === "australian" && "🇦🇺"}
+                        </div>
+                        <h3 className="font-bold text-lg">
+                          {reviewMode === "harsh" && "Harsh but Helpful Review"}
+                          {reviewMode === "soft" && "Supportive Feedback"}
+                          {reviewMode === "tech" && "Tech Manager Perspective"}
+                          {reviewMode === "junior" && "Entry-Level Focus"}
+                          {reviewMode === "australian" && "Australian Standards Check"}
+                        </h3>
+                      </div>
+                      <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap leading-relaxed">
+                        {recruiterFeedback}
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <Card className="p-8 text-center border-dashed border-2">
+                      <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">
+                        Select a review type and click "Get AI Review" to receive personalized feedback
                       </p>
-                    </div>
+                    </Card>
+                  )}
+                </AnimatePresence>
+              </Card>
+            </TabsContent>
+
+            {/* Keywords Tab */}
+            <TabsContent value="keywords" className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                <Card className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <CheckCircle2 className="w-6 h-6 text-green-500" />
+                    <h3 className="text-xl font-bold">Matched Keywords ({analysis.keywords.matched.length})</h3>
                   </div>
-                </motion.div>
-              ))}
-            </div>
-          </Card>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.keywords.matched.map((keyword, idx) => (
+                      <Badge key={idx} className="bg-green-500/10 text-green-700 border-green-500/20">
+                        {keyword}
+                      </Badge>
+                    ))}
+                  </div>
+                </Card>
 
-          {/* Issues Breakdown */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-              <AlertCircle className="w-6 h-6 text-primary" />
-              Issues Found ({analysis.issues.length})
-            </h2>
+                <Card className="p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <AlertCircle className="w-6 h-6 text-red-500" />
+                    <h3 className="text-xl font-bold">Missing Keywords ({analysis.keywords.missing.length})</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.keywords.missing.map((keyword, idx) => (
+                      <Badge key={idx} variant="destructive" className="bg-red-500/10 text-red-700 border-red-500/20">
+                        {keyword}
+                      </Badge>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            </TabsContent>
 
-            <div className="space-y-4">
-              {analysis.issues.map((issue, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                >
-                  <Card className="p-6 hover:shadow-elegant transition-shadow">
-                    <div className="flex gap-4">
-                      <div className="flex-shrink-0">
-                        {issue.severity === "high" ? (
-                          <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                            <AlertCircle className="w-5 h-5 text-destructive" />
-                          </div>
-                        ) : issue.severity === "medium" ? (
-                          <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                            <TrendingUp className="w-5 h-5 text-yellow-500" />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <FileText className="w-5 h-5 text-primary" />
-                          </div>
-                        )}
-                      </div>
+            {/* All Issues Tab */}
+            <TabsContent value="all-issues" className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <Target className="w-6 h-6 text-primary" />
+                    All Issues ({analysis.issues.length})
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Complete breakdown of areas for improvement
+                  </p>
+                </div>
+              </div>
 
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <h3 className="font-semibold text-lg">{issue.title}</h3>
-                          <Badge
-                            variant={
-                              issue.severity === "high"
-                                ? "destructive"
-                                : issue.severity === "medium"
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {issue.category}
-                          </Badge>
-                        </div>
-                        <p className="text-muted-foreground mb-3">{issue.description}</p>
-                        <div className="bg-accent/50 rounded-lg p-3">
-                          <p className="text-sm">
-                            <span className="font-semibold text-success">💡 Suggestion: </span>
-                            {issue.suggestion}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                </motion.div>
-              ))}
-
-              {analysis.issues.length === 0 && (
-                <Card className="p-8 text-center">
-                  <CheckCircle2 className="w-16 h-16 text-success mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">Great Job!</h3>
+              {analysis.issues.length === 0 ? (
+                <Card className="p-12 text-center">
+                  <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                  <h3 className="text-2xl font-bold mb-2">Perfect Score!</h3>
                   <p className="text-muted-foreground">
-                    No major issues detected. Your resume is ATS-ready.
+                    Your resume passes all ATS checks. Great job!
                   </p>
                 </Card>
+              ) : (
+                <div className="grid gap-4">
+                  {analysis.issues.map((issue, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.03 }}
+                    >
+                      <Card className="p-6 hover:shadow-lg transition-all">
+                        <div className="flex gap-4">
+                          <div className="flex-shrink-0">
+                            {issue.severity === "high" ? (
+                              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+                                <AlertCircle className="w-6 h-6 text-red-500" />
+                              </div>
+                            ) : issue.severity === "medium" ? (
+                              <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                                <TrendingUp className="w-6 h-6 text-yellow-500" />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                                <FileText className="w-6 h-6 text-blue-500" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <h3 className="font-bold text-lg">{issue.title}</h3>
+                              <div className="flex gap-2">
+                                <Badge
+                                  variant={
+                                    issue.severity === "high"
+                                      ? "destructive"
+                                      : issue.severity === "medium"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {issue.severity}
+                                </Badge>
+                                <Badge variant="outline">{issue.category}</Badge>
+                              </div>
+                            </div>
+                            <p className="text-muted-foreground mb-3">{issue.description}</p>
+                            <div className="bg-primary/5 border border-primary/10 rounded-lg p-4">
+                              <p className="text-sm">
+                                <span className="font-semibold text-primary">💡 Suggestion: </span>
+                                {issue.suggestion}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
               )}
-            </div>
-          </div>
-
-          {/* Keyword Analysis */}
-          <Card className="p-6 mb-8">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-primary" />
-              Keyword Analysis
-            </h2>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold text-success mb-3 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Matched Keywords ({analysis.keywords.matched.length})
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {analysis.keywords.matched.slice(0, 15).map((keyword, i) => (
-                    <Badge key={i} variant="secondary" className="bg-success/10 text-success">
-                      {keyword}
-                    </Badge>
-                  ))}
-                  {analysis.keywords.matched.length > 15 && (
-                    <Badge variant="outline">+{analysis.keywords.matched.length - 15} more</Badge>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-destructive mb-3 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Missing Keywords ({analysis.keywords.missing.length})
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {analysis.keywords.missing.slice(0, 15).map((keyword, i) => (
-                    <Badge key={i} variant="secondary" className="bg-destructive/10 text-destructive">
-                      {keyword}
-                    </Badge>
-                  ))}
-                  {analysis.keywords.missing.length > 15 && (
-                    <Badge variant="outline">+{analysis.keywords.missing.length - 15} more</Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              variant="hero"
-              size="lg"
-              className="text-lg px-8 group"
-              onClick={() => navigate("/editor")}
-            >
-              <Edit3 className="w-5 h-5" />
-              Edit Resume Sections
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="text-lg px-8"
-              onClick={() => navigate("/rewrite")}
-            >
-              <Sparkles className="w-5 h-5 mr-2" />
-              AI Rewrite Mode
-            </Button>
-          </div>
+            </TabsContent>
+          </Tabs>
         </motion.div>
       </div>
     </div>
