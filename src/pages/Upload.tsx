@@ -58,6 +58,8 @@ export default function Upload() {
   const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [viewingResume, setViewingResume] = useState<SavedResume | null>(null);
+  const [editingContent, setEditingContent] = useState<SavedResume | null>(null);
+  const [editedText, setEditedText] = useState("");
 
   // Load saved resumes on mount
   useEffect(() => {
@@ -165,6 +167,39 @@ export default function Upload() {
 
   const viewResume = (resume: SavedResume) => {
     setViewingResume(resume);
+  };
+
+  const startEditingContent = (resume: SavedResume) => {
+    setEditingContent(resume);
+    setEditedText(resume.content);
+  };
+
+  const saveEditedContent = async () => {
+    if (!editingContent) return;
+
+    try {
+      const { error } = await supabase
+        .from('resumes')
+        .update({ content: editedText })
+        .eq('id', editingContent.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Saved",
+        description: "Resume content updated successfully",
+      });
+
+      loadSavedResumes();
+      setEditingContent(null);
+    } catch (error) {
+      console.error("Error updating resume content:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save changes",
+        variant: "destructive",
+      });
+    }
   };
 
   const downloadResumeAsText = (resume: SavedResume) => {
@@ -483,23 +518,32 @@ export default function Upload() {
                         </div>
 
                         {/* Actions */}
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t">
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => viewResume(resume)}
-                            className="gap-2"
+                            className="gap-1"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3 h-3" />
                             View
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => downloadResumeAsText(resume)}
-                            className="gap-2"
+                            onClick={() => startEditingContent(resume)}
+                            className="gap-1"
                           >
-                            <Download className="w-4 h-4" />
+                            <Pencil className="w-3 h-3" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadResumeAsText(resume)}
+                            className="gap-1"
+                          >
+                            <Download className="w-3 h-3" />
                             Export
                           </Button>
                           <Button
@@ -509,7 +553,7 @@ export default function Upload() {
                               setResumeToDelete(resume.id);
                               setDeleteDialogOpen(true);
                             }}
-                            className="col-span-2 gap-2"
+                            className="col-span-3 gap-2"
                           >
                             <Trash2 className="w-4 h-4" />
                             Delete
@@ -667,12 +711,12 @@ export default function Upload() {
 
       {/* View Resume Dialog */}
       <Dialog open={!!viewingResume} onOpenChange={() => setViewingResume(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
+        <DialogContent className="max-w-4xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="text-2xl">{viewingResume?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className={getFileTypeBadgeColor(viewingResume?.file_type || '')}>
                 {getFileTypeIcon(viewingResume?.file_type || '')}
                 {viewingResume?.file_type}
@@ -684,14 +728,28 @@ export default function Upload() {
                 {viewingResume?.content.split(/\s+/).length} words
               </span>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto border rounded-lg p-6 bg-muted/30">
-              <pre className="whitespace-pre-wrap text-sm font-mono">
-                {viewingResume?.content}
-              </pre>
+            <div className="max-h-[55vh] overflow-y-auto border rounded-lg p-6 bg-background">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                {viewingResume?.content || "No content available"}
+              </div>
             </div>
             <div className="flex gap-2">
               <Button
+                onClick={() => {
+                  if (viewingResume) {
+                    startEditingContent(viewingResume);
+                    setViewingResume(null);
+                  }
+                }}
+                variant="default"
+                className="flex-1"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit Content
+              </Button>
+              <Button
                 onClick={() => viewingResume && downloadResumeAsText(viewingResume)}
+                variant="outline"
                 className="flex-1"
               >
                 <Download className="w-4 h-4 mr-2" />
@@ -700,9 +758,63 @@ export default function Upload() {
               <Button
                 variant="outline"
                 onClick={() => setViewingResume(null)}
-                className="flex-1"
               >
                 Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Resume Content Dialog */}
+      <Dialog open={!!editingContent} onOpenChange={() => setEditingContent(null)}>
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center gap-2">
+              <Pencil className="w-6 h-6 text-primary" />
+              Edit: {editingContent?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 flex flex-col gap-4 min-h-0">
+            <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-lg">
+              <Badge variant="outline" className={getFileTypeBadgeColor(editingContent?.file_type || '')}>
+                {getFileTypeIcon(editingContent?.file_type || '')}
+                {editingContent?.file_type}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {editedText.split(/\s+/).length} words
+              </span>
+              <span className="text-xs text-muted-foreground ml-auto">
+                Select text to edit, copy, paste, or rewrite your resume content
+              </span>
+            </div>
+            
+            <textarea
+              value={editedText}
+              onChange={(e) => setEditedText(e.target.value)}
+              className="flex-1 w-full min-h-[50vh] p-4 border rounded-lg bg-background text-sm font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Resume content..."
+              spellCheck={false}
+            />
+
+            <div className="flex gap-2 pt-2 border-t">
+              <Button
+                onClick={saveEditedContent}
+                className="flex-1"
+                size="lg"
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Save Changes
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingContent(null);
+                  setEditedText("");
+                }}
+                size="lg"
+              >
+                Cancel
               </Button>
             </div>
           </div>
