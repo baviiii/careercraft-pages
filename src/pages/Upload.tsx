@@ -31,7 +31,8 @@ import { parseResume } from "@/lib/resumeParser";
 import { parseLinkedInText } from "@/lib/linkedinParser";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface SavedResume {
   id: string;
@@ -72,6 +73,10 @@ export default function Upload() {
   const [editedText, setEditedText] = useState("");
   const [editingMetadata, setEditingMetadata] = useState<SavedResume | null>(null);
   const [newTag, setNewTag] = useState("");
+  const [tempCategory, setTempCategory] = useState<string>("");
+  const [tempTags, setTempTags] = useState<string[]>([]);
+  const [tempNotes, setTempNotes] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"date" | "name">("date");
   const [availableCategories] = useState([
     "Software Engineering",
     "Product Management",
@@ -329,20 +334,30 @@ export default function Upload() {
     }
   };
 
-  const updateResumeMetadata = async (
-    id: string,
-    updates: { category?: string; tags?: string[]; notes?: string }
-  ) => {
+  const openMetadataEditor = (resume: SavedResume) => {
+    setEditingMetadata(resume);
+    setTempCategory(resume.category || "");
+    setTempTags(resume.tags || []);
+    setTempNotes(resume.notes || "");
+  };
+
+  const saveMetadata = async () => {
+    if (!editingMetadata) return;
+
     try {
       const { error } = await supabase
         .from('resumes')
-        .update(updates)
-        .eq('id', id);
+        .update({
+          category: tempCategory || null,
+          tags: tempTags,
+          notes: tempNotes || null,
+        })
+        .eq('id', editingMetadata.id);
 
       if (error) throw error;
 
       toast({
-        title: "Updated",
+        title: "✓ Saved",
         description: "Resume metadata updated successfully",
       });
 
@@ -356,6 +371,17 @@ export default function Upload() {
         variant: "destructive",
       });
     }
+  };
+
+  const addTag = (tag: string) => {
+    if (tag.trim() && !tempTags.includes(tag.trim())) {
+      setTempTags([...tempTags, tag.trim()]);
+      setNewTag("");
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    setTempTags(tempTags.filter(t => t !== tag));
   };
 
   const allTags = Array.from(
@@ -375,6 +401,13 @@ export default function Upload() {
     const matchesTags = filterTags.length === 0 || 
                         filterTags.every(tag => resume.tags?.includes(tag));
     return matchesSearch && matchesFileType && matchesCategory && matchesTags;
+  });
+
+  const sortedResumes = [...filteredResumes].sort((a, b) => {
+    if (sortBy === "date") {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+    return a.name.localeCompare(b.name);
   });
 
   const getFileTypeIcon = (fileType: string) => {
@@ -582,9 +615,23 @@ export default function Upload() {
                 </div>
               )}
 
-              {/* Results Count */}
-              <div className="text-sm text-muted-foreground">
-                Showing {filteredResumes.length} of {savedResumes.length} resumes
+              {/* Results Count and Sort */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Showing {filteredResumes.length} of {savedResumes.length} resumes
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Sort by:</span>
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as "date" | "name")}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="name">Name</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </Card>
@@ -613,7 +660,7 @@ export default function Upload() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               <AnimatePresence>
-                {filteredResumes.map((resume) => (
+                {sortedResumes.map((resume) => (
                   <motion.div
                     key={resume.id}
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -751,11 +798,11 @@ export default function Upload() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setEditingMetadata(resume)}
+                            onClick={() => openMetadataEditor(resume)}
                             className="gap-1"
                           >
                             <TagIcon className="w-3 h-3" />
-                            Tags
+                            Organize
                           </Button>
                           <Button
                             size="sm"
@@ -794,6 +841,9 @@ export default function Upload() {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">Add New Resume</DialogTitle>
+            <DialogDescription>
+              Upload a resume file, scan an image, or import from LinkedIn
+            </DialogDescription>
           </DialogHeader>
 
           <Tabs value={uploadMethod} onValueChange={(v) => setUploadMethod(v as any)}>
@@ -934,6 +984,9 @@ export default function Upload() {
         <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">{viewingResume?.name}</DialogTitle>
+            <DialogDescription>
+              Full resume preview with all content
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 flex flex-col gap-4 min-h-0">
             {/* Stats Bar */}
@@ -1013,6 +1066,9 @@ export default function Upload() {
               <Pencil className="w-6 h-6 text-primary" />
               Edit: {editingContent?.name}
             </DialogTitle>
+            <DialogDescription>
+              Edit the full text content of your resume
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 flex flex-col gap-4 min-h-0">
             {/* Stats Bar */}
@@ -1084,68 +1140,62 @@ export default function Upload() {
         </DialogContent>
       </Dialog>
 
-      {/* Metadata Editor Dialog */}
+      {/* Metadata Editor Dialog - Improved UX */}
       <Dialog open={!!editingMetadata} onOpenChange={() => setEditingMetadata(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl flex items-center gap-2">
+            <DialogTitle className="text-2xl flex items-center gap-2 pb-2">
               <TagIcon className="w-6 h-6 text-primary" />
-              Organize: {editingMetadata?.name}
+              Organize Resume
             </DialogTitle>
+            <DialogDescription className="text-base">
+              {editingMetadata?.name}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6">
+          
+          <div className="space-y-6 py-4">
             {/* Category Selection */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <FolderOpen className="w-4 h-4" />
+            <div className="space-y-3">
+              <label className="text-sm font-semibold flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-blue-600" />
                 Category
               </label>
-              <select
-                className="w-full p-2 border rounded-lg bg-background"
-                value={editingMetadata?.category || ""}
-                onChange={(e) => {
-                  if (editingMetadata) {
-                    updateResumeMetadata(editingMetadata.id, { 
-                      category: e.target.value || null 
-                    });
-                  }
-                }}
-              >
-                <option value="">No Category</option>
-                {availableCategories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+              <Select value={tempCategory} onValueChange={setTempCategory}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No Category</SelectItem>
+                  {availableCategories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Tags Management */}
             <div className="space-y-3">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <TagIcon className="w-4 h-4" />
+              <label className="text-sm font-semibold flex items-center gap-2">
+                <TagIcon className="w-4 h-4 text-green-600" />
                 Tags
               </label>
               
               {/* Current Tags */}
-              <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border rounded-lg bg-accent/30">
-                {editingMetadata?.tags && editingMetadata.tags.length > 0 ? (
-                  editingMetadata.tags.map((tag) => (
+              <div className="flex flex-wrap gap-2 min-h-[60px] p-4 border-2 border-dashed rounded-lg bg-accent/20">
+                {tempTags.length > 0 ? (
+                  tempTags.map((tag) => (
                     <Badge
                       key={tag}
                       variant="secondary"
-                      className="gap-1 cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
-                      onClick={() => {
-                        if (editingMetadata) {
-                          const newTags = editingMetadata.tags?.filter(t => t !== tag) || [];
-                          updateResumeMetadata(editingMetadata.id, { tags: newTags });
-                        }
-                      }}
+                      className="gap-1 px-3 py-1.5 text-sm cursor-pointer hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                      onClick={() => removeTag(tag)}
                     >
                       {tag}
-                      <X className="w-3 h-3" />
+                      <X className="w-3.5 h-3.5" />
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-muted-foreground">No tags yet</span>
+                  <span className="text-sm text-muted-foreground">No tags yet - add some below</span>
                 )}
               </div>
 
@@ -1156,30 +1206,17 @@ export default function Upload() {
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newTag.trim() && editingMetadata) {
-                      const currentTags = editingMetadata.tags || [];
-                      if (!currentTags.includes(newTag.trim())) {
-                        updateResumeMetadata(editingMetadata.id, {
-                          tags: [...currentTags, newTag.trim()]
-                        });
-                        setNewTag("");
-                      }
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addTag(newTag);
                     }
                   }}
+                  className="flex-1"
                 />
                 <Button
-                  onClick={() => {
-                    if (newTag.trim() && editingMetadata) {
-                      const currentTags = editingMetadata.tags || [];
-                      if (!currentTags.includes(newTag.trim())) {
-                        updateResumeMetadata(editingMetadata.id, {
-                          tags: [...currentTags, newTag.trim()]
-                        });
-                        setNewTag("");
-                      }
-                    }
-                  }}
+                  onClick={() => addTag(newTag)}
                   disabled={!newTag.trim()}
+                  type="button"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add
@@ -1188,23 +1225,14 @@ export default function Upload() {
 
               {/* Suggested Tags */}
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Quick add common tags:</p>
+                <p className="text-xs text-muted-foreground">Quick add:</p>
                 <div className="flex flex-wrap gap-2">
-                  {["React", "TypeScript", "Senior", "Mid-Level", "Junior", "Remote", "Full-time", "Contract"].map((suggestedTag) => (
+                  {["React", "TypeScript", "Python", "Senior", "Mid-Level", "Junior", "Remote", "Full-time", "Contract", "Leadership"].map((suggestedTag) => (
                     <Badge
                       key={suggestedTag}
                       variant="outline"
-                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
-                      onClick={() => {
-                        if (editingMetadata) {
-                          const currentTags = editingMetadata.tags || [];
-                          if (!currentTags.includes(suggestedTag)) {
-                            updateResumeMetadata(editingMetadata.id, {
-                              tags: [...currentTags, suggestedTag]
-                            });
-                          }
-                        }
-                      }}
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+                      onClick={() => addTag(suggestedTag)}
                     >
                       + {suggestedTag}
                     </Badge>
@@ -1214,29 +1242,38 @@ export default function Upload() {
             </div>
 
             {/* Notes */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <StickyNote className="w-4 h-4" />
+            <div className="space-y-3">
+              <label className="text-sm font-semibold flex items-center gap-2">
+                <StickyNote className="w-4 h-4 text-yellow-600" />
                 Internal Notes
               </label>
               <textarea
-                placeholder="Add internal notes or comments about this resume..."
-                className="w-full min-h-[100px] p-3 border rounded-lg bg-background text-sm resize-none"
-                value={editingMetadata?.notes || ""}
-                onChange={(e) => {
-                  if (editingMetadata) {
-                    updateResumeMetadata(editingMetadata.id, { 
-                      notes: e.target.value || null 
-                    });
-                  }
-                }}
+                placeholder="Add internal notes or comments about this resume...&#10;&#10;For example:&#10;- Interview scheduled for next week&#10;- Strong Python background&#10;- Referred by John"
+                className="w-full min-h-[120px] p-4 border-2 rounded-lg bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                value={tempNotes}
+                onChange={(e) => setTempNotes(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                {tempNotes.length} / 1000 characters
+              </p>
             </div>
 
-            {/* Close Button */}
-            <div className="flex justify-end pt-2 border-t">
-              <Button onClick={() => setEditingMetadata(null)}>
-                Done
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4 border-t">
+              <Button
+                onClick={saveMetadata}
+                className="flex-1"
+                size="lg"
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Save Changes
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setEditingMetadata(null)}
+                size="lg"
+              >
+                Cancel
               </Button>
             </div>
           </div>
