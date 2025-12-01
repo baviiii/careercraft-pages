@@ -1160,12 +1160,15 @@ export default function Upload() {
                 <FolderOpen className="w-4 h-4 text-blue-600" />
                 Category
               </label>
-              <Select value={tempCategory} onValueChange={setTempCategory}>
+              <Select 
+                value={tempCategory || "none"} 
+                onValueChange={(val) => setTempCategory(val === "none" ? "" : val)}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Category</SelectItem>
+                  <SelectItem value="none">No Category</SelectItem>
                   {availableCategories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
