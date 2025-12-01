@@ -50,26 +50,59 @@ export default function Editor() {
     location: "",
   });
 
+  const [resumeText, setResumeText] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+
   useEffect(() => {
-    const resumeText = sessionStorage.getItem("resumeText");
-    const jobDescription = sessionStorage.getItem("jobDescription");
+    const storedResume = sessionStorage.getItem("resumeText");
+    const storedJob = sessionStorage.getItem("jobDescription");
 
-    if (!resumeText || !jobDescription) {
-      navigate("/upload");
-      return;
+    if (storedResume && storedJob) {
+      setResumeText(storedResume);
+      setJobDescription(storedJob);
+
+      // Extract keywords from job description
+      const keywords = extractKeywords(storedJob);
+      setJobKeywords(keywords);
+
+      // Parse resume into sections
+      const parsedSections = parseResumeIntoSections(storedResume);
+      setSections(parsedSections);
+      
+      // Try to extract contact info
+      extractContactInfo(storedResume);
     }
+  }, []);
 
-    // Extract keywords from job description
-    const keywords = extractKeywords(jobDescription);
-    setJobKeywords(keywords);
-
-    // Parse resume into sections
-    const parsedSections = parseResumeIntoSections(resumeText);
-    setSections(parsedSections);
-    
-    // Try to extract contact info
-    extractContactInfo(resumeText);
-  }, [navigate]);
+  // Show message if no data
+  if (!resumeText || !jobDescription) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
+          <div className="container mx-auto px-4 py-4">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
+            >
+              ResumeAI
+            </button>
+          </div>
+        </header>
+        <div className="container mx-auto px-4 py-12">
+          <Card className="max-w-2xl mx-auto p-8 text-center">
+            <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <h2 className="text-2xl font-bold mb-2">No Resume Uploaded</h2>
+            <p className="text-muted-foreground mb-6">
+              Please upload your resume and job description first to use the Resume Editor.
+            </p>
+            <Button onClick={() => navigate("/upload")}>
+              Go to Resume Manager
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const extractKeywords = (text: string): string[] => {
     const words = text.toLowerCase().match(/\b\w+\b/g) || [];

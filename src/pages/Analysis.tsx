@@ -38,20 +38,52 @@ export default function Analysis() {
   const [recruiterFeedback, setRecruiterFeedback] = useState<string>("");
   const [isReviewing, setIsReviewing] = useState(false);
 
+  const [resumeText, setResumeText] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+
   useEffect(() => {
-    const resumeText = sessionStorage.getItem("resumeText");
-    const jobDescription = sessionStorage.getItem("jobDescription");
+    const storedResume = sessionStorage.getItem("resumeText");
+    const storedJob = sessionStorage.getItem("jobDescription");
     const storedFileName = sessionStorage.getItem("fileName");
 
-    if (!resumeText || !jobDescription) {
-      navigate("/upload");
-      return;
+    if (storedResume && storedJob) {
+      setResumeText(storedResume);
+      setJobDescription(storedJob);
+      setFileName(storedFileName || "Resume");
+      const result = analyzeResume(storedResume, storedJob);
+      setAnalysis(result);
     }
+  }, []);
 
-    setFileName(storedFileName || "Resume");
-    const result = analyzeResume(resumeText, jobDescription);
-    setAnalysis(result);
-  }, [navigate]);
+  // Show message if no data
+  if (!resumeText || !jobDescription) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
+          <div className="container mx-auto px-4 py-4">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
+            >
+              ResumeAI
+            </button>
+          </div>
+        </header>
+        <div className="container mx-auto px-4 py-12">
+          <Card className="max-w-2xl mx-auto p-8 text-center">
+            <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <h2 className="text-2xl font-bold mb-2">No Resume Uploaded</h2>
+            <p className="text-muted-foreground mb-6">
+              Please upload your resume and job description first to use the ATS Analysis tool.
+            </p>
+            <Button onClick={() => navigate("/upload")}>
+              Go to Resume Manager
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const handleAutoFix = async () => {
     const resumeText = sessionStorage.getItem("resumeText");
