@@ -79,36 +79,56 @@ export type Database = {
       }
       resumes: {
         Row: {
+          category: string | null
           content: string
           created_at: string
           file_type: string | null
           id: string
+          job_application_id: string | null
           name: string
+          notes: string | null
           original_filename: string | null
+          tags: string[] | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          category?: string | null
           content: string
           created_at?: string
           file_type?: string | null
           id?: string
+          job_application_id?: string | null
           name: string
+          notes?: string | null
           original_filename?: string | null
+          tags?: string[] | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          category?: string | null
           content?: string
           created_at?: string
           file_type?: string | null
           id?: string
+          job_application_id?: string | null
           name?: string
+          notes?: string | null
           original_filename?: string | null
+          tags?: string[] | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "resumes_job_application_id_fkey"
+            columns: ["job_application_id"]
+            isOneToOne: false
+            referencedRelation: "job_applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

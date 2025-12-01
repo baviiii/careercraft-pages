@@ -20,7 +20,11 @@ import {
   X,
   Check,
   Eye,
-  Filter
+  Filter,
+  Tag as TagIcon,
+  FolderOpen,
+  StickyNote,
+  Briefcase
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseResume } from "@/lib/resumeParser";
@@ -34,6 +38,10 @@ interface SavedResume {
   name: string;
   content: string;
   file_type: string;
+  category?: string | null;
+  tags?: string[] | null;
+  notes?: string | null;
+  job_application_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +61,8 @@ export default function Upload() {
   const [isLoadingResumes, setIsLoadingResumes] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterTags, setFilterTags] = useState<string[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [resumeToDelete, setResumeToDelete] = useState<string | null>(null);
   const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
@@ -60,6 +70,20 @@ export default function Upload() {
   const [viewingResume, setViewingResume] = useState<SavedResume | null>(null);
   const [editingContent, setEditingContent] = useState<SavedResume | null>(null);
   const [editedText, setEditedText] = useState("");
+  const [editingMetadata, setEditingMetadata] = useState<SavedResume | null>(null);
+  const [newTag, setNewTag] = useState("");
+  const [availableCategories] = useState([
+    "Software Engineering",
+    "Product Management",
+    "Design & UX",
+    "Marketing",
+    "Sales",
+    "Data Science",
+    "Finance",
+    "Operations",
+    "Executive",
+    "Other"
+  ]);
 
   // Load saved resumes on mount
   useEffect(() => {
@@ -305,10 +329,52 @@ export default function Upload() {
     }
   };
 
+  const updateResumeMetadata = async (
+    id: string,
+    updates: { category?: string; tags?: string[]; notes?: string }
+  ) => {
+    try {
+      const { error } = await supabase
+        .from('resumes')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Updated",
+        description: "Resume metadata updated successfully",
+      });
+
+      loadSavedResumes();
+      setEditingMetadata(null);
+    } catch (error) {
+      console.error("Error updating metadata:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update metadata",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const allTags = Array.from(
+    new Set(savedResumes.flatMap(r => r.tags || []))
+  ).sort();
+
+  const allCategories = Array.from(
+    new Set(savedResumes.map(r => r.category).filter(Boolean))
+  ).sort();
+
   const filteredResumes = savedResumes.filter(resume => {
-    const matchesSearch = resume.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterType === "all" || resume.file_type === filterType;
-    return matchesSearch && matchesFilter;
+    const matchesSearch = resume.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         resume.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (resume.notes && resume.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesFileType = filterType === "all" || resume.file_type === filterType;
+    const matchesCategory = filterCategory === "all" || resume.category === filterCategory;
+    const matchesTags = filterTags.length === 0 || 
+                        filterTags.every(tag => resume.tags?.includes(tag));
+    return matchesSearch && matchesFileType && matchesCategory && matchesTags;
   });
 
   const getFileTypeIcon = (fileType: string) => {
@@ -346,7 +412,7 @@ export default function Upload() {
           transition={{ duration: 0.5 }}
         >
           {/* Header Section */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-4xl font-bold mb-2 bg-gradient-hero bg-clip-text text-transparent">
                 Resume Manager
@@ -365,47 +431,160 @@ export default function Upload() {
             </Button>
           </div>
 
+          {/* Dashboard Stats */}
+          {savedResumes.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Resumes</p>
+                    <p className="text-2xl font-bold">{savedResumes.length}</p>
+                  </div>
+                  <FileText className="w-8 h-8 text-primary/50" />
+                </div>
+              </Card>
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Categories</p>
+                    <p className="text-2xl font-bold">{allCategories.length}</p>
+                  </div>
+                  <FolderOpen className="w-8 h-8 text-blue-500/50" />
+                </div>
+              </Card>
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Unique Tags</p>
+                    <p className="text-2xl font-bold">{allTags.length}</p>
+                  </div>
+                  <TagIcon className="w-8 h-8 text-green-500/50" />
+                </div>
+              </Card>
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">With Notes</p>
+                    <p className="text-2xl font-bold">
+                      {savedResumes.filter(r => r.notes).length}
+                    </p>
+                  </div>
+                  <StickyNote className="w-8 h-8 text-yellow-500/50" />
+                </div>
+              </Card>
+            </div>
+          )}
+
           {/* Search and Filter Bar */}
           <Card className="p-4 mb-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
+            <div className="space-y-4">
+              {/* Search */}
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search resumes by name..."
+                  placeholder="Search by name, content, or notes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
                 />
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant={filterType === "all" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterType("all")}
-                >
-                  All
-                </Button>
-                <Button
-                  variant={filterType === "pdf" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterType("pdf")}
-                >
-                  PDF
-                </Button>
-                <Button
-                  variant={filterType === "image" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterType("image")}
-                >
-                  Image
-                </Button>
-                <Button
-                  variant={filterType === "text/linkedin" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilterType("text/linkedin")}
-                >
-                  LinkedIn
-                </Button>
+
+              {/* Filters Row */}
+              <div className="flex flex-wrap gap-3">
+                {/* File Type Filter */}
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="text-xs">File Type:</Badge>
+                  <Button
+                    variant={filterType === "all" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilterType("all")}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    variant={filterType === "pdf" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilterType("pdf")}
+                  >
+                    PDF
+                  </Button>
+                  <Button
+                    variant={filterType === "image" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilterType("image")}
+                  >
+                    Image
+                  </Button>
+                  <Button
+                    variant={filterType === "text/linkedin" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilterType("text/linkedin")}
+                  >
+                    LinkedIn
+                  </Button>
+                </div>
+
+                {/* Category Filter */}
+                {allCategories.length > 0 && (
+                  <div className="flex gap-2 items-center border-l pl-3">
+                    <Badge variant="outline" className="text-xs">Category:</Badge>
+                    <Button
+                      variant={filterCategory === "all" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFilterCategory("all")}
+                    >
+                      All
+                    </Button>
+                    {allCategories.map((cat) => (
+                      <Button
+                        key={cat}
+                        variant={filterCategory === cat ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterCategory(cat || "all")}
+                      >
+                        {cat}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Tags Filter */}
+              {allTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Badge variant="outline" className="text-xs">Filter by Tags:</Badge>
+                  {allTags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant={filterTags.includes(tag) ? "default" : "outline"}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        if (filterTags.includes(tag)) {
+                          setFilterTags(filterTags.filter(t => t !== tag));
+                        } else {
+                          setFilterTags([...filterTags, tag]);
+                        }
+                      }}
+                    >
+                      <TagIcon className="w-3 h-3 mr-1" />
+                      {tag}
+                    </Badge>
+                  ))}
+                  {filterTags.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFilterTags([])}
+                    >
+                      Clear tags
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Results Count */}
+              <div className="text-sm text-muted-foreground">
+                Showing {filteredResumes.length} of {savedResumes.length} resumes
               </div>
             </div>
           </Card>
@@ -501,10 +680,42 @@ export default function Upload() {
                               {getFileTypeIcon(resume.file_type)}
                               {resume.file_type}
                             </Badge>
+                            {resume.category && (
+                              <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20 flex items-center gap-1">
+                                <FolderOpen className="w-3 h-3" />
+                                {resume.category}
+                              </Badge>
+                            )}
                             <span className="text-xs text-muted-foreground">
                               {new Date(resume.created_at).toLocaleDateString()}
                             </span>
                           </div>
+
+                          {/* Tags */}
+                          {resume.tags && resume.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {resume.tags.slice(0, 3).map((tag) => (
+                                <Badge key={tag} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                              {resume.tags.length > 3 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{resume.tags.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Notes Preview */}
+                          {resume.notes && (
+                            <div className="flex items-start gap-1 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-xs">
+                              <StickyNote className="w-3 h-3 text-yellow-600 flex-shrink-0 mt-0.5" />
+                              <p className="text-yellow-700 dark:text-yellow-500 line-clamp-2">
+                                {resume.notes}
+                              </p>
+                            </div>
+                          )}
 
                           {/* Preview */}
                           <p className="text-sm text-muted-foreground line-clamp-3">
@@ -518,7 +729,7 @@ export default function Upload() {
                         </div>
 
                         {/* Actions */}
-                        <div className="grid grid-cols-3 gap-2 pt-2 border-t">
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                           <Button
                             size="sm"
                             variant="outline"
@@ -540,6 +751,15 @@ export default function Upload() {
                           <Button
                             size="sm"
                             variant="outline"
+                            onClick={() => setEditingMetadata(resume)}
+                            className="gap-1"
+                          >
+                            <TagIcon className="w-3 h-3" />
+                            Tags
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => downloadResumeAsText(resume)}
                             className="gap-1"
                           >
@@ -553,7 +773,7 @@ export default function Upload() {
                               setResumeToDelete(resume.id);
                               setDeleteDialogOpen(true);
                             }}
-                            className="col-span-3 gap-2"
+                            className="col-span-2 gap-2"
                           >
                             <Trash2 className="w-4 h-4" />
                             Delete
@@ -858,6 +1078,165 @@ export default function Upload() {
                 size="lg"
               >
                 Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Metadata Editor Dialog */}
+      <Dialog open={!!editingMetadata} onOpenChange={() => setEditingMetadata(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center gap-2">
+              <TagIcon className="w-6 h-6 text-primary" />
+              Organize: {editingMetadata?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Category Selection */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <FolderOpen className="w-4 h-4" />
+                Category
+              </label>
+              <select
+                className="w-full p-2 border rounded-lg bg-background"
+                value={editingMetadata?.category || ""}
+                onChange={(e) => {
+                  if (editingMetadata) {
+                    updateResumeMetadata(editingMetadata.id, { 
+                      category: e.target.value || null 
+                    });
+                  }
+                }}
+              >
+                <option value="">No Category</option>
+                {availableCategories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Tags Management */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <TagIcon className="w-4 h-4" />
+                Tags
+              </label>
+              
+              {/* Current Tags */}
+              <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border rounded-lg bg-accent/30">
+                {editingMetadata?.tags && editingMetadata.tags.length > 0 ? (
+                  editingMetadata.tags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="gap-1 cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => {
+                        if (editingMetadata) {
+                          const newTags = editingMetadata.tags?.filter(t => t !== tag) || [];
+                          updateResumeMetadata(editingMetadata.id, { tags: newTags });
+                        }
+                      }}
+                    >
+                      {tag}
+                      <X className="w-3 h-3" />
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">No tags yet</span>
+                )}
+              </div>
+
+              {/* Add Tag Input */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add tag (e.g., React, Senior, Remote)"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newTag.trim() && editingMetadata) {
+                      const currentTags = editingMetadata.tags || [];
+                      if (!currentTags.includes(newTag.trim())) {
+                        updateResumeMetadata(editingMetadata.id, {
+                          tags: [...currentTags, newTag.trim()]
+                        });
+                        setNewTag("");
+                      }
+                    }
+                  }}
+                />
+                <Button
+                  onClick={() => {
+                    if (newTag.trim() && editingMetadata) {
+                      const currentTags = editingMetadata.tags || [];
+                      if (!currentTags.includes(newTag.trim())) {
+                        updateResumeMetadata(editingMetadata.id, {
+                          tags: [...currentTags, newTag.trim()]
+                        });
+                        setNewTag("");
+                      }
+                    }
+                  }}
+                  disabled={!newTag.trim()}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+
+              {/* Suggested Tags */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Quick add common tags:</p>
+                <div className="flex flex-wrap gap-2">
+                  {["React", "TypeScript", "Senior", "Mid-Level", "Junior", "Remote", "Full-time", "Contract"].map((suggestedTag) => (
+                    <Badge
+                      key={suggestedTag}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
+                      onClick={() => {
+                        if (editingMetadata) {
+                          const currentTags = editingMetadata.tags || [];
+                          if (!currentTags.includes(suggestedTag)) {
+                            updateResumeMetadata(editingMetadata.id, {
+                              tags: [...currentTags, suggestedTag]
+                            });
+                          }
+                        }
+                      }}
+                    >
+                      + {suggestedTag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <StickyNote className="w-4 h-4" />
+                Internal Notes
+              </label>
+              <textarea
+                placeholder="Add internal notes or comments about this resume..."
+                className="w-full min-h-[100px] p-3 border rounded-lg bg-background text-sm resize-none"
+                value={editingMetadata?.notes || ""}
+                onChange={(e) => {
+                  if (editingMetadata) {
+                    updateResumeMetadata(editingMetadata.id, { 
+                      notes: e.target.value || null 
+                    });
+                  }
+                }}
+              />
+            </div>
+
+            {/* Close Button */}
+            <div className="flex justify-end pt-2 border-t">
+              <Button onClick={() => setEditingMetadata(null)}>
+                Done
               </Button>
             </div>
           </div>
