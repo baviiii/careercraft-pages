@@ -24,7 +24,8 @@ import {
   Tag as TagIcon,
   FolderOpen,
   StickyNote,
-  Briefcase
+  Briefcase,
+  Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseResume } from "@/lib/resumeParser";
@@ -102,6 +103,12 @@ export default function Upload() {
     "Executive",
     "Other"
   ]);
+  
+  // Job description dialog states
+  const [jobDescDialogOpen, setJobDescDialogOpen] = useState(false);
+  const [jobDescriptionInput, setJobDescriptionInput] = useState("");
+  const [resumeToAnalyze, setResumeToAnalyze] = useState<SavedResume | null>(null);
+  const [actionType, setActionType] = useState<"analyze" | "rewrite">("analyze");
 
   // Load saved resumes on mount
   useEffect(() => {
@@ -405,6 +412,49 @@ export default function Upload() {
 
   const removeTag = (tag: string) => {
     setTempTags(tempTags.filter(t => t !== tag));
+  };
+
+  // New functions for analyze and rewrite
+  const analyzeResume = (resume: SavedResume) => {
+    setResumeToAnalyze(resume);
+    setActionType("analyze");
+    setJobDescriptionInput("");
+    setJobDescDialogOpen(true);
+  };
+
+  const rewriteResume = (resume: SavedResume) => {
+    setResumeToAnalyze(resume);
+    setActionType("rewrite");
+    setJobDescriptionInput("");
+    setJobDescDialogOpen(true);
+  };
+
+  const proceedWithAction = () => {
+    if (!resumeToAnalyze || !jobDescriptionInput.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide a job description",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Set sessionStorage
+    sessionStorage.setItem("resumeText", resumeToAnalyze.content);
+    sessionStorage.setItem("jobDescription", jobDescriptionInput);
+    sessionStorage.setItem("fileName", resumeToAnalyze.name);
+
+    // Navigate
+    if (actionType === "analyze") {
+      navigate("/analysis");
+    } else {
+      navigate("/rewrite");
+    }
+
+    // Reset
+    setJobDescDialogOpen(false);
+    setResumeToAnalyze(null);
+    setJobDescriptionInput("");
   };
 
   const allTags = Array.from(
@@ -862,43 +912,74 @@ export default function Upload() {
                         )}
 
                         {/* Actions */}
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => viewResume(resume)}
-                            className="gap-1"
-                          >
-                            <Eye className="w-3 h-3" />
-                            View
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => startEditingContent(resume)}
-                            className="gap-1"
-                          >
-                            <Pencil className="w-3 h-3" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openMetadataEditor(resume)}
-                            className="gap-1"
-                          >
-                            <TagIcon className="w-3 h-3" />
-                            Organize
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => downloadResumeAsText(resume)}
-                            className="gap-1"
-                          >
-                            <Download className="w-3 h-3" />
-                            Export
-                          </Button>
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              size="sm"
+                              variant="hero"
+                              onClick={() => analyzeResume(resume)}
+                              className="gap-1"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 3v18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M18 17l-4-4-4 4-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Analyze
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => rewriteResume(resume)}
+                              className="gap-1"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M2 17l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              AI Rewrite
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => viewResume(resume)}
+                              className="gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditingContent(resume)}
+                              className="gap-1"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              Edit
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openMetadataEditor(resume)}
+                              className="gap-1"
+                            >
+                              <TagIcon className="w-3 h-3" />
+                              Organize
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => downloadResumeAsText(resume)}
+                              className="gap-1"
+                            >
+                              <Download className="w-3 h-3" />
+                              Export
+                            </Button>
+                          </div>
                           <Button
                             size="sm"
                             variant="destructive"
@@ -906,7 +987,7 @@ export default function Upload() {
                               setResumeToDelete(resume.id);
                               setDeleteDialogOpen(true);
                             }}
-                            className="col-span-2 gap-2"
+                            className="w-full gap-2"
                           >
                             <Trash2 className="w-4 h-4" />
                             Delete
@@ -1396,6 +1477,81 @@ export default function Upload() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Job Description Dialog */}
+      <Dialog open={jobDescDialogOpen} onOpenChange={setJobDescDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center gap-2">
+              <Briefcase className="w-6 h-6 text-primary" />
+              {actionType === "analyze" ? "Analyze Resume" : "AI Rewrite Resume"}
+            </DialogTitle>
+            <DialogDescription>
+              Paste the job description to {actionType === "analyze" ? "analyze your resume's compatibility" : "optimize your resume with AI"}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">
+                Resume to {actionType}:
+              </label>
+              <Card className="p-4 bg-accent/30">
+                <p className="font-semibold">{resumeToAnalyze?.name}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {resumeToAnalyze?.content.split(/\s+/).length} words
+                </p>
+              </Card>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">
+                Job Description <span className="text-destructive">*</span>
+              </label>
+              <textarea
+                placeholder="Paste the complete job description here...&#10;&#10;Include:&#10;- Job responsibilities&#10;- Required skills and qualifications&#10;- Preferred qualifications&#10;- Company information"
+                className="w-full min-h-[300px] p-4 border-2 rounded-lg bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                value={jobDescriptionInput}
+                onChange={(e) => setJobDescriptionInput(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                {jobDescriptionInput.split(/\s+/).filter(w => w).length} words
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setJobDescDialogOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="hero"
+              onClick={proceedWithAction}
+              disabled={!jobDescriptionInput.trim()}
+              className="flex-1"
+            >
+              {actionType === "analyze" ? (
+                <>
+                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 3v18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M18 17l-4-4-4 4-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Start Analysis
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Start AI Rewrite
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
