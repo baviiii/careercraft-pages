@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      cover_letters: {
+        Row: {
+          category: string | null
+          content: string
+          created_at: string
+          id: string
+          job_description: string | null
+          notes: string | null
+          resume_id: string | null
+          tags: string[] | null
+          tone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          job_description?: string | null
+          notes?: string | null
+          resume_id?: string | null
+          tags?: string[] | null
+          tone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          job_description?: string | null
+          notes?: string | null
+          resume_id?: string | null
+          tags?: string[] | null
+          tone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cover_letters_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_applications: {
         Row: {
           applied_date: string

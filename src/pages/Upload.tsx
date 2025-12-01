@@ -47,6 +47,18 @@ interface SavedResume {
   updated_at: string;
 }
 
+interface CoverLetter {
+  id: string;
+  resume_id: string | null;
+  content: string;
+  job_description: string | null;
+  tone: string | null;
+  category: string | null;
+  tags: string[];
+  notes: string | null;
+  created_at: string;
+}
+
 export default function Upload() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -59,6 +71,7 @@ export default function Upload() {
   
   // Resume Manager states
   const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
+  const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
   const [isLoadingResumes, setIsLoadingResumes] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
@@ -109,6 +122,16 @@ export default function Upload() {
 
       if (error) throw error;
       setSavedResumes(data || []);
+
+      // Fetch cover letters
+      const { data: clData, error: clError } = await supabase
+        .from('cover_letters')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (clError) throw clError;
+      setCoverLetters(clData || []);
     } catch (error) {
       console.error("Error loading resumes:", error);
       toast({
@@ -658,18 +681,34 @@ export default function Upload() {
               </Button>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-2 gap-6">
               <AnimatePresence>
-                {sortedResumes.map((resume) => (
-                  <motion.div
-                    key={resume.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Card className="h-full hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/50">
-                      <div className="p-6 space-y-4">
+                {sortedResumes.map((resume) => {
+                  const pairedCoverLetters = coverLetters.filter(
+                    (cl) => cl.resume_id === resume.id
+                  );
+                  return (
+                    <motion.div
+                      key={resume.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="h-full hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/50">
+                        {/* PDF Preview Section */}
+                        {resume.file_type === "pdf" && (
+                          <div className="h-48 bg-gradient-to-br from-muted/50 to-muted/20 border-b border-border flex items-center justify-center overflow-hidden p-4">
+                            <div className="text-center text-muted-foreground w-full">
+                              <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                              <p className="text-xs line-clamp-4 leading-relaxed px-2">
+                                {resume.content.substring(0, 200)}...
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="p-6 space-y-4">
                         {/* Header */}
                         <div className="space-y-2">
                           {editingResumeId === resume.id ? (
@@ -775,6 +814,53 @@ export default function Upload() {
                           </div>
                         </div>
 
+                        {/* Paired Cover Letters */}
+                        {pairedCoverLetters.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                              <FileText className="w-3 h-3" />
+                              <span className="font-medium">
+                                {pairedCoverLetters.length} paired cover {pairedCoverLetters.length === 1 ? 'letter' : 'letters'}
+                              </span>
+                            </div>
+                            <div className="space-y-2">
+                              {pairedCoverLetters.map((cl) => (
+                                <div key={cl.id} className="bg-accent/30 rounded-lg p-3 text-xs border border-border">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-semibold text-foreground">Cover Letter</span>
+                                    <span className="text-muted-foreground">
+                                      {new Date(cl.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {cl.category && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        <FolderOpen className="w-2.5 h-2.5 mr-1" />
+                                        {cl.category}
+                                      </Badge>
+                                    )}
+                                    {cl.tone && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {cl.tone}
+                                      </Badge>
+                                    )}
+                                    {cl.tags && cl.tags.length > 0 && cl.tags.slice(0, 2).map((tag) => (
+                                      <Badge key={tag} variant="secondary" className="text-xs">
+                                        {tag}
+                                      </Badge>
+                                    ))}
+                                    {cl.tags && cl.tags.length > 2 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        +{cl.tags.length - 2}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Actions */}
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                           <Button
@@ -829,7 +915,8 @@ export default function Upload() {
                       </div>
                     </Card>
                   </motion.div>
-                ))}
+                  );
+                })}
               </AnimatePresence>
             </div>
           )}
