@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,11 @@ import {
   ArrowLeft,
   Check,
   Wand2,
+  FileText,
+  Zap,
+  Upload,
+  BarChart3,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { rewriteBullet } from "@/lib/aiRewriter";
@@ -26,6 +31,7 @@ export default function Rewrite() {
   const [isRewriting, setIsRewriting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [jobDescription, setJobDescription] = useState("");
+  const [rewriteHistory, setRewriteHistory] = useState<Array<{ original: string; rewritten: string }>>([]);
 
   useEffect(() => {
     const storedResume = sessionStorage.getItem("resumeText");
@@ -60,6 +66,7 @@ export default function Rewrite() {
               Please upload your resume and job description first to use the AI Rewrite tool.
             </p>
             <Button onClick={() => navigate("/upload")}>
+              <Upload className="w-4 h-4 mr-2" />
               Go to Resume Manager
             </Button>
           </Card>
@@ -79,7 +86,7 @@ export default function Rewrite() {
   const handleRewrite = async () => {
     if (!selectedText) {
       toast({
-        title: "No text selected",
+        title: "No Text Selected",
         description: "Select a bullet point or sentence to rewrite.",
         variant: "destructive",
       });
@@ -89,21 +96,23 @@ export default function Rewrite() {
     setIsRewriting(true);
 
     try {
-      const jobDescription = sessionStorage.getItem("jobDescription") || "";
       const rewritten = await rewriteBullet(selectedText, jobDescription);
+
+      // Add to history
+      setRewriteHistory(prev => [...prev, { original: selectedText, rewritten }]);
 
       // Replace the selected text with the rewritten version
       const newText = optimizedText.replace(selectedText, rewritten);
       setOptimizedText(newText);
 
       toast({
-        title: "Text optimized!",
+        title: "✓ Text Optimized!",
         description: "The selected text has been rewritten for ATS compatibility.",
       });
     } catch (error) {
       toast({
-        title: "Rewrite failed",
-        description: "Could not optimize the text. Please try again.",
+        title: "Rewrite Failed",
+        description: error instanceof Error ? error.message : "Could not optimize the text. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -116,7 +125,7 @@ export default function Rewrite() {
     navigator.clipboard.writeText(optimizedText);
     setCopied(true);
     toast({
-      title: "Copied!",
+      title: "✓ Copied!",
       description: "Optimized resume text copied to clipboard.",
     });
     setTimeout(() => setCopied(false), 2000);
@@ -129,7 +138,6 @@ export default function Rewrite() {
     const pageHeight = doc.internal.pageSize.height;
     let yPosition = margin;
 
-    // Split text into lines that fit the page width
     const lines = doc.splitTextToSize(optimizedText, doc.internal.pageSize.width - 2 * margin);
 
     lines.forEach((line: string) => {
@@ -144,74 +152,173 @@ export default function Rewrite() {
     doc.save("optimized-resume.pdf");
 
     toast({
-      title: "Download started",
+      title: "✓ Download Started",
       description: "Your optimized resume is being downloaded as PDF.",
     });
   };
 
+  const handleDownloadTxt = () => {
+    const blob = new Blob([optimizedText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "optimized-resume.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "✓ Download Started",
+      description: "Your optimized resume is being downloaded as TXT.",
+    });
+  };
+
+  const handleReset = () => {
+    setOptimizedText(resumeText);
+    setRewriteHistory([]);
+    toast({
+      title: "✓ Reset Complete",
+      description: "Your resume has been reset to the original version.",
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-24">
       {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+      <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/dashboard")}
             className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
           >
             ResumeAI
           </button>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => navigate("/analysis")}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Analysis
+            <Button variant="outline" onClick={() => navigate("/analysis")}>
+              <BarChart3 className="w-4 h-4 mr-2" />
+              View Analysis
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="max-w-6xl mx-auto"
+          className="max-w-7xl mx-auto"
         >
+          {/* Hero Section */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-3 flex items-center justify-center gap-3">
-              <Sparkles className="w-8 h-8 text-primary" />
-              AI Resume Optimizer
-            </h1>
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              className="inline-flex items-center gap-3 mb-4"
+            >
+              <div className="w-12 h-12 rounded-full bg-gradient-hero flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-black bg-gradient-hero bg-clip-text text-transparent">
+                AI Resume Optimizer
+              </h1>
+            </motion.div>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Select any text to rewrite it with AI. Make your resume ATS-friendly and achievement-focused.
             </p>
           </div>
 
-          {/* Instructions */}
-          <Card className="p-4 mb-6 bg-accent/50 border-primary/20">
-            <div className="flex items-start gap-3">
-              <Wand2 className="w-5 h-5 text-primary mt-0.5" />
-              <div>
-                <p className="font-semibold mb-1">How to use:</p>
-                <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                  <li>Select any bullet point or sentence in the text below</li>
-                  <li>Click "Rewrite Selected Text" to optimize it with AI</li>
-                  <li>Review and edit the optimized version</li>
-                  <li>Download or copy when you're satisfied</li>
-                </ol>
+          {/* Stats Bar */}
+          {rewriteHistory.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6"
+            >
+              <Card className="p-4 bg-gradient-to-r from-primary/5 to-accent/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-primary" />
+                      <span className="font-semibold">{rewriteHistory.length} sections optimized</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleReset}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Reset to Original
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Instructions Card */}
+          <Card className="p-6 mb-6 bg-gradient-to-br from-primary/10 to-accent/10 border-2 border-primary/20">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <Wand2 className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg mb-3">How to Use AI Rewrite</h3>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      1
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold text-foreground">Select text</span> - Highlight any bullet point or sentence in the optimized resume
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      2
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold text-foreground">AI rewrite</span> - Click the button to optimize with AI for ATS compatibility
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      3
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold text-foreground">Review & edit</span> - The AI will replace your text. Feel free to manually edit further
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      4
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold text-foreground">Export</span> - Download as PDF or TXT, or copy to clipboard when satisfied
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
 
-          <div className="grid lg:grid-cols-2 gap-6 mb-8">
+          {/* Main Content Grid */}
+          <div className="grid lg:grid-cols-2 gap-6 mb-6">
             {/* Original Resume */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Original Resume</h2>
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-muted-foreground" />
+                  <h2 className="text-xl font-bold">Original Resume</h2>
+                </div>
                 <Badge variant="secondary">Read-only</Badge>
               </div>
-              <Card className="p-6">
-                <div className="prose prose-sm max-w-none">
-                  <pre className="whitespace-pre-wrap text-sm font-sans text-muted-foreground bg-muted p-4 rounded-lg max-h-[600px] overflow-y-auto">
+              <Card className="relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-muted to-transparent" />
+                <div className="p-6">
+                  <pre className="whitespace-pre-wrap text-sm font-sans text-muted-foreground bg-muted/50 p-4 rounded-lg max-h-[700px] overflow-y-auto">
                     {resumeText}
                   </pre>
                 </div>
@@ -221,76 +328,124 @@ export default function Rewrite() {
             {/* Optimized Resume */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Optimized Resume</h2>
-                <Badge className="bg-gradient-hero">AI Enhanced</Badge>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-bold">AI-Optimized Resume</h2>
+                </div>
+                <Badge className="bg-gradient-hero">
+                  <Zap className="w-3 h-3 mr-1" />
+                  AI Enhanced
+                </Badge>
               </div>
-              <Card className="p-6">
-                <Textarea
-                  value={optimizedText}
-                  onChange={(e) => setOptimizedText(e.target.value)}
-                  onMouseUp={handleTextSelect}
-                  className="min-h-[600px] resize-none text-sm font-mono"
-                  placeholder="Your optimized resume will appear here..."
-                />
+              <Card className="relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-hero" />
+                <div className="p-6">
+                  <Textarea
+                    value={optimizedText}
+                    onChange={(e) => setOptimizedText(e.target.value)}
+                    onMouseUp={handleTextSelect}
+                    className="min-h-[700px] resize-none text-sm font-mono border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-0 bg-transparent"
+                    placeholder="Your optimized resume will appear here..."
+                  />
+                </div>
               </Card>
             </div>
           </div>
 
-          {/* Action Bar */}
-          <div className="sticky bottom-4 z-10">
-            <Card className="p-4 bg-background/95 backdrop-blur border-2 shadow-elegant">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  {selectedText && (
-                    <Badge variant="secondary" className="max-w-xs truncate">
-                      "{selectedText.substring(0, 50)}..."
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    variant="hero"
-                    onClick={handleRewrite}
-                    disabled={!selectedText || isRewriting}
-                    className="group"
-                  >
-                    {isRewriting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Rewriting...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        Rewrite Selected Text
-                      </>
-                    )}
-                  </Button>
-
-                  <Button variant="outline" onClick={handleCopy}>
-                    {copied ? (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Copy Text
-                      </>
-                    )}
-                  </Button>
-
-                  <Button variant="outline" onClick={handleDownloadPDF}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download PDF
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
+          {/* Rewrite History */}
+          <AnimatePresence>
+            {rewriteHistory.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <Card className="p-6 mb-6">
+                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Rewrite History ({rewriteHistory.length} changes)
+                  </h3>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {rewriteHistory.map((item, idx) => (
+                      <div key={idx} className="text-sm border-l-2 border-primary pl-4 py-2">
+                        <p className="text-muted-foreground line-through mb-2">{item.original}</p>
+                        <p className="text-foreground font-medium">{item.rewritten}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
+      </div>
+
+      {/* Fixed Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto px-4 py-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {selectedText ? (
+                  <Badge variant="secondary" className="max-w-md truncate px-4 py-2">
+                    <Sparkles className="w-3 h-3 mr-2 flex-shrink-0" />
+                    <span className="truncate">"{selectedText.substring(0, 60)}..."</span>
+                  </Badge>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Select text in the optimized resume to rewrite it with AI
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  size="lg"
+                  variant="hero"
+                  onClick={handleRewrite}
+                  disabled={!selectedText || isRewriting}
+                  className="group"
+                >
+                  {isRewriting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Rewriting...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Rewrite Selected
+                    </>
+                  )}
+                </Button>
+
+                <Button variant="outline" size="lg" onClick={handleCopy}>
+                  {copied ? (
+                    <>
+                      <Check className="w-5 h-5 mr-2" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-5 h-5 mr-2" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+
+                <Button variant="outline" size="lg" onClick={handleDownloadPDF}>
+                  <Download className="w-5 h-5 mr-2" />
+                  PDF
+                </Button>
+
+                <Button variant="outline" size="lg" onClick={handleDownloadTxt}>
+                  <Download className="w-5 h-5 mr-2" />
+                  TXT
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
