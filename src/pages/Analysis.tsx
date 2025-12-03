@@ -21,45 +21,45 @@ import {
   BarChart3,
   Target,
   Upload,
+  AlertTriangle,
+  XCircle,
+  Lightbulb,
+  RefreshCw,
+  PenLine,
+  Trophy,
+  FileCheck,
+  Copy,
+  Check,
+  ChevronRight,
+  Star,
+  BookOpen,
+  BriefcaseIcon,
 } from "lucide-react";
-import { analyzeResume, ATSAnalysis } from "@/lib/atsAnalyzer";
-import { autoFixFormatting, getRecruiterReview } from "@/lib/aiRewriter";
 import { parseResume } from "@/lib/resumeParser";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { runATSAIAnalysis, autoRewriteResume, rewriteExperienceSection, generateAchievements, generateSummaries, ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
 
 export default function Analysis() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [analysis, setAnalysis] = useState<ATSAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<ATSAIAnalysis | null>(null);
   const [fileName, setFileName] = useState("");
-  const [isFixing, setIsFixing] = useState(false);
-  const [reviewMode, setReviewMode] = useState<"harsh" | "soft" | "tech" | "junior" | "australian">("harsh");
-  const [recruiterFeedback, setRecruiterFeedback] = useState<string>("");
-  const [isReviewing, setIsReviewing] = useState(false);
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [activeEnhancement, setActiveEnhancement] = useState<string | null>(null);
+  const [enhancementResult, setEnhancementResult] = useState<string>("");
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
   useEffect(() => {
     const storedResume = sessionStorage.getItem("resumeText");
     const storedJob = sessionStorage.getItem("jobDescription");
     const storedFileName = sessionStorage.getItem("fileName");
 
-    if (storedResume && storedJob) {
-      setResumeText(storedResume);
-      setJobDescription(storedJob);
-      setFileName(storedFileName || "Resume");
-      const result = analyzeResume(storedResume, storedJob);
-      setAnalysis(result);
-    }
+    if (storedResume) setResumeText(storedResume);
+    if (storedJob) setJobDescription(storedJob);
+    if (storedFileName) setFileName(storedFileName);
   }, []);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -67,7 +67,6 @@ export default function Analysis() {
     if (!file) return;
 
     setIsUploading(true);
-    setUploadedFile(file);
     try {
       const text = await parseResume(file);
       setResumeText(text);
@@ -100,7 +99,7 @@ export default function Analysis() {
     maxFiles: 1,
   });
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!resumeText || !jobDescription.trim()) {
       toast({
         title: "Missing information",
@@ -109,75 +108,76 @@ export default function Analysis() {
       });
       return;
     }
+    
+    setIsAnalyzing(true);
     sessionStorage.setItem("jobDescription", jobDescription);
-    const result = analyzeResume(resumeText, jobDescription);
-    setAnalysis(result);
-    toast({
-      title: "Analysis complete",
-      description: `Your ATS score is ${result.score}/100`,
-    });
-  };
-
-  const handleAutoFix = async () => {
-    if (!resumeText) return;
-
-    setIsFixing(true);
+    
     try {
-      const fixed = await autoFixFormatting(resumeText);
-      sessionStorage.setItem("resumeText", fixed);
-      setResumeText(fixed);
-      
-      if (jobDescription) {
-        const newAnalysis = analyzeResume(fixed, jobDescription);
-        setAnalysis(newAnalysis);
-      }
-
+      const result = await runATSAIAnalysis(resumeText, jobDescription);
+      setAnalysis(result);
       toast({
-        title: "✓ Formatting Fixed",
-        description: "Your resume has been automatically optimized for ATS compatibility.",
+        title: "Analysis complete",
+        description: `Your ATS score is ${result.overallScore}/100`,
       });
     } catch (error) {
       toast({
-        title: "Auto-fix Failed",
-        description: error instanceof Error ? error.message : "Could not fix formatting",
+        title: "Analysis failed",
+        description: error instanceof Error ? error.message : "Could not analyze resume",
         variant: "destructive",
       });
     } finally {
-      setIsFixing(false);
+      setIsAnalyzing(false);
     }
   };
 
-  const handleGetReview = async () => {
+  const handleEnhancement = async (type: string) => {
     if (!resumeText || !jobDescription) return;
-
-    setIsReviewing(true);
+    
+    setActiveEnhancement(type);
+    setEnhancementResult("");
+    
     try {
-      const feedback = await getRecruiterReview(resumeText, jobDescription, reviewMode);
-      setRecruiterFeedback(feedback);
-      toast({
-        title: "✓ Review Complete",
-        description: "See your recruiter feedback below.",
-      });
+      let result = "";
+      switch (type) {
+        case "auto-rewrite":
+          result = await autoRewriteResume(resumeText, jobDescription);
+          break;
+        case "rewrite-experience":
+          result = await rewriteExperienceSection(resumeText, jobDescription);
+          break;
+        case "generate-achievements":
+          result = await generateAchievements(resumeText, jobDescription);
+          break;
+        case "generate-summaries":
+          result = await generateSummaries(resumeText, jobDescription);
+          break;
+      }
+      setEnhancementResult(result);
+      toast({ title: "Enhancement complete", description: "See results below." });
     } catch (error) {
       toast({
-        title: "Review Failed",
-        description: error instanceof Error ? error.message : "Could not get review",
+        title: "Enhancement failed",
+        description: error instanceof Error ? error.message : "Could not process request",
         variant: "destructive",
       });
-    } finally {
-      setIsReviewing(false);
+      setActiveEnhancement(null);
     }
   };
 
-  const getTopRecommendations = () => {
-    if (!analysis) return [];
-    const priorityOrder = { high: 0, medium: 1, low: 2 };
-    return analysis.issues
-      .sort((a, b) => priorityOrder[a.severity] - priorityOrder[b.severity])
-      .slice(0, 10);
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(id);
+    setTimeout(() => setCopiedText(null), 2000);
+    toast({ title: "Copied to clipboard" });
   };
 
-  // Show upload UI when no analysis
+  const handleNewAnalysis = () => {
+    setAnalysis(null);
+    setEnhancementResult("");
+    setActiveEnhancement(null);
+  };
+
+  // Upload UI
   if (!analysis) {
     return (
       <div className="min-h-screen bg-background">
@@ -204,15 +204,14 @@ export default function Analysis() {
           >
             <div className="text-center mb-8">
               <h1 className="text-4xl font-bold mb-4">
-                <span className="bg-gradient-hero bg-clip-text text-transparent">ATS Analysis</span>
+                <span className="bg-gradient-hero bg-clip-text text-transparent">Enterprise ATS Analyzer</span>
               </h1>
               <p className="text-lg text-muted-foreground">
-                Upload your resume and paste the job description to see how well you match
+                AI-powered deep analysis with scoring, keyword extraction, red flags detection, and optimization
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
-              {/* Resume Upload */}
               <Card className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
@@ -230,7 +229,7 @@ export default function Analysis() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => { setResumeText(""); setUploadedFile(null); }}
+                      onClick={() => { setResumeText(""); }}
                     >
                       Upload Different Resume
                     </Button>
@@ -261,7 +260,6 @@ export default function Analysis() {
                 )}
               </Card>
 
-              {/* Job Description */}
               <Card className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                   <Target className="w-5 h-5 text-primary" />
@@ -281,11 +279,20 @@ export default function Analysis() {
                 size="lg"
                 variant="hero"
                 onClick={handleAnalyze}
-                disabled={!resumeText || !jobDescription.trim()}
+                disabled={!resumeText || !jobDescription.trim() || isAnalyzing}
                 className="px-12"
               >
-                <BarChart3 className="w-5 h-5 mr-2" />
-                Analyze Resume
+                {isAnalyzing ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Analyzing with AI...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 mr-2" />
+                    Run Deep ATS Analysis
+                  </>
+                )}
               </Button>
             </div>
           </motion.div>
@@ -313,9 +320,14 @@ export default function Analysis() {
     return "Poor";
   };
 
+  const getSeverityIcon = (severity: string) => {
+    if (severity === "critical") return <XCircle className="w-5 h-5 text-red-500" />;
+    if (severity === "warning") return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
+    return <AlertCircle className="w-5 h-5 text-blue-500" />;
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <button
@@ -325,9 +337,9 @@ export default function Analysis() {
             ResumeAI
           </button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate("/upload")}>
-              <Upload className="w-4 h-4 mr-2" />
-              Upload New
+            <Button variant="outline" onClick={handleNewAnalysis}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              New Analysis
             </Button>
             <Button variant="hero" onClick={() => navigate("/rewrite")}>
               <Sparkles className="w-4 h-4 mr-2" />
@@ -341,355 +353,507 @@ export default function Analysis() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-7xl mx-auto"
+          className="max-w-7xl mx-auto space-y-6"
         >
           {/* Hero Score Card */}
-          <Card className={`p-8 mb-6 bg-gradient-to-br ${getScoreGradient(analysis.score)} border-2`}>
-            <div className="grid md:grid-cols-3 gap-8 items-center">
-              <div className="md:col-span-2">
+          <Card className={`p-8 bg-gradient-to-br ${getScoreGradient(analysis.overallScore)} border-2`}>
+            <div className="grid lg:grid-cols-4 gap-8 items-center">
+              <div className="lg:col-span-2">
                 <div className="flex items-center gap-2 mb-2">
                   <BarChart3 className="w-5 h-5 text-primary" />
                   <p className="text-sm font-medium text-muted-foreground">ATS Compatibility Score</p>
                 </div>
-                <h1 className="text-3xl font-bold mb-4">{fileName}</h1>
+                <h1 className="text-2xl font-bold mb-4">{fileName}</h1>
                 <div className="flex items-end gap-6">
-                  <div className={`text-7xl font-black ${getScoreColor(analysis.score)}`}>
-                    {analysis.score}
+                  <div className={`text-7xl font-black ${getScoreColor(analysis.overallScore)}`}>
+                    {analysis.overallScore}
                   </div>
                   <div className="pb-2">
-                    <p className="text-2xl font-bold">{getScoreLabel(analysis.score)}</p>
+                    <p className="text-2xl font-bold">{getScoreLabel(analysis.overallScore)}</p>
                     <p className="text-sm text-muted-foreground">out of 100</p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="font-medium">Keyword Match</span>
-                    <span className="font-bold">
-                      {analysis.keywords.matchRate.toFixed(0)}%
-                    </span>
+              <div className="lg:col-span-2 grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Skills Match</span>
+                      <span className="font-bold">{analysis.subScores.skillsMatch}%</span>
+                    </div>
+                    <Progress value={analysis.subScores.skillsMatch} className="h-2" />
                   </div>
-                  <Progress value={analysis.keywords.matchRate} className="h-3" />
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Experience</span>
+                      <span className="font-bold">{analysis.subScores.experienceMatch}%</span>
+                    </div>
+                    <Progress value={analysis.subScores.experienceMatch} className="h-2" />
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="text-center p-4 bg-background/60 backdrop-blur rounded-xl border border-border">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-green-500">
-                      {analysis.keywords.matched.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Matched</p>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Keywords</span>
+                      <span className="font-bold">{analysis.subScores.keywordMatch}%</span>
+                    </div>
+                    <Progress value={analysis.subScores.keywordMatch} className="h-2" />
                   </div>
-                  <div className="text-center p-4 bg-background/60 backdrop-blur rounded-xl border border-border">
-                    <AlertCircle className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-red-500">
-                      {analysis.keywords.missing.length}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Missing</p>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Format</span>
+                      <span className="font-bold">{analysis.subScores.formatCompatibility}%</span>
+                    </div>
+                    <Progress value={analysis.subScores.formatCompatibility} className="h-2" />
                   </div>
                 </div>
               </div>
             </div>
           </Card>
 
-          <Tabs defaultValue="recommendations" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4 h-auto p-1">
-              <TabsTrigger value="recommendations" className="flex items-center gap-2 py-3">
-                <Zap className="w-4 h-4" />
-                <span className="hidden sm:inline">Top Issues</span>
-              </TabsTrigger>
-              <TabsTrigger value="recruiter" className="flex items-center gap-2 py-3">
-                <Sparkles className="w-4 h-4" />
-                <span className="hidden sm:inline">AI Review</span>
+          {/* Summary Card */}
+          <Card className="p-6">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-primary" />
+              Executive Summary
+            </h2>
+            <p className="text-muted-foreground mb-4">{analysis.summary.overallVerdict}</p>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/20">
+                <h4 className="font-semibold text-green-600 mb-2 flex items-center gap-2">
+                  <Star className="w-4 h-4" /> Top Strengths
+                </h4>
+                <ul className="space-y-1 text-sm">
+                  {analysis.summary.topStrengths.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="p-4 bg-red-500/10 rounded-lg border border-red-500/20">
+                <h4 className="font-semibold text-red-600 mb-2 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" /> Top Weaknesses
+                </h4>
+                <ul className="space-y-1 text-sm">
+                  {analysis.summary.topWeaknesses.map((w, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      {w}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                <h4 className="font-semibold text-primary mb-2 flex items-center gap-2">
+                  <Zap className="w-4 h-4" /> Priority Fixes
+                </h4>
+                <ul className="space-y-1 text-sm">
+                  {analysis.summary.mostImportantFixes.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <ChevronRight className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Card>
+
+          <Tabs defaultValue="requirements" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+              <TabsTrigger value="requirements" className="flex items-center gap-2 py-3">
+                <BriefcaseIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Job Req</span>
               </TabsTrigger>
               <TabsTrigger value="keywords" className="flex items-center gap-2 py-3">
                 <Search className="w-4 h-4" />
                 <span className="hidden sm:inline">Keywords</span>
               </TabsTrigger>
-              <TabsTrigger value="all-issues" className="flex items-center gap-2 py-3">
-                <Target className="w-4 h-4" />
-                <span className="hidden sm:inline">All Issues</span>
+              <TabsTrigger value="quality" className="flex items-center gap-2 py-3">
+                <FileCheck className="w-4 h-4" />
+                <span className="hidden sm:inline">Quality</span>
+              </TabsTrigger>
+              <TabsTrigger value="redflags" className="flex items-center gap-2 py-3">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="hidden sm:inline">Red Flags</span>
+              </TabsTrigger>
+              <TabsTrigger value="improvements" className="flex items-center gap-2 py-3">
+                <Lightbulb className="w-4 h-4" />
+                <span className="hidden sm:inline">Improve</span>
+              </TabsTrigger>
+              <TabsTrigger value="enhance" className="flex items-center gap-2 py-3">
+                <Wand2 className="w-4 h-4" />
+                <span className="hidden sm:inline">AI Tools</span>
               </TabsTrigger>
             </TabsList>
 
-            {/* Top Recommendations Tab */}
-            <TabsContent value="recommendations" className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Zap className="w-6 h-6 text-primary" />
-                    Top {Math.min(getTopRecommendations().length, 10)} Priority Fixes
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Focus on these high-impact improvements first
-                  </p>
-                </div>
-                <Button 
-                  size="lg"
-                  variant="hero" 
-                  onClick={handleAutoFix}
-                  disabled={isFixing}
-                  className="group"
-                >
-                  {isFixing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      Fixing...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="w-5 h-5 mr-2" />
-                      Auto-Fix All
-                    </>
-                  )}
-                </Button>
-              </div>
-              
-              <div className="grid gap-4">
-                {getTopRecommendations().map((issue, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <Card className="p-6 hover:shadow-lg transition-all hover:border-primary/50">
-                      <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-lg">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-bold text-lg">{issue.title}</h3>
-                            <Badge 
-                              variant={issue.severity === "high" ? "destructive" : issue.severity === "medium" ? "default" : "secondary"}
-                            >
-                              {issue.severity}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {issue.category}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-3">{issue.description}</p>
-                          <div className="bg-primary/5 border border-primary/10 rounded-lg px-4 py-3">
-                            <p className="text-sm">
-                              <span className="font-semibold text-primary">💡 Solution: </span>
-                              {issue.suggestion}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* AI Recruiter Review Tab */}
-            <TabsContent value="recruiter" className="space-y-4">
-              <Card className="p-6 bg-gradient-to-br from-primary/5 to-accent/5">
-                <div className="flex items-center gap-3 mb-4">
-                  <Sparkles className="w-7 h-7 text-primary" />
-                  <div>
-                    <h2 className="text-2xl font-bold">Real Recruiter Mode</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Get AI-powered feedback from different recruiter perspectives
-                    </p>
+            {/* Job Requirements Tab */}
+            <TabsContent value="requirements" className="space-y-4">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <BriefcaseIcon className="w-6 h-6 text-primary" />
+                Extracted Job Requirements
+              </h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                <Card className="p-5">
+                  <h4 className="font-semibold mb-3 text-red-600">Mandatory Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.jobRequirements.mandatorySkills.map((skill, i) => (
+                      <Badge key={i} variant="destructive">{skill}</Badge>
+                    ))}
                   </div>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <Select value={reviewMode} onValueChange={(value: any) => setReviewMode(value)}>
-                    <SelectTrigger className="w-full sm:w-[280px]">
-                      <SelectValue placeholder="Select review type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="harsh">🔥 Harsh but Honest</SelectItem>
-                      <SelectItem value="soft">💚 Supportive Coach</SelectItem>
-                      <SelectItem value="tech">💻 Tech Hiring Manager</SelectItem>
-                      <SelectItem value="junior">🌱 Junior-Friendly</SelectItem>
-                      <SelectItem value="australian">🇦🇺 Australian Standards</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Button 
-                    size="lg"
-                    variant="hero"
-                    onClick={handleGetReview}
-                    disabled={isReviewing}
-                    className="group sm:w-auto w-full"
-                  >
-                    {isReviewing ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Analyzing...
-                      </>
+                </Card>
+                <Card className="p-5">
+                  <h4 className="font-semibold mb-3 text-blue-600">Preferred Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.jobRequirements.preferredSkills.map((skill, i) => (
+                      <Badge key={i} variant="secondary">{skill}</Badge>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="p-5">
+                  <h4 className="font-semibold mb-3 text-purple-600">Technical Keywords</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.jobRequirements.technicalKeywords.map((kw, i) => (
+                      <Badge key={i} className="bg-purple-500/10 text-purple-700 border-purple-500/20">{kw}</Badge>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="p-5">
+                  <h4 className="font-semibold mb-3 text-green-600">Soft Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.jobRequirements.softSkills.map((skill, i) => (
+                      <Badge key={i} className="bg-green-500/10 text-green-700 border-green-500/20">{skill}</Badge>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="p-5">
+                  <h4 className="font-semibold mb-3">Tools & Technologies</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.jobRequirements.tools.map((tool, i) => (
+                      <Badge key={i} variant="outline">{tool}</Badge>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="p-5">
+                  <h4 className="font-semibold mb-3">Certifications</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.jobRequirements.certifications.length > 0 ? (
+                      analysis.jobRequirements.certifications.map((cert, i) => (
+                        <Badge key={i} variant="outline">{cert}</Badge>
+                      ))
                     ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Get AI Review
-                      </>
+                      <span className="text-muted-foreground text-sm">None specified</span>
                     )}
-                  </Button>
-                </div>
-
-                <AnimatePresence mode="wait">
-                  {recruiterFeedback ? (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="bg-background rounded-xl border-2 border-primary/20 p-6"
-                    >
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="text-2xl">
-                          {reviewMode === "harsh" && "🔥"}
-                          {reviewMode === "soft" && "💚"}
-                          {reviewMode === "tech" && "💻"}
-                          {reviewMode === "junior" && "🌱"}
-                          {reviewMode === "australian" && "🇦🇺"}
-                        </div>
-                        <h3 className="font-bold text-lg">
-                          {reviewMode === "harsh" && "Harsh but Helpful Review"}
-                          {reviewMode === "soft" && "Supportive Feedback"}
-                          {reviewMode === "tech" && "Tech Manager Perspective"}
-                          {reviewMode === "junior" && "Entry-Level Focus"}
-                          {reviewMode === "australian" && "Australian Standards Check"}
-                        </h3>
-                      </div>
-                      <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap leading-relaxed">
-                        {recruiterFeedback}
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <Card className="p-8 text-center border-dashed border-2">
-                      <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-muted-foreground">
-                        Select a review type and click "Get AI Review" to receive personalized feedback
-                      </p>
-                    </Card>
-                  )}
-                </AnimatePresence>
+                  </div>
+                </Card>
+              </div>
+              <Card className="p-5">
+                <h4 className="font-semibold mb-2">Required Experience</h4>
+                <p className="text-muted-foreground">{analysis.jobRequirements.requiredExperience}</p>
               </Card>
             </TabsContent>
 
             {/* Keywords Tab */}
-            <TabsContent value="keywords" className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <Card className="p-6">
+            <TabsContent value="keywords" className="space-y-4">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Search className="w-6 h-6 text-primary" />
+                Keyword Gap Analysis
+              </h2>
+              <div className="grid md:grid-cols-2 gap-4">
+                <Card className="p-5">
                   <div className="flex items-center gap-2 mb-4">
-                    <CheckCircle2 className="w-6 h-6 text-green-500" />
-                    <h3 className="text-xl font-bold">Matched Keywords ({analysis.keywords.matched.length})</h3>
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    <h3 className="font-bold text-green-600">Matched Keywords ({analysis.resumeKeywords.matched.length})</h3>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {analysis.keywords.matched.map((keyword, idx) => (
-                      <Badge key={idx} className="bg-green-500/10 text-green-700 border-green-500/20">
-                        {keyword}
-                      </Badge>
+                    {analysis.resumeKeywords.matched.map((kw, i) => (
+                      <Badge key={i} className="bg-green-500/10 text-green-700 border-green-500/20">{kw}</Badge>
                     ))}
                   </div>
                 </Card>
-
-                <Card className="p-6">
+                <Card className="p-5">
                   <div className="flex items-center gap-2 mb-4">
-                    <AlertCircle className="w-6 h-6 text-red-500" />
-                    <h3 className="text-xl font-bold">Missing Keywords ({analysis.keywords.missing.length})</h3>
+                    <XCircle className="w-5 h-5 text-red-500" />
+                    <h3 className="font-bold text-red-600">Missing Keywords ({analysis.resumeKeywords.missing.length})</h3>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {analysis.keywords.missing.map((keyword, idx) => (
-                      <Badge key={idx} variant="destructive" className="bg-red-500/10 text-red-700 border-red-500/20">
-                        {keyword}
-                      </Badge>
+                    {analysis.resumeKeywords.missing.map((kw, i) => (
+                      <Badge key={i} variant="destructive">{kw}</Badge>
                     ))}
+                  </div>
+                </Card>
+                <Card className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                    <h3 className="font-bold text-yellow-600">Under-Represented ({analysis.resumeKeywords.underRepresented.length})</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.resumeKeywords.underRepresented.map((kw, i) => (
+                      <Badge key={i} className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">{kw}</Badge>
+                    ))}
+                  </div>
+                </Card>
+                <Card className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <AlertCircle className="w-5 h-5 text-orange-500" />
+                    <h3 className="font-bold text-orange-600">Overused ({analysis.resumeKeywords.overused.length})</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {analysis.resumeKeywords.overused.length > 0 ? (
+                      analysis.resumeKeywords.overused.map((kw, i) => (
+                        <Badge key={i} className="bg-orange-500/10 text-orange-700 border-orange-500/20">{kw}</Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground text-sm">None detected</span>
+                    )}
                   </div>
                 </Card>
               </div>
             </TabsContent>
 
-            {/* All Issues Tab */}
-            <TabsContent value="all-issues" className="space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Target className="w-6 h-6 text-primary" />
-                    All Issues ({analysis.issues.length})
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Complete breakdown of areas for improvement
-                  </p>
-                </div>
+            {/* Writing Quality Tab */}
+            <TabsContent value="quality" className="space-y-4">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <FileCheck className="w-6 h-6 text-primary" />
+                Resume Writing Quality
+              </h2>
+              <div className="grid md:grid-cols-3 gap-4">
+                {Object.entries(analysis.writingQuality).map(([key, score]) => {
+                  const labels: Record<string, string> = {
+                    grammarScore: "Grammar",
+                    impactLanguageScore: "Impact Language",
+                    metricsUsageScore: "Metrics Usage",
+                    actionVerbsScore: "Action Verbs",
+                    clarityScore: "Clarity",
+                    structureScore: "Structure",
+                  };
+                  return (
+                    <Card key={key} className="p-5">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-medium">{labels[key]}</span>
+                        <span className={`text-2xl font-bold ${score >= 7 ? "text-green-500" : score >= 5 ? "text-yellow-500" : "text-red-500"}`}>
+                          {score}/10
+                        </span>
+                      </div>
+                      <Progress value={score * 10} className="h-3" />
+                    </Card>
+                  );
+                })}
               </div>
+            </TabsContent>
 
-              {analysis.issues.length === 0 ? (
+            {/* Red Flags Tab */}
+            <TabsContent value="redflags" className="space-y-4">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <AlertTriangle className="w-6 h-6 text-red-500" />
+                Red Flags Detection ({analysis.redFlags.length})
+              </h2>
+              {analysis.redFlags.length === 0 ? (
                 <Card className="p-12 text-center">
                   <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                  <h3 className="text-2xl font-bold mb-2">Perfect Score!</h3>
-                  <p className="text-muted-foreground">
-                    Your resume passes all ATS checks. Great job!
-                  </p>
+                  <h3 className="text-2xl font-bold mb-2">No Red Flags!</h3>
+                  <p className="text-muted-foreground">Your resume passed all red flag checks.</p>
                 </Card>
               ) : (
-                <div className="grid gap-4">
-                  {analysis.issues.map((issue, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.03 }}
-                    >
-                      <Card className="p-6 hover:shadow-lg transition-all">
-                        <div className="flex gap-4">
-                          <div className="flex-shrink-0">
-                            {issue.severity === "high" ? (
-                              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-                                <AlertCircle className="w-6 h-6 text-red-500" />
-                              </div>
-                            ) : issue.severity === "medium" ? (
-                              <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                                <TrendingUp className="w-6 h-6 text-yellow-500" />
-                              </div>
-                            ) : (
-                              <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-                                <FileText className="w-6 h-6 text-blue-500" />
-                              </div>
-                            )}
+                <div className="space-y-3">
+                  {analysis.redFlags.map((flag, i) => (
+                    <Card key={i} className={`p-5 border-l-4 ${flag.severity === "critical" ? "border-l-red-500" : flag.severity === "warning" ? "border-l-yellow-500" : "border-l-blue-500"}`}>
+                      <div className="flex items-start gap-4">
+                        {getSeverityIcon(flag.severity)}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold">{flag.type}</span>
+                            <Badge variant={flag.severity === "critical" ? "destructive" : flag.severity === "warning" ? "default" : "secondary"}>
+                              {flag.severity}
+                            </Badge>
                           </div>
-
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-bold text-lg">{issue.title}</h3>
-                              <div className="flex gap-2">
-                                <Badge
-                                  variant={
-                                    issue.severity === "high"
-                                      ? "destructive"
-                                      : issue.severity === "medium"
-                                      ? "default"
-                                      : "secondary"
-                                  }
-                                >
-                                  {issue.severity}
-                                </Badge>
-                                <Badge variant="outline">{issue.category}</Badge>
-                              </div>
-                            </div>
-                            <p className="text-muted-foreground mb-3">{issue.description}</p>
-                            <div className="bg-primary/5 border border-primary/10 rounded-lg p-4">
-                              <p className="text-sm">
-                                <span className="font-semibold text-primary">💡 Suggestion: </span>
-                                {issue.suggestion}
-                              </p>
-                            </div>
-                          </div>
+                          <p className="text-muted-foreground mb-1">{flag.description}</p>
+                          <p className="text-xs text-muted-foreground">Location: {flag.location}</p>
                         </div>
-                      </Card>
-                    </motion.div>
+                      </div>
+                    </Card>
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            {/* Improvements Tab */}
+            <TabsContent value="improvements" className="space-y-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Lightbulb className="w-6 h-6 text-primary" />
+                Tailored Improvement Suggestions
+              </h2>
+              
+              {/* Quick Fixes */}
+              <Card className="p-5">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-yellow-500" />
+                  Quick Fixes
+                </h3>
+                <div className="space-y-3">
+                  {analysis.improvements.quickFixes.map((fix, i) => (
+                    <div key={i} className="p-4 bg-muted/50 rounded-lg">
+                      <p className="font-medium text-red-600 mb-1">{fix.issue}</p>
+                      <p className="text-sm text-green-600">→ {fix.fix}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Strong Enhancements */}
+              <Card className="p-5">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-blue-500" />
+                  Strong Enhancements
+                </h3>
+                <div className="space-y-4">
+                  {analysis.improvements.strongEnhancements.map((enh, i) => (
+                    <div key={i} className="p-4 border rounded-lg">
+                      <Badge className="mb-2">{enh.section}</Badge>
+                      <div className="grid md:grid-cols-2 gap-4 mt-2">
+                        <div className="p-3 bg-red-500/5 rounded border border-red-500/20">
+                          <p className="text-xs font-medium text-red-600 mb-1">Current</p>
+                          <p className="text-sm">{enh.current}</p>
+                        </div>
+                        <div className="p-3 bg-green-500/5 rounded border border-green-500/20">
+                          <p className="text-xs font-medium text-green-600 mb-1">Improved</p>
+                          <p className="text-sm">{enh.improved}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">Impact: {enh.impact}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Advanced Optimizations */}
+              <Card className="p-5">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-purple-500" />
+                  Advanced Career Optimizations
+                </h3>
+                <ul className="space-y-2">
+                  {analysis.improvements.advancedOptimizations.map((opt, i) => (
+                    <li key={i} className="flex items-start gap-2 p-3 bg-purple-500/5 rounded-lg border border-purple-500/20">
+                      <ChevronRight className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                      <span>{opt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            </TabsContent>
+
+            {/* AI Enhancement Tools Tab */}
+            <TabsContent value="enhance" className="space-y-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Wand2 className="w-6 h-6 text-primary" />
+                AI-Powered Enhancement Tools
+              </h2>
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <Card className="p-5 hover:border-primary/50 transition-all cursor-pointer" onClick={() => !activeEnhancement && handleEnhancement("auto-rewrite")}>
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-primary/10 rounded-lg">
+                      <Sparkles className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold mb-1">Auto-Rewrite Full Resume</h4>
+                      <p className="text-sm text-muted-foreground">Completely rewrite your resume optimized for this job.</p>
+                    </div>
+                  </div>
+                </Card>
+                
+                <Card className="p-5 hover:border-primary/50 transition-all cursor-pointer" onClick={() => !activeEnhancement && handleEnhancement("rewrite-experience")}>
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-blue-500/10 rounded-lg">
+                      <PenLine className="w-6 h-6 text-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold mb-1">Rewrite Experience Section</h4>
+                      <p className="text-sm text-muted-foreground">Enhance just your work experience with metrics.</p>
+                    </div>
+                  </div>
+                </Card>
+                
+                <Card className="p-5 hover:border-primary/50 transition-all cursor-pointer" onClick={() => !activeEnhancement && handleEnhancement("generate-achievements")}>
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-green-500/10 rounded-lg">
+                      <Trophy className="w-6 h-6 text-green-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold mb-1">Generate Achievements</h4>
+                      <p className="text-sm text-muted-foreground">Create keyword-rich achievement bullets.</p>
+                    </div>
+                  </div>
+                </Card>
+                
+                <Card className="p-5 hover:border-primary/50 transition-all cursor-pointer" onClick={() => !activeEnhancement && handleEnhancement("generate-summaries")}>
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-purple-500/10 rounded-lg">
+                      <FileText className="w-6 h-6 text-purple-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold mb-1">Generate Summaries</h4>
+                      <p className="text-sm text-muted-foreground">Create professional, technical, and skills summaries.</p>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Enhancement Result */}
+              <AnimatePresence>
+                {activeEnhancement && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="p-6 border-2 border-primary/20">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-primary" />
+                          Enhancement Result
+                        </h3>
+                        {enhancementResult && (
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => copyToClipboard(enhancementResult, "enhancement")}
+                            >
+                              {copiedText === "enhancement" ? (
+                                <Check className="w-4 h-4 mr-1" />
+                              ) : (
+                                <Copy className="w-4 h-4 mr-1" />
+                              )}
+                              Copy
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => { setActiveEnhancement(null); setEnhancementResult(""); }}>
+                              Close
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {!enhancementResult ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="text-center">
+                            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                            <p className="text-muted-foreground">Generating with AI...</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-muted/50 rounded-lg p-4 max-h-[500px] overflow-y-auto">
+                          <pre className="whitespace-pre-wrap font-sans text-sm">{enhancementResult}</pre>
+                        </div>
+                      )}
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </TabsContent>
           </Tabs>
         </motion.div>

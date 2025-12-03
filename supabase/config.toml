@@ -62,3 +62,6 @@ backend = "postgres"
 
 [functions.rewrite-resume]
 verify_jwt = false
+
+[functions.ats-analyze]
+verify_jwt = false
