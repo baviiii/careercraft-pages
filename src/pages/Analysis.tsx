@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { useDropzone } from "react-dropzone";
 import {
   ArrowLeft,
   AlertCircle,
@@ -22,6 +24,7 @@ import {
 } from "lucide-react";
 import { analyzeResume, ATSAnalysis } from "@/lib/atsAnalyzer";
 import { autoFixFormatting, getRecruiterReview } from "@/lib/aiRewriter";
+import { parseResume } from "@/lib/resumeParser";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -42,6 +45,8 @@ export default function Analysis() {
   const [isReviewing, setIsReviewing] = useState(false);
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   useEffect(() => {
     const storedResume = sessionStorage.getItem("resumeText");
@@ -57,36 +62,61 @@ export default function Analysis() {
     }
   }, []);
 
-  // Show message if no data
-  if (!resumeText || !jobDescription) {
-    return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-          <div className="container mx-auto px-4 py-4">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
-            >
-              ResumeAI
-            </button>
-          </div>
-        </header>
-        <div className="container mx-auto px-4 py-12">
-          <Card className="max-w-2xl mx-auto p-8 text-center">
-            <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-2xl font-bold mb-2">No Resume Uploaded</h2>
-            <p className="text-muted-foreground mb-6">
-              Please upload your resume and job description first to use the ATS Analysis tool.
-            </p>
-            <Button onClick={() => navigate("/upload")}>
-              <Upload className="w-4 h-4 mr-2" />
-              Go to Resume Manager
-            </Button>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadedFile(file);
+    try {
+      const text = await parseResume(file);
+      setResumeText(text);
+      setFileName(file.name);
+      sessionStorage.setItem("resumeText", text);
+      sessionStorage.setItem("fileName", file.name);
+      toast({
+        title: "Resume uploaded",
+        description: "Now add a job description to analyze.",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Could not parse file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [toast]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      "application/pdf": [".pdf"],
+      "application/msword": [".doc"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "image/*": [".png", ".jpg", ".jpeg"],
+    },
+    maxFiles: 1,
+  });
+
+  const handleAnalyze = () => {
+    if (!resumeText || !jobDescription.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please provide both a resume and job description.",
+        variant: "destructive",
+      });
+      return;
+    }
+    sessionStorage.setItem("jobDescription", jobDescription);
+    const result = analyzeResume(resumeText, jobDescription);
+    setAnalysis(result);
+    toast({
+      title: "Analysis complete",
+      description: `Your ATS score is ${result.score}/100`,
+    });
+  };
 
   const handleAutoFix = async () => {
     if (!resumeText) return;
@@ -147,12 +177,118 @@ export default function Analysis() {
       .slice(0, 10);
   };
 
+  // Show upload UI when no analysis
   if (!analysis) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-lg text-muted-foreground">Analyzing your resume...</p>
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
+            >
+              ResumeAI
+            </button>
+            <Button variant="outline" onClick={() => navigate("/upload")}>
+              <FileText className="w-4 h-4 mr-2" />
+              Resume Manager
+            </Button>
+          </div>
+        </header>
+
+        <div className="container mx-auto px-4 py-12">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-4xl mx-auto"
+          >
+            <div className="text-center mb-8">
+              <h1 className="text-4xl font-bold mb-4">
+                <span className="bg-gradient-hero bg-clip-text text-transparent">ATS Analysis</span>
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Upload your resume and paste the job description to see how well you match
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Resume Upload */}
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Your Resume
+                </h3>
+                {resumeText ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      <span className="text-sm font-medium">{fileName || "Resume uploaded"}</span>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-3 bg-muted/50 rounded-lg text-sm">
+                      <pre className="whitespace-pre-wrap font-sans">{resumeText.slice(0, 500)}...</pre>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => { setResumeText(""); setUploadedFile(null); }}
+                    >
+                      Upload Different Resume
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    {...getRootProps()}
+                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                      isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <input {...getInputProps()} />
+                    {isUploading ? (
+                      <div className="py-4">
+                        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                        <p className="text-sm text-muted-foreground">Parsing resume...</p>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+                        <p className="font-medium mb-1">
+                          {isDragActive ? "Drop your resume here" : "Drag & drop your resume"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">PDF, DOC, DOCX, or image</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </Card>
+
+              {/* Job Description */}
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Target className="w-5 h-5 text-primary" />
+                  Job Description
+                </h3>
+                <Textarea
+                  placeholder="Paste the job description here..."
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  className="min-h-[220px] resize-none"
+                />
+              </Card>
+            </div>
+
+            <div className="mt-8 text-center">
+              <Button
+                size="lg"
+                variant="hero"
+                onClick={handleAnalyze}
+                disabled={!resumeText || !jobDescription.trim()}
+                className="px-12"
+              >
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Analyze Resume
+              </Button>
+            </div>
+          </motion.div>
         </div>
       </div>
     );
