@@ -12,6 +12,8 @@ import {
   Copy,
   Download,
   Loader2,
+  Upload,
+  Edit3,
 } from "lucide-react";
 import {
   Select,
@@ -35,7 +37,9 @@ export default function CoverLetter() {
     "professional"
   );
   const [coverLetter, setCoverLetter] = useState("");
+  const [existingLetter, setExistingLetter] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [mode, setMode] = useState<"generate" | "edit">("generate");
 
   const handleGenerate = async () => {
     if (!resumeText.trim() || !jobDescription.trim()) {
@@ -128,80 +132,136 @@ export default function CoverLetter() {
             </p>
           </div>
 
+          {/* Mode Toggle */}
+          <div className="flex justify-center gap-4 mb-8">
+            <Button
+              variant={mode === "generate" ? "default" : "outline"}
+              onClick={() => setMode("generate")}
+              className="flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Generate New
+            </Button>
+            <Button
+              variant={mode === "edit" ? "default" : "outline"}
+              onClick={() => setMode("edit")}
+              className="flex items-center gap-2"
+            >
+              <Edit3 className="w-4 h-4" />
+              Edit Existing
+            </Button>
+          </div>
+
           <div className="grid lg:grid-cols-2 gap-8 mb-8">
             {/* Input Section */}
             <div className="space-y-6">
-              {/* Resume Input */}
-              <Card className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-bold">Your Resume</h2>
-                </div>
-                <Textarea
-                  placeholder="Paste your resume text here..."
-                  value={resumeText}
-                  onChange={(e) => setResumeText(e.target.value)}
-                  className="min-h-[200px] font-mono text-sm"
-                />
-              </Card>
+              {mode === "generate" ? (
+                <>
+                  {/* Resume Input */}
+                  <Card className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <FileText className="w-5 h-5 text-primary" />
+                      <h2 className="text-xl font-bold">Your Resume</h2>
+                    </div>
+                    <Textarea
+                      placeholder="Paste your resume text here..."
+                      value={resumeText}
+                      onChange={(e) => setResumeText(e.target.value)}
+                      className="min-h-[200px] font-mono text-sm"
+                    />
+                  </Card>
 
-              {/* Job Description */}
-              <Card className="p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="w-5 h-5 text-primary" />
-                  <h2 className="text-xl font-bold">Job Description</h2>
-                </div>
-                <Textarea
-                  placeholder="Paste the job description or job link..."
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  className="min-h-[200px] font-mono text-sm"
-                />
-              </Card>
+                  {/* Job Description */}
+                  <Card className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <FileText className="w-5 h-5 text-primary" />
+                      <h2 className="text-xl font-bold">Job Description</h2>
+                    </div>
+                    <Textarea
+                      placeholder="Paste the job description or job link..."
+                      value={jobDescription}
+                      onChange={(e) => setJobDescription(e.target.value)}
+                      className="min-h-[200px] font-mono text-sm"
+                    />
+                  </Card>
 
-              {/* Tone Selector & Generate */}
-              <Card className="p-6 bg-gradient-subtle">
-                <h2 className="text-xl font-bold mb-4">Cover Letter Tone</h2>
-                <Select
-                  value={tone}
-                  onValueChange={(value: any) => setTone(value)}
-                >
-                  <SelectTrigger className="w-full mb-4">
-                    <SelectValue placeholder="Select tone" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="professional">
-                      💼 Professional - Traditional & formal
-                    </SelectItem>
-                    <SelectItem value="confident">
-                      🚀 Confident - Bold & assertive
-                    </SelectItem>
-                    <SelectItem value="casual">
-                      😊 Casual - Friendly & conversational
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  {/* Tone Selector & Generate */}
+                  <Card className="p-6 bg-gradient-subtle">
+                    <h2 className="text-xl font-bold mb-4">Cover Letter Tone</h2>
+                    <Select
+                      value={tone}
+                      onValueChange={(value: any) => setTone(value)}
+                    >
+                      <SelectTrigger className="w-full mb-4">
+                        <SelectValue placeholder="Select tone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="professional">
+                          💼 Professional - Traditional & formal
+                        </SelectItem>
+                        <SelectItem value="confident">
+                          🚀 Confident - Bold & assertive
+                        </SelectItem>
+                        <SelectItem value="casual">
+                          😊 Casual - Friendly & conversational
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
 
-                <Button
-                  variant="hero"
-                  size="lg"
-                  className="w-full text-lg"
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-5 h-5 mr-2" />
-                      Generate Cover Letter
-                    </>
-                  )}
-                </Button>
-              </Card>
+                    <Button
+                      variant="hero"
+                      size="lg"
+                      className="w-full text-lg"
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5 mr-2" />
+                          Generate Cover Letter
+                        </>
+                      )}
+                    </Button>
+                  </Card>
+                </>
+              ) : (
+                <>
+                  {/* Upload/Edit Existing Cover Letter */}
+                  <Card className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Upload className="w-5 h-5 text-primary" />
+                      <h2 className="text-xl font-bold">Paste Existing Cover Letter</h2>
+                    </div>
+                    <Textarea
+                      placeholder="Paste your existing cover letter here to edit..."
+                      value={existingLetter}
+                      onChange={(e) => setExistingLetter(e.target.value)}
+                      className="min-h-[400px] font-mono text-sm"
+                    />
+                    <Button
+                      variant="hero"
+                      size="lg"
+                      className="w-full text-lg mt-4"
+                      onClick={() => {
+                        setCoverLetter(existingLetter);
+                        toast({
+                          title: "✓ Loaded",
+                          description: "Your cover letter is ready to edit",
+                        });
+                      }}
+                      disabled={!existingLetter.trim()}
+                    >
+                      <Edit3 className="w-5 h-5 mr-2" />
+                      Load for Editing
+                    </Button>
+                  </Card>
+                </>
+              )}
             </div>
 
             {/* Output Section */}
@@ -233,18 +293,20 @@ export default function CoverLetter() {
                   <div className="min-h-[500px] flex items-center justify-center border-2 border-dashed border-border rounded-lg">
                     <div className="text-center text-muted-foreground">
                       <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>Your AI-generated cover letter will appear here</p>
+                      <p>{mode === "generate" ? "Your AI-generated cover letter will appear here" : "Load your cover letter to start editing"}</p>
                     </div>
                   </div>
                 ) : (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="bg-background rounded-lg border border-border p-6"
                   >
-                    <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                      {coverLetter}
-                    </div>
+                    <Textarea
+                      value={coverLetter}
+                      onChange={(e) => setCoverLetter(e.target.value)}
+                      className="min-h-[500px] font-mono text-sm"
+                      placeholder="Edit your cover letter here..."
+                    />
                   </motion.div>
                 )}
               </Card>
