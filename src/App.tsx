@@ -14,6 +14,15 @@ import CoverLetter from "./pages/CoverLetter";
 import JobTracker from "./pages/JobTracker";
 import TemplateBuilder from "./pages/TemplateBuilder";
 import NotFound from "./pages/NotFound";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminOverview from "./pages/admin/AdminOverview";
+import UserManagement from "./pages/admin/UserManagement";
+import ActivityLogs from "./pages/admin/ActivityLogs";
+import SessionsManagement from "./pages/admin/SessionsManagement";
+import SecurityAlerts from "./pages/admin/SecurityAlerts";
+import AccessControl from "./pages/admin/AccessControl";
+import AuditTrail from "./pages/admin/AuditTrail";
+import AdminSettings from "./pages/admin/AdminSettings";
 
 const queryClient = new QueryClient();
 
@@ -34,7 +43,19 @@ const App = () => (
           <Route path="/cover-letter" element={<CoverLetter />} />
           <Route path="/tracker" element={<JobTracker />} />
           <Route path="/templates" element={<TemplateBuilder />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminOverview />} />
+            <Route path="users" element={<UserManagement />} />
+            <Route path="activity" element={<ActivityLogs />} />
+            <Route path="sessions" element={<SessionsManagement />} />
+            <Route path="security" element={<SecurityAlerts />} />
+            <Route path="access" element={<AccessControl />} />
+            <Route path="audit" element={<AuditTrail />} />
+            <Route path="settings" element={<AdminSettings />} />
+          </Route>
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          ip_address: string | null
+          severity: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          ip_address?: string | null
+          severity?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          ip_address?: string | null
+          severity?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      admin_whitelist: {
+        Row: {
+          added_by: string | null
+          created_at: string | null
+          email: string
+          id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
       cover_letters: {
         Row: {
           category: string | null
@@ -103,6 +163,36 @@ export type Database = {
         }
         Relationships: []
       }
+      login_attempts: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          ip_address: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          ip_address?: string | null
+          success: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -180,6 +270,42 @@ export type Database = {
           },
         ]
       }
+      suspicious_activities: {
+        Row: {
+          activity_type: string
+          created_at: string | null
+          description: string | null
+          id: string
+          resolved: boolean | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -201,6 +327,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sessions: {
+        Row: {
+          created_at: string | null
+          id: string
+          ip_address: string | null
+          is_active: boolean | null
+          last_activity: string | null
+          session_token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          session_token?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -212,6 +371,18 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      is_whitelisted_admin: { Args: { _user_id: string }; Returns: boolean }
+      log_activity: {
+        Args: {
+          _action: string
+          _details?: Json
+          _entity_id?: string
+          _entity_type?: string
+          _severity?: string
+          _user_id: string
+        }
+        Returns: string
       }
     }
     Enums: {
