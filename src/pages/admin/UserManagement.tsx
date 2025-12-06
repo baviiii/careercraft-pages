@@ -34,7 +34,6 @@ export default function UserManagement() {
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case 'admin': return 'default';
-      case 'moderator': return 'secondary';
       default: return 'outline';
     }
   };
@@ -50,7 +49,7 @@ export default function UserManagement() {
       // Insert new role
       const { error } = await supabase
         .from('user_roles')
-        .insert([{ user_id: userId, role: newRole as 'admin' | 'moderator' | 'user' }]);
+        .insert([{ user_id: userId, role: newRole as 'admin' | 'user' }]);
 
       if (error) throw error;
 
@@ -116,7 +115,6 @@ export default function UserManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="moderator">Moderator</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
@@ -155,7 +153,6 @@ export default function UserManagement() {
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="admin">Admins</SelectItem>
-                <SelectItem value="moderator">Moderators</SelectItem>
                 <SelectItem value="user">Users</SelectItem>
               </SelectContent>
             </Select>
@@ -213,10 +210,6 @@ export default function UserManagement() {
                         <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'admin')}>
                           <Shield className="w-4 h-4 mr-2" />
                           Make Admin
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'moderator')}>
-                          <Shield className="w-4 h-4 mr-2" />
-                          Make Moderator
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'user')}>
                           <Shield className="w-4 h-4 mr-2" />
