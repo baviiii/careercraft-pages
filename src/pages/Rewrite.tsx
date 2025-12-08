@@ -50,11 +50,11 @@ export default function Rewrite() {
       <div className="min-h-screen bg-background">
         <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
           <div className="container mx-auto px-4 py-4">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
-            >
-              ResumeAI
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-xl font-bold">CareerCraft</span>
             </button>
           </div>
         </header>
@@ -188,11 +188,11 @@ export default function Rewrite() {
       {/* Header */}
       <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent"
-          >
-            ResumeAI
+          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xl font-bold">CareerCraft</span>
           </button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate("/analysis")}>

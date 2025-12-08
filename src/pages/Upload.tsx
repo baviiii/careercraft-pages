@@ -31,15 +31,18 @@ import { useToast } from "@/hooks/use-toast";
 import { parseResume } from "@/lib/resumeParser";
 import { parseLinkedInText } from "@/lib/linkedinParser";
 import { supabase } from "@/integrations/supabase/client";
+import { createPDFFromText, downloadPDF } from "@/lib/pdfService";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ResumeEditor } from "@/components/ResumeEditor";
 
 interface SavedResume {
   id: string;
   name: string;
   content: string;
   file_type: string;
+  file_data?: string | null; // Base64 encoded original PDF
   category?: string | null;
   tags?: string[] | null;
   notes?: string | null;
@@ -109,6 +112,9 @@ export default function Upload() {
   const [jobDescriptionInput, setJobDescriptionInput] = useState("");
   const [resumeToAnalyze, setResumeToAnalyze] = useState<SavedResume | null>(null);
   const [actionType, setActionType] = useState<"analyze" | "rewrite">("analyze");
+  
+  // PDF preview state
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
   // Load saved resumes on mount
   useEffect(() => {
@@ -128,7 +134,17 @@ export default function Upload() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setSavedResumes(data || []);
+      
+      // Enrich resumes with PDF data from localStorage
+      const enrichedResumes = (data || []).map(resume => {
+        const storedPdf = localStorage.getItem(`resume_pdf_${resume.id}`);
+        return {
+          ...resume,
+          file_data: storedPdf || null,
+        };
+      });
+      
+      setSavedResumes(enrichedResumes);
 
       // Fetch cover letters
       const { data: clData, error: clError } = await supabase
@@ -151,20 +167,31 @@ export default function Upload() {
     }
   };
 
-  const saveResumeToDatabase = async (content: string, filename: string, fileType: string) => {
+  const saveResumeToDatabase = async (content: string, filename: string, fileType: string, fileData?: string | null) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase.from('resumes').insert({
+      const insertData: any = {
         user_id: user.id,
         name: filename,
         content: content,
         original_filename: filename,
         file_type: fileType,
-      });
+      };
+
+      const { data, error } = await supabase.from('resumes').insert(insertData).select().single();
 
       if (error) throw error;
+      
+      // Store original PDF data in localStorage (since DB may not have file_data column)
+      if (fileData && data?.id) {
+        try {
+          localStorage.setItem(`resume_pdf_${data.id}`, fileData);
+        } catch (e) {
+          console.warn('Could not store PDF in localStorage (may be too large):', e);
+        }
+      }
       
       // Reload resumes after saving
       loadSavedResumes();
@@ -181,6 +208,9 @@ export default function Upload() {
         .eq('id', id);
 
       if (error) throw error;
+      
+      // Clean up localStorage PDF data
+      localStorage.removeItem(`resume_pdf_${id}`);
 
       toast({
         title: "Deleted",
@@ -273,6 +303,60 @@ export default function Upload() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadResumeAsPDF = async (resume: SavedResume) => {
+    try {
+      // If we have the original PDF, download it directly
+      if (resume.file_data) {
+        const binaryString = atob(resume.file_data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = resume.name.endsWith('.pdf') ? resume.name : `${resume.name}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast({
+          title: "✓ Original PDF Downloaded",
+          description: `${resume.name} has been saved`,
+        });
+        return;
+      }
+      
+      // Otherwise generate a new PDF from text
+      toast({
+        title: "Generating PDF...",
+        description: "Creating PDF from extracted text",
+      });
+      
+      const pdfBytes = await createPDFFromText(resume.content, {
+        title: resume.name,
+        author: 'CareerCraft User',
+      });
+      
+      downloadPDF(pdfBytes, `${resume.name}.pdf`);
+      
+      toast({
+        title: "✓ PDF Downloaded",
+        description: `${resume.name}.pdf has been saved`,
+      });
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download PDF",
+        variant: "destructive",
+      });
+    }
+  };
+
   const onDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
@@ -288,8 +372,16 @@ export default function Upload() {
       
       const fileType = file.type.startsWith('image/') ? 'image' : file.type === 'application/pdf' ? 'pdf' : 'doc';
       
-      // Save to database
-      await saveResumeToDatabase(text, file.name, fileType);
+      // Convert file to base64 for storage (for PDFs)
+      let fileData: string | null = null;
+      if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        fileData = btoa(bytes.reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      }
+      
+      // Save to database with original file data
+      await saveResumeToDatabase(text, file.name, fileType, fileData);
       
       const displayType = file.type.startsWith('image/') ? 'Image' : file.type === 'application/pdf' ? 'PDF' : 'Document';
       
@@ -502,8 +594,11 @@ export default function Upload() {
       {/* Header */}
       <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={() => navigate("/dashboard")} className="text-2xl font-bold bg-gradient-hero bg-clip-text text-transparent">
-            ResumeAI
+          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
+              <FileText className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xl font-bold">CareerCraft</span>
           </button>
           <Button variant="ghost" onClick={() => navigate("/dashboard")}>
             Back to Dashboard
@@ -816,6 +911,12 @@ export default function Upload() {
                               {getFileTypeIcon(resume.file_type)}
                               {resume.file_type}
                             </Badge>
+                            {resume.file_data && (
+                              <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20 flex items-center gap-1">
+                                <Eye className="w-3 h-3" />
+                                PDF Preview
+                              </Badge>
+                            )}
                             {resume.category && (
                               <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20 flex items-center gap-1">
                                 <FolderOpen className="w-3 h-3" />
@@ -972,26 +1073,37 @@ export default function Upload() {
                             </Button>
                             <Button
                               size="sm"
+                              variant="hero"
+                              onClick={() => downloadResumeAsPDF(resume)}
+                              className="gap-1"
+                            >
+                              <Download className="w-3 h-3" />
+                              PDF
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              size="sm"
                               variant="outline"
                               onClick={() => downloadResumeAsText(resume)}
                               className="gap-1"
                             >
-                              <Download className="w-3 h-3" />
-                              Export
+                              <FileText className="w-3 h-3" />
+                              TXT
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                setResumeToDelete(resume.id);
+                                setDeleteDialogOpen(true);
+                              }}
+                              className="gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Delete
                             </Button>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              setResumeToDelete(resume.id);
-                              setDeleteDialogOpen(true);
-                            }}
-                            className="w-full gap-2"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete
-                          </Button>
                         </div>
                       </div>
                     </Card>
@@ -1148,12 +1260,12 @@ export default function Upload() {
       </Dialog>
 
       {/* View Resume Dialog - Full Content */}
-      <Dialog open={!!viewingResume} onOpenChange={() => setViewingResume(null)}>
+      <Dialog open={!!viewingResume} onOpenChange={() => { setViewingResume(null); setPdfPreviewUrl(null); }}>
         <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold">{viewingResume?.name}</DialogTitle>
             <DialogDescription>
-              Full resume preview with all content
+              {viewingResume?.file_data ? 'Original PDF preview' : 'Extracted text content'}
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 flex flex-col gap-4 min-h-0">
@@ -1163,6 +1275,12 @@ export default function Upload() {
                 {getFileTypeIcon(viewingResume?.file_type || '')}
                 {viewingResume?.file_type}
               </Badge>
+              {viewingResume?.file_data && (
+                <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+                  <FileText className="w-3 h-3 mr-1" />
+                  Original PDF
+                </Badge>
+              )}
               <span className="text-sm text-muted-foreground">
                 {viewingResume && new Date(viewingResume.created_at).toLocaleDateString()}
               </span>
@@ -1174,24 +1292,31 @@ export default function Upload() {
                 <span className="font-medium">
                   {viewingResume?.content.length || 0} chars
                 </span>
-                <span className="text-muted-foreground">•</span>
-                <span className="font-medium">
-                  {viewingResume?.content.split(/\n/).length || 0} lines
-                </span>
               </div>
             </div>
 
-            {/* Full Content View with Scroll */}
-            <div className="flex-1 overflow-y-auto border-2 rounded-lg p-8 bg-white dark:bg-gray-950 min-h-[60vh] shadow-inner">
-              <div className="max-w-4xl mx-auto">
-                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words">
-                  {viewingResume?.content || "No content available"}
+            {/* PDF Preview or Text Content */}
+            {viewingResume?.file_data ? (
+              <div className="flex-1 overflow-hidden rounded-lg border-2 min-h-[60vh] bg-gray-100 dark:bg-gray-900">
+                <iframe
+                  src={`data:application/pdf;base64,${viewingResume.file_data}`}
+                  className="w-full h-full min-h-[60vh]"
+                  title="PDF Preview"
+                  style={{ border: 'none' }}
+                />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto border-2 rounded-lg p-8 bg-white dark:bg-gray-950 min-h-[60vh] shadow-inner">
+                <div className="max-w-4xl mx-auto">
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed break-words">
+                    {viewingResume?.content || "No content available"}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Action Buttons */}
-            <div className="flex gap-2 pt-2 border-t">
+            <div className="flex flex-wrap gap-2 pt-2 border-t">
               <Button
                 onClick={() => {
                   if (viewingResume) {
@@ -1200,22 +1325,31 @@ export default function Upload() {
                   }
                 }}
                 size="lg"
-                className="flex-1"
+                className="flex-1 min-w-[140px]"
               >
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit Content
               </Button>
               <Button
+                onClick={() => viewingResume && downloadResumeAsPDF(viewingResume)}
+                variant="hero"
+                size="lg"
+                className="flex-1 min-w-[140px]"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+              <Button
                 onClick={() => viewingResume && downloadResumeAsText(viewingResume)}
                 variant="outline"
                 size="lg"
-                className="flex-1"
+                className="flex-1 min-w-[140px]"
               >
-                <Download className="w-4 h-4 mr-2" />
+                <FileText className="w-4 h-4 mr-2" />
                 Download TXT
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => setViewingResume(null)}
                 size="lg"
               >
@@ -1226,85 +1360,42 @@ export default function Upload() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Resume Content Dialog */}
+      {/* Edit Resume Content Dialog - Full Screen Editor */}
       <Dialog open={!!editingContent} onOpenChange={() => setEditingContent(null)}>
-        <DialogContent className="max-w-6xl max-h-[92vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-2xl flex items-center gap-2">
-              <Pencil className="w-6 h-6 text-primary" />
-              Edit: {editingContent?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Edit the full text content of your resume
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 flex flex-col gap-4 min-h-0">
-            {/* Stats Bar */}
-            <div className="flex items-center gap-3 p-3 bg-accent/50 rounded-lg flex-wrap">
-              <Badge variant="outline" className={getFileTypeBadgeColor(editingContent?.file_type || '')}>
-                {getFileTypeIcon(editingContent?.file_type || '')}
-                {editingContent?.file_type}
-              </Badge>
-              <div className="flex items-center gap-3 ml-auto text-sm">
-                <span className="font-medium">
-                  {editedText.split(/\s+/).filter(w => w.length > 0).length} words
-                </span>
-                <span className="text-muted-foreground">•</span>
-                <span className="font-medium">
-                  {editedText.length} chars
-                </span>
-                <span className="text-muted-foreground">•</span>
-                <span className="font-medium">
-                  {editedText.split(/\n/).length} lines
-                </span>
-              </div>
-            </div>
+        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-[95vh] p-0 overflow-hidden">
+          {editingContent && (
+            <ResumeEditor
+              initialContent={editingContent.content}
+              originalPdfData={editingContent.file_data}
+              resumeName={editingContent.name}
+              onSave={async (content) => {
+                try {
+                  const { error } = await supabase
+                    .from('resumes')
+                    .update({ content, updated_at: new Date().toISOString() })
+                    .eq('id', editingContent.id);
 
-            {/* Info Banner */}
-            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <p className="text-sm text-blue-600 dark:text-blue-400">
-                ✏️ Full edit mode: Select any text to modify, copy sections, or rewrite your entire resume. All changes are saved to your database.
-              </p>
-            </div>
-            
-            {/* Large Editable Textarea */}
-            <textarea
-              value={editedText}
-              onChange={(e) => setEditedText(e.target.value)}
-              className="flex-1 w-full min-h-[55vh] p-6 border-2 rounded-lg bg-white dark:bg-gray-950 text-sm leading-loose resize-none focus:outline-none focus:ring-2 focus:ring-primary shadow-inner"
-              placeholder="Resume content..."
-              spellCheck={true}
+                  if (error) throw error;
+
+                  toast({
+                    title: "✓ Resume Updated",
+                    description: "Your changes have been saved",
+                  });
+                  
+                  loadSavedResumes();
+                  setEditingContent(null);
+                } catch (error) {
+                  console.error('Error saving resume:', error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to save changes",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              onClose={() => setEditingContent(null)}
             />
-
-            {/* Action Buttons */}
-            <div className="flex gap-2 pt-2 border-t">
-              <Button
-                onClick={saveEditedContent}
-                className="flex-1"
-                size="lg"
-              >
-                <Check className="w-5 h-5 mr-2" />
-                Save Changes
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (editingContent && editedText !== editingContent.content) {
-                    if (confirm("You have unsaved changes. Are you sure you want to close?")) {
-                      setEditingContent(null);
-                      setEditedText("");
-                    }
-                  } else {
-                    setEditingContent(null);
-                    setEditedText("");
-                  }
-                }}
-                size="lg"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 
