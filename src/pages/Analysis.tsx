@@ -39,6 +39,8 @@ import {
   Save,
   FolderPlus,
   ArrowRight,
+  Plus,
+  Briefcase,
   CircleDot,
   Layers,
   Settings2,
@@ -1311,7 +1313,7 @@ export default function Analysis() {
               </Card>
             )}
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card 
                 className="p-4 cursor-pointer hover:border-primary transition-all group"
                 onClick={() => {
@@ -1379,6 +1381,54 @@ export default function Analysis() {
                   <h3 className="font-semibold mb-1">Save Resume</h3>
                   <p className="text-xs text-muted-foreground">
                     Save to My Resumes
+                  </p>
+                </div>
+              </Card>
+
+              <Card 
+                className="p-4 cursor-pointer hover:border-green-500 transition-all group"
+                onClick={async () => {
+                  // Add to job tracker with resume and job description
+                  try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) {
+                      toast({ title: "Please log in", variant: "destructive" });
+                      return;
+                    }
+
+                    // Extract job title from job description (first line or "Position")
+                    const jobLines = jobDescription.split('\n').filter(l => l.trim());
+                    const extractedTitle = jobLines[0]?.substring(0, 100) || "Job Application";
+
+                    const { error } = await supabase.from('job_applications').insert({
+                      user_id: user.id,
+                      job_title: extractedTitle,
+                      company: "Company Name", // User can edit later
+                      status: "applied",
+                      job_description: jobDescription,
+                      resume_id: selectedResumeId || null,
+                      notes: `ATS Score: ${analysis?.overallScore || 'N/A'}/100`,
+                    });
+
+                    if (error) throw error;
+                    
+                    toast({ 
+                      title: "✓ Added to Job Tracker", 
+                      description: "Edit the details in Job Tracker" 
+                    });
+                    setShowTemplateDialog(false);
+                  } catch (error) {
+                    toast({ title: "Failed to add job", variant: "destructive" });
+                  }
+                }}
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <Briefcase className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="font-semibold mb-1">Add to Jobs</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Track this application
                   </p>
                 </div>
               </Card>
