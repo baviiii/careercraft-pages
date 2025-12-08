@@ -57,6 +57,8 @@ import {
   Building,
   X,
   Check,
+  Gauge,
+  BarChart3,
 } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
@@ -71,6 +73,8 @@ interface Resume {
   category?: string;
   job_title?: string;
   target_company?: string;
+  ats_score?: number;
+  last_analyzed_at?: string;
 }
 
 const CATEGORIES = [
@@ -687,12 +691,25 @@ export default function MyResumes() {
                           </DropdownMenu>
                         </div>
                         
-                        {/* Category Badge */}
+                        {/* Category Badge & ATS Score */}
                         <div className="flex items-center gap-2 mb-3">
                           <Badge variant="secondary" className="gap-1">
                             <category.icon className="w-3 h-3" />
                             {category.label}
                           </Badge>
+                          {resume.ats_score !== undefined && resume.ats_score !== null && (
+                            <Badge 
+                              variant="outline" 
+                              className={`gap-1 ${
+                                resume.ats_score >= 80 ? "border-green-500 text-green-600" :
+                                resume.ats_score >= 60 ? "border-yellow-500 text-yellow-600" :
+                                "border-red-500 text-red-600"
+                              }`}
+                            >
+                              <Gauge className="w-3 h-3" />
+                              ATS: {resume.ats_score}%
+                            </Badge>
+                          )}
                           <Select 
                             value={resume.category || "general"} 
                             onValueChange={(v) => handleUpdateCategory(resume, v)}
@@ -794,6 +811,20 @@ export default function MyResumes() {
                       </p>
                     </div>
                     
+                    {resume.ats_score !== undefined && resume.ats_score !== null && (
+                      <Badge 
+                        variant="outline" 
+                        className={`hidden sm:flex gap-1 ${
+                          resume.ats_score >= 80 ? "border-green-500 text-green-600" :
+                          resume.ats_score >= 60 ? "border-yellow-500 text-yellow-600" :
+                          "border-red-500 text-red-600"
+                        }`}
+                      >
+                        <Gauge className="w-3 h-3" />
+                        {resume.ats_score}%
+                      </Badge>
+                    )}
+
                     {resume.tags && resume.tags.length > 0 && (
                       <div className="hidden md:flex gap-1">
                         {resume.tags.slice(0, 2).map(tag => (

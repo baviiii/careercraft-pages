@@ -99,6 +99,11 @@ export default function Analysis() {
   const [coverLetterTone, setCoverLetterTone] = useState<"professional" | "confident" | "casual">("professional");
   const [generatedCoverLetter, setGeneratedCoverLetter] = useState("");
   const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
+  
+  // Cover letter pairing for complete job readiness
+  const [savedCoverLetters, setSavedCoverLetters] = useState<{id: string; content: string; created_at: string}[]>([]);
+  const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<string>("");
+  const [coverLetterText, setCoverLetterText] = useState("");
 
   useEffect(() => {
     const storedResume = sessionStorage.getItem("resumeText");
@@ -110,23 +115,29 @@ export default function Analysis() {
     if (storedFileName) setFileName(storedFileName);
   }, []);
 
-  // Fetch saved resumes
+  // Fetch saved resumes and cover letters
   useEffect(() => {
-    const fetchSavedResumes = async () => {
+    const fetchSavedData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
-        .from('resumes')
-        .select('id, name, content, created_at')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false });
+      const [resumesRes, coverLettersRes] = await Promise.all([
+        supabase
+          .from('resumes')
+          .select('id, name, content, created_at')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false }),
+        supabase
+          .from('cover_letters')
+          .select('id, content, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+      ]);
 
-      if (data) {
-        setSavedResumes(data);
-      }
+      if (resumesRes.data) setSavedResumes(resumesRes.data);
+      if (coverLettersRes.data) setSavedCoverLetters(coverLettersRes.data);
     };
-    fetchSavedResumes();
+    fetchSavedData();
   }, []);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -254,6 +265,16 @@ export default function Analysis() {
       const result = await runATSAIAnalysis(resumeText, jobDescription);
       setAnalysis(result);
       setStep("results");
+      
+      // Save ATS score to the resume if it was loaded from saved resumes
+      if (selectedResumeId) {
+        await supabase.from('resumes').update({
+          ats_score: result.overallScore,
+          last_analyzed_at: new Date().toISOString(),
+          last_job_description: jobDescription.substring(0, 500), // Store first 500 chars
+        } as any).eq('id', selectedResumeId);
+      }
+      
       toast({ title: "Analysis complete", description: `Your ATS score is ${result.overallScore}/100` });
     } catch (error) {
       toast({ title: "Analysis failed", description: error instanceof Error ? error.message : "Could not analyze resume", variant: "destructive" });
@@ -576,6 +597,59 @@ export default function Analysis() {
               </Card>
             </div>
 
+            {/* Optional: Cover Letter Pairing */}
+            <Card className="mt-6 p-6 border-2 border-dashed">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm font-bold">3</div>
+                  Cover Letter (Optional)
+                </h3>
+                {coverLetterText && (
+                  <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Paired
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Pair a cover letter for complete job readiness analysis. We'll check if your cover letter complements your resume for this position.
+              </p>
+              
+              {savedCoverLetters.length > 0 && (
+                <div className="mb-4">
+                  <Label className="text-sm mb-2 block">Select from saved cover letters</Label>
+                  <Select 
+                    value={selectedCoverLetterId} 
+                    onValueChange={(id) => {
+                      setSelectedCoverLetterId(id);
+                      const cl = savedCoverLetters.find(c => c.id === id);
+                      if (cl) setCoverLetterText(cl.content);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a cover letter..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {savedCoverLetters.map(cl => (
+                        <SelectItem key={cl.id} value={cl.id}>
+                          {new Date(cl.created_at).toLocaleDateString()} - {cl.content.substring(0, 40)}...
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              <Textarea
+                placeholder="Or paste your cover letter here..."
+                value={coverLetterText}
+                onChange={(e) => {
+                  setCoverLetterText(e.target.value);
+                  setSelectedCoverLetterId("");
+                }}
+                className="min-h-[150px] resize-none"
+              />
+            </Card>
+
             <div className="mt-8 text-center space-y-4">
               <Button
                 size="lg"
@@ -585,7 +659,7 @@ export default function Analysis() {
                 className="px-12 h-14 text-lg"
               >
                 <Sparkles className="w-5 h-5 mr-2" />
-                Run Deep ATS Analysis
+                {coverLetterText ? "Run Complete Job Readiness Analysis" : "Run Deep ATS Analysis"}
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
               <p className="text-sm text-muted-foreground">

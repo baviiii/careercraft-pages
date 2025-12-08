@@ -8,7 +8,6 @@ import {
   FileText,
   Upload,
   BarChart3,
-  Edit,
   Sparkles,
   Mail,
   Briefcase,
@@ -152,13 +151,6 @@ export default function Dashboard() {
       description: "Analyze resume compatibility with job postings",
       path: "/analysis",
       gradient: "from-purple-500 to-pink-500",
-    },
-    {
-      icon: Edit,
-      title: "Resume Editor",
-      description: "Edit and customize your resume content",
-      path: "/editor",
-      gradient: "from-green-500 to-emerald-500",
     },
     {
       icon: Sparkles,
