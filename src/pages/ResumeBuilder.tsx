@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import {
   Upload,
@@ -40,12 +41,18 @@ import {
   Award,
   FolderOpen,
   ClipboardPaste,
+  Tag,
+  Building,
+  Code,
+  Palette,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseResumeWithAI, parseResumeStructured, AIResumeData } from "@/lib/resumeParser";
+import { rewriteBullet } from "@/lib/aiRewriter";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ModernTemplate1 } from "@/components/templates/ModernTemplate1";
 import { ModernTemplate2 } from "@/components/templates/ModernTemplate2";
 import { ProfessionalTemplate } from "@/components/templates/ProfessionalTemplate";
@@ -155,6 +162,20 @@ const STEPS = [
   { id: "preview", title: "Preview & Export", icon: Download },
 ];
 
+const CATEGORIES = [
+  { id: "general", label: "General", icon: FileText, color: "bg-gray-500" },
+  { id: "tech", label: "Tech/IT", icon: Code, color: "bg-blue-500" },
+  { id: "business", label: "Business", icon: Building, color: "bg-green-500" },
+  { id: "creative", label: "Creative", icon: Palette, color: "bg-purple-500" },
+  { id: "academic", label: "Academic", icon: GraduationCap, color: "bg-orange-500" },
+];
+
+const PRESET_TAGS = [
+  "Full-time", "Part-time", "Remote", "Hybrid", "Contract",
+  "Entry-level", "Mid-level", "Senior", "Executive",
+  "Updated", "Draft", "Final", "Submitted"
+];
+
 // Helper to create empty resume data
 const createEmptyResumeData = (): ResumeData => ({
   contact: { name: "", email: "", phone: "", location: "", linkedin: "", website: "" },
@@ -207,7 +228,8 @@ const aiDataToResumeData = (aiData: AIResumeData): ResumeData => {
 // Parse raw text content into ResumeData
 const parseTextToResumeData = (text: string): ResumeData => {
   const data = createEmptyResumeData();
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = text.split('\n').map(l => l.trim());
+  const nonEmptyLines = lines.filter(Boolean);
   
   // Extract contact info
   const emailMatch = text.match(/[\w.-]+@[\w.-]+\.\w+/);
@@ -219,8 +241,8 @@ const parseTextToResumeData = (text: string): ResumeData => {
   if (linkedinMatch) data.contact.linkedin = linkedinMatch[0];
   
   // First line is often the name
-  for (const line of lines.slice(0, 5)) {
-    if (!line.includes('@') && !line.match(/^\d/) && line.length > 2 && line.length < 50) {
+  for (const line of nonEmptyLines.slice(0, 5)) {
+    if (!line.includes('@') && !line.match(/^\d/) && line.length > 2 && line.length < 50 && !line.includes('|')) {
       data.contact.name = line;
       break;
     }
@@ -230,32 +252,152 @@ const parseTextToResumeData = (text: string): ResumeData => {
   const locationMatch = text.match(/([A-Z][a-z]+,\s*[A-Z]{2})|([A-Z][a-z]+\s*,\s*[A-Z][a-z]+)/);
   if (locationMatch) data.contact.location = locationMatch[0];
   
-  // Find sections
+  // Find sections by headers
   let currentSection = '';
-  let sectionContent: { [key: string]: string[] } = {
+  let sectionLines: { [key: string]: string[] } = {
     summary: [], experience: [], education: [], skills: []
   };
   
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const lower = line.toLowerCase();
-    if (lower.includes('summary') || lower.includes('objective') || lower.includes('profile')) {
+    
+    // Detect section headers
+    if (lower.match(/^(professional\s+)?summary|^objective|^profile/)) {
       currentSection = 'summary';
-    } else if (lower.includes('experience') || lower.includes('employment')) {
+      continue;
+    } else if (lower.match(/^(work\s+)?experience|^employment/)) {
       currentSection = 'experience';
-    } else if (lower.includes('education')) {
+      continue;
+    } else if (lower.match(/^education/)) {
       currentSection = 'education';
-    } else if (lower.includes('skill') || lower.includes('technical')) {
+      continue;
+    } else if (lower.match(/^skills|^technical/)) {
       currentSection = 'skills';
-    } else if (currentSection && sectionContent[currentSection]) {
-      sectionContent[currentSection].push(line);
+      continue;
+    }
+    
+    if (currentSection && sectionLines[currentSection] && line) {
+      sectionLines[currentSection].push(line);
     }
   }
   
-  data.summary = sectionContent.summary.join(' ');
-  data.skills = sectionContent.skills.join(' ')
-    .split(/[,•|·]/)
+  // Parse summary
+  data.summary = sectionLines.summary.join(' ').trim();
+  
+  // Parse skills
+  const skillsText = sectionLines.skills.join(' ');
+  data.skills = skillsText
+    .split(/[,•|·\n]/)
     .map(s => s.trim())
     .filter(s => s.length > 1 && s.length < 50);
+  
+  // Parse experience - look for job patterns
+  const expLines = sectionLines.experience;
+  let currentJob: Experience | null = null;
+  
+  for (let i = 0; i < expLines.length; i++) {
+    const line = expLines[i];
+    
+    // Check if this looks like a job title line (contains "at" or company pattern)
+    const jobMatch = line.match(/^(.+?)\s+at\s+(.+)$/i) || line.match(/^(.+?)\s*[-–]\s*(.+)$/);
+    const dateMatch = line.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})\s*[-–]\s*(Present|\d{4}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i);
+    
+    if (jobMatch && !line.startsWith('•') && !line.startsWith('-')) {
+      // Save previous job
+      if (currentJob) {
+        data.experience.push(currentJob);
+      }
+      
+      currentJob = {
+        id: `exp-${Date.now()}-${data.experience.length}`,
+        title: jobMatch[1].trim(),
+        company: jobMatch[2].trim(),
+        location: '',
+        startDate: '',
+        endDate: '',
+        current: false,
+        bullets: []
+      };
+    } else if (dateMatch && currentJob) {
+      // This is a date line
+      const parts = line.split(/[-–]/);
+      currentJob.startDate = parts[0]?.trim() || '';
+      currentJob.endDate = parts[1]?.trim() || 'Present';
+      currentJob.current = currentJob.endDate.toLowerCase() === 'present';
+    } else if ((line.startsWith('•') || line.startsWith('-') || line.startsWith('*')) && currentJob) {
+      // This is a bullet point
+      currentJob.bullets.push(line.replace(/^[•\-*]\s*/, '').trim());
+    } else if (currentJob && line.length > 20 && !dateMatch) {
+      // Could be a bullet without marker
+      currentJob.bullets.push(line);
+    }
+  }
+  
+  // Don't forget the last job
+  if (currentJob) {
+    data.experience.push(currentJob);
+  }
+  
+  // Parse education
+  const eduLines = sectionLines.education;
+  let currentEdu: Education | null = null;
+  
+  for (const line of eduLines) {
+    const degreeMatch = line.match(/(Bachelor|Master|PhD|Associate|BS|BA|MS|MA|MBA|B\.S\.|B\.A\.|M\.S\.|M\.A\.)/i);
+    const dateMatch = line.match(/(Graduated|Class of|Expected)?\s*:?\s*(\d{4}|May|June|Dec)/i);
+    
+    if (degreeMatch || (line.includes(' - ') && !line.startsWith('•'))) {
+      if (currentEdu) {
+        data.education.push(currentEdu);
+      }
+      
+      const parts = line.split(/\s*[-–]\s*/);
+      currentEdu = {
+        id: `edu-${Date.now()}-${data.education.length}`,
+        degree: parts[0]?.trim() || line,
+        school: parts[1]?.trim() || '',
+        location: '',
+        graduationDate: '',
+        gpa: ''
+      };
+    } else if (dateMatch && currentEdu) {
+      currentEdu.graduationDate = dateMatch[2] || dateMatch[0];
+    } else if (currentEdu && line.toLowerCase().includes('gpa')) {
+      const gpaMatch = line.match(/(\d+\.?\d*)\s*\/?\s*(\d+\.?\d*)?/);
+      if (gpaMatch) currentEdu.gpa = gpaMatch[0];
+    }
+  }
+  
+  if (currentEdu) {
+    data.education.push(currentEdu);
+  }
+  
+  // If no experience was parsed, create one empty entry so user can fill it
+  if (data.experience.length === 0) {
+    data.experience.push({
+      id: `exp-${Date.now()}`,
+      title: '',
+      company: '',
+      location: '',
+      startDate: '',
+      endDate: '',
+      current: false,
+      bullets: ['']
+    });
+  }
+  
+  // If no education was parsed, create one empty entry
+  if (data.education.length === 0) {
+    data.education.push({
+      id: `edu-${Date.now()}`,
+      degree: '',
+      school: '',
+      location: '',
+      graduationDate: '',
+      gpa: ''
+    });
+  }
   
   return data;
 };
@@ -281,9 +423,107 @@ export default function ResumeBuilder() {
   const [useAIParsing, setUseAIParsing] = useState(false); // Default OFF to save tokens
   const [showPasteDialog, setShowPasteDialog] = useState(false);
   const [pastedText, setPastedText] = useState("");
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveResumeName, setSaveResumeName] = useState("");
+  const [saveCategory, setSaveCategory] = useState("general");
+  const [saveTags, setSaveTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState("");
+  const [currentResumeId, setCurrentResumeId] = useState<string | null>(null);
+  
+  // New features: Load saved resumes, job description, AI rewrite
+  const [showLoadResumeDialog, setShowLoadResumeDialog] = useState(false);
+  const [savedResumes, setSavedResumes] = useState<{id: string; name: string; content: any; created_at: string}[]>([]);
+  const [isLoadingResumes, setIsLoadingResumes] = useState(false);
+  const [jobDescription, setJobDescription] = useState("");
+  const [showJobDescDialog, setShowJobDescDialog] = useState(false);
+  const [rewritingBulletId, setRewritingBulletId] = useState<string | null>(null);
+  const [showLivePreview, setShowLivePreview] = useState(false);
 
-  // Check for data from Upload page on mount
+  // Check for data from Upload page or ATS Analysis on mount
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromSource = urlParams.get('from');
+    const templateParam = urlParams.get('template');
+    
+    // Check for Rewrite page data
+    if (fromSource === 'rewrite') {
+      const rewriteText = sessionStorage.getItem('rewriteOptimizedText');
+      const rewriteJob = sessionStorage.getItem('rewriteJobDescription');
+      const rewriteTemplate = sessionStorage.getItem('rewriteTemplate') || templateParam;
+      
+      console.log('📝 Loading from Rewrite:', { 
+        hasText: !!rewriteText, 
+        textLength: rewriteText?.length,
+        template: rewriteTemplate 
+      });
+      
+      if (rewriteText) {
+        const parsed = parseTextToResumeData(rewriteText);
+        console.log('📝 Parsed resume data:', {
+          name: parsed.contact.name,
+          email: parsed.contact.email,
+          summary: parsed.summary?.substring(0, 50),
+          experienceCount: parsed.experience.length,
+          skillsCount: parsed.skills.length
+        });
+        
+        setResumeData(parsed);
+        setResumeName("Optimized Resume");
+        if (rewriteJob) setJobDescription(rewriteJob);
+        if (rewriteTemplate) setSelectedTemplate(rewriteTemplate as any);
+        setCurrentStep(1); // Skip to edit step
+        
+        // Clean up
+        sessionStorage.removeItem('rewriteOptimizedText');
+        sessionStorage.removeItem('rewriteJobDescription');
+        sessionStorage.removeItem('rewriteTemplate');
+        
+        toast({
+          title: "✓ Optimized Resume Loaded",
+          description: `${parsed.experience.length} jobs, ${parsed.skills.length} skills loaded. Edit and choose template!`,
+        });
+        return;
+      }
+    }
+    
+    // Check for ATS analysis data (also used by Rewrite page with AI parsing)
+    if (fromSource === 'ats') {
+      const atsData = sessionStorage.getItem('atsResumeData');
+      const rewriteJob = sessionStorage.getItem('rewriteJobDescription');
+      const rewriteTemplate = sessionStorage.getItem('rewriteTemplate') || templateParam;
+      
+      if (atsData) {
+        try {
+          const parsed = JSON.parse(atsData) as AIResumeData;
+          const resumeData = aiDataToResumeData(parsed);
+          setResumeData(resumeData);
+          setResumeName(parsed.contact?.name || "Optimized Resume");
+          
+          // Set job description if coming from rewrite
+          if (rewriteJob) setJobDescription(rewriteJob);
+          
+          // Set template if specified
+          if (rewriteTemplate) setSelectedTemplate(rewriteTemplate as any);
+          
+          setCurrentStep(1); // Skip to edit step
+          
+          // Clean up
+          sessionStorage.removeItem('atsResumeData');
+          sessionStorage.removeItem('rewriteJobDescription');
+          sessionStorage.removeItem('rewriteTemplate');
+          
+          toast({
+            title: "✓ Resume Loaded",
+            description: `${parsed.experience?.length || 0} jobs, ${parsed.skills?.length || 0} skills extracted. Edit and choose template!`,
+          });
+          return;
+        } catch (e) {
+          console.error('Error parsing ATS resume data:', e);
+        }
+      }
+    }
+    
+    // Check for legacy upload data
     const storedData = sessionStorage.getItem('resumeBuilderData');
     if (storedData) {
       try {
@@ -569,6 +809,97 @@ export default function ResumeBuilder() {
     }));
   };
 
+  // Load saved resumes from database
+  const loadSavedResumes = async () => {
+    setIsLoadingResumes(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Please log in to load resumes", variant: "destructive" });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('resumes')
+        .select('id, name, content, created_at')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      setSavedResumes(data || []);
+      setShowLoadResumeDialog(true);
+    } catch (error) {
+      console.error('Error loading resumes:', error);
+      toast({ title: "Failed to load resumes", variant: "destructive" });
+    } finally {
+      setIsLoadingResumes(false);
+    }
+  };
+
+  // Load a specific saved resume
+  const loadSelectedResume = (resume: typeof savedResumes[0]) => {
+    try {
+      let content = resume.content;
+      if (typeof content === 'string') {
+        content = JSON.parse(content);
+      }
+      
+      // Check if it has the new metadata structure
+      if (content.metadata) {
+        const { metadata, ...resumeContent } = content;
+        setResumeData(resumeContent as ResumeData);
+        if (metadata.category) setSaveCategory(metadata.category);
+        if (metadata.tags) setSaveTags(metadata.tags);
+        if (metadata.template) setSelectedTemplate(metadata.template);
+      } else {
+        // Legacy format - just resume data
+        setResumeData(content as ResumeData);
+      }
+      
+      setCurrentResumeId(resume.id);
+      setResumeName(resume.name);
+      setSaveResumeName(resume.name);
+      setShowLoadResumeDialog(false);
+      setCurrentStep(1); // Go to edit step
+      
+      toast({
+        title: "✓ Resume Loaded",
+        description: `Editing "${resume.name}"`,
+      });
+    } catch (error) {
+      console.error('Error parsing resume:', error);
+      toast({ title: "Failed to load resume", variant: "destructive" });
+    }
+  };
+
+  // AI rewrite a bullet point
+  const rewriteBulletWithAI = async (expId: string, bulletIndex: number) => {
+    const exp = resumeData.experience.find(e => e.id === expId);
+    if (!exp || !exp.bullets[bulletIndex]) return;
+    
+    if (!jobDescription.trim()) {
+      toast({
+        title: "Job description needed",
+        description: "Add a job description to tailor the rewrite",
+        action: <Button size="sm" variant="outline" onClick={() => setShowJobDescDialog(true)}>Add Job Description</Button>
+      });
+      return;
+    }
+    
+    const bulletId = `${expId}-${bulletIndex}`;
+    setRewritingBulletId(bulletId);
+    
+    try {
+      const rewritten = await rewriteBullet(exp.bullets[bulletIndex], jobDescription);
+      updateBullet(expId, bulletIndex, rewritten);
+      toast({ title: "✓ Bullet rewritten with AI" });
+    } catch (error) {
+      toast({ title: "Rewrite failed", description: error instanceof Error ? error.message : "Could not rewrite", variant: "destructive" });
+    } finally {
+      setRewritingBulletId(null);
+    }
+  };
+
   // Export to PDF
   const exportToPDF = async () => {
     if (!previewRef.current) return;
@@ -610,7 +941,27 @@ export default function ResumeBuilder() {
     }
   };
 
-  // Save to database
+  // Open save dialog
+  const openSaveDialog = () => {
+    // Use resumeName if set, otherwise fall back to contact name
+    setSaveResumeName(resumeName || resumeData.contact.name || "Untitled Resume");
+    setShowSaveDialog(true);
+  };
+
+  // Add tag helper
+  const addSaveTag = () => {
+    if (newTag && !saveTags.includes(newTag)) {
+      setSaveTags(prev => [...prev, newTag]);
+      setNewTag("");
+    }
+  };
+
+  // Remove tag helper
+  const removeSaveTag = (tag: string) => {
+    setSaveTags(prev => prev.filter(t => t !== tag));
+  };
+
+  // Save to database with metadata
   const saveResume = async () => {
     setIsSaving(true);
     setAutoSaveStatus("saving");
@@ -625,21 +976,63 @@ export default function ResumeBuilder() {
         return;
       }
 
-      const content = JSON.stringify(resumeData);
-      const { error } = await supabase.from("resumes").insert({
-        user_id: user.id,
-        name: resumeData.contact.name || "Untitled Resume",
-        content,
-        file_type: "builder",
-      });
+      // Include metadata in content
+      const contentWithMetadata = {
+        ...resumeData,
+        metadata: {
+          category: saveCategory,
+          tags: saveTags,
+          is_favorite: false,
+          template: selectedTemplate,
+          created_at: new Date().toISOString(),
+        }
+      };
 
-      if (error) throw error;
+      const content = JSON.stringify(contentWithMetadata);
+      
+      if (currentResumeId) {
+        // Update existing resume
+        const { error } = await supabase.from("resumes").update({
+          name: saveResumeName || "Untitled Resume",
+          content,
+          updated_at: new Date().toISOString(),
+        }).eq('id', currentResumeId);
 
-      toast({
-        title: "✓ Resume Saved",
-        description: "Your resume has been saved to your account",
-      });
+        if (error) throw error;
+
+        toast({
+          title: "✓ Resume Updated",
+          description: "Your changes have been saved",
+        });
+      } else {
+        // Create new resume
+        const { data, error } = await supabase.from("resumes").insert({
+          user_id: user.id,
+          name: saveResumeName || "Untitled Resume",
+          content,
+          file_type: "builder",
+        }).select().single();
+
+        if (error) throw error;
+        
+        // Store the ID for future updates
+        if (data) {
+          setCurrentResumeId(data.id);
+        }
+
+        toast({
+          title: "✓ Resume Saved",
+          description: "Your resume has been saved to My Resumes",
+          action: (
+            <Button variant="outline" size="sm" onClick={() => navigate("/my-resumes")}>
+              View
+            </Button>
+          ),
+        });
+      }
+      
       setAutoSaveStatus("saved");
+      setShowSaveDialog(false);
     } catch (error) {
       console.error("Save error:", error);
       toast({
@@ -670,12 +1063,30 @@ export default function ResumeBuilder() {
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
-              <FileText className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-bold">CareerCraft</span>
-          </button>
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
+                <FileText className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-xl font-bold hidden sm:block">CareerCraft</span>
+            </button>
+            
+            {/* Editable Resume Name */}
+            {currentStep > 0 && (
+              <div className="flex items-center gap-2 border-l pl-4">
+                <Input
+                  value={resumeName}
+                  onChange={(e) => {
+                    setResumeName(e.target.value);
+                    setSaveResumeName(e.target.value);
+                    setAutoSaveStatus("unsaved");
+                  }}
+                  placeholder="Untitled Resume"
+                  className="h-8 w-48 sm:w-64 text-sm font-medium border-none bg-muted/50 focus-visible:bg-background"
+                />
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             {currentStep > 0 && (
@@ -686,9 +1097,9 @@ export default function ResumeBuilder() {
                   {autoSaveStatus === "unsaved" && <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2" />}
                   {autoSaveStatus === "saved" ? "Saved" : autoSaveStatus === "saving" ? "Saving..." : "Unsaved"}
                 </Badge>
-                <Button variant="outline" size="sm" onClick={saveResume} disabled={isSaving}>
+                <Button variant="outline" size="sm" onClick={openSaveDialog} disabled={isSaving}>
                   <Save className="w-4 h-4 mr-2" />
-                  Save
+                  {currentResumeId ? "Update" : "Save"}
                 </Button>
               </>
             )}
@@ -821,7 +1232,21 @@ export default function ResumeBuilder() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full"
+                  onClick={loadSavedResumes}
+                  disabled={isLoadingResumes}
+                >
+                  {isLoadingResumes ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FolderOpen className="w-4 h-4 mr-2" />
+                  )}
+                  My Resumes
+                </Button>
                 <Button
                   variant="outline"
                   size="lg"
@@ -838,7 +1263,7 @@ export default function ResumeBuilder() {
                   onClick={() => setCurrentStep(1)}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Start from Scratch
+                  Start Fresh
                 </Button>
               </div>
 
@@ -894,7 +1319,7 @@ export default function ResumeBuilder() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="max-w-4xl mx-auto"
+              className={showLivePreview ? "max-w-6xl mx-auto" : "max-w-4xl mx-auto"}
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -903,12 +1328,35 @@ export default function ResumeBuilder() {
                     Review and update your resume information
                   </p>
                 </div>
-                <Button onClick={() => setCurrentStep(2)}>
-                  Choose Template
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Job Description Button */}
+                  <Button 
+                    variant={jobDescription ? "default" : "outline"} 
+                    size="sm"
+                    onClick={() => setShowJobDescDialog(true)}
+                  >
+                    <Briefcase className="w-4 h-4 mr-2" />
+                    {jobDescription ? "Job Added ✓" : "Add Job Desc"}
+                  </Button>
+                  {/* Live Preview Toggle */}
+                  <Button
+                    variant={showLivePreview ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowLivePreview(!showLivePreview)}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Preview
+                  </Button>
+                  <Button onClick={() => setCurrentStep(2)}>
+                    Choose Template
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
               </div>
 
+              <div className={`${showLivePreview ? 'grid grid-cols-2 gap-6' : ''}`}>
+                {/* Editor Panel */}
+                <div className={showLivePreview ? '' : ''}>
               <Tabs value={activeSection} onValueChange={setActiveSection}>
                 <TabsList className="grid grid-cols-5 w-full mb-6">
                   <TabsTrigger value="contact" className="gap-2">
@@ -1086,10 +1534,18 @@ export default function ResumeBuilder() {
                             </div>
 
                             <div>
-                              <label className="text-sm font-medium mb-2 block">Achievements</label>
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium">Achievements</label>
+                                {jobDescription && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    AI Rewrite Available
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="space-y-2">
                                 {exp.bullets.map((bullet, bulletIndex) => (
-                                  <div key={bulletIndex} className="flex gap-2">
+                                  <div key={bulletIndex} className="flex gap-2 group">
                                     <span className="text-muted-foreground mt-2">•</span>
                                     <Textarea
                                       value={bullet}
@@ -1097,14 +1553,30 @@ export default function ResumeBuilder() {
                                       placeholder="Describe an achievement..."
                                       className="flex-1 min-h-[60px]"
                                     />
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => removeBullet(exp.id, bulletIndex)}
-                                      disabled={exp.bullets.length <= 1}
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </Button>
+                                    <div className="flex flex-col gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => rewriteBulletWithAI(exp.id, bulletIndex)}
+                                        disabled={rewritingBulletId === `${exp.id}-${bulletIndex}` || !bullet.trim()}
+                                        className="text-purple-500 hover:text-purple-600 hover:bg-purple-50"
+                                        title={jobDescription ? "AI Rewrite" : "Add job description first"}
+                                      >
+                                        {rewritingBulletId === `${exp.id}-${bulletIndex}` ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <Sparkles className="w-4 h-4" />
+                                        )}
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeBullet(exp.id, bulletIndex)}
+                                        disabled={exp.bullets.length <= 1}
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1262,6 +1734,23 @@ export default function ResumeBuilder() {
                   </Card>
                 </TabsContent>
               </Tabs>
+                </div>
+
+                {/* Live Preview Panel */}
+                {showLivePreview && (
+                  <div className="sticky top-24">
+                    <Card className="p-2 bg-muted/30">
+                      <div className="flex items-center justify-between mb-2 px-2">
+                        <span className="text-sm font-medium">Live Preview</span>
+                        <Badge variant="secondary" className="text-xs">{TEMPLATES.find(t => t.id === selectedTemplate)?.title}</Badge>
+                      </div>
+                      <div className="bg-white rounded shadow-sm overflow-hidden" style={{ transform: 'scale(0.4)', transformOrigin: 'top left', width: '250%', height: '400px' }}>
+                        <CurrentTemplate data={templateData} isPreview={true} />
+                      </div>
+                    </Card>
+                  </div>
+                )}
+              </div>
 
               {/* Navigation */}
               <div className="flex justify-between mt-6">
@@ -1357,6 +1846,10 @@ export default function ResumeBuilder() {
                   <Button variant="outline" onClick={() => setCurrentStep(2)}>
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Change Template
+                  </Button>
+                  <Button variant="outline" onClick={openSaveDialog}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {currentResumeId ? "Update" : "Save"}
                   </Button>
                   <Button onClick={exportToPDF} disabled={isExporting}>
                     {isExporting ? (
@@ -1463,6 +1956,241 @@ JavaScript, React, Node.js, Python"
                   Process Resume
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Resume Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Save className="w-5 h-5" />
+              {currentResumeId ? "Update Resume" : "Save Resume"}
+            </DialogTitle>
+            <DialogDescription>
+              {currentResumeId 
+                ? "Update your resume and organize it with tags."
+                : "Save your resume to My Resumes and organize it with tags and categories."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Resume Name */}
+            <div className="space-y-2">
+              <Label htmlFor="resume-name">Resume Name</Label>
+              <Input
+                id="resume-name"
+                placeholder="e.g., Software Engineer - Google"
+                value={saveResumeName}
+                onChange={(e) => setSaveResumeName(e.target.value)}
+              />
+            </div>
+            
+            {/* Category */}
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={saveCategory} onValueChange={setSaveCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${cat.color}`} />
+                        {cat.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Tags */}
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {saveTags.map(tag => (
+                  <Badge key={tag} variant="secondary" className="gap-1 pr-1">
+                    {tag}
+                    <button 
+                      onClick={() => removeSaveTag(tag)}
+                      className="ml-1 hover:bg-muted rounded-full p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {saveTags.length === 0 && (
+                  <span className="text-sm text-muted-foreground">No tags added</span>
+                )}
+              </div>
+              
+              {/* Add new tag */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add custom tag..."
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSaveTag())}
+                  className="flex-1"
+                />
+                <Button type="button" variant="outline" onClick={addSaveTag} disabled={!newTag}>
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Preset tags */}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {PRESET_TAGS.filter(t => !saveTags.includes(t)).slice(0, 6).map(tag => (
+                  <Badge 
+                    key={tag} 
+                    variant="outline" 
+                    className="cursor-pointer hover:bg-muted text-xs"
+                    onClick={() => setSaveTags(prev => [...prev, tag])}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveResume} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  {currentResumeId ? "Update Resume" : "Save to My Resumes"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Load Resume Dialog */}
+      <Dialog open={showLoadResumeDialog} onOpenChange={setShowLoadResumeDialog}>
+        <DialogContent className="max-w-lg max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="w-5 h-5" />
+              Load Saved Resume
+            </DialogTitle>
+            <DialogDescription>
+              Select a resume from your library to edit
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[400px] pr-4">
+            {savedResumes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No saved resumes found</p>
+                <p className="text-sm">Upload or create a resume first</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {savedResumes.map(resume => (
+                  <Card 
+                    key={resume.id} 
+                    className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => loadSelectedResume(resume)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">{resume.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(resume.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLoadResumeDialog(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Description Dialog */}
+      <Dialog open={showJobDescDialog} onOpenChange={setShowJobDescDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Briefcase className="w-5 h-5" />
+              Target Job Description
+            </DialogTitle>
+            <DialogDescription>
+              Paste the job description to tailor your resume. AI will use this to rewrite bullet points.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Textarea
+            placeholder="Paste the job description here...
+
+Example:
+We are looking for a Software Engineer with experience in:
+- React, TypeScript, Node.js
+- Building scalable web applications
+- Working in agile teams
+- Strong problem-solving skills
+
+Requirements:
+- 3+ years of experience
+- Bachelor's degree in CS or related field"
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            className="min-h-[300px] font-mono text-sm"
+          />
+          
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {jobDescription.length > 0 
+                ? `${jobDescription.split(/\s+/).filter(Boolean).length} words`
+                : "Paste job description to enable AI rewriting"}
+            </p>
+            {jobDescription && (
+              <Button variant="ghost" size="sm" onClick={() => setJobDescription("")}>
+                Clear
+              </Button>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowJobDescDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setShowJobDescDialog(false);
+              if (jobDescription) {
+                toast({
+                  title: "✓ Job description added",
+                  description: "You can now use AI to rewrite bullet points",
+                });
+              }
+            }}>
+              <Check className="w-4 h-4 mr-2" />
+              {jobDescription ? "Save & Close" : "Close"}
             </Button>
           </DialogFooter>
         </DialogContent>

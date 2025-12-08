@@ -49,13 +49,24 @@ import {
   Gauge,
   Shield,
   Pencil,
+  Loader2,
 } from "lucide-react";
-import { parseResume } from "@/lib/resumeParser";
+import { parseResumeWithAI, parseResume, AIResumeData } from "@/lib/resumeParser";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { runATSAIAnalysis, autoRewriteResume, rewriteExperienceSection, generateAchievements, generateSummaries, ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
+import { generateCoverLetter } from "@/lib/aiRewriter";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 type AnalysisStep = "upload" | "analyzing" | "results";
+
+interface SavedResume {
+  id: string;
+  name: string;
+  content: any;
+  created_at: string;
+}
 
 export default function Analysis() {
   const navigate = useNavigate();
@@ -75,6 +86,17 @@ export default function Analysis() {
   const [saveName, setSaveName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [activeResultTab, setActiveResultTab] = useState("overview");
+  const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<string>("");
+  const [parsedResumeData, setParsedResumeData] = useState<AIResumeData | null>(null);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [resumeSource, setResumeSource] = useState<"upload" | "saved">("upload");
+  
+  // Cover letter generation states
+  const [showCoverLetterPanel, setShowCoverLetterPanel] = useState(false);
+  const [coverLetterTone, setCoverLetterTone] = useState<"professional" | "confident" | "casual">("professional");
+  const [generatedCoverLetter, setGeneratedCoverLetter] = useState("");
+  const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
 
   useEffect(() => {
     const storedResume = sessionStorage.getItem("resumeText");
@@ -86,24 +108,124 @@ export default function Analysis() {
     if (storedFileName) setFileName(storedFileName);
   }, []);
 
+  // Fetch saved resumes
+  useEffect(() => {
+    const fetchSavedResumes = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('resumes')
+        .select('id, name, content, created_at')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (data) {
+        setSavedResumes(data);
+      }
+    };
+    fetchSavedResumes();
+  }, []);
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
     if (!file) return;
 
     setIsUploading(true);
+    setResumeSource("upload");
     try {
-      const text = await parseResume(file);
+      // Use AI parsing for better extraction
+      const aiData = await parseResumeWithAI(file);
+      setParsedResumeData(aiData);
+      
+      // Convert to text for analysis
+      const text = formatResumeDataAsText(aiData);
       setResumeText(text);
       setFileName(file.name);
+      setSelectedResumeId("");
       sessionStorage.setItem("resumeText", text);
       sessionStorage.setItem("fileName", file.name);
-      toast({ title: "Resume uploaded", description: "Now add a job description to analyze." });
+      toast({ title: "✓ Resume parsed with AI", description: "Now add a job description to analyze." });
     } catch (error) {
       toast({ title: "Upload failed", description: error instanceof Error ? error.message : "Could not parse file", variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
   }, [toast]);
+
+  // Handle selecting a saved resume
+  const handleSelectSavedResume = (resumeId: string) => {
+    const resume = savedResumes.find(r => r.id === resumeId);
+    if (!resume) return;
+
+    setSelectedResumeId(resumeId);
+    setResumeSource("saved");
+    setFileName(resume.name);
+
+    // Parse content
+    let content = resume.content;
+    try {
+      if (typeof content === 'string') {
+        content = JSON.parse(content);
+      }
+    } catch (e) {
+      // Plain text content
+      setResumeText(content);
+      setParsedResumeData(null);
+      return;
+    }
+
+    // If it's structured data, convert to text and store parsed data
+    if (content?.contact) {
+      setParsedResumeData(content as AIResumeData);
+      setResumeText(formatResumeDataAsText(content));
+    } else {
+      setResumeText(JSON.stringify(content));
+      setParsedResumeData(null);
+    }
+    
+    toast({ title: "Resume loaded", description: `"${resume.name}" selected for analysis.` });
+  };
+
+  // Format AIResumeData as readable text for analysis
+  const formatResumeDataAsText = (data: AIResumeData): string => {
+    let text = '';
+    
+    if (data.contact) {
+      text += `${data.contact.name || ''}\n`;
+      text += `${data.contact.email || ''} | ${data.contact.phone || ''} | ${data.contact.location || ''}\n`;
+      if (data.contact.linkedin) text += `${data.contact.linkedin}\n`;
+      text += '\n';
+    }
+    
+    if (data.summary) {
+      text += `SUMMARY\n${data.summary}\n\n`;
+    }
+    
+    if (data.experience?.length) {
+      text += 'EXPERIENCE\n';
+      data.experience.forEach(exp => {
+        text += `${exp.title} at ${exp.company}\n`;
+        text += `${exp.startDate} - ${exp.endDate}${exp.location ? ` | ${exp.location}` : ''}\n`;
+        exp.bullets?.forEach(b => { text += `• ${b}\n`; });
+        text += '\n';
+      });
+    }
+    
+    if (data.education?.length) {
+      text += 'EDUCATION\n';
+      data.education.forEach(edu => {
+        text += `${edu.degree} - ${edu.school}\n`;
+        text += `${edu.graduationDate}${edu.gpa ? ` | GPA: ${edu.gpa}` : ''}\n\n`;
+      });
+    }
+    
+    if (data.skills?.length) {
+      text += `SKILLS\n${data.skills.join(', ')}\n`;
+    }
+    
+    return text;
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -174,6 +296,53 @@ export default function Analysis() {
     setCopiedText(id);
     setTimeout(() => setCopiedText(null), 2000);
     toast({ title: "Copied to clipboard" });
+  };
+
+  // Generate cover letter inline
+  const handleGenerateCoverLetter = async () => {
+    if (!resumeText || !jobDescription) {
+      toast({ title: "Missing data", description: "Resume and job description required", variant: "destructive" });
+      return;
+    }
+    
+    setIsGeneratingCoverLetter(true);
+    setGeneratedCoverLetter("");
+    
+    try {
+      const letter = await generateCoverLetter(resumeText, jobDescription, coverLetterTone);
+      setGeneratedCoverLetter(letter);
+      toast({ title: "✓ Cover letter generated!", description: "Review and edit below" });
+    } catch (error) {
+      toast({ title: "Generation failed", description: error instanceof Error ? error.message : "Could not generate cover letter", variant: "destructive" });
+    } finally {
+      setIsGeneratingCoverLetter(false);
+    }
+  };
+
+  // Save cover letter
+  const saveCoverLetter = async () => {
+    if (!generatedCoverLetter) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Not logged in", variant: "destructive" });
+        return;
+      }
+
+      const { error } = await supabase.from('cover_letters').insert({
+        user_id: user.id,
+        content: generatedCoverLetter,
+        job_description: jobDescription,
+        tone: coverLetterTone,
+        notes: `Generated from ATS Analysis - Score: ${analysis?.overallScore || 'N/A'}/100`,
+      });
+
+      if (error) throw error;
+      toast({ title: "✓ Cover letter saved!", description: "View in Cover Letter library" });
+    } catch (error) {
+      toast({ title: "Save failed", variant: "destructive" });
+    }
   };
 
   const openSaveDialog = (type: "original" | "enhanced") => {
@@ -316,34 +485,70 @@ export default function Analysis() {
                     <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                       <FileText className="w-5 h-5 text-green-500" />
                       <span className="text-sm font-medium flex-1 truncate">{fileName || "Resume uploaded"}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {resumeSource === "saved" ? "Saved" : "Uploaded"}
+                      </Badge>
                     </div>
-                    <ScrollArea className="h-40 rounded-lg border bg-muted/30 p-3">
-                      <pre className="whitespace-pre-wrap font-sans text-xs text-muted-foreground">{resumeText.slice(0, 800)}...</pre>
+                    <ScrollArea className="h-32 rounded-lg border bg-muted/30 p-3">
+                      <pre className="whitespace-pre-wrap font-sans text-xs text-muted-foreground">{resumeText.slice(0, 600)}...</pre>
                     </ScrollArea>
-                    <Button variant="outline" size="sm" onClick={() => setResumeText("")} className="w-full">
-                      Upload Different Resume
+                    <Button variant="outline" size="sm" onClick={() => { setResumeText(""); setSelectedResumeId(""); setParsedResumeData(null); }} className="w-full">
+                      Choose Different Resume
                     </Button>
                   </div>
                 ) : (
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                      isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/50"
-                    }`}
-                  >
-                    <input {...getInputProps()} />
-                    {isUploading ? (
-                      <div className="py-4">
-                        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                        <p className="text-sm text-muted-foreground">Parsing resume...</p>
+                  <div className="space-y-4">
+                    {/* Saved Resumes Selector */}
+                    {savedResumes.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Select from My Resumes</Label>
+                        <Select value={selectedResumeId} onValueChange={handleSelectSavedResume}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choose a saved resume..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {savedResumes.map(resume => (
+                              <SelectItem key={resume.id} value={resume.id}>
+                                <div className="flex items-center gap-2">
+                                  <FileText className="w-4 h-4" />
+                                  {resume.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="relative my-3">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-card px-2 text-muted-foreground">Or upload new</span>
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <>
-                        <Upload className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                        <p className="font-medium mb-1">{isDragActive ? "Drop your resume here" : "Drag & drop your resume"}</p>
-                        <p className="text-sm text-muted-foreground">PDF, DOC, DOCX, or image</p>
-                      </>
                     )}
+                    
+                    {/* Upload Zone */}
+                    <div
+                      {...getRootProps()}
+                      className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                        isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/50"
+                      }`}
+                    >
+                      <input {...getInputProps()} />
+                      {isUploading ? (
+                        <div className="py-4">
+                          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                          <p className="text-sm text-muted-foreground">AI parsing resume...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-10 h-10 mx-auto mb-2 text-muted-foreground" />
+                          <p className="font-medium text-sm mb-1">{isDragActive ? "Drop here" : "Upload resume"}</p>
+                          <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, TXT, or image</p>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </Card>
@@ -424,6 +629,7 @@ export default function Analysis() {
     { id: "redflags", icon: AlertTriangle, label: "Red Flags" },
     { id: "improvements", icon: Lightbulb, label: "Improvements" },
     { id: "enhance", icon: Wand2, label: "AI Tools" },
+    { id: "coverletter", icon: FileOutput, label: "Cover Letter" },
   ];
 
   return (
@@ -439,15 +645,28 @@ export default function Analysis() {
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleNewAnalysis}>
               <RefreshCw className="w-4 h-4 mr-2" />
-              New Analysis
+              New
             </Button>
             <Button variant="outline" size="sm" onClick={() => openSaveDialog("original")}>
               <Save className="w-4 h-4 mr-2" />
-              Save Original
+              Save
             </Button>
-            <Button variant="hero" size="sm" onClick={() => navigate("/builder")}>
-              <FolderPlus className="w-4 h-4 mr-2" />
-              Resume Manager
+            <Button variant="outline" size="sm" onClick={() => {
+              sessionStorage.setItem('atsResumeText', resumeText);
+              sessionStorage.setItem('atsJobDescription', jobDescription);
+              if (selectedResumeId) {
+                sessionStorage.setItem('atsResumeId', selectedResumeId);
+                const resume = savedResumes.find(r => r.id === selectedResumeId);
+                if (resume) sessionStorage.setItem('atsResumeName', resume.name);
+              }
+              navigate('/cover-letter?from=ats');
+            }}>
+              <FileOutput className="w-4 h-4 mr-2" />
+              Cover Letter
+            </Button>
+            <Button variant="hero" size="sm" onClick={() => setShowTemplateDialog(true)} disabled={!parsedResumeData}>
+              <Wand2 className="w-4 h-4 mr-2" />
+              Create Resume
             </Button>
           </div>
         </div>
@@ -909,6 +1128,110 @@ export default function Analysis() {
                   )}
                 </div>
               )}
+
+              {/* Cover Letter Tab */}
+              {activeResultTab === "coverletter" && (
+                <div className="space-y-6">
+                  <Card className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <FileOutput className="w-5 h-5 text-primary" />
+                      <h2 className="text-xl font-bold">AI Cover Letter Generator</h2>
+                    </div>
+                    <p className="text-muted-foreground mb-6">
+                      Generate a tailored cover letter using your resume and the job description from this analysis.
+                    </p>
+
+                    {/* Tone Selection */}
+                    <div className="flex flex-wrap items-center gap-4 mb-6">
+                      <Label className="font-medium">Tone:</Label>
+                      <div className="flex gap-2">
+                        {[
+                          { id: "professional", label: "💼 Professional", desc: "Formal & traditional" },
+                          { id: "confident", label: "🚀 Confident", desc: "Bold & assertive" },
+                          { id: "casual", label: "😊 Casual", desc: "Friendly & approachable" },
+                        ].map((t) => (
+                          <Button
+                            key={t.id}
+                            variant={coverLetterTone === t.id ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCoverLetterTone(t.id as any)}
+                          >
+                            {t.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <Button
+                        variant="hero"
+                        onClick={handleGenerateCoverLetter}
+                        disabled={isGeneratingCoverLetter}
+                        className="ml-auto"
+                      >
+                        {isGeneratingCoverLetter ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Generate Cover Letter
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Generated Cover Letter */}
+                    {generatedCoverLetter ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            Generated Cover Letter
+                          </h3>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => copyToClipboard(generatedCoverLetter, "coverletter")}>
+                              {copiedText === "coverletter" ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
+                              Copy
+                            </Button>
+                            <Button size="sm" variant="default" onClick={saveCoverLetter}>
+                              <Save className="w-4 h-4 mr-1" />
+                              Save
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => navigate('/cover-letter')}>
+                              Open Editor
+                            </Button>
+                          </div>
+                        </div>
+                        <Textarea
+                          value={generatedCoverLetter}
+                          onChange={(e) => setGeneratedCoverLetter(e.target.value)}
+                          className="min-h-[400px] font-mono text-sm"
+                        />
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
+                        <FileOutput className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <p className="text-muted-foreground">
+                          Click "Generate Cover Letter" to create a tailored cover letter based on your resume and the job description.
+                        </p>
+                      </div>
+                    )}
+                  </Card>
+
+                  {/* Tips */}
+                  <Card className="p-4 bg-accent/50">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4" />
+                      Pro Tips
+                    </h3>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• The cover letter uses your ATS score of <strong>{analysis.overallScore}/100</strong> to highlight relevant skills</li>
+                      <li>• Edit the generated letter to add personal touches</li>
+                      <li>• Save to your library to organize and track applications</li>
+                    </ul>
+                  </Card>
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -920,7 +1243,7 @@ export default function Analysis() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Save className="w-5 h-5" />
-              Save to Resume Manager
+              Save to My Resumes
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -953,6 +1276,126 @@ export default function Analysis() {
                   Save Resume
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Selection Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="w-5 h-5" />
+              Create Resume from Template
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Your resume data has been extracted. Choose how you'd like to proceed:
+            </p>
+            
+            {parsedResumeData && (
+              <Card className="p-4 mb-4 bg-green-500/10 border-green-500/20">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-green-700">Resume Data Ready</p>
+                    <p className="text-muted-foreground">
+                      {parsedResumeData.contact?.name && `Name: ${parsedResumeData.contact.name}`}
+                      {parsedResumeData.experience?.length ? ` • ${parsedResumeData.experience.length} jobs` : ''}
+                      {parsedResumeData.skills?.length ? ` • ${parsedResumeData.skills.length} skills` : ''}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            <div className="grid grid-cols-3 gap-4">
+              <Card 
+                className="p-4 cursor-pointer hover:border-primary transition-all group"
+                onClick={() => {
+                  // Store parsed data and navigate to builder
+                  if (parsedResumeData) {
+                    sessionStorage.setItem('atsResumeData', JSON.stringify(parsedResumeData));
+                    navigate('/builder?from=ats');
+                  }
+                  setShowTemplateDialog(false);
+                }}
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <Wand2 className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="font-semibold mb-1">Resume Builder</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Edit & export as PDF
+                  </p>
+                </div>
+              </Card>
+
+              <Card 
+                className="p-4 cursor-pointer hover:border-primary transition-all group"
+                onClick={() => {
+                  // Store data and navigate to cover letter
+                  sessionStorage.setItem('atsResumeText', resumeText);
+                  sessionStorage.setItem('atsJobDescription', jobDescription);
+                  if (selectedResumeId) {
+                    sessionStorage.setItem('atsResumeId', selectedResumeId);
+                    const resume = savedResumes.find(r => r.id === selectedResumeId);
+                    if (resume) sessionStorage.setItem('atsResumeName', resume.name);
+                  }
+                  navigate('/cover-letter?from=ats');
+                  setShowTemplateDialog(false);
+                }}
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <FileOutput className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="font-semibold mb-1">Cover Letter</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Generate AI cover letter
+                  </p>
+                </div>
+              </Card>
+
+              <Card 
+                className="p-4 cursor-pointer hover:border-primary transition-all group"
+                onClick={() => {
+                  // Save directly to My Resumes
+                  if (parsedResumeData) {
+                    setSaveType("original");
+                    setSaveName(parsedResumeData.contact?.name || fileName || "Analyzed Resume");
+                    setShowTemplateDialog(false);
+                    setSaveDialogOpen(true);
+                  }
+                }}
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <Save className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="font-semibold mb-1">Save Resume</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Save to My Resumes
+                  </p>
+                </div>
+              </Card>
+            </div>
+
+            {analysis && analysis.overallScore < 70 && (
+              <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <p className="text-sm text-yellow-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Your ATS score is {analysis.overallScore}/100. Consider using the AI enhancement tools before creating your final resume.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>

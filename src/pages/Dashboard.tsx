@@ -103,6 +103,7 @@ export default function Dashboard() {
 
   const quickActions = [
     {
+      id: "build",
       icon: Zap,
       title: "Build Resume",
       description: "Create a polished resume",
@@ -111,13 +112,15 @@ export default function Dashboard() {
       primary: true,
     },
     {
+      id: "manage",
       icon: Upload,
-      title: "Upload Resume",
-      description: "Add a new resume to analyze",
-      path: "/builder",
+      title: "My Resumes",
+      description: "Manage your saved resumes",
+      path: "/my-resumes",
       gradient: "from-blue-500 to-cyan-500",
     },
     {
+      id: "analysis",
       icon: BarChart3,
       title: "ATS Analysis",
       description: "Check ATS compatibility",
@@ -139,7 +142,7 @@ export default function Dashboard() {
       icon: Upload,
       title: "Resume Manager",
       description: "Upload, organize, and manage all your resumes",
-      path: "/builder",
+      path: "/my-resumes",
       gradient: "from-blue-500 to-cyan-500",
       stats: `${stats.totalResumes} resumes`,
     },
@@ -190,7 +193,7 @@ export default function Dashboard() {
 
   const sidebarLinks = [
     { icon: Home, label: "Dashboard", path: "/dashboard", active: true },
-    { icon: FileText, label: "My Resumes", path: "/builder" },
+    { icon: FileText, label: "My Resumes", path: "/my-resumes" },
     { icon: Mail, label: "Cover Letters", path: "/cover-letter" },
     { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
     { icon: Settings, label: "Settings", path: "/settings" },
@@ -380,9 +383,9 @@ export default function Dashboard() {
           >
             <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {quickActions.map((action, index) => (
+              {quickActions.map((action) => (
                 <Card
-                  key={action.path}
+                  key={action.id}
                   className={`p-5 cursor-pointer transition-all hover:shadow-lg group ${
                     action.primary ? 'bg-gradient-to-br from-primary to-primary-glow text-white border-0' : 'hover:border-primary/50'
                   }`}

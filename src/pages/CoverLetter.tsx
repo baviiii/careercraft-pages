@@ -65,6 +65,14 @@ interface SavedCoverLetter {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  resume_id?: string | null;
+  resume_name?: string | null;
+}
+
+interface SavedResume {
+  id: string;
+  name: string;
+  content: any;
 }
 
 export default function CoverLetter() {
@@ -98,6 +106,17 @@ export default function CoverLetter() {
   const [viewingLetter, setViewingLetter] = useState<SavedCoverLetter | null>(null);
   const [editingMetadata, setEditingMetadata] = useState<SavedCoverLetter | null>(null);
   const [newTag, setNewTag] = useState("");
+  
+  // Resume linking states
+  const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
+  const [selectedResumeId, setSelectedResumeId] = useState<string>("");
+  const [selectedResumeName, setSelectedResumeName] = useState<string>("");
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveCategory, setSaveCategory] = useState("");
+  const [saveTags, setSaveTags] = useState<string[]>([]);
+  const [saveNewTag, setSaveNewTag] = useState("");
+  const [linkedResumeId, setLinkedResumeId] = useState<string>("");
   const [tempCategory, setTempCategory] = useState<string>("");
   const [tempTags, setTempTags] = useState<string[]>([]);
   const [tempNotes, setTempNotes] = useState<string>("");
@@ -117,6 +136,39 @@ export default function CoverLetter() {
 
   useEffect(() => {
     loadSavedLetters();
+    loadSavedResumes();
+    
+    // Check for data from ATS Analysis
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromATS = urlParams.get('from') === 'ats';
+    
+    if (fromATS) {
+      const atsResumeText = sessionStorage.getItem('atsResumeText');
+      const atsJobDesc = sessionStorage.getItem('atsJobDescription');
+      const atsResumeId = sessionStorage.getItem('atsResumeId');
+      const atsResumeName = sessionStorage.getItem('atsResumeName');
+      
+      if (atsResumeText) setResumeText(atsResumeText);
+      if (atsJobDesc) setJobDescription(atsJobDesc);
+      if (atsResumeId) {
+        setSelectedResumeId(atsResumeId);
+        setLinkedResumeId(atsResumeId);
+      }
+      if (atsResumeName) setSelectedResumeName(atsResumeName);
+      
+      // Clean up
+      sessionStorage.removeItem('atsResumeText');
+      sessionStorage.removeItem('atsJobDescription');
+      sessionStorage.removeItem('atsResumeId');
+      sessionStorage.removeItem('atsResumeName');
+      
+      if (atsResumeText && atsJobDesc) {
+        toast({
+          title: "✓ Data loaded from ATS Analysis",
+          description: "Ready to generate your cover letter!",
+        });
+      }
+    }
   }, []);
 
   const loadSavedLetters = async () => {
@@ -138,6 +190,80 @@ export default function CoverLetter() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadSavedResumes = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('resumes')
+        .select('id, name, content')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (data) {
+        setSavedResumes(data);
+      }
+    } catch (error) {
+      console.error("Error loading resumes:", error);
+    }
+  };
+
+  // Handle selecting a saved resume
+  const handleSelectResume = (resumeId: string) => {
+    const resume = savedResumes.find(r => r.id === resumeId);
+    if (!resume) return;
+
+    setSelectedResumeId(resumeId);
+    setSelectedResumeName(resume.name);
+    setLinkedResumeId(resumeId);
+
+    // Parse content to text
+    let content = resume.content;
+    try {
+      if (typeof content === 'string') {
+        content = JSON.parse(content);
+      }
+    } catch (e) {
+      // Plain text
+      setResumeText(content);
+      return;
+    }
+
+    // Convert structured data to text
+    if (content?.contact) {
+      let text = '';
+      if (content.contact.name) text += `${content.contact.name}\n`;
+      if (content.contact.email) text += `${content.contact.email} | `;
+      if (content.contact.phone) text += `${content.contact.phone} | `;
+      if (content.contact.location) text += `${content.contact.location}\n`;
+      if (content.summary) text += `\nSUMMARY\n${content.summary}\n`;
+      if (content.experience?.length) {
+        text += '\nEXPERIENCE\n';
+        content.experience.forEach((exp: any) => {
+          text += `${exp.title} at ${exp.company}\n`;
+          text += `${exp.startDate} - ${exp.endDate}\n`;
+          exp.bullets?.forEach((b: string) => { text += `• ${b}\n`; });
+          text += '\n';
+        });
+      }
+      if (content.education?.length) {
+        text += 'EDUCATION\n';
+        content.education.forEach((edu: any) => {
+          text += `${edu.degree} - ${edu.school} (${edu.graduationDate})\n`;
+        });
+      }
+      if (content.skills?.length) {
+        text += `\nSKILLS\n${content.skills.join(', ')}\n`;
+      }
+      setResumeText(text);
+    } else {
+      setResumeText(JSON.stringify(content));
+    }
+
+    toast({ title: "✓ Resume loaded", description: `"${resume.name}" selected` });
   };
 
   const handleGenerate = async () => {
@@ -170,7 +296,8 @@ export default function CoverLetter() {
     }
   };
 
-  const handleSave = async () => {
+  // Open save dialog
+  const openSaveDialog = () => {
     if (!coverLetter.trim()) {
       toast({
         title: "Nothing to save",
@@ -179,7 +306,26 @@ export default function CoverLetter() {
       });
       return;
     }
+    setSaveName(`Cover Letter - ${new Date().toLocaleDateString()}`);
+    setSaveCategory("");
+    setSaveTags([]);
+    setShowSaveDialog(true);
+  };
 
+  // Add tag to save dialog
+  const addSaveTag = () => {
+    if (saveNewTag.trim() && !saveTags.includes(saveNewTag.trim())) {
+      setSaveTags([...saveTags, saveNewTag.trim()]);
+      setSaveNewTag("");
+    }
+  };
+
+  // Remove tag from save dialog
+  const removeSaveTag = (tag: string) => {
+    setSaveTags(saveTags.filter(t => t !== tag));
+  };
+
+  const handleSave = async () => {
     setIsSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -197,6 +343,9 @@ export default function CoverLetter() {
         content: coverLetter,
         job_description: jobDescription || null,
         tone: tone,
+        category: saveCategory || null,
+        tags: saveTags.length > 0 ? saveTags : null,
+        notes: linkedResumeId ? `Linked to resume: ${selectedResumeName}` : null,
       });
 
       if (error) throw error;
@@ -206,6 +355,7 @@ export default function CoverLetter() {
         description: "Cover letter saved to your library",
       });
 
+      setShowSaveDialog(false);
       loadSavedLetters();
     } catch (error) {
       console.error("Error saving cover letter:", error);
@@ -423,15 +573,49 @@ export default function CoverLetter() {
                   {mode === "generate" ? (
                     <>
                       <Card className="p-6">
-                        <div className="flex items-center gap-2 mb-4">
-                          <FileText className="w-5 h-5 text-primary" />
-                          <h2 className="text-xl font-bold">Your Resume</h2>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-primary" />
+                            <h2 className="text-xl font-bold">Your Resume</h2>
+                          </div>
+                          {selectedResumeName && (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                              {selectedResumeName}
+                            </Badge>
+                          )}
                         </div>
+                        
+                        {/* Resume Selector */}
+                        {savedResumes.length > 0 && (
+                          <div className="mb-4">
+                            <Select value={selectedResumeId} onValueChange={handleSelectResume}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select from My Resumes..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {savedResumes.map(resume => (
+                                  <SelectItem key={resume.id} value={resume.id}>
+                                    {resume.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <div className="relative my-3">
+                              <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t" />
+                              </div>
+                              <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-card px-2 text-muted-foreground">Or paste manually</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
                         <Textarea
                           placeholder="Paste your resume text here..."
                           value={resumeText}
-                          onChange={(e) => setResumeText(e.target.value)}
-                          className="min-h-[200px] font-mono text-sm"
+                          onChange={(e) => { setResumeText(e.target.value); setSelectedResumeId(""); setSelectedResumeName(""); }}
+                          className="min-h-[150px] font-mono text-sm"
                         />
                       </Card>
 
@@ -533,10 +717,9 @@ export default function CoverLetter() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={handleSave}
-                            disabled={isSaving}
+                            onClick={openSaveDialog}
                           >
-                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            <Save className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="outline"
@@ -891,6 +1074,125 @@ export default function CoverLetter() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Save Cover Letter Dialog */}
+      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Save className="w-5 h-5" />
+              Save Cover Letter
+            </DialogTitle>
+            <DialogDescription>
+              Organize your cover letter with tags and link it to a resume.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Name */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Name</label>
+              <Input
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="e.g., Google SWE Cover Letter"
+              />
+            </div>
+
+            {/* Category */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Category</label>
+              <Select value={saveCategory} onValueChange={setSaveCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCategories.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Link to Resume */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Link to Resume (optional)</label>
+              <Select value={linkedResumeId} onValueChange={setLinkedResumeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a resume to link..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No linked resume</SelectItem>
+                  {savedResumes.map(resume => (
+                    <SelectItem key={resume.id} value={resume.id}>{resume.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {linkedResumeId && linkedResumeId !== "none" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  This cover letter will be associated with the selected resume.
+                </p>
+              )}
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Tags</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {saveTags.map(tag => (
+                  <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                    {tag}
+                    <X className="w-3 h-3 cursor-pointer" onClick={() => removeSaveTag(tag)} />
+                  </Badge>
+                ))}
+                {saveTags.length === 0 && (
+                  <span className="text-sm text-muted-foreground">No tags added</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add tag..."
+                  value={saveNewTag}
+                  onChange={(e) => setSaveNewTag(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSaveTag(); } }}
+                />
+                <Button variant="outline" onClick={addSaveTag} disabled={!saveNewTag.trim()}>
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              {/* Preset tags */}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {["Applied", "Interview", "Offer", "Rejected", "Draft", "Final"].filter(t => !saveTags.includes(t)).map(tag => (
+                  <Badge 
+                    key={tag} 
+                    variant="outline" 
+                    className="cursor-pointer hover:bg-muted text-xs"
+                    onClick={() => setSaveTags(prev => [...prev, tag])}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end pt-4">
+            <Button variant="outline" onClick={() => setShowSaveDialog(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Cover Letter
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

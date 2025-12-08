@@ -14,6 +14,7 @@ import CoverLetter from "./pages/CoverLetter";
 import JobTracker from "./pages/JobTracker";
 import TemplateBuilder from "./pages/TemplateBuilder";
 import ResumeBuilder from "./pages/ResumeBuilder";
+import MyResumes from "./pages/MyResumes";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminOverview from "./pages/admin/AdminOverview";
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/tracker" element={<JobTracker />} />
           <Route path="/templates" element={<TemplateBuilder />} />
           <Route path="/builder" element={<ResumeBuilder />} />
+          <Route path="/my-resumes" element={<MyResumes />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminLayout />}>
