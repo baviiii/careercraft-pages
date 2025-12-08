@@ -224,5 +224,57 @@ export async function parseResumeWithAI(
   }
 }
 
+// Parse raw text directly with AI (for when we already have text)
+export async function parseResumeTextWithAI(
+  rawText: string
+): Promise<AIResumeData> {
+  try {
+    console.log('🤖 Calling AI parse-resume edge function with text...');
+    const { data, error } = await supabase.functions.invoke('parse-resume', {
+      body: { rawText }
+    });
+    
+    if (error) {
+      console.error('❌ AI parsing error:', error);
+      throw new Error('AI parsing failed');
+    }
+    
+    if (data?.error) {
+      console.error('❌ AI returned error:', data.error);
+      throw new Error(data.error);
+    }
+    
+    if (data?.data) {
+      console.log('✅ AI text parsing successful!');
+      return data.data as AIResumeData;
+    }
+    
+    throw new Error('No data returned from AI parser');
+  } catch (err) {
+    console.warn('⚠️ AI text parsing failed, using FALLBACK regex parsing:', err);
+    // Fallback to basic parsing
+    const parsed = enhancedParseResume(rawText);
+    
+    return {
+      contact: {
+        name: parsed.contact.name || '',
+        email: parsed.contact.email || '',
+        phone: parsed.contact.phone || '',
+        location: parsed.contact.location || '',
+        linkedin: parsed.contact.linkedin || '',
+        website: '',
+      },
+      summary: parsed.sections.summary || '',
+      experience: [],
+      education: [],
+      skills: parsed.sections.skills
+        ? parsed.sections.skills.split(/[,•|·\n]/).map(s => s.trim()).filter(s => s.length > 1 && s.length < 50)
+        : [],
+      certifications: [],
+      projects: [],
+    };
+  }
+}
+
 // Re-export types
 export type { ParsedResume };

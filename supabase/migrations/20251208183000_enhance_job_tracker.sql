@@ -8,6 +8,13 @@ ADD COLUMN IF NOT EXISTS salary_range TEXT,
 ADD COLUMN IF NOT EXISTS location TEXT,
 ADD COLUMN IF NOT EXISTS job_type TEXT; -- full-time, part-time, contract, remote
 
+-- Add ATS score tracking and template info to resumes
+ALTER TABLE public.resumes
+ADD COLUMN IF NOT EXISTS ats_score INTEGER,
+ADD COLUMN IF NOT EXISTS last_analyzed_at TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS last_job_description TEXT,
+ADD COLUMN IF NOT EXISTS template_id TEXT;
+
 -- Create indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_job_applications_resume ON public.job_applications(resume_id);
 CREATE INDEX IF NOT EXISTS idx_job_applications_cover_letter ON public.job_applications(cover_letter_id);

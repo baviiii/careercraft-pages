@@ -200,3 +200,33 @@ export async function generateSummaries(
   const data = await response.json();
   return data.result;
 }
+
+// Enhanced rewrite that returns structured data for builder resumes
+export async function rewriteResumeStructured(
+  resumeData: any,
+  jobDescription: string
+): Promise<any> {
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ats-analyze`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: JSON.stringify({
+        resumeData: JSON.stringify(resumeData),
+        jobDescription,
+        analysisType: "rewrite-structured",
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to rewrite resume");
+  }
+
+  const data = await response.json();
+  return data.result;
+}

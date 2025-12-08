@@ -52,11 +52,12 @@ import {
   Shield,
   Pencil,
   Loader2,
+  X,
 } from "lucide-react";
-import { parseResumeWithAI, parseResume, AIResumeData } from "@/lib/resumeParser";
+import { parseResumeWithAI, parseResumeTextWithAI, AIResumeData } from "@/lib/resumeParser";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { runATSAIAnalysis, autoRewriteResume, rewriteExperienceSection, generateAchievements, generateSummaries, ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
+import { runATSAIAnalysis, autoRewriteResume, rewriteExperienceSection, generateAchievements, generateSummaries, rewriteResumeStructured, ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
 import { generateCoverLetter } from "@/lib/aiRewriter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -68,6 +69,7 @@ interface SavedResume {
   name: string;
   content: any;
   created_at: string;
+  template_id?: string;
 }
 
 export default function Analysis() {
@@ -104,6 +106,16 @@ export default function Analysis() {
   const [savedCoverLetters, setSavedCoverLetters] = useState<{id: string; content: string; created_at: string}[]>([]);
   const [selectedCoverLetterId, setSelectedCoverLetterId] = useState<string>("");
   const [coverLetterText, setCoverLetterText] = useState("");
+  
+  // Track if resume is from builder (has template)
+  const [selectedResumeTemplateId, setSelectedResumeTemplateId] = useState<string | null>(null);
+  const [isBuilderResume, setIsBuilderResume] = useState(false);
+  
+  // Enhanced resume data (structured) for builder resumes
+  const [enhancedResumeData, setEnhancedResumeData] = useState<AIResumeData | null>(null);
+  
+  // Track if we're re-analyzing after enhancement
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
 
   useEffect(() => {
     const storedResume = sessionStorage.getItem("resumeText");
@@ -124,7 +136,7 @@ export default function Analysis() {
       const [resumesRes, coverLettersRes] = await Promise.all([
         supabase
           .from('resumes')
-          .select('id, name, content, created_at')
+          .select('id, name, content, created_at, template_id')
           .eq('user_id', user.id)
           .order('updated_at', { ascending: false }),
         supabase
@@ -134,7 +146,7 @@ export default function Analysis() {
           .order('created_at', { ascending: false })
       ]);
 
-      if (resumesRes.data) setSavedResumes(resumesRes.data);
+      if (resumesRes.data) setSavedResumes(resumesRes.data as unknown as SavedResume[]);
       if (coverLettersRes.data) setSavedCoverLetters(coverLettersRes.data);
     };
     fetchSavedData();
@@ -185,19 +197,31 @@ export default function Analysis() {
       // Plain text content
       setResumeText(content);
       setParsedResumeData(null);
+      setIsBuilderResume(false);
+      setSelectedResumeTemplateId(null);
       return;
     }
 
-    // If it's structured data, convert to text and store parsed data
+    // Check if it's a builder resume (has structured data with contact)
     if (content?.contact) {
       setParsedResumeData(content as AIResumeData);
       setResumeText(formatResumeDataAsText(content));
+      // Check if resume has template_id (built with our builder)
+      setIsBuilderResume(!!resume.template_id);
+      setSelectedResumeTemplateId(resume.template_id || null);
     } else {
       setResumeText(JSON.stringify(content));
       setParsedResumeData(null);
+      setIsBuilderResume(false);
+      setSelectedResumeTemplateId(null);
     }
     
-    toast({ title: "Resume loaded", description: `"${resume.name}" selected for analysis.` });
+    toast({ 
+      title: "Resume loaded", 
+      description: resume.template_id 
+        ? `"${resume.name}" loaded with template. Edit in Builder after analysis.`
+        : `"${resume.name}" selected for analysis.`
+    });
   };
 
   // Format AIResumeData as readable text for analysis
@@ -289,25 +313,38 @@ export default function Analysis() {
     
     setActiveEnhancement(type);
     setEnhancementResult("");
+    setEnhancedResumeData(null);
     
     try {
-      let result = "";
-      switch (type) {
-        case "auto-rewrite":
-          result = await autoRewriteResume(resumeText, jobDescription);
-          break;
-        case "rewrite-experience":
-          result = await rewriteExperienceSection(resumeText, jobDescription);
-          break;
-        case "generate-achievements":
-          result = await generateAchievements(resumeText, jobDescription);
-          break;
-        case "generate-summaries":
-          result = await generateSummaries(resumeText, jobDescription);
-          break;
+      // For builder resumes with auto-rewrite, use structured rewrite
+      if (type === "auto-rewrite" && isBuilderResume && parsedResumeData) {
+        const structuredResult = await rewriteResumeStructured(parsedResumeData, jobDescription);
+        setEnhancedResumeData(structuredResult as AIResumeData);
+        setEnhancementResult(""); // Clear text result since we have structured data
+        toast({ 
+          title: "✓ Resume optimized!", 
+          description: "View the enhanced version below or apply to builder" 
+        });
+      } else {
+        // Use text-based enhancement for uploaded resumes or other enhancement types
+        let result = "";
+        switch (type) {
+          case "auto-rewrite":
+            result = await autoRewriteResume(resumeText, jobDescription);
+            break;
+          case "rewrite-experience":
+            result = await rewriteExperienceSection(resumeText, jobDescription);
+            break;
+          case "generate-achievements":
+            result = await generateAchievements(resumeText, jobDescription);
+            break;
+          case "generate-summaries":
+            result = await generateSummaries(resumeText, jobDescription);
+            break;
+        }
+        setEnhancementResult(result);
+        toast({ title: "Enhancement complete" });
       }
-      setEnhancementResult(result);
-      toast({ title: "Enhancement complete" });
     } catch (error) {
       toast({ title: "Enhancement failed", description: error instanceof Error ? error.message : "Could not process request", variant: "destructive" });
       setActiveEnhancement(null);
@@ -319,6 +356,57 @@ export default function Analysis() {
     setCopiedText(id);
     setTimeout(() => setCopiedText(null), 2000);
     toast({ title: "Copied to clipboard" });
+  };
+
+  // Apply enhancement and re-analyze with new content
+  const applyEnhancementAndReanalyze = async () => {
+    if (!enhancementResult && !enhancedResumeData) return;
+    
+    setIsReanalyzing(true);
+    
+    try {
+      // Get the enhanced content
+      let newResumeText = enhancementResult;
+      
+      // If we have structured data, convert to text for analysis
+      if (enhancedResumeData) {
+        newResumeText = formatResumeDataAsText(enhancedResumeData);
+        setParsedResumeData(enhancedResumeData);
+      }
+      
+      // Update the working resume text
+      setResumeText(newResumeText);
+      
+      // Clear enhancement state
+      setActiveEnhancement(null);
+      setEnhancementResult("");
+      setEnhancedResumeData(null);
+      
+      // Run new analysis
+      toast({ title: "Re-analyzing...", description: "Checking your new ATS score" });
+      
+      const result = await runATSAIAnalysis(newResumeText, jobDescription);
+      setAnalysis(result);
+      
+      // Update ATS score in database if saved resume
+      if (selectedResumeId) {
+        await supabase.from('resumes').update({
+          ats_score: result.overallScore,
+          last_analyzed_at: new Date().toISOString(),
+        } as any).eq('id', selectedResumeId);
+      }
+      
+      toast({ 
+        title: `New ATS Score: ${result.overallScore}/100`, 
+        description: result.overallScore >= 80 
+          ? "Great score! Your resume is well-optimized." 
+          : "Keep improving to reach 80+ for best results."
+      });
+    } catch (error) {
+      toast({ title: "Re-analysis failed", variant: "destructive" });
+    } finally {
+      setIsReanalyzing(false);
+    }
   };
 
   // Generate cover letter inline
@@ -390,19 +478,49 @@ export default function Analysis() {
 
       const content = saveType === "enhanced" && enhancementResult ? enhancementResult : resumeText;
       
-      const { error } = await supabase.from('resumes').insert({
-        user_id: user.id,
-        name: saveName,
-        content: content,
-        original_filename: saveName,
-        file_type: "analyzed",
-        notes: `ATS Score: ${analysis?.overallScore || 'N/A'}/100`,
+      // Parse the text content to structured data
+      toast({ title: "Parsing resume...", description: "Converting to structured format" });
+      
+      let parsedData: AIResumeData | null = null;
+      
+      // If we already have parsed data, use it
+      if (parsedResumeData && saveType === "original") {
+        parsedData = parsedResumeData;
+      } else {
+        // Parse the text content using AI
+        try {
+          parsedData = await parseResumeTextWithAI(content);
+        } catch (parseError) {
+          console.error("Parse error:", parseError);
+          parsedData = null;
+        }
+      }
+      
+      if (!parsedData || !parsedData.contact) {
+        toast({ 
+          title: "Could not parse resume", 
+          description: "Opening in builder for manual editing",
+          variant: "destructive" 
+        });
+        // Store raw text and redirect to builder anyway
+        sessionStorage.setItem('atsResumeText', content);
+        sessionStorage.setItem('atsResumeName', saveName);
+        navigate('/builder?from=ats-text');
+        return;
+      }
+      
+      // Store parsed data and redirect to builder
+      sessionStorage.setItem('atsResumeData', JSON.stringify(parsedData));
+      sessionStorage.setItem('atsResumeName', saveName);
+      sessionStorage.setItem('atsJobDescription', jobDescription);
+      
+      toast({ 
+        title: "✓ Resume parsed!", 
+        description: "Opening in Resume Builder to choose a template" 
       });
-
-      if (error) throw error;
-
-      toast({ title: "Saved!", description: "Resume saved to your Resume Manager." });
+      
       setSaveDialogOpen(false);
+      navigate('/builder?from=ats');
     } catch (error) {
       console.error("Error saving:", error);
       toast({ title: "Save failed", description: "Could not save resume", variant: "destructive" });
@@ -416,6 +534,7 @@ export default function Analysis() {
     setAnalysis(null);
     setEnhancementResult("");
     setActiveEnhancement(null);
+    setEnhancedResumeData(null);
   };
 
   const getScoreColor = (score: number) => {
@@ -534,7 +653,12 @@ export default function Analysis() {
                               <SelectItem key={resume.id} value={resume.id}>
                                 <div className="flex items-center gap-2">
                                   <FileText className="w-4 h-4" />
-                                  {resume.name}
+                                  <span>{resume.name}</span>
+                                  {resume.template_id && (
+                                    <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+                                      Template
+                                    </Badge>
+                                  )}
                                 </div>
                               </SelectItem>
                             ))}
@@ -747,6 +871,41 @@ export default function Analysis() {
           </div>
         </div>
       </header>
+
+      {/* Re-analyzing Loading Overlay */}
+      <AnimatePresence>
+        {isReanalyzing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-card border rounded-2xl p-8 shadow-2xl text-center max-w-md mx-4"
+            >
+              <div className="relative w-24 h-24 mx-auto mb-6">
+                <div className="absolute inset-0 rounded-full border-4 border-muted" />
+                <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <BarChart3 className="w-10 h-10 text-primary" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Re-analyzing Resume</h3>
+              <p className="text-muted-foreground mb-4">
+                Calculating your new ATS score with the enhanced content...
+              </p>
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                <span>This usually takes 10-15 seconds</span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="container mx-auto px-4 py-6">
         <div className="max-w-7xl mx-auto">
@@ -1156,8 +1315,13 @@ export default function Analysis() {
                     ].map((tool) => (
                       <Card
                         key={tool.id}
-                        className={`p-5 cursor-pointer transition-all hover:border-primary/50 ${activeEnhancement === tool.id ? "border-primary bg-primary/5" : ""}`}
-                        onClick={() => !activeEnhancement && handleEnhancement(tool.id)}
+                        className={`p-5 cursor-pointer transition-all hover:border-primary/50 ${activeEnhancement === tool.id ? "border-primary bg-primary/5" : ""} ${activeEnhancement && activeEnhancement !== tool.id && !enhancementResult && !enhancedResumeData ? "opacity-50 pointer-events-none" : ""}`}
+                        onClick={() => {
+                          // Allow clicking if no enhancement is running, or if we have a result (switching tools)
+                          if (!activeEnhancement || enhancementResult || enhancedResumeData) {
+                            handleEnhancement(tool.id);
+                          }
+                        }}
                       >
                         <div className="flex items-start gap-4">
                           <div className={`p-3 rounded-lg bg-${tool.color}/10`}>
@@ -1167,7 +1331,7 @@ export default function Analysis() {
                             <h4 className="font-bold mb-1">{tool.label}</h4>
                             <p className="text-sm text-muted-foreground">{tool.desc}</p>
                           </div>
-                          {activeEnhancement === tool.id && !enhancementResult && (
+                          {activeEnhancement === tool.id && !enhancementResult && !enhancedResumeData && (
                             <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                           )}
                         </div>
@@ -1175,31 +1339,169 @@ export default function Analysis() {
                     ))}
                   </div>
 
-                  {/* Enhancement Result */}
-                  {activeEnhancement && enhancementResult && (
+                  {/* Enhancement Result - Text based */}
+                  {activeEnhancement && enhancementResult && !enhancedResumeData && (
                     <Card className="p-6 border-2 border-primary/20">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-bold text-lg flex items-center gap-2">
                           <Sparkles className="w-5 h-5 text-primary" />
                           Enhancement Result
                         </h3>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={applyEnhancementAndReanalyze}
+                            disabled={isReanalyzing}
+                          >
+                            {isReanalyzing ? (
+                              <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" /> Analyzing...</>
+                            ) : (
+                              <><BarChart3 className="w-4 h-4 mr-1" /> Apply & Re-analyze</>
+                            )}
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => copyToClipboard(enhancementResult, "enhancement")}>
                             {copiedText === "enhancement" ? <Check className="w-4 h-4 mr-1" /> : <Copy className="w-4 h-4 mr-1" />}
                             Copy
                           </Button>
-                          <Button size="sm" variant="default" onClick={() => openSaveDialog("enhanced")}>
-                            <Save className="w-4 h-4 mr-1" />
-                            Save to Manager
+                          <Button size="sm" variant="secondary" onClick={() => openSaveDialog("enhanced")}>
+                            <Wand2 className="w-4 h-4 mr-1" />
+                            Edit in Builder
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => { setActiveEnhancement(null); setEnhancementResult(""); }}>
-                            Close
+                          <Button size="sm" variant="ghost" onClick={() => { setActiveEnhancement(null); setEnhancementResult(""); }}>
+                            <X className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
-                      <ScrollArea className="h-[400px] rounded-lg border bg-muted/30 p-4">
+                      {/* Current score reminder */}
+                      {analysis && (
+                        <div className="mb-4 p-3 rounded-lg bg-muted/50 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`text-2xl font-bold ${analysis.overallScore >= 80 ? "text-green-500" : analysis.overallScore >= 60 ? "text-yellow-500" : "text-red-500"}`}>
+                              {analysis.overallScore}%
+                            </div>
+                            <div className="text-sm">
+                              <p className="font-medium">Current ATS Score</p>
+                              <p className="text-muted-foreground text-xs">
+                                {analysis.overallScore >= 80 ? "Great! Ready to apply" : "Click 'Apply & Re-analyze' to check new score"}
+                              </p>
+                            </div>
+                          </div>
+                          {analysis.overallScore < 80 && (
+                            <Badge variant="outline" className="border-primary text-primary">
+                              Goal: 80%+
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <ScrollArea className="h-[350px] rounded-lg border bg-muted/30 p-4">
                         <pre className="whitespace-pre-wrap font-sans text-sm">{enhancementResult}</pre>
                       </ScrollArea>
+                    </Card>
+                  )}
+
+                  {/* Enhancement Result - Structured (for builder resumes) */}
+                  {activeEnhancement && enhancedResumeData && (
+                    <Card className="p-6 border-2 border-green-500/30 bg-green-500/5">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-lg flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-green-500" />
+                          Optimized Resume Ready
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="default"
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={applyEnhancementAndReanalyze}
+                            disabled={isReanalyzing}
+                          >
+                            {isReanalyzing ? (
+                              <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" /> Analyzing...</>
+                            ) : (
+                              <><BarChart3 className="w-4 h-4 mr-1" /> Apply & Re-analyze</>
+                            )}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="default"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => {
+                              // Store enhanced data and navigate to builder
+                              sessionStorage.setItem('atsResumeData', JSON.stringify(enhancedResumeData));
+                              if (selectedResumeTemplateId) {
+                                sessionStorage.setItem('atsResumeTemplate', selectedResumeTemplateId);
+                              }
+                              navigate('/builder?from=ats-enhanced');
+                            }}
+                          >
+                            <Wand2 className="w-4 h-4 mr-1" />
+                            Edit in Builder
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => { 
+                              setActiveEnhancement(null); 
+                              setEnhancedResumeData(null); 
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {/* Summary Preview */}
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-sm text-muted-foreground">Enhanced Summary</h4>
+                          <div className="p-3 bg-background rounded-lg border text-sm">
+                            {enhancedResumeData.summary || "No summary"}
+                          </div>
+                        </div>
+                        
+                        {/* Skills Preview */}
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-sm text-muted-foreground">Optimized Skills ({enhancedResumeData.skills?.length || 0})</h4>
+                          <div className="p-3 bg-background rounded-lg border">
+                            <div className="flex flex-wrap gap-1">
+                              {enhancedResumeData.skills?.slice(0, 10).map((skill, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
+                              ))}
+                              {(enhancedResumeData.skills?.length || 0) > 10 && (
+                                <Badge variant="outline" className="text-xs">+{enhancedResumeData.skills!.length - 10} more</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Experience Preview */}
+                      <div className="mt-4 space-y-2">
+                        <h4 className="font-semibold text-sm text-muted-foreground">Enhanced Experience</h4>
+                        <ScrollArea className="h-[200px] rounded-lg border bg-background p-3">
+                          {enhancedResumeData.experience?.map((exp, i) => (
+                            <div key={exp.id || i} className="mb-4 last:mb-0">
+                              <p className="font-medium">{exp.title} at {exp.company}</p>
+                              <p className="text-xs text-muted-foreground mb-1">{exp.startDate} - {exp.endDate}</p>
+                              <ul className="list-disc list-inside text-sm space-y-1">
+                                {exp.bullets?.slice(0, 3).map((bullet, j) => (
+                                  <li key={j} className="text-muted-foreground">{bullet}</li>
+                                ))}
+                                {(exp.bullets?.length || 0) > 3 && (
+                                  <li className="text-primary text-xs">+{exp.bullets!.length - 3} more bullets</li>
+                                )}
+                              </ul>
+                            </div>
+                          ))}
+                        </ScrollArea>
+                      </div>
+
+                      <p className="text-sm text-muted-foreground mt-4 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        Click "Apply to Builder" to edit this optimized version with your template
+                      </p>
                     </Card>
                   )}
                 </div>
@@ -1318,14 +1620,26 @@ export default function Analysis() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Save className="w-5 h-5" />
-              Save to My Resumes
+              <Wand2 className="w-5 h-5" />
+              Save & Edit in Builder
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Resume Name</label>
               <Input value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="Enter a name for this resume" />
+            </div>
+            <div className="p-3 bg-primary/10 rounded-lg text-sm border border-primary/20">
+              <p className="font-medium text-primary mb-2 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                What happens next:
+              </p>
+              <ol className="list-decimal list-inside text-muted-foreground space-y-1 text-xs">
+                <li>Your resume will be parsed into structured data</li>
+                <li>You'll choose a professional template</li>
+                <li>Edit and customize in the Resume Builder</li>
+                <li>Export as PDF when ready</li>
+              </ol>
             </div>
             <div className="p-3 bg-muted/50 rounded-lg text-sm">
               <p className="text-muted-foreground">
@@ -1344,12 +1658,12 @@ export default function Analysis() {
               {isSaving ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Saving...
+                  Parsing...
                 </>
               ) : (
                 <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Resume
+                  <Wand2 className="w-4 h-4 mr-2" />
+                  Continue to Builder
                 </>
               )}
             </Button>
@@ -1382,6 +1696,11 @@ export default function Analysis() {
                       {parsedResumeData.experience?.length ? ` • ${parsedResumeData.experience.length} jobs` : ''}
                       {parsedResumeData.skills?.length ? ` • ${parsedResumeData.skills.length} skills` : ''}
                     </p>
+                    {isBuilderResume && selectedResumeTemplateId && (
+                      <p className="text-green-600 mt-1 font-medium">
+                        ✓ Built with template: {selectedResumeTemplateId}
+                      </p>
+                    )}
                   </div>
                 </div>
               </Card>
@@ -1391,9 +1710,15 @@ export default function Analysis() {
               <Card 
                 className="p-4 cursor-pointer hover:border-primary transition-all group"
                 onClick={() => {
-                  // Store parsed data and navigate to builder
-                  if (parsedResumeData) {
+                  // If it's a builder resume, navigate to edit it directly
+                  if (isBuilderResume && selectedResumeId) {
+                    navigate(`/builder?id=${selectedResumeId}`);
+                  } else if (parsedResumeData) {
+                    // Store parsed data and navigate to builder for new template
                     sessionStorage.setItem('atsResumeData', JSON.stringify(parsedResumeData));
+                    if (selectedResumeTemplateId) {
+                      sessionStorage.setItem('atsResumeTemplate', selectedResumeTemplateId);
+                    }
                     navigate('/builder?from=ats');
                   }
                   setShowTemplateDialog(false);
@@ -1403,9 +1728,11 @@ export default function Analysis() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                     <Wand2 className="w-6 h-6 text-white" />
                   </div>
-                  <h3 className="font-semibold mb-1">Resume Builder</h3>
+                  <h3 className="font-semibold mb-1">
+                    {isBuilderResume ? "Edit in Builder" : "Resume Builder"}
+                  </h3>
                   <p className="text-xs text-muted-foreground">
-                    Edit & export as PDF
+                    {isBuilderResume ? "Edit with your template" : "Edit & export as PDF"}
                   </p>
                 </div>
               </Card>

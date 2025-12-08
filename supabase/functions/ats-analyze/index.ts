@@ -11,9 +11,9 @@ serve(async (req) => {
   }
 
   try {
-    const { resumeText, jobDescription, analysisType } = await req.json();
+    const { resumeText, jobDescription, analysisType, resumeData } = await req.json();
     
-    if (!resumeText || !jobDescription) {
+    if ((!resumeText && !resumeData) || !jobDescription) {
       return new Response(
         JSON.stringify({ error: "Missing resume or job description" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -183,6 +183,90 @@ Provide a detailed analysis covering all aspects.`;
     } else if (analysisType === "generate-summaries") {
       systemPrompt = `You are an expert at writing resume summaries. Generate multiple summary options optimized for ATS.`;
       userPrompt = `JOB DESCRIPTION:\n${jobDescription}\n\nRESUME:\n${resumeText}\n\nGenerate 4 different summary options:\n1. Professional Summary (3-4 sentences, formal)\n2. Technical Summary (focused on skills/tech stack)\n3. Skills Summary (bullet-point format of key skills)\n4. Career Snapshot (one powerful sentence)\n\nLabel each clearly.`;
+    } else if (analysisType === "rewrite-structured") {
+      // resumeData is already extracted from the request body above
+      systemPrompt = `You are an expert ATS resume optimizer. You will receive structured resume data and a job description. Your task is to optimize the resume content while maintaining the exact same JSON structure. Improve bullet points with metrics, add relevant keywords, enhance the summary, but keep all field names and structure identical.`;
+      
+      userPrompt = `JOB DESCRIPTION:\n${jobDescription}\n\nRESUME DATA (JSON):\n${resumeData || resumeText}\n\nOptimize this resume for the job. Return ONLY valid JSON with the same structure but improved content. Enhance:
+- Summary: Make it compelling and keyword-rich
+- Experience bullets: Add metrics, action verbs, relevant keywords
+- Skills: Prioritize job-relevant skills first
+Keep contact info unchanged. Return ONLY the JSON, no explanation.`;
+
+      toolConfig = {
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "return_optimized_resume",
+              description: "Return the optimized resume in structured JSON format",
+              parameters: {
+                type: "object",
+                properties: {
+                  contact: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      email: { type: "string" },
+                      phone: { type: "string" },
+                      location: { type: "string" },
+                      linkedin: { type: "string" },
+                      website: { type: "string" }
+                    }
+                  },
+                  summary: { type: "string", description: "Optimized professional summary" },
+                  experience: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        title: { type: "string" },
+                        company: { type: "string" },
+                        location: { type: "string" },
+                        startDate: { type: "string" },
+                        endDate: { type: "string" },
+                        current: { type: "boolean" },
+                        bullets: { type: "array", items: { type: "string" }, description: "Optimized achievement bullets with metrics" }
+                      }
+                    }
+                  },
+                  education: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        degree: { type: "string" },
+                        school: { type: "string" },
+                        location: { type: "string" },
+                        graduationDate: { type: "string" },
+                        gpa: { type: "string" }
+                      }
+                    }
+                  },
+                  skills: { type: "array", items: { type: "string" }, description: "Skills prioritized by job relevance" },
+                  certifications: { type: "array", items: { type: "string" } },
+                  projects: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string" },
+                        name: { type: "string" },
+                        description: { type: "string" },
+                        technologies: { type: "array", items: { type: "string" } }
+                      }
+                    }
+                  }
+                },
+                required: ["contact", "summary", "experience", "education", "skills"]
+              }
+            }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "return_optimized_resume" } }
+      };
     }
 
     const requestBody: any = {
@@ -249,6 +333,40 @@ Provide a detailed analysis covering all aspects.`;
         // Fallback if no tool call
         return new Response(
           JSON.stringify({ error: "Failed to parse analysis" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else if (analysisType === "rewrite-structured") {
+      // Extract structured resume data from tool call
+      const toolCall = data.choices[0].message.tool_calls?.[0];
+      if (toolCall && toolCall.function) {
+        const optimizedResume = JSON.parse(toolCall.function.arguments);
+        // Add IDs if missing
+        if (optimizedResume.experience) {
+          optimizedResume.experience = optimizedResume.experience.map((exp: any, idx: number) => ({
+            ...exp,
+            id: exp.id || `exp-${Date.now()}-${idx}`,
+          }));
+        }
+        if (optimizedResume.education) {
+          optimizedResume.education = optimizedResume.education.map((edu: any, idx: number) => ({
+            ...edu,
+            id: edu.id || `edu-${Date.now()}-${idx}`,
+          }));
+        }
+        if (optimizedResume.projects) {
+          optimizedResume.projects = optimizedResume.projects.map((proj: any, idx: number) => ({
+            ...proj,
+            id: proj.id || `proj-${Date.now()}-${idx}`,
+          }));
+        }
+        return new Response(
+          JSON.stringify({ result: optimizedResume }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ error: "Failed to generate optimized resume" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

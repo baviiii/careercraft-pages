@@ -909,34 +909,53 @@ export default function ResumeBuilder() {
     }
   };
 
-  // Export to PDF
+  // Export to PDF with multi-page support and high quality
   const exportToPDF = async () => {
     if (!previewRef.current) return;
 
     setIsExporting(true);
     try {
+      // Higher scale for better quality
       const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         logging: false,
+        backgroundColor: '#ffffff',
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      const imgData = canvas.toDataURL("image/png", 1.0);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
       });
 
-      const imgWidth = 210;
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgWidth = pageWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      // Handle multi-page if content is longer than one page
+      let heightLeft = imgHeight;
+      let position = 0;
+      let pageCount = 0;
+
+      while (heightLeft > 0) {
+        if (pageCount > 0) {
+          pdf.addPage();
+        }
+        
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        position -= pageHeight;
+        pageCount++;
+      }
+
       pdf.save(`${resumeData.contact.name || "resume"}.pdf`);
 
       toast({
         title: "✓ PDF Downloaded",
-        description: "Your resume has been exported successfully",
+        description: `Your resume has been exported (${pageCount} page${pageCount > 1 ? 's' : ''})`,
       });
     } catch (error) {
       console.error("Export error:", error);
@@ -1004,8 +1023,9 @@ export default function ResumeBuilder() {
         const { error } = await supabase.from("resumes").update({
           name: saveResumeName || "Untitled Resume",
           content,
+          template_id: selectedTemplate,
           updated_at: new Date().toISOString(),
-        }).eq('id', currentResumeId);
+        } as any).eq('id', currentResumeId);
 
         if (error) throw error;
 
@@ -1020,7 +1040,8 @@ export default function ResumeBuilder() {
           name: saveResumeName || "Untitled Resume",
           content,
           file_type: "builder",
-        }).select().single();
+          template_id: selectedTemplate,
+        } as any).select().single();
 
         if (error) throw error;
         
