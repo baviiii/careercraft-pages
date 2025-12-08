@@ -128,11 +128,18 @@ export type Database = {
         Row: {
           applied_date: string
           company: string
+          cover_letter_id: string | null
           created_at: string
           id: string
+          job_description: string | null
           job_title: string
+          job_type: string | null
+          job_url: string | null
+          location: string | null
           notes: string | null
           reminder_date: string | null
+          resume_id: string | null
+          salary_range: string | null
           status: string
           updated_at: string
           user_id: string
@@ -140,11 +147,18 @@ export type Database = {
         Insert: {
           applied_date?: string
           company: string
+          cover_letter_id?: string | null
           created_at?: string
           id?: string
+          job_description?: string | null
           job_title: string
+          job_type?: string | null
+          job_url?: string | null
+          location?: string | null
           notes?: string | null
           reminder_date?: string | null
+          resume_id?: string | null
+          salary_range?: string | null
           status: string
           updated_at?: string
           user_id: string
@@ -152,16 +166,38 @@ export type Database = {
         Update: {
           applied_date?: string
           company?: string
+          cover_letter_id?: string | null
           created_at?: string
           id?: string
+          job_description?: string | null
           job_title?: string
+          job_type?: string | null
+          job_url?: string | null
+          location?: string | null
           notes?: string | null
           reminder_date?: string | null
+          resume_id?: string | null
+          salary_range?: string | null
           status?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "job_applications_cover_letter_id_fkey"
+            columns: ["cover_letter_id"]
+            isOneToOne: false
+            referencedRelation: "cover_letters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_applications_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       login_attempts: {
         Row: {
