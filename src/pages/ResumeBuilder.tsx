@@ -640,7 +640,7 @@ export default function ResumeBuilder() {
       if (useAIParsing) {
         // Create a fake file to use AI parsing
         const blob = new Blob([text], { type: 'text/plain' });
-        const file = new File([blob], 'pasted-resume.txt', { type: 'text/plain' });
+        const file = new globalThis.File([blob], 'pasted-resume.txt', { type: 'text/plain' });
         
         setUploadProgress(40);
         const aiParsed = await parseResumeWithAI(file, (progress) => {
