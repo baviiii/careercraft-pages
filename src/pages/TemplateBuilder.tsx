@@ -30,11 +30,29 @@ import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import { ModernTemplate1 } from "@/components/templates/ModernTemplate1";
 import { ModernTemplate2 } from "@/components/templates/ModernTemplate2";
+import { ModernTemplate3 } from "@/components/templates/ModernTemplate3";
+import { ModernTemplate4 } from "@/components/templates/ModernTemplate4";
+import { ModernTemplate5 } from "@/components/templates/ModernTemplate5";
+import { ModernTemplate6 } from "@/components/templates/ModernTemplate6";
+import { ModernTemplate7 } from "@/components/templates/ModernTemplate7";
 import { ProfessionalTemplate } from "@/components/templates/ProfessionalTemplate";
+import { ProfessionalTemplate2 } from "@/components/templates/ProfessionalTemplate2";
+import { ProfessionalTemplate3 } from "@/components/templates/ProfessionalTemplate3";
+import { ProfessionalTemplate4 } from "@/components/templates/ProfessionalTemplate4";
+import { ProfessionalTemplate5 } from "@/components/templates/ProfessionalTemplate5";
+import { ProfessionalTemplate6 } from "@/components/templates/ProfessionalTemplate6";
 import { CreativeTemplate1 } from "@/components/templates/CreativeTemplate1";
 import { CreativeTemplate2 } from "@/components/templates/CreativeTemplate2";
-
-type TemplateStyle = "modern1" | "modern2" | "professional" | "creative1" | "creative2";
+import { CreativeTemplate3 } from "@/components/templates/CreativeTemplate3";
+import { CreativeTemplate4 } from "@/components/templates/CreativeTemplate4";
+import { CreativeTemplate5 } from "@/components/templates/CreativeTemplate5";
+import { CreativeTemplate6 } from "@/components/templates/CreativeTemplate6";
+import { CreativeTemplate7 } from "@/components/templates/CreativeTemplate7";
+import { MinimalTemplate1 } from "@/components/templates/MinimalTemplate1";
+import { MinimalTemplate2 } from "@/components/templates/MinimalTemplate2";
+import { MinimalTemplate3 } from "@/components/templates/MinimalTemplate3";
+import { MinimalTemplate4 } from "@/components/templates/MinimalTemplate4";
+import { MinimalTemplate5 } from "@/components/templates/MinimalTemplate5";
 
 interface ContactInfo {
   name: string;
@@ -72,47 +90,38 @@ interface ResumeData {
   skills: string[];
 }
 
+type TemplateStyle = "modern1" | "modern2" | "modern3" | "modern4" | "modern5" | "modern6" | "modern7" | "professional" | "professional2" | "professional3" | "professional4" | "professional5" | "professional6" | "creative1" | "creative2" | "creative3" | "creative4" | "creative5" | "creative6" | "creative7" | "minimal1" | "minimal2" | "minimal3" | "minimal4" | "minimal5";
+
 const TEMPLATES = [
-  {
-    id: "modern1",
-    title: "Modern Blue",
-    category: "Modern",
-    color: "from-blue-500 to-cyan-500",
-    description: "Clean design with blue accents and clear hierarchy",
-    preview: ModernTemplate1,
-  },
-  {
-    id: "modern2",
-    title: "Modern Minimal",
-    category: "Modern",
-    color: "from-slate-500 to-slate-700",
-    description: "Elegant two-column layout with professional styling",
-    preview: ModernTemplate2,
-  },
-  {
-    id: "professional",
-    title: "Professional Classic",
-    category: "Professional",
-    color: "from-gray-700 to-gray-900",
-    description: "Timeless design perfect for traditional industries",
-    preview: ProfessionalTemplate,
-  },
-  {
-    id: "creative1",
-    title: "Creative Gradient",
-    category: "Creative",
-    color: "from-purple-500 to-pink-500",
-    description: "Bold gradients with modern visual elements",
-    preview: CreativeTemplate1,
-  },
-  {
-    id: "creative2",
-    title: "Creative Dark",
-    category: "Creative",
-    color: "from-orange-500 to-red-600",
-    description: "Striking dark theme with orange highlights",
-    preview: CreativeTemplate2,
-  },
+  // Modern Templates
+  { id: "modern1", title: "Modern Blue", category: "Modern", color: "from-blue-500 to-cyan-500", description: "Clean design with blue accents", preview: ModernTemplate1 },
+  { id: "modern2", title: "Modern Minimal", category: "Modern", color: "from-slate-500 to-slate-700", description: "Elegant two-column layout", preview: ModernTemplate2 },
+  { id: "modern3", title: "Modern Gradient", category: "Modern", color: "from-indigo-500 to-purple-600", description: "Sleek gradient header design", preview: ModernTemplate3 },
+  { id: "modern4", title: "Modern Tech", category: "Modern", color: "from-cyan-500 to-blue-600", description: "Tech-focused modern layout", preview: ModernTemplate4 },
+  { id: "modern5", title: "Modern Split", category: "Modern", color: "from-teal-500 to-emerald-600", description: "Clean split-column design", preview: ModernTemplate5 },
+  { id: "modern6", title: "Modern Navy", category: "Modern", color: "from-blue-700 to-slate-800", description: "Professional navy accent", preview: ModernTemplate6 },
+  { id: "modern7", title: "Modern Emerald", category: "Modern", color: "from-emerald-500 to-teal-600", description: "Fresh emerald styling", preview: ModernTemplate7 },
+  // Professional Templates
+  { id: "professional", title: "Professional Classic", category: "Professional", color: "from-gray-700 to-gray-900", description: "Timeless traditional design", preview: ProfessionalTemplate },
+  { id: "professional2", title: "Professional Executive", category: "Professional", color: "from-slate-700 to-gray-800", description: "Executive-level formatting", preview: ProfessionalTemplate2 },
+  { id: "professional3", title: "Professional Corporate", category: "Professional", color: "from-zinc-600 to-slate-700", description: "Corporate standard layout", preview: ProfessionalTemplate3 },
+  { id: "professional4", title: "Professional Banking", category: "Professional", color: "from-blue-800 to-slate-800", description: "Finance industry standard", preview: ProfessionalTemplate4 },
+  { id: "professional5", title: "Professional Legal", category: "Professional", color: "from-stone-600 to-zinc-700", description: "Law firm approved style", preview: ProfessionalTemplate5 },
+  { id: "professional6", title: "Professional Consulting", category: "Professional", color: "from-gray-600 to-slate-700", description: "Consulting firm format", preview: ProfessionalTemplate6 },
+  // Creative Templates
+  { id: "creative1", title: "Creative Bold", category: "Creative", color: "from-purple-500 to-pink-500", description: "Bold gradients with flair", preview: CreativeTemplate1 },
+  { id: "creative2", title: "Creative Dark", category: "Creative", color: "from-orange-500 to-red-600", description: "Dark theme with orange", preview: CreativeTemplate2 },
+  { id: "creative3", title: "Creative Sunset", category: "Creative", color: "from-rose-500 to-orange-500", description: "Warm sunset gradients", preview: CreativeTemplate3 },
+  { id: "creative4", title: "Creative Retro", category: "Creative", color: "from-amber-500 to-red-600", description: "Retro vintage styling", preview: CreativeTemplate4 },
+  { id: "creative5", title: "Creative Neon", category: "Creative", color: "from-violet-500 to-fuchsia-500", description: "Neon glow effects", preview: CreativeTemplate5 },
+  { id: "creative6", title: "Creative Nature", category: "Creative", color: "from-green-500 to-emerald-600", description: "Nature-inspired design", preview: CreativeTemplate6 },
+  { id: "creative7", title: "Creative Geometric", category: "Creative", color: "from-cyan-500 to-blue-600", description: "Geometric patterns", preview: CreativeTemplate7 },
+  // Minimal Templates
+  { id: "minimal1", title: "Minimal Clean", category: "Minimal", color: "from-gray-400 to-gray-500", description: "Ultra-clean simplicity", preview: MinimalTemplate1 },
+  { id: "minimal2", title: "Minimal Centered", category: "Minimal", color: "from-slate-400 to-gray-500", description: "Centered elegant layout", preview: MinimalTemplate2 },
+  { id: "minimal3", title: "Minimal Sidebar", category: "Minimal", color: "from-zinc-400 to-slate-500", description: "Minimal with sidebar", preview: MinimalTemplate3 },
+  { id: "minimal4", title: "Minimal Classic", category: "Minimal", color: "from-stone-400 to-gray-500", description: "Classic minimal style", preview: MinimalTemplate4 },
+  { id: "minimal5", title: "Minimal Swiss", category: "Minimal", color: "from-neutral-400 to-slate-500", description: "Swiss design inspired", preview: MinimalTemplate5 },
 ];
 
 const STEPS = [
