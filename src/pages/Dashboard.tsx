@@ -103,12 +103,19 @@ export default function Dashboard() {
 
   const quickActions = [
     {
+      icon: Zap,
+      title: "Build Resume",
+      description: "Create a polished resume",
+      path: "/builder",
+      gradient: "from-primary to-primary-glow",
+      primary: true,
+    },
+    {
       icon: Upload,
       title: "Upload Resume",
       description: "Add a new resume to analyze",
-      path: "/upload",
+      path: "/builder",
       gradient: "from-blue-500 to-cyan-500",
-      primary: true,
     },
     {
       icon: BarChart3,
@@ -117,21 +124,22 @@ export default function Dashboard() {
       path: "/analysis",
       gradient: "from-purple-500 to-pink-500",
     },
-    {
-      icon: Sparkles,
-      title: "AI Rewrite",
-      description: "Enhance your resume",
-      path: "/rewrite",
-      gradient: "from-orange-500 to-amber-500",
-    },
   ];
 
   const tools = [
     {
+      icon: Zap,
+      title: "Resume Builder",
+      description: "Create professional resumes with templates",
+      path: "/builder",
+      gradient: "from-primary to-primary-glow",
+      featured: true,
+    },
+    {
       icon: Upload,
       title: "Resume Manager",
       description: "Upload, organize, and manage all your resumes",
-      path: "/upload",
+      path: "/builder",
       gradient: "from-blue-500 to-cyan-500",
       stats: `${stats.totalResumes} resumes`,
     },
@@ -182,7 +190,7 @@ export default function Dashboard() {
 
   const sidebarLinks = [
     { icon: Home, label: "Dashboard", path: "/dashboard", active: true },
-    { icon: FileText, label: "My Resumes", path: "/upload" },
+    { icon: FileText, label: "My Resumes", path: "/builder" },
     { icon: Mail, label: "Cover Letters", path: "/cover-letter" },
     { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
     { icon: Settings, label: "Settings", path: "/settings" },
@@ -286,7 +294,7 @@ export default function Dashboard() {
                 </p>
               </div>
             </div>
-            <Button onClick={() => navigate("/upload")} className="gap-2">
+            <Button onClick={() => navigate("/builder")} className="gap-2">
               <Upload className="w-4 h-4" />
               <span className="hidden sm:inline">Upload Resume</span>
             </Button>

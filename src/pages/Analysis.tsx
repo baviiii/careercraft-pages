@@ -257,7 +257,7 @@ export default function Analysis() {
               </div>
               <span className="text-xl font-bold">CareerCraft</span>
             </button>
-            <Button variant="outline" onClick={() => navigate("/upload")}>
+            <Button variant="outline" onClick={() => navigate("/builder")}>
               <FileText className="w-4 h-4 mr-2" />
               Resume Manager
             </Button>
@@ -445,7 +445,7 @@ export default function Analysis() {
               <Save className="w-4 h-4 mr-2" />
               Save Original
             </Button>
-            <Button variant="hero" size="sm" onClick={() => navigate("/upload")}>
+            <Button variant="hero" size="sm" onClick={() => navigate("/builder")}>
               <FolderPlus className="w-4 h-4 mr-2" />
               Resume Manager
             </Button>

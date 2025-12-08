@@ -6,13 +6,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
-import Upload from "./pages/Upload";
+// Upload page removed - consolidated into ResumeBuilder
 import Analysis from "./pages/Analysis";
 import Editor from "./pages/Editor";
 import Rewrite from "./pages/Rewrite";
 import CoverLetter from "./pages/CoverLetter";
 import JobTracker from "./pages/JobTracker";
 import TemplateBuilder from "./pages/TemplateBuilder";
+import ResumeBuilder from "./pages/ResumeBuilder";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminOverview from "./pages/admin/AdminOverview";
@@ -36,13 +37,15 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/upload" element={<Upload />} />
+          {/* /upload redirects to /builder */}
+          <Route path="/upload" element={<ResumeBuilder />} />
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/editor" element={<Editor />} />
           <Route path="/rewrite" element={<Rewrite />} />
           <Route path="/cover-letter" element={<CoverLetter />} />
           <Route path="/tracker" element={<JobTracker />} />
           <Route path="/templates" element={<TemplateBuilder />} />
+          <Route path="/builder" element={<ResumeBuilder />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminLayout />}>

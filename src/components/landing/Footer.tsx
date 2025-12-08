@@ -14,7 +14,7 @@ const footerLinks = {
   product: [
     { name: "Features", href: "#features" },
     { name: "Pricing", href: "#pricing" },
-    { name: "ATS Checker", href: "/upload" },
+    { name: "ATS Checker", href: "/builder" },
     { name: "Resume Builder", href: "/template" },
     { name: "Cover Letter", href: "/cover-letter" },
   ],

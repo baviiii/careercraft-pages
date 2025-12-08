@@ -65,7 +65,7 @@ export default function Rewrite() {
             <p className="text-muted-foreground mb-6">
               Please upload your resume and job description first to use the AI Rewrite tool.
             </p>
-            <Button onClick={() => navigate("/upload")}>
+            <Button onClick={() => navigate("/builder")}>
               <Upload className="w-4 h-4 mr-2" />
               Go to Resume Manager
             </Button>

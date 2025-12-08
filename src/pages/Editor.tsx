@@ -95,7 +95,7 @@ export default function Editor() {
             <p className="text-muted-foreground mb-6">
               Please upload your resume and job description first to use the Resume Editor.
             </p>
-            <Button onClick={() => navigate("/upload")}>
+            <Button onClick={() => navigate("/builder")}>
               Go to Resume Manager
             </Button>
           </Card>

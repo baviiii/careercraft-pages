@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -138,6 +138,88 @@ export default function TemplateBuilder() {
   });
   const [skillInput, setSkillInput] = useState("");
   const [showPreview, setShowPreview] = useState(true);
+
+  // Check for data from Upload page on mount
+  useEffect(() => {
+    const storedData = sessionStorage.getItem('templateBuilderData');
+    if (storedData) {
+      try {
+        const { content, name } = JSON.parse(storedData);
+        if (content) {
+          // Parse the content into structured data
+          const parsed = parseResumeContent(content);
+          setResumeData(parsed);
+          sessionStorage.removeItem('templateBuilderData');
+          
+          toast({
+            title: "✓ Resume Loaded",
+            description: `Content from "${name}" loaded. Choose a template to continue.`,
+          });
+        }
+      } catch (e) {
+        console.error('Error parsing stored resume data:', e);
+      }
+    }
+  }, [toast]);
+
+  // Parse raw text into resume data structure
+  const parseResumeContent = (text: string): ResumeData => {
+    const data: ResumeData = {
+      contact: { name: "", email: "", phone: "", location: "", linkedin: "" },
+      summary: "",
+      experience: [],
+      education: [],
+      skills: [],
+    };
+
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    
+    // Extract contact info
+    const emailMatch = text.match(/[\w.-]+@[\w.-]+\.\w+/);
+    const phoneMatch = text.match(/(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+    const linkedinMatch = text.match(/(linkedin\.com\/in\/[\w-]+)/i);
+    
+    if (emailMatch) data.contact.email = emailMatch[0];
+    if (phoneMatch) data.contact.phone = phoneMatch[0];
+    if (linkedinMatch) data.contact.linkedin = linkedinMatch[0];
+    
+    // First line is often the name
+    for (const line of lines.slice(0, 5)) {
+      if (!line.includes('@') && !line.match(/^\d/) && line.length > 2 && line.length < 50) {
+        data.contact.name = line;
+        break;
+      }
+    }
+    
+    // Location pattern
+    const locationMatch = text.match(/([A-Z][a-z]+,\s*[A-Z]{2})/);
+    if (locationMatch) data.contact.location = locationMatch[0];
+    
+    // Find sections and extract content
+    let currentSection = '';
+    const sectionContent: { [key: string]: string[] } = {
+      summary: [], skills: []
+    };
+    
+    for (const line of lines) {
+      const lower = line.toLowerCase();
+      if (lower.includes('summary') || lower.includes('objective') || lower.includes('profile')) {
+        currentSection = 'summary';
+      } else if (lower.includes('skill') || lower.includes('technical')) {
+        currentSection = 'skills';
+      } else if (currentSection && sectionContent[currentSection]) {
+        sectionContent[currentSection].push(line);
+      }
+    }
+    
+    data.summary = sectionContent.summary.join(' ');
+    data.skills = sectionContent.skills.join(' ')
+      .split(/[,•|·]/)
+      .map(s => s.trim())
+      .filter(s => s.length > 1 && s.length < 50);
+    
+    return data;
+  };
 
   const handleTemplateSelect = (templateId: TemplateStyle) => {
     setSelectedTemplate(templateId);
