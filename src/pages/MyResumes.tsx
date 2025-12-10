@@ -576,7 +576,8 @@ export default function MyResumes() {
       const templateData = getTemplateData(resume);
       
       const root = createRoot(tempContainer);
-      root.render(<TemplateComponent data={templateData} />);
+      // CRITICAL: Pass isPreview={false} to render at full A4 size, not scaled down
+      root.render(<TemplateComponent data={templateData} isPreview={false} />);
       
       // Wait for render and fonts to load
       await new Promise(resolve => setTimeout(resolve, 800));
