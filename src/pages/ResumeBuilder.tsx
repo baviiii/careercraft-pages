@@ -915,25 +915,30 @@ export default function ResumeBuilder() {
 
     setIsExporting(true);
     try {
-      // Higher scale for better quality
+      // A4 dimensions in pixels at 96 DPI: 794 × 1123
+      // For high quality, we use scale 4 (3176 × 4492)
       const canvas = await html2canvas(previewRef.current, {
-        scale: 3,
+        scale: 4,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
+        width: 794,
+        height: previewRef.current.scrollHeight,
+        windowWidth: 794,
       });
 
-      const imgData = canvas.toDataURL("image/png", 1.0);
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
+        compress: true,
       });
 
       const pageWidth = 210;
       const pageHeight = 297;
       const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
 
       // Handle multi-page if content is longer than one page
       let heightLeft = imgHeight;
@@ -945,7 +950,7 @@ export default function ResumeBuilder() {
           pdf.addPage();
         }
         
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
         heightLeft -= pageHeight;
         position -= pageHeight;
         pageCount++;
@@ -955,7 +960,7 @@ export default function ResumeBuilder() {
 
       toast({
         title: "✓ PDF Downloaded",
-        description: `Your resume has been exported (${pageCount} page${pageCount > 1 ? 's' : ''})`,
+        description: `High-quality resume exported (${pageCount} page${pageCount > 1 ? 's' : ''})`,
       });
     } catch (error) {
       console.error("Export error:", error);
@@ -1892,12 +1897,16 @@ export default function ResumeBuilder() {
                 </div>
               </div>
 
-              {/* Preview */}
-              <div className="flex justify-center">
+              {/* Preview - A4 sized container for accurate PDF export */}
+              <div className="flex justify-center overflow-auto pb-8">
                 <div
                   ref={previewRef}
-                  className="bg-white shadow-2xl rounded-lg overflow-hidden"
-                  style={{ width: "210mm", minHeight: "297mm" }}
+                  className="bg-white shadow-2xl"
+                  style={{ 
+                    width: "794px", // A4 width at 96 DPI
+                    minHeight: "1123px", // A4 height at 96 DPI
+                    boxSizing: "border-box",
+                  }}
                 >
                   <CurrentTemplate data={templateData} isPreview={false} />
                 </div>
