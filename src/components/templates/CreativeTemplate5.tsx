@@ -5,7 +5,7 @@ export const CreativeTemplate5 = ({ data, isPreview = true }: TemplateProps) => 
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-gradient-to-br from-cyan-900 via-blue-900 to-indigo-900 text-white ${isPreview ? 'scale-[0.4] origin-top-left w-[210mm] h-[297mm]' : 'w-full'} p-8 shadow-none border-2 border-border`}>
+    <Card className={`bg-gradient-to-br from-cyan-900 via-blue-900 to-indigo-900 text-white ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       <div className="space-y-5">
         {/* Neon Header */}
         <div className="text-center pb-4 border-b border-cyan-500/30">

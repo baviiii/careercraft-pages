@@ -5,7 +5,7 @@ export const CreativeTemplate2 = ({ data, isPreview = true }: TemplateProps) => 
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-black text-white ${isPreview ? 'scale-[0.4] origin-top-left w-[210mm] h-[297mm]' : 'w-full'} p-8 shadow-none border-2 border-orange-500`}>
+    <Card className={`bg-black text-white ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       <div className="space-y-6">
         {/* Bold Header with Geometric Elements */}
         <div className="relative pb-6 border-b-4 border-orange-500">

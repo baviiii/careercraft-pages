@@ -1341,21 +1341,18 @@ export default function MyResumes() {
               <div className="h-[70vh] overflow-auto bg-gray-100 dark:bg-gray-900">
                 {previewMode === "template" && previewDialog.resume.template_id && TEMPLATE_MAP[previewDialog.resume.template_id] ? (
                   // Template View - A4 sized for accurate preview and export
-                  <div className="p-6 flex justify-center">
+                  <div className="p-6 flex justify-center" style={{ minWidth: "fit-content" }}>
                     <div 
                       ref={previewRef}
-                      className="bg-white shadow-2xl origin-top"
+                      className="bg-white shadow-2xl"
                       style={{ 
-                        width: "794px", // A4 width at 96 DPI
-                        minHeight: "1123px", // A4 height at 96 DPI
-                        boxSizing: "border-box",
-                        transform: "scale(0.85)", // Scale down for dialog fit
+                        transform: "scale(0.75)",
                         transformOrigin: "top center",
                       }}
                     >
                       {(() => {
                         const TemplateComponent = TEMPLATE_MAP[previewDialog.resume.template_id!];
-                        return <TemplateComponent data={getTemplateData(previewDialog.resume)} />;
+                        return <TemplateComponent data={getTemplateData(previewDialog.resume)} isPreview={false} />;
                       })()}
                     </div>
                   </div>
