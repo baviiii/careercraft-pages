@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,14 @@ import {
   TrendingUp,
   Target,
   Zap,
-  User,
-  Settings,
   Home,
   Menu,
-  X,
+  Settings,
 } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
+
+// Simplified animation variants
+const fadeIn = { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 } };
 
 interface ResumeStats {
   totalResumes: number;
@@ -194,10 +195,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-lg text-muted-foreground">Loading...</p>
-        </div>
+        <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -298,81 +296,27 @@ export default function Dashboard() {
 
         {/* Dashboard Content */}
         <main className="p-4 md:p-8">
-          {/* Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <Card className="p-4 md:p-6 hover:shadow-lg transition-shadow">
+            {[
+              { icon: FileText, value: stats.totalResumes, label: "Total Resumes", color: "blue", trend: true },
+              { icon: Mail, value: stats.totalCoverLetters, label: "Cover Letters", color: "purple" },
+              { icon: Target, value: "--", label: "ATS Score Avg", color: "green" },
+              { icon: Briefcase, value: "--", label: "Applications", color: "orange" },
+            ].map((stat, i) => (
+              <Card key={stat.label} className="p-4 md:p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-blue-500" />
+                  <div className={`w-10 h-10 rounded-lg bg-${stat.color}-500/10 flex items-center justify-center`}>
+                    <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
                   </div>
-                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  {stat.trend && <TrendingUp className="w-4 h-4 text-green-500" />}
                 </div>
-                <p className="text-2xl md:text-3xl font-bold">{stats.totalResumes}</p>
-                <p className="text-sm text-muted-foreground">Total Resumes</p>
+                <p className="text-2xl md:text-3xl font-bold">{stat.value}</p>
+                <p className="text-sm text-muted-foreground">{stat.label}</p>
               </Card>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <Card className="p-4 md:p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                    <Mail className="w-5 h-5 text-purple-500" />
-                  </div>
-                </div>
-                <p className="text-2xl md:text-3xl font-bold">{stats.totalCoverLetters}</p>
-                <p className="text-sm text-muted-foreground">Cover Letters</p>
-              </Card>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Card className="p-4 md:p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                    <Target className="w-5 h-5 text-green-500" />
-                  </div>
-                </div>
-                <p className="text-2xl md:text-3xl font-bold">--</p>
-                <p className="text-sm text-muted-foreground">ATS Score Avg</p>
-              </Card>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <Card className="p-4 md:p-6 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                    <Briefcase className="w-5 h-5 text-orange-500" />
-                  </div>
-                </div>
-                <p className="text-2xl md:text-3xl font-bold">--</p>
-                <p className="text-sm text-muted-foreground">Applications</p>
-              </Card>
-            </motion.div>
+            ))}
           </div>
 
-          {/* Quick Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="mb-8"
-          >
+          <div className="mb-8">
             <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {quickActions.map((action) => (
@@ -387,7 +331,7 @@ export default function Dashboard() {
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
                       action.primary ? 'bg-white/20' : `bg-gradient-to-br ${action.gradient}`
                     }`}>
-                      <action.icon className={`w-6 h-6 ${action.primary ? 'text-white' : 'text-white'}`} />
+                      <action.icon className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1">
                       <h3 className={`font-semibold ${action.primary ? '' : 'group-hover:text-primary'}`}>
@@ -402,53 +346,36 @@ export default function Dashboard() {
                 </Card>
               ))}
             </div>
-          </motion.div>
+          </div>
 
-          {/* All Tools Grid */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
+          <div>
             <h2 className="text-lg font-semibold mb-4">All Tools</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {tools.map((tool, index) => (
-                <motion.div
+              {tools.map((tool) => (
+                <Card
                   key={tool.path}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 * index }}
+                  className="p-5 hover:shadow-lg transition-all cursor-pointer group hover:border-primary/50"
+                  onClick={() => navigate(tool.path)}
                 >
-                  <Card
-                    className="p-5 hover:shadow-lg transition-all cursor-pointer group hover:border-primary/50"
-                    onClick={() => navigate(tool.path)}
-                  >
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                      <tool.icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">
-                      {tool.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {tool.description}
-                    </p>
-                    {tool.stats && (
-                      <p className="text-xs text-primary font-medium">{tool.stats}</p>
-                    )}
-                  </Card>
-                </motion.div>
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                    <tool.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">
+                    {tool.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {tool.description}
+                  </p>
+                  {tool.stats && (
+                    <p className="text-xs text-primary font-medium">{tool.stats}</p>
+                  )}
+                </Card>
               ))}
             </div>
-          </motion.div>
+          </div>
 
-          {/* Recent Activity */}
           {stats.recentActivity.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="mt-8"
-            >
+            <div className="mt-8">
               <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
               <Card className="divide-y divide-border">
                 {stats.recentActivity.map((activity, index) => (
@@ -467,7 +394,7 @@ export default function Dashboard() {
                   </div>
                 ))}
               </Card>
-            </motion.div>
+            </div>
           )}
         </main>
       </div>

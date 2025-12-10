@@ -18,37 +18,37 @@ interface SplashCursorProps {
 }
 
 function SplashCursor({
-  SIM_RESOLUTION = 128,
-  DYE_RESOLUTION = 1440,
-  CAPTURE_RESOLUTION = 512,
+  SIM_RESOLUTION = 64,
+  DYE_RESOLUTION = 512,
+  CAPTURE_RESOLUTION = 256,
   DENSITY_DISSIPATION = 3.5,
   VELOCITY_DISSIPATION = 2,
   PRESSURE = 0.1,
-  PRESSURE_ITERATIONS = 20,
+  PRESSURE_ITERATIONS = 10,
   CURL = 3,
   SPLAT_RADIUS = 0.2,
   SPLAT_FORCE = 6000,
-  SHADING = true,
+  SHADING = false,
   COLOR_UPDATE_SPEED = 10,
   BACK_COLOR = { r: 0, g: 0, b: 0 },
   TRANSPARENT = true
 }: SplashCursorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isMobile, setIsMobile] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
 
-  // Detect mobile devices
+  // Detect if we should render (desktop only, after initial load)
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768 || 'ontouchstart' in window);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const isMobile = window.innerWidth < 1024 || 'ontouchstart' in window;
+    // Delay rendering to not block initial paint
+    if (!isMobile) {
+      const timer = setTimeout(() => setShouldRender(true), 500);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   useEffect(() => {
-    // Skip on mobile for performance
-    if (isMobile) return;
+    // Skip on mobile or before delayed render
+    if (!shouldRender) return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1077,7 +1077,7 @@ function SplashCursor({
       window.removeEventListener('touchend', handleTouchEnd);
     };
   }, [
-    isMobile,
+    shouldRender,
     SIM_RESOLUTION,
     DYE_RESOLUTION,
     CAPTURE_RESOLUTION,
@@ -1094,8 +1094,8 @@ function SplashCursor({
     TRANSPARENT
   ]);
 
-  // Don't render on mobile
-  if (isMobile) return null;
+  // Don't render on mobile or before delayed load
+  if (!shouldRender) return null;
 
   return (
     <div

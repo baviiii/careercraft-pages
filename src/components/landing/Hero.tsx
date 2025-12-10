@@ -3,165 +3,127 @@ import { useNavigate } from "react-router-dom";
 import { Upload, Sparkles, ArrowRight, Play, Shield, Zap, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Session } from "@supabase/supabase-js";
-import { useEffect, useRef, useState } from "react";
+import { memo, useRef } from "react";
 
 interface HeroProps {
   session: Session | null;
 }
 
-// Floating particle component
-const FloatingParticle = ({ delay, duration, size, x, y }: { 
+// Reduced animation variants for better performance
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5, ease: "easeOut" }
+};
+
+// Floating particle component - memoized
+const FloatingParticle = memo(({ delay, size, x, y }: { 
   delay: number; 
-  duration: number; 
   size: number; 
   x: number; 
   y: number;
 }) => (
   <motion.div
-    className="absolute rounded-full bg-gradient-to-r from-primary/30 to-primary-glow/30 blur-sm"
+    className="absolute rounded-full bg-gradient-to-r from-primary/20 to-primary-glow/20 blur-sm will-change-transform"
     style={{ width: size, height: size, left: `${x}%`, top: `${y}%` }}
-    animate={{
-      y: [0, -30, 0],
-      x: [0, 15, 0],
-      opacity: [0.3, 0.8, 0.3],
-      scale: [1, 1.2, 1],
-    }}
-    transition={{
-      duration,
-      delay,
-      repeat: Infinity,
-      ease: "easeInOut",
-    }}
+    animate={{ y: [0, -20, 0], opacity: [0.2, 0.5, 0.2] }}
+    transition={{ duration: 6, delay, repeat: Infinity, ease: "easeInOut" }}
   />
-);
+));
 
-// Animated gradient orb
-const GradientOrb = ({ className, delay = 0 }: { className: string; delay?: number }) => (
-  <motion.div
-    className={`absolute rounded-full blur-3xl ${className}`}
-    animate={{
-      scale: [1, 1.2, 1],
-      opacity: [0.3, 0.5, 0.3],
-    }}
-    transition={{
-      duration: 8,
-      delay,
-      repeat: Infinity,
-      ease: "easeInOut",
-    }}
-  />
-);
+// Animated gradient orb - memoized with CSS animation instead
+const GradientOrb = memo(({ className }: { className: string }) => (
+  <div className={`absolute rounded-full blur-3xl animate-pulse ${className}`} />
+));
 
-// Animated text with gradient reveal
-const AnimatedText = ({ children, delay = 0 }: { children: string; delay?: number }) => (
+// Animated text - simplified
+const AnimatedText = memo(({ children, delay = 0 }: { children: string; delay?: number }) => (
   <motion.span
-    initial={{ opacity: 0, y: 20 }}
+    initial={{ opacity: 0, y: 15 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.8, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+    transition={{ duration: 0.5, delay }}
     className="inline-block"
   >
     {children}
   </motion.span>
-);
+));
 
-// 3D Tilt Card Component
-const TiltCard = ({ children, className }: { children: React.ReactNode; className?: string }) => {
+// Simplified Tilt Card - reduced motion tracking
+const TiltCard = memo(({ children, className }: { children: React.ReactNode; className?: string }) => {
   const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   
-  const mouseXSpring = useSpring(x, { stiffness: 500, damping: 100 });
-  const mouseYSpring = useSpring(y, { stiffness: 500, damping: 100 });
+  const mouseXSpring = useSpring(x, { stiffness: 300, damping: 50 });
+  const mouseYSpring = useSpring(y, { stiffness: 300, damping: 50 });
   
-  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["7.5deg", "-7.5deg"]);
-  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-7.5deg", "7.5deg"]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const xPct = mouseX / width - 0.5;
-    const yPct = mouseY / height - 0.5;
-    x.set(xPct);
-    y.set(yPct);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["5deg", "-5deg"]);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-5deg", "5deg"]);
 
   return (
     <motion.div
       ref={ref}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseMove={(e) => {
+        if (!ref.current) return;
+        const rect = ref.current.getBoundingClientRect();
+        x.set((e.clientX - rect.left) / rect.width - 0.5);
+        y.set((e.clientY - rect.top) / rect.height - 0.5);
+      }}
+      onMouseLeave={() => { x.set(0); y.set(0); }}
       style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
       className={className}
     >
       {children}
     </motion.div>
   );
-};
+});
 
-// Resume preview mockup
-const ResumeMockup = () => (
+// Resume preview mockup - memoized
+const ResumeMockup = memo(() => (
   <div className="relative w-full max-w-md mx-auto">
     <TiltCard className="perspective-1000">
       <motion.div
-        initial={{ opacity: 0, y: 40, rotateX: 15 }}
-        animate={{ opacity: 1, y: 0, rotateX: 0 }}
-        transition={{ duration: 1, delay: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="relative bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden"
-        style={{ transformStyle: "preserve-3d" }}
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+        className="relative bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden will-change-transform"
       >
-        {/* Glassmorphism overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         
-        {/* Resume content mockup */}
         <div className="p-8 space-y-6">
-          {/* Header */}
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-white font-bold text-xl">
-              JD
-            </div>
+            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-white font-bold text-xl">JD</div>
             <div className="flex-1 space-y-2">
               <div className="h-6 bg-foreground/80 rounded w-3/4" />
               <div className="h-4 bg-muted-foreground/40 rounded w-1/2" />
             </div>
           </div>
           
-          {/* Score badge */}
           <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 1.2, type: "spring" }}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.3, delay: 0.8, type: "spring" }}
             className="absolute -top-3 -right-3 bg-gradient-to-r from-success to-emerald-400 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2"
           >
             <Award className="w-4 h-4" />
             ATS Score: 94
           </motion.div>
           
-          {/* Content lines */}
           <div className="space-y-3">
             <div className="h-3 bg-muted rounded w-full" />
             <div className="h-3 bg-muted rounded w-5/6" />
             <div className="h-3 bg-muted rounded w-4/5" />
           </div>
           
-          {/* Skills section */}
           <div className="space-y-3">
             <div className="h-4 bg-foreground/60 rounded w-1/4" />
             <div className="flex flex-wrap gap-2">
               {["React", "TypeScript", "Node.js", "AWS"].map((skill, i) => (
                 <motion.span
                   key={skill}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1.4 + i * 0.1 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1 + i * 0.1 }}
                   className="px-3 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium"
                 >
                   {skill}
@@ -169,33 +131,17 @@ const ResumeMockup = () => (
               ))}
             </div>
           </div>
-          
-          {/* Experience section */}
-          <div className="space-y-3">
-            <div className="h-4 bg-foreground/60 rounded w-1/3" />
-            <div className="space-y-2">
-              <div className="h-3 bg-muted rounded w-full" />
-              <div className="h-3 bg-muted rounded w-11/12" />
-              <div className="h-3 bg-muted rounded w-4/5" />
-            </div>
-          </div>
         </div>
         
-        {/* Animated scan line */}
-        <motion.div
-          className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent"
-          animate={{ top: ["0%", "100%", "0%"] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-        />
+        <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent animate-pulse" style={{ top: '50%' }} />
       </motion.div>
     </TiltCard>
     
-    {/* Floating elements around the mockup */}
     <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 1.8 }}
-      className="absolute -left-16 top-1/4 bg-card border border-border rounded-xl p-4 shadow-elegant"
+      transition={{ delay: 1.2 }}
+      className="absolute -left-16 top-1/4 bg-card border border-border rounded-xl p-4 shadow-elegant hidden xl:block"
     >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
@@ -211,8 +157,8 @@ const ResumeMockup = () => (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 2 }}
-      className="absolute -right-12 bottom-1/4 bg-card border border-border rounded-xl p-4 shadow-elegant"
+      transition={{ delay: 1.4 }}
+      className="absolute -right-12 bottom-1/4 bg-card border border-border rounded-xl p-4 shadow-elegant hidden xl:block"
     >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -225,43 +171,35 @@ const ResumeMockup = () => (
       </div>
     </motion.div>
   </div>
-);
+));
 
-export const Hero = ({ session }: HeroProps) => {
+export const Hero = memo(({ session }: HeroProps) => {
   const navigate = useNavigate();
   
-  // Generate particles - reduced for mobile performance
-  const particles = Array.from({ length: 8 }, (_, i) => ({
-    id: i,
-    delay: Math.random() * 2,
-    duration: 4 + Math.random() * 4,
-    size: 4 + Math.random() * 8,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-  }));
+  // Reduced particles for performance
+  const particles = [
+    { id: 0, delay: 0, size: 6, x: 10, y: 20 },
+    { id: 1, delay: 1, size: 8, x: 80, y: 30 },
+    { id: 2, delay: 2, size: 5, x: 60, y: 70 },
+    { id: 3, delay: 3, size: 7, x: 25, y: 80 },
+  ];
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-subtle">
-      {/* Animated background elements */}
+      {/* Static background elements with CSS animations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <GradientOrb className="w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-primary/20 -top-20 md:-top-40 -left-20 md:-left-40" />
-        <GradientOrb className="w-[400px] md:w-[800px] h-[400px] md:h-[800px] bg-primary-glow/15 -bottom-40 md:-bottom-60 -right-40 md:-right-60" delay={2} />
-        <GradientOrb className="hidden md:block w-[400px] h-[400px] bg-success/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" delay={4} />
+        <GradientOrb className="w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-primary/15 -top-20 md:-top-40 -left-20 md:-left-40" />
+        <GradientOrb className="w-[300px] md:w-[600px] h-[300px] md:h-[600px] bg-primary-glow/10 -bottom-40 -right-40" />
         
-        {/* Floating particles */}
-        {particles.map((particle) => (
-          <FloatingParticle key={particle.id} {...particle} />
-        ))}
+        {/* Particles - only on desktop */}
+        <div className="hidden lg:block">
+          {particles.map((particle) => (
+            <FloatingParticle key={particle.id} {...particle} />
+          ))}
+        </div>
         
-        {/* Grid pattern overlay */}
-        <div 
-          className="absolute inset-0 opacity-[0.02]"
-          style={{
-            backgroundImage: `linear-gradient(to right, hsl(var(--foreground)) 1px, transparent 1px),
-                             linear-gradient(to bottom, hsl(var(--foreground)) 1px, transparent 1px)`,
-            backgroundSize: '60px 60px'
-          }}
-        />
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-[0.015] bg-[linear-gradient(to_right,hsl(var(--foreground))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--foreground))_1px,transparent_1px)] bg-[size:60px_60px]" />
       </div>
 
       <div className="container mx-auto px-4 py-20 relative z-10">
@@ -390,4 +328,4 @@ export const Hero = ({ session }: HeroProps) => {
       </motion.div>
     </section>
   );
-};
+});
