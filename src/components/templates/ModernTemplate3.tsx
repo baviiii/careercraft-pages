@@ -5,7 +5,7 @@ export const ModernTemplate3 = ({ data, isPreview = true }: TemplateProps) => {
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-white text-black ${isPreview ? 'scale-[0.4] origin-top-left w-[210mm] h-[297mm]' : 'w-full'} p-0 shadow-none border-2 border-border overflow-hidden`}>
+    <Card className={`bg-white text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-0 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       {/* Teal Header */}
       <div className="bg-teal-600 text-white px-8 py-6">
         <h1 className="text-3xl font-bold tracking-tight">{d.contact.name || "Your Name"}</h1>

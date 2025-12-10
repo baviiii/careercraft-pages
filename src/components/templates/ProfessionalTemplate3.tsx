@@ -5,7 +5,7 @@ export const ProfessionalTemplate3 = ({ data, isPreview = true }: TemplateProps)
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-white text-black ${isPreview ? 'scale-[0.4] origin-top-left w-[210mm] h-[297mm]' : 'w-full'} shadow-none border-2 border-border overflow-hidden`}>
+    <Card className={`bg-white text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       {/* Navy Header */}
       <div className="bg-slate-800 text-white px-8 py-5">
         <h1 className="text-2xl font-bold">{d.contact.name?.toUpperCase() || "YOUR NAME"}</h1>

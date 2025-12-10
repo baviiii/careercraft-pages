@@ -1902,11 +1902,6 @@ export default function ResumeBuilder() {
                 <div
                   ref={previewRef}
                   className="bg-white shadow-2xl"
-                  style={{ 
-                    width: "794px", // A4 width at 96 DPI
-                    minHeight: "1123px", // A4 height at 96 DPI
-                    boxSizing: "border-box",
-                  }}
                 >
                   <CurrentTemplate data={templateData} isPreview={false} />
                 </div>
