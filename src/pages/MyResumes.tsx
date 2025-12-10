@@ -549,7 +549,7 @@ export default function MyResumes() {
     };
   };
 
-  // Export resume to PDF with proper A4 sizing
+  // Export resume to PDF with proper A4 sizing and high quality
   const exportToPDF = async (resume: Resume) => {
     if (!resume.template_id || !TEMPLATE_MAP[resume.template_id]) {
       toast({ title: "Export failed", description: "No template found", variant: "destructive" });
@@ -559,14 +559,15 @@ export default function MyResumes() {
     setIsExporting(true);
     
     try {
-      // Create a temporary container for full-size rendering
+      // Create a temporary container with exact A4 pixel dimensions (96 DPI)
       const tempContainer = document.createElement('div');
       tempContainer.style.position = 'absolute';
       tempContainer.style.left = '-9999px';
       tempContainer.style.top = '0';
-      tempContainer.style.width = '210mm';
-      tempContainer.style.minHeight = '297mm';
+      tempContainer.style.width = '794px'; // A4 width at 96 DPI
+      tempContainer.style.minHeight = '1123px'; // A4 height at 96 DPI
       tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.boxSizing = 'border-box';
       document.body.appendChild(tempContainer);
 
       // Render the template into the temp container using React
@@ -577,16 +578,17 @@ export default function MyResumes() {
       const root = createRoot(tempContainer);
       root.render(<TemplateComponent data={templateData} />);
       
-      // Wait for render
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for render and fonts to load
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Capture at high quality
+      // Capture at high quality (scale 4 for crisp text)
       const canvas = await html2canvas(tempContainer, {
-        scale: 2,
+        scale: 4,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        width: 794,  // 210mm in pixels at 96dpi
+        width: 794,
+        height: tempContainer.scrollHeight,
         windowWidth: 794,
       });
 
@@ -594,17 +596,18 @@ export default function MyResumes() {
       root.unmount();
       document.body.removeChild(tempContainer);
 
-      const imgData = canvas.toDataURL("image/png", 1.0);
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
+        compress: true,
       });
 
       const pageWidth = 210;
       const pageHeight = 297;
       const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
 
       // Handle multi-page if content is longer than one page
       let heightLeft = imgHeight;
@@ -616,7 +619,7 @@ export default function MyResumes() {
           pdf.addPage();
         }
         
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
         heightLeft -= pageHeight;
         position -= pageHeight;
         pageCount++;
@@ -626,7 +629,7 @@ export default function MyResumes() {
 
       toast({
         title: "✓ PDF Downloaded",
-        description: `Your resume has been exported (${pageCount} page${pageCount > 1 ? 's' : ''})`,
+        description: `High-quality resume exported (${pageCount} page${pageCount > 1 ? 's' : ''})`,
       });
     } catch (error) {
       console.error("Export error:", error);
@@ -1337,15 +1340,17 @@ export default function MyResumes() {
               {/* Preview Content */}
               <div className="h-[70vh] overflow-auto bg-gray-100 dark:bg-gray-900">
                 {previewMode === "template" && previewDialog.resume.template_id && TEMPLATE_MAP[previewDialog.resume.template_id] ? (
-                  // Template View - Full width, scrollable
+                  // Template View - A4 sized for accurate preview and export
                   <div className="p-6 flex justify-center">
                     <div 
                       ref={previewRef}
-                      className="bg-white shadow-2xl"
+                      className="bg-white shadow-2xl origin-top"
                       style={{ 
-                        width: "100%",
-                        maxWidth: "800px",
-                        minHeight: "1130px",
+                        width: "794px", // A4 width at 96 DPI
+                        minHeight: "1123px", // A4 height at 96 DPI
+                        boxSizing: "border-box",
+                        transform: "scale(0.85)", // Scale down for dialog fit
+                        transformOrigin: "top center",
                       }}
                     >
                       {(() => {
