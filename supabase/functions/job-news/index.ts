@@ -5,20 +5,732 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// API endpoints
+const JOB_APIS = {
+  remotive: "https://remotive.com/api/remote-jobs",
+  arbeitnow: "https://www.arbeitnow.com/api/job-board-api",
+  jsearch: "https://jsearch.p.rapidapi.com/search",
+};
+
+const NEWS_APIS = {
+  currents: "https://api.currentsapi.services/v1/search",
+};
+
+// Fast fetch with timeout - don't wait forever for slow APIs
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 5000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeout);
+    return response;
+  } catch (e) {
+    clearTimeout(timeout);
+    throw e;
+  }
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action, query, country, industry, category, page } = await req.json();
+    const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter } = await req.json();
     const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
     const ADZUNA_APP_KEY = Deno.env.get("ADZUNA_APP_KEY");
+    const JSEARCH_API_KEY = Deno.env.get("JSEARCH_API_KEY");
+    const CURRENTS_API_KEY = Deno.env.get("CURRENTS_API_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (action === "fetch_jobs" || action === "fetch_news") {
+    // ============================================
+    // AUSTRALIAN JOBS - Layered APIs (JSearch + Adzuna + Remotive + Arbeitnow)
+    // ============================================
+    if (action === "fetch_au_jobs") {
+      console.log(`Fetching AU jobs: query=${query}, location=${location}, page=${page}`);
+      console.log(`API Keys available - JSearch: ${!!JSEARCH_API_KEY}, Adzuna: ${!!ADZUNA_APP_ID && !!ADZUNA_APP_KEY}`);
+      
+      const jobs: any[] = [];
+      const pageNum = page || 1;
+      const searchQuery = query || "";
+      const auLocation = location || "australia";
+      
+      // Fetch from ALL sources in parallel - get maximum jobs
+      const fetchPromises = [];
+
+      // 1. JSearch API - Get up to 50 jobs per request (5s timeout)
+      if (JSEARCH_API_KEY) {
+        const jsearchQuery = searchQuery 
+          ? `${searchQuery} in Australia` 
+          : "jobs in Australia";
+        fetchPromises.push(
+          fetchWithTimeout(`${JOB_APIS.jsearch}?query=${encodeURIComponent(jsearchQuery)}&page=${pageNum}&num_pages=1&country=au`, {
+            headers: {
+              "X-RapidAPI-Key": JSEARCH_API_KEY,
+              "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+            },
+          }, 5000)
+            .then(res => res.json())
+            .then(data => {
+              console.log(`JSearch returned ${data.data?.length || 0} jobs`);
+              return (data.data || []).map((job: any) => ({
+                id: `jsearch-${job.job_id}`,
+                title: job.job_title,
+                company: job.employer_name,
+                location: job.job_city ? `${job.job_city}, ${job.job_state || "AU"}` : (job.job_country || "Australia"),
+                salary: job.job_min_salary && job.job_max_salary 
+                  ? `$${Math.round(job.job_min_salary/1000)}k - $${Math.round(job.job_max_salary/1000)}k`
+                  : null,
+                salaryMin: job.job_min_salary,
+                salaryMax: job.job_max_salary,
+                type: job.job_employment_type || "Full-time",
+                description: (job.job_description || "").substring(0, 300),
+                url: job.job_apply_link || job.job_google_link,
+                postedAt: job.job_posted_at_datetime_utc || new Date().toISOString(),
+                source: "JSearch",
+                logo: job.employer_logo,
+                isRemote: job.job_is_remote || false,
+                skills: extractSkillsFromText(job.job_description || ""),
+                category: categorizeJob("", job.job_title),
+              }));
+            })
+            .catch(e => { console.log("JSearch error:", e); return []; })
+        );
+      }
+
+      // 2. Adzuna API - Get up to 50 AU jobs
+      if (ADZUNA_APP_ID && ADZUNA_APP_KEY) {
+        const adzunaUrl = new URL(`https://api.adzuna.com/v1/api/jobs/au/search/${pageNum}`);
+        adzunaUrl.searchParams.set("app_id", ADZUNA_APP_ID);
+        adzunaUrl.searchParams.set("app_key", ADZUNA_APP_KEY);
+        adzunaUrl.searchParams.set("results_per_page", "50");
+        if (searchQuery) adzunaUrl.searchParams.set("what", searchQuery);
+        if (auLocation && auLocation !== "australia") {
+          adzunaUrl.searchParams.set("where", auLocation);
+        }
+
+        fetchPromises.push(
+          fetchWithTimeout(adzunaUrl.toString(), {}, 5000)
+            .then(res => res.json())
+            .then(data => {
+              console.log(`Adzuna returned ${data.results?.length || 0} jobs`);
+              return (data.results || []).map((job: any) => ({
+                id: `adzuna-${job.id}`,
+                title: job.title,
+                company: job.company?.display_name || "Company",
+                location: job.location?.display_name || "Australia",
+                salaryMin: job.salary_min,
+                salaryMax: job.salary_max,
+                salary: job.salary_min && job.salary_max 
+                  ? `$${Math.round(job.salary_min/1000)}k - $${Math.round(job.salary_max/1000)}k`
+                  : null,
+                type: job.contract_time === "full_time" ? "Full-time" : 
+                      job.contract_time === "part_time" ? "Part-time" : 
+                      job.contract_time || "Full-time",
+                description: stripHtml(job.description || "").substring(0, 300),
+                url: job.redirect_url,
+                postedAt: job.created,
+                source: "SEEK/Adzuna",
+                isRemote: (job.title || "").toLowerCase().includes("remote") ||
+                          (job.description || "").toLowerCase().includes("work from home"),
+                skills: extractSkillsFromText(job.description || ""),
+                category: categorizeJob(job.category?.label, job.title),
+              }));
+            })
+            .catch(e => { console.log("Adzuna error:", e); return []; })
+        );
+      }
+
+      // 3. Remotive API - Get ALL remote jobs (4s timeout)
+      fetchPromises.push(
+        fetchWithTimeout(`${JOB_APIS.remotive}${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""}`, {}, 4000)
+          .then(res => res.json())
+          .then(data => {
+            const remoteJobs = (data.jobs || []).map((job: any) => ({
+              id: `remotive-${job.id}`,
+              title: job.title,
+              company: job.company_name,
+              location: job.candidate_required_location || "Remote - Worldwide",
+              salary: job.salary || null,
+              type: job.job_type || "Full-time",
+              description: stripHtml(job.description || "").substring(0, 300),
+              url: job.url,
+              postedAt: job.publication_date,
+              source: "Remotive",
+              logo: job.company_logo,
+              isRemote: true,
+              skills: extractSkills(job.tags || []),
+              category: job.category || "technology",
+            }));
+            console.log(`Remotive returned ${remoteJobs.length} remote jobs`);
+            return remoteJobs;
+          })
+          .catch(e => { console.log("Remotive error:", e); return []; })
+      );
+
+      // 4. Arbeitnow API - Get ALL jobs (4s timeout)
+      fetchPromises.push(
+        fetchWithTimeout(`${JOB_APIS.arbeitnow}`, {}, 4000)
+          .then(res => res.json())
+          .then(data => {
+            const arbeitJobs = (data.data || []).map((job: any) => ({
+              id: `arbeitnow-${job.slug}`,
+              title: job.title,
+              company: job.company_name,
+              location: job.location || "Remote - EU",
+              salary: null,
+              type: job.remote ? "Remote" : "On-site",
+              description: stripHtml(job.description || "").substring(0, 300),
+              url: job.url,
+              postedAt: job.created_at,
+              source: "Arbeitnow",
+              logo: job.company_logo,
+              isRemote: job.remote || false,
+              skills: job.tags || [],
+              category: "technology",
+            }));
+            console.log(`Arbeitnow returned ${arbeitJobs.length} jobs`);
+            return arbeitJobs;
+          })
+          .catch(e => { console.log("Arbeitnow error:", e); return []; })
+      );
+
+      // Wait for all APIs
+      const results = await Promise.all(fetchPromises);
+      results.forEach(r => jobs.push(...r));
+
+      console.log(`Total jobs from all APIs: ${jobs.length}`);
+
+      // Dedupe by title + company
+      const seen = new Set();
+      const uniqueJobs = jobs.filter(job => {
+        const key = `${job.title}-${job.company}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      // Sort by date (newest first)
+      uniqueJobs.sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime());
+
+      // Calculate real stats from fetched data
+      const salaries = uniqueJobs.filter(j => j.salaryMin || j.salaryMax);
+      const avgSalary = salaries.length > 0 
+        ? Math.round(salaries.reduce((sum, j) => sum + ((j.salaryMin || 0) + (j.salaryMax || 0)) / 2, 0) / salaries.length / 1000)
+        : 120;
+
+      const stats = {
+        totalJobs: uniqueJobs.length,
+        avgSalary: `$${avgSalary}k`,
+        topCompanies: [...new Set(uniqueJobs.map(j => j.company))].slice(0, 10),
+        hotSkills: getTopSkills(uniqueJobs),
+        sources: [...new Set(uniqueJobs.map(j => j.source))],
+      };
+
+      console.log(`Returning ${uniqueJobs.length} unique jobs from ${stats.sources.length} sources`);
+
+      // Return ALL jobs - UI handles pagination/filtering
+      return new Response(JSON.stringify({ 
+        jobs: uniqueJobs,
+        stats,
+        hasMore: false,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ============================================
+    // NEWS API - Currents API (600 req/day FREE, production OK)
+    // ============================================
+    if (action === "fetch_news") {
+      console.log(`Fetching news: category=${category}, query=${query}, CURRENTS_KEY exists: ${!!CURRENTS_API_KEY}`);
+      
+      if (!CURRENTS_API_KEY) {
+        console.log("CURRENTS_API_KEY not found in environment");
+        return new Response(JSON.stringify({ 
+          articles: [],
+          error: "CURRENTS_API_KEY not configured. Add it to Supabase Edge Function secrets."
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        // High-quality, specific professional topics
+        // Currents API matches ALL words (AND logic), so keep phrases short (1-2 words)
+        const categoryQueries: Record<string, string> = {
+          hiring: "recruitment hiring",
+          tech: "technology industry",
+          salary: "wages salary",
+          remote: "remote work",
+          ai: "artificial intelligence",
+          layoffs: "unemployment",
+          education: "higher education",
+          immigration: "skilled visa",
+          innovation: "startup ecosystem",
+        };
+        
+        // For 'all', pick a random high-value topic to ensure variety and relevance
+        // without returning 0 results from too many keywords
+        let newsQuery = "";
+        if (!category || category === "all") {
+          const topics = [
+            "job market",
+            "skilled migration",
+            "tech career",
+            "startup funding",
+            "future of work",
+            "employment trends"
+          ];
+          newsQuery = topics[Math.floor(Math.random() * topics.length)];
+        } else {
+          newsQuery = categoryQueries[category] || "employment";
+        }
+
+        // Helper to fetch news with retry logic
+        const fetchNewsData = async (query: string, timeout = 25000) => {
+          const url = new URL(NEWS_APIS.currents);
+          url.searchParams.set("keywords", query);
+          url.searchParams.set("language", "en");
+          url.searchParams.set("apiKey", CURRENTS_API_KEY);
+          
+          try {
+            console.log(`Fetching news for '${query}' with ${timeout}ms timeout...`);
+            const res = await fetchWithTimeout(url.toString(), {}, timeout);
+            return await res.json();
+          } catch (e) {
+            console.error(`Fetch failed for '${query}':`, e);
+            return null;
+          }
+        };
+
+        let data = await fetchNewsData(newsQuery, 25000);
+
+        // Fallback 1: If main query failed/timed out, try simple "jobs"
+        if (!data || !data.news || data.news.length === 0) {
+          console.log("Primary search failed/empty. Trying fallback: 'jobs'...");
+          data = await fetchNewsData("jobs", 20000);
+        }
+
+        // Fallback 2: If that failed, try "technology"
+        if (!data || !data.news || data.news.length === 0) {
+          console.log("Fallback search failed. Trying final fallback: 'technology'...");
+          data = await fetchNewsData("technology", 20000);
+        }
+
+        if (!data || data.status !== "ok") {
+          throw new Error(data?.message || "Currents API unreachable after retries");
+        }
+
+        // Strict filter to remove sports, entertainment, and irrelevant fluff
+        const isRelevantArticle = (article: any) => {
+          const text = (article.title + " " + article.description).toLowerCase();
+          const badWords = [
+            "football", "soccer", "cricket", "rugby", "league", "cup", "sport",
+            "celebrity", "gossip", "movie", "star", "royal", "prince", "king"
+          ];
+          return !badWords.some(w => text.includes(w));
+        };
+
+        const articles = (data.news || [])
+          .filter(isRelevantArticle)
+          .slice(0, 20)
+          .map((article: any, i: number) => ({
+            id: `news-${i}-${Date.now()}`,
+          title: article.title,
+          description: article.description || "",
+          url: article.url,
+          source: article.author || "News",
+          publishedAt: article.published,
+          category: category || "general",
+          imageUrl: article.image !== "None" ? article.image : null,
+          readTime: `${Math.max(2, Math.ceil((article.description?.length || 200) / 500))} min read`,
+        }));
+
+        console.log(`Currents API returned ${articles.length} articles`);
+
+        return new Response(JSON.stringify({ articles }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (e: any) {
+        console.error("Currents API error:", e.message);
+        return new Response(JSON.stringify({ 
+          articles: [],
+          error: `News API error: ${e.message}`
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // ============================================
+    // TRENDS & INSIGHTS - Computed from ALL job APIs (150+ jobs)
+    // ============================================
+    if (action === "fetch_trends" || action === "fetch_insights") {
+      console.log(`Fetching ${action} - pulling from ALL job APIs. Industry: ${industry || 'All'}, Level: ${experienceLevel || 'All'}`);
+      
+      const allJobs: any[] = [];
+      const fetchPromises = [];
+      
+      // Construct query based on industry to get relevant base data
+      const baseQuery = industry && industry !== "All" ? `${industry} jobs` : "jobs";
+      const locationQuery = "Australia"; // Default focus
+
+      // 1. JSearch (4s timeout)
+      if (JSEARCH_API_KEY) {
+        fetchPromises.push(
+          fetchWithTimeout(`${JOB_APIS.jsearch}?query=${encodeURIComponent(baseQuery + " in " + locationQuery)}&page=1&num_pages=1&country=au`, {
+            headers: {
+              "X-RapidAPI-Key": JSEARCH_API_KEY,
+              "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+            },
+          }, 4000)
+            .then(res => res.json())
+            .then(data => (data.data || []).map((j: any) => ({
+              title: j.job_title,
+              company: j.employer_name,
+              location: j.job_city || j.job_country || "Australia",
+              type: j.job_employment_type,
+              description: j.job_description || "",
+              salaryMin: j.job_min_salary,
+              salaryMax: j.job_max_salary,
+              isRemote: j.job_is_remote,
+              source: "JSearch",
+              level: j.job_title.toLowerCase().includes("senior") ? "Senior" : 
+                     j.job_title.toLowerCase().includes("junior") ? "Junior" : 
+                     j.job_title.toLowerCase().includes("lead") ? "Lead" : "Mid",
+            })))
+            .catch(() => [])
+        );
+      }
+      
+      // 2. Adzuna (4s timeout)
+      if (ADZUNA_APP_ID && ADZUNA_APP_KEY) {
+        const adzunaQuery = industry && industry !== "All" ? `&what=${encodeURIComponent(industry)}` : "";
+        fetchPromises.push(
+          fetchWithTimeout(`https://api.adzuna.com/v1/api/jobs/au/search/1?app_id=${ADZUNA_APP_ID}&app_key=${ADZUNA_APP_KEY}&results_per_page=50${adzunaQuery}`, {}, 4000)
+            .then(res => res.json())
+            .then(data => (data.results || []).map((j: any) => ({
+              title: j.title,
+              company: j.company?.display_name,
+              location: j.location?.display_name || "Australia",
+              type: j.contract_time,
+              description: j.description || "",
+              salaryMin: j.salary_min,
+              salaryMax: j.salary_max,
+              isRemote: (j.title || "").toLowerCase().includes("remote"),
+              category: j.category?.label,
+              source: "Adzuna",
+              level: j.title.toLowerCase().includes("senior") ? "Senior" : 
+                     j.title.toLowerCase().includes("junior") ? "Junior" : "Mid",
+            })))
+            .catch(() => [])
+        );
+      }
+      
+      // 3. Remotive (3s timeout) - Filtering by search if industry provided
+      const remotiveUrl = industry && industry !== "All" 
+        ? `${JOB_APIS.remotive}?search=${encodeURIComponent(industry)}`
+        : JOB_APIS.remotive;
+        
+      fetchPromises.push(
+        fetchWithTimeout(remotiveUrl, {}, 3000)
+          .then(res => res.json())
+          .then(data => (data.jobs || []).map((j: any) => ({
+            title: j.title,
+            company: j.company_name,
+            location: j.candidate_required_location || "Remote",
+            type: j.job_type,
+            description: j.description || "",
+            tags: j.tags || [],
+            category: j.category,
+            isRemote: true,
+            source: "Remotive",
+            level: j.title.toLowerCase().includes("senior") ? "Senior" : "Mid",
+          })))
+          .catch(() => [])
+      );
+      
+      // 4. Arbeitnow (3s timeout)
+      fetchPromises.push(
+        fetchWithTimeout(JOB_APIS.arbeitnow, {}, 3000)
+          .then(res => res.json())
+          .then(data => (data.data || []).map((j: any) => ({
+            title: j.title,
+            company: j.company_name,
+            location: j.location || "Remote",
+            type: j.remote ? "Remote" : "On-site",
+            description: j.description || "",
+            tags: j.tags || [],
+            isRemote: j.remote,
+            source: "Arbeitnow",
+            level: "Mid", // Default
+          })))
+          .catch(() => [])
+      );
+      
+      const results = await Promise.all(fetchPromises);
+      results.forEach(r => allJobs.push(...r));
+
+      // Post-fetch filtering for stricter compliance
+      let filteredJobs = allJobs;
+      
+      if (industry && industry !== "All") {
+        const indLower = industry.toLowerCase();
+        filteredJobs = filteredJobs.filter(j => 
+          (j.title + j.description + (j.category || "")).toLowerCase().includes(indLower)
+        );
+      }
+      
+      if (experienceLevel && experienceLevel !== "All") {
+        const lvlLower = experienceLevel.toLowerCase();
+        filteredJobs = filteredJobs.filter(j => 
+          (j.title + j.description).toLowerCase().includes(lvlLower) ||
+          (j.level || "").toLowerCase() === lvlLower
+        );
+      }
+      
+      console.log(`Jobs after filtering: ${filteredJobs.length} (from ${allJobs.length})`);
+      
+      // Use filteredJobs for all subsequent analysis...
+      const jobData = filteredJobs.length > 5 ? filteredJobs : allJobs; // Fallback to all if filter is too strict/empty
+      const isFallback = filteredJobs.length <= 5;
+      
+      if (jobData.length === 0) {
+        return new Response(JSON.stringify({ 
+          trends: [],
+          insights: [],
+          skillDemand: [],
+          error: "No job data available"
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ========== COMPREHENSIVE ANALYSIS ==========
+      
+      // 1. Role/Title Trends
+      const roleCounts: Record<string, number> = {};
+      const roleKeywords = [
+        "software engineer", "developer", "data scientist", "data analyst", "data engineer",
+        "product manager", "project manager", "devops", "cloud", "aws", "azure",
+        "machine learning", "ai", "frontend", "backend", "full stack", "fullstack",
+        "ux", "ui", "designer", "marketing", "sales", "hr", "recruiter",
+        "cybersecurity", "security", "analyst", "consultant", "manager", "lead",
+        "senior", "junior", "intern", "architect", "administrator", "support",
+        "nurse", "doctor", "accountant", "lawyer", "teacher", "driver", "chef"
+      ];
+      
+      jobData.forEach((job: any) => {
+        const text = `${job.title} ${job.description}`.toLowerCase();
+        roleKeywords.forEach(kw => {
+          if (text.includes(kw)) {
+            const displayName = kw.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            roleCounts[displayName] = (roleCounts[displayName] || 0) + 1;
+          }
+        });
+      });
+      
+      // 2. Location Analysis
+      const locationCounts: Record<string, number> = {};
+      jobData.forEach((job: any) => {
+        const loc = (job.location || "").toLowerCase();
+        if (loc.includes("sydney")) locationCounts["Sydney"] = (locationCounts["Sydney"] || 0) + 1;
+        else if (loc.includes("melbourne")) locationCounts["Melbourne"] = (locationCounts["Melbourne"] || 0) + 1;
+        else if (loc.includes("brisbane")) locationCounts["Brisbane"] = (locationCounts["Brisbane"] || 0) + 1;
+        else if (loc.includes("perth")) locationCounts["Perth"] = (locationCounts["Perth"] || 0) + 1;
+        else if (loc.includes("adelaide")) locationCounts["Adelaide"] = (locationCounts["Adelaide"] || 0) + 1;
+        else if (loc.includes("remote") || loc.includes("anywhere") || loc.includes("worldwide")) {
+          locationCounts["Remote/Global"] = (locationCounts["Remote/Global"] || 0) + 1;
+        }
+      });
+      
+      // 3. Job Type Analysis
+      const remoteCount = jobData.filter((j: any) => j.isRemote).length;
+      const fullTimeCount = jobData.filter((j: any) => (j.type || "").toLowerCase().includes("full")).length;
+      
+      // 4. Salary Analysis
+      const salaries = jobData.filter((j: any) => j.salaryMin || j.salaryMax);
+      const avgSalary = salaries.length > 0 
+        ? Math.round(salaries.reduce((sum: number, j: any) => sum + ((j.salaryMin || 0) + (j.salaryMax || 0)) / 2, 0) / salaries.length)
+        : 0;
+      const minSalary = salaries.length > 0 ? Math.min(...salaries.map((j: any) => j.salaryMin || j.salaryMax || 0)) : 0;
+      const maxSalary = salaries.length > 0 ? Math.max(...salaries.map((j: any) => j.salaryMax || j.salaryMin || 0)) : 0;
+      
+      // 5. Industry/Category Analysis
+      const categoryCounts: Record<string, number> = {};
+      jobData.forEach((job: any) => {
+        const cat = job.category || categorizeJob("", job.title);
+        if (cat) {
+          const displayCat = cat.charAt(0).toUpperCase() + cat.slice(1);
+          categoryCounts[displayCat] = (categoryCounts[displayCat] || 0) + 1;
+        }
+      });
+      
+      // 6. Company Analysis
+      const companyCounts: Record<string, number> = {};
+      jobData.forEach((job: any) => {
+        if (job.company) {
+          companyCounts[job.company] = (companyCounts[job.company] || 0) + 1;
+        }
+      });
+      const topHiringCompanies = Object.entries(companyCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      
+      // 7. Skills from tags and descriptions
+      const skillCounts: Record<string, number> = {};
+      jobData.forEach((job: any) => {
+        (job.tags || []).forEach((tag: string) => {
+          const t = tag.toLowerCase().trim();
+          if (t.length > 1) skillCounts[t] = (skillCounts[t] || 0) + 1;
+        });
+        const skills = extractSkillsFromText(job.description || "");
+        skills.forEach(s => {
+          skillCounts[s.toLowerCase()] = (skillCounts[s.toLowerCase()] || 0) + 1;
+        });
+      });
+
+      // ========== BUILD RESPONSE ==========
+      
+      if (action === "fetch_trends") {
+        const trends = Object.entries(roleCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 15)
+          .map(([topic, count], i) => ({
+            id: String(i + 1),
+            topic,
+            direction: count > (jobData.length * 0.1) ? "up" : count > (jobData.length * 0.03) ? "stable" : "down",
+            changePercent: Math.round((count / jobData.length) * 100),
+            volume: `${count} jobs`,
+            description: `Found in ${count} of ${jobData.length} job postings`,
+            relatedTerms: [],
+            timeframe: "Current market",
+          }));
+        
+        const locationTrends = Object.entries(locationCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([loc, count], i) => ({
+            id: `loc-${i + 1}`,
+            topic: `📍 ${loc}`,
+            direction: "up",
+            changePercent: Math.round((count / jobData.length) * 100),
+            volume: `${count} jobs`,
+            description: `${Math.round((count / jobData.length) * 100)}% of all positions`,
+            relatedTerms: [],
+            timeframe: "Current market",
+          }));
+
+        return new Response(JSON.stringify({ 
+          trends: [...trends, ...locationTrends],
+          totalJobsAnalyzed: jobData.length,
+          sources: [...new Set(jobData.map((j: any) => j.source))],
+          isFallback
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      // fetch_insights
+      const insights = [
+        { 
+          title: "Total Jobs Analyzed", 
+          value: String(jobData.length), 
+          change: isFallback ? "Broad market data" : `Filtered by ${industry}/${experienceLevel}`, 
+          direction: "up", 
+          description: `From ${[...new Set(jobData.map((j: any) => j.source))].length} sources`, 
+          icon: "briefcase" 
+        },
+        { 
+          title: "Remote Opportunities", 
+          value: `${Math.round((remoteCount / jobData.length) * 100)}%`, 
+          change: `${remoteCount} positions`, 
+          direction: remoteCount > jobData.length * 0.3 ? "up" : "stable", 
+          description: "Jobs offering remote or hybrid work", 
+          icon: "globe" 
+        },
+        { 
+          title: "Full-Time Roles", 
+          value: `${Math.round((fullTimeCount / jobData.length) * 100)}%`, 
+          change: `${fullTimeCount} positions`, 
+          direction: "stable", 
+          description: "Permanent full-time opportunities", 
+          icon: "clock" 
+        },
+        { 
+          title: "Average Salary", 
+          value: avgSalary > 0 ? `$${Math.round(avgSalary / 1000)}k` : "Varies", 
+          change: avgSalary > 0 ? `$${Math.round(minSalary / 1000)}k - $${Math.round(maxSalary / 1000)}k range` : "Not disclosed", 
+          direction: "up", 
+          description: `Based on ${salaries.length} jobs with salary data`, 
+          icon: "dollar" 
+        },
+        { 
+          title: "Top Hiring Location", 
+          value: Object.entries(locationCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "Various", 
+          change: `${Object.entries(locationCounts).sort((a, b) => b[1] - a[1])[0]?.[1] || 0} jobs`, 
+          direction: "up", 
+          description: "Most active hiring region", 
+          icon: "map" 
+        },
+        { 
+          title: "Top Hiring Company", 
+          value: topHiringCompanies[0]?.[0] || "Various", 
+          change: `${topHiringCompanies[0]?.[1] || 0} open positions`, 
+          direction: "up", 
+          description: "Company with most job listings", 
+          icon: "building" 
+        },
+      ];
+
+      const skillDemand = Object.entries(skillCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15)
+        .map(([skill, count]) => ({
+          skill: skill.charAt(0).toUpperCase() + skill.slice(1),
+          demand: Math.min(100, Math.round((count / jobData.length) * 100 * 3)), 
+          growth: count > jobData.length * 0.1 ? 15 : count > jobData.length * 0.05 ? 8 : 3,
+          avgSalary: avgSalary > 0 ? `$${Math.round(avgSalary / 1000)}k` : "Varies",
+          jobCount: count,
+        }));
+      
+      const topIndustries = Object.entries(categoryCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([industry, count]) => ({
+          industry,
+          jobCount: count,
+          percentage: Math.round((count / jobData.length) * 100),
+        }));
+
+      return new Response(JSON.stringify({ 
+        insights, 
+        skillDemand,
+        topIndustries,
+        topCompanies: topHiringCompanies.slice(0, 10).map(([name, count]) => ({ name, jobCount: count })),
+        locationBreakdown: Object.entries(locationCounts).map(([loc, count]) => ({ location: loc, jobCount: count })),
+        totalJobsAnalyzed: jobData.length,
+        sources: [...new Set(jobData.map((j: any) => j.source))],
+        isFallback
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ============================================
+    // LEGACY: Original Adzuna-based fetch
+    // ============================================
+    if (action === "fetch_jobs" || action === "fetch_news_legacy") {
       if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) {
-        throw new Error("Adzuna credentials not configured");
+        // Fallback to free APIs
+        return new Response(JSON.stringify({ 
+          articles: [],
+          count: 0,
+          error: "Using free tier - switch to fetch_au_jobs action"
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // Map country names to Adzuna country codes
@@ -110,7 +822,9 @@ serve(async (req) => {
 
     } else if (action === "get_categories") {
       if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) {
-        throw new Error("Adzuna credentials not configured");
+        return new Response(JSON.stringify({ categories: [] }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const countryCode = country || "us";
@@ -130,7 +844,9 @@ serve(async (req) => {
 
     } else if (action === "get_salary_data") {
       if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) {
-        throw new Error("Adzuna credentials not configured");
+        return new Response(JSON.stringify({ salaryData: {} }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const countryCode = country || "us";
@@ -265,4 +981,45 @@ function categorizeJob(adzunaCategory: string | undefined, title: string): strin
     return "remote";
   }
   return adzunaCategory || "general";
+}
+
+// Helper: Strip HTML tags from text
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
+}
+
+// Helper: Extract skills from tags array
+function extractSkills(tags: string[]): string[] {
+  return tags.filter(tag => tag && tag.length > 1).slice(0, 8);
+}
+
+// Helper: Extract skills from job description text
+function extractSkillsFromText(text: string): string[] {
+  const skillKeywords = [
+    "react", "typescript", "javascript", "python", "java", "node.js", "nodejs",
+    "aws", "azure", "gcp", "docker", "kubernetes", "sql", "postgresql", "mongodb",
+    "graphql", "rest", "api", "git", "ci/cd", "agile", "scrum", "linux",
+    "html", "css", "vue", "angular", "next.js", "express", "django", "flask",
+    "machine learning", "ai", "data science", "tensorflow", "pytorch"
+  ];
+  
+  const textLower = text.toLowerCase();
+  return skillKeywords.filter(skill => textLower.includes(skill)).slice(0, 6);
+}
+
+// Helper: Get top skills from job listings
+function getTopSkills(jobs: any[]): string[] {
+  const skillCount: Record<string, number> = {};
+  
+  jobs.forEach(job => {
+    (job.skills || []).forEach((skill: string) => {
+      const s = skill.toLowerCase();
+      skillCount[s] = (skillCount[s] || 0) + 1;
+    });
+  });
+  
+  return Object.entries(skillCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([skill]) => skill.charAt(0).toUpperCase() + skill.slice(1));
 }

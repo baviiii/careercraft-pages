@@ -18,7 +18,8 @@ const TemplateBuilder = lazy(() => import("./pages/TemplateBuilder"));
 const ResumeBuilder = lazy(() => import("./pages/ResumeBuilder"));
 const MyResumes = lazy(() => import("./pages/MyResumes"));
 const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
-const JobNews = lazy(() => import("./pages/JobNews"));
+const AustralianJobs = lazy(() => import("./pages/AustralianJobs"));
+const JobMarketNews = lazy(() => import("./pages/JobMarketNews"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
@@ -70,7 +71,9 @@ const App = () => (
             <Route path="/builder" element={<ResumeBuilder />} />
             <Route path="/my-resumes" element={<MyResumes />} />
             <Route path="/interview-prep" element={<InterviewPrep />} />
-            <Route path="/job-news" element={<JobNews />} />
+            <Route path="/job-news" element={<AustralianJobs />} />
+            <Route path="/au-jobs" element={<AustralianJobs />} />
+            <Route path="/job-market-news" element={<JobMarketNews />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>

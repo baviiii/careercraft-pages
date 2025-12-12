@@ -184,6 +184,21 @@ export default function Dashboard() {
       path: "/templates",
       gradient: "from-teal-500 to-cyan-500",
     },
+    {
+      icon: Briefcase,
+      title: "🇦🇺 Australian Jobs",
+      description: "Browse jobs from SEEK, Indeed & more - Free!",
+      path: "/au-jobs",
+      gradient: "from-emerald-500 to-teal-500",
+      featured: true,
+    },
+    {
+      icon: Newspaper,
+      title: "📊 Market News",
+      description: "AU job market trends, news & insights",
+      path: "/job-market-news",
+      gradient: "from-blue-500 to-indigo-500",
+    },
   ];
 
   const sidebarLinks = [
@@ -192,8 +207,8 @@ export default function Dashboard() {
     { icon: Mail, label: "Cover Letters", path: "/cover-letter" },
     { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
     { icon: Brain, label: "Interview Prep", path: "/interview-prep" },
-    { icon: Newspaper, label: "Job News", path: "/job-news" },
-    { icon: Settings, label: "Settings", path: "/settings" },
+    { icon: Briefcase, label: "🇦🇺 AU Jobs", path: "/au-jobs" },
+    { icon: Newspaper, label: "📊 Market News", path: "/job-market-news" },
   ];
 
   if (loading) {
