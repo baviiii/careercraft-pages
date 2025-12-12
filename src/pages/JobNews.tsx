@@ -308,10 +308,10 @@ export default function JobNews() {
                       {COUNTRIES.map(c => <SelectItem key={c.code} value={c.name}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
+                  <Select value={selectedIndustry || "all"} onValueChange={(v) => setSelectedIndustry(v === "all" ? "" : v)}>
                     <SelectTrigger className="w-[180px]"><SelectValue placeholder="Industry" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Industries</SelectItem>
+                      <SelectItem value="all">All Industries</SelectItem>
                       {INDUSTRIES.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
                     </SelectContent>
                   </Select>
