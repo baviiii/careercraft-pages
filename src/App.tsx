@@ -17,6 +17,8 @@ const JobTracker = lazy(() => import("./pages/JobTracker"));
 const TemplateBuilder = lazy(() => import("./pages/TemplateBuilder"));
 const ResumeBuilder = lazy(() => import("./pages/ResumeBuilder"));
 const MyResumes = lazy(() => import("./pages/MyResumes"));
+const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
+const JobNews = lazy(() => import("./pages/JobNews"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
@@ -67,6 +69,8 @@ const App = () => (
             <Route path="/templates" element={<TemplateBuilder />} />
             <Route path="/builder" element={<ResumeBuilder />} />
             <Route path="/my-resumes" element={<MyResumes />} />
+            <Route path="/interview-prep" element={<InterviewPrep />} />
+            <Route path="/job-news" element={<JobNews />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>

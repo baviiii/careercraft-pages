@@ -65,3 +65,9 @@ verify_jwt = false
 
 [functions.ats-analyze]
 verify_jwt = false
+
+[functions.interview-ai]
+verify_jwt = false
+
+[functions.job-news]
+verify_jwt = false

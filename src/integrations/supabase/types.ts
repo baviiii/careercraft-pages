@@ -124,6 +124,51 @@ export type Database = {
           },
         ]
       }
+      interview_sessions: {
+        Row: {
+          answers: Json | null
+          created_at: string
+          field: string
+          final_evaluation: Json | null
+          id: string
+          job_description: string | null
+          questions: Json | null
+          scores: Json | null
+          seniority: string | null
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answers?: Json | null
+          created_at?: string
+          field: string
+          final_evaluation?: Json | null
+          id?: string
+          job_description?: string | null
+          questions?: Json | null
+          scores?: Json | null
+          seniority?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answers?: Json | null
+          created_at?: string
+          field?: string
+          final_evaluation?: Json | null
+          id?: string
+          job_description?: string | null
+          questions?: Json | null
+          scores?: Json | null
+          seniority?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       job_applications: {
         Row: {
           applied_date: string
@@ -318,6 +363,42 @@ export type Database = {
           },
         ]
       }
+      saved_news: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          published_at: string | null
+          source: string | null
+          title: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          published_at?: string | null
+          source?: string | null
+          title: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          published_at?: string | null
+          source?: string | null
+          title?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       suspicious_activities: {
         Row: {
           activity_type: string
@@ -351,6 +432,57 @@ export type Database = {
           resolved_by?: string | null
           severity?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_preferences: {
+        Row: {
+          alert_types: string[] | null
+          created_at: string
+          email_notifications: boolean | null
+          id: string
+          interview_types: string[] | null
+          job_role_type: string | null
+          preferred_countries: string[] | null
+          preferred_field: string | null
+          preferred_industries: string[] | null
+          push_notifications: boolean | null
+          seniority_level: string | null
+          summary_frequency: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alert_types?: string[] | null
+          created_at?: string
+          email_notifications?: boolean | null
+          id?: string
+          interview_types?: string[] | null
+          job_role_type?: string | null
+          preferred_countries?: string[] | null
+          preferred_field?: string | null
+          preferred_industries?: string[] | null
+          push_notifications?: boolean | null
+          seniority_level?: string | null
+          summary_frequency?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alert_types?: string[] | null
+          created_at?: string
+          email_notifications?: boolean | null
+          id?: string
+          interview_types?: string[] | null
+          job_role_type?: string | null
+          preferred_countries?: string[] | null
+          preferred_field?: string | null
+          preferred_industries?: string[] | null
+          push_notifications?: boolean | null
+          seniority_level?: string | null
+          summary_frequency?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

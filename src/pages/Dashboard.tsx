@@ -21,6 +21,8 @@ import {
   Home,
   Menu,
   Settings,
+  Brain,
+  Newspaper,
 } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
@@ -189,6 +191,8 @@ export default function Dashboard() {
     { icon: FileText, label: "My Resumes", path: "/my-resumes" },
     { icon: Mail, label: "Cover Letters", path: "/cover-letter" },
     { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
+    { icon: Brain, label: "Interview Prep", path: "/interview-prep" },
+    { icon: Newspaper, label: "Job News", path: "/job-news" },
     { icon: Settings, label: "Settings", path: "/settings" },
   ];
 
