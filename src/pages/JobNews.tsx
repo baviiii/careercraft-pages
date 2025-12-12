@@ -38,32 +38,35 @@ import {
   Plane,
   Users,
   Sparkles,
+  MapPin,
+  Building,
+  Clock,
 } from "lucide-react";
 
 const INDUSTRIES = [
   "Technology",
   "Finance",
   "Healthcare",
-  "Manufacturing",
-  "Retail",
+  "Engineering",
+  "Sales",
+  "Marketing",
   "Education",
-  "Media",
-  "Energy",
-  "Real Estate",
-  "Transportation",
+  "Legal",
+  "Retail",
+  "Manufacturing",
 ];
 
 const COUNTRIES = [
-  "United States",
-  "United Kingdom",
-  "Australia",
-  "Canada",
-  "Germany",
-  "India",
-  "Singapore",
-  "Netherlands",
-  "Ireland",
-  "UAE",
+  { name: "United States", code: "us" },
+  { name: "United Kingdom", code: "gb" },
+  { name: "Australia", code: "au" },
+  { name: "Canada", code: "ca" },
+  { name: "Germany", code: "de" },
+  { name: "India", code: "in" },
+  { name: "Singapore", code: "sg" },
+  { name: "Netherlands", code: "nl" },
+  { name: "France", code: "fr" },
+  { name: "Brazil", code: "br" },
 ];
 
 const ALERT_TYPES = [
@@ -75,20 +78,24 @@ const ALERT_TYPES = [
   { id: "ai", label: "AI Impact", icon: Sparkles },
 ];
 
-interface NewsArticle {
+interface JobListing {
   title: string;
   description: string;
   url: string;
   source: string;
   publishedAt: string;
-  urlToImage?: string;
+  location?: string;
+  salary?: string;
   category: string;
+  contract?: string;
 }
 
 interface TrendAnalysis {
   trends: { trend: string; direction: string; confidence: number }[];
   insights: { title: string; description: string; impact: string }[];
   predictions: { prediction: string; timeframe: string; likelihood: number }[];
+  salaryTrends?: { direction: string; averageChange: string; topPayingRoles: string[] };
+  hotSkills?: string[];
   whatThisMeansForYou: string;
 }
 
@@ -96,15 +103,16 @@ export default function JobNews() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("news");
+  const [activeTab, setActiveTab] = useState("jobs");
   
-  // News state
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  // Jobs state
+  const [jobs, setJobs] = useState<JobListing[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCountry, setSelectedCountry] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("United States");
   const [selectedIndustry, setSelectedIndustry] = useState("");
-  const [savedArticles, setSavedArticles] = useState<string[]>([]);
+  const [savedJobs, setSavedJobs] = useState<string[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   
   // Trends state
   const [trends, setTrends] = useState<TrendAnalysis | null>(null);
@@ -123,17 +131,17 @@ export default function JobNews() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) navigate("/auth");
-      else fetchNews();
+      else fetchJobs();
     });
   }, [navigate]);
 
-  const fetchNews = async () => {
+  const fetchJobs = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("job-news", {
         body: {
-          action: "fetch_news",
-          query: searchQuery || "jobs hiring technology",
+          action: "fetch_jobs",
+          query: searchQuery || "",
           country: selectedCountry,
           industry: selectedIndustry,
         },
@@ -142,9 +150,10 @@ export default function JobNews() {
       if (error) throw error;
       if (data.error) throw new Error(data.error);
 
-      setArticles(data.articles || []);
+      setJobs(data.articles || []);
+      setTotalCount(data.count || 0);
     } catch (error: any) {
-      console.error("Error fetching news:", error);
+      console.error("Error fetching jobs:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -152,20 +161,23 @@ export default function JobNews() {
   };
 
   const analyzeTrends = async () => {
-    if (articles.length === 0) {
-      toast({ title: "No articles to analyze", variant: "destructive" });
+    if (jobs.length === 0) {
+      toast({ title: "No jobs to analyze", variant: "destructive" });
       return;
     }
 
     setAnalyzingTrends(true);
     try {
-      const articleSummary = articles.slice(0, 10).map(a => `${a.title}: ${a.description}`).join("\n");
+      const jobSummary = jobs.slice(0, 15).map(j => 
+        `${j.title} at ${j.source}${j.salary ? ` - ${j.salary}` : ''}${j.location ? ` in ${j.location}` : ''}`
+      ).join("\n");
       
       const { data, error } = await supabase.functions.invoke("job-news", {
         body: {
           action: "analyze_trends",
-          query: articleSummary,
+          query: jobSummary,
           industry: selectedIndustry,
+          country: selectedCountry,
         },
       });
 
@@ -182,11 +194,11 @@ export default function JobNews() {
     }
   };
 
-  const toggleSaveArticle = (url: string) => {
-    if (savedArticles.includes(url)) {
-      setSavedArticles(savedArticles.filter(u => u !== url));
+  const toggleSaveJob = (url: string) => {
+    if (savedJobs.includes(url)) {
+      setSavedJobs(savedJobs.filter(u => u !== url));
     } else {
-      setSavedArticles([...savedArticles, url]);
+      setSavedJobs([...savedJobs, url]);
     }
   };
 
@@ -194,23 +206,12 @@ export default function JobNews() {
     setAlerts(prev => ({ ...prev, [alertId]: !prev[alertId] }));
   };
 
-  const getCategoryIcon = (category: string) => {
+  const getCategoryColor = (category: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (category) {
-      case "layoffs": return <AlertTriangle className="w-4 h-4 text-red-500" />;
-      case "hiring": return <Users className="w-4 h-4 text-green-500" />;
-      case "salary": return <DollarSign className="w-4 h-4 text-amber-500" />;
-      case "remote_work": return <Globe className="w-4 h-4 text-blue-500" />;
-      case "immigration": return <Plane className="w-4 h-4 text-purple-500" />;
-      case "ai_impact": return <Sparkles className="w-4 h-4 text-primary" />;
-      default: return <Briefcase className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "layoffs": return "destructive";
-      case "hiring": return "default";
-      case "salary": return "secondary";
+      case "technology": return "default";
+      case "finance": return "secondary";
+      case "healthcare": return "destructive";
+      case "remote": return "outline";
       default: return "outline";
     }
   };
@@ -227,17 +228,17 @@ export default function JobNews() {
         <div className="p-6">
           <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 mb-8">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
-              <Newspaper className="w-5 h-5 text-white" />
+              <Briefcase className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold">Job News</span>
+            <span className="text-xl font-bold">Job Market</span>
           </button>
 
           <nav className="space-y-1">
             <button onClick={() => navigate("/dashboard")} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted">
               <Home className="w-5 h-5" />Dashboard
             </button>
-            <button onClick={() => setActiveTab("news")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg ${activeTab === 'news' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`}>
-              <Newspaper className="w-5 h-5" />Latest News
+            <button onClick={() => setActiveTab("jobs")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg ${activeTab === 'jobs' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`}>
+              <Briefcase className="w-5 h-5" />Job Listings
             </button>
             <button onClick={() => setActiveTab("trends")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg ${activeTab === 'trends' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`}>
               <BarChart3 className="w-5 h-5" />Market Trends
@@ -258,17 +259,19 @@ export default function JobNews() {
                 <Menu className="w-5 h-5" />
               </Button>
               <div>
-                <h1 className="text-xl md:text-2xl font-bold">Job Market News & Trends</h1>
-                <p className="text-sm text-muted-foreground hidden sm:block">Stay informed about the job market</p>
+                <h1 className="text-xl md:text-2xl font-bold">Job Market & Trends</h1>
+                <p className="text-sm text-muted-foreground hidden sm:block">
+                  {totalCount > 0 ? `${totalCount.toLocaleString()} jobs found` : "Powered by Adzuna"}
+                </p>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={fetchNews} disabled={loading}>
+              <Button variant="outline" onClick={fetchJobs} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />Refresh
               </Button>
-              <Button onClick={analyzeTrends} disabled={analyzingTrends || articles.length === 0}>
+              <Button onClick={analyzeTrends} disabled={analyzingTrends || jobs.length === 0}>
                 {analyzingTrends ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                Analyze Trends
+                AI Insights
               </Button>
             </div>
           </div>
@@ -277,13 +280,13 @@ export default function JobNews() {
         <main className="p-4 md:p-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="grid w-full max-w-lg grid-cols-3">
-              <TabsTrigger value="news" className="gap-2"><Newspaper className="w-4 h-4" />News</TabsTrigger>
+              <TabsTrigger value="jobs" className="gap-2"><Briefcase className="w-4 h-4" />Jobs</TabsTrigger>
               <TabsTrigger value="trends" className="gap-2"><BarChart3 className="w-4 h-4" />Trends</TabsTrigger>
               <TabsTrigger value="alerts" className="gap-2"><Bell className="w-4 h-4" />Alerts</TabsTrigger>
             </TabsList>
 
-            {/* NEWS TAB */}
-            <TabsContent value="news" className="space-y-6">
+            {/* JOBS TAB */}
+            <TabsContent value="jobs" className="space-y-6">
               {/* Filters */}
               <Card className="p-4">
                 <div className="flex flex-wrap gap-4">
@@ -293,17 +296,16 @@ export default function JobNews() {
                       <Input
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search news..."
+                        placeholder="Search jobs (e.g., React Developer)..."
                         className="pl-10"
-                        onKeyDown={(e) => e.key === "Enter" && fetchNews()}
+                        onKeyDown={(e) => e.key === "Enter" && fetchJobs()}
                       />
                     </div>
                   </div>
                   <Select value={selectedCountry} onValueChange={setSelectedCountry}>
                     <SelectTrigger className="w-[180px]"><SelectValue placeholder="Country" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Countries</SelectItem>
-                      {COUNTRIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {COUNTRIES.map(c => <SelectItem key={c.code} value={c.name}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Select value={selectedIndustry} onValueChange={setSelectedIndustry}>
@@ -313,58 +315,80 @@ export default function JobNews() {
                       {INDUSTRIES.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Button onClick={fetchNews} disabled={loading}>
-                    <Filter className="w-4 h-4 mr-2" />Apply
+                  <Button onClick={fetchJobs} disabled={loading}>
+                    <Filter className="w-4 h-4 mr-2" />Search
                   </Button>
                 </div>
               </Card>
 
-              {/* News Articles */}
+              {/* Job Listings */}
               {loading ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2">
                   {[...Array(6)].map((_, i) => (
-                    <Card key={i} className="p-4 animate-pulse">
-                      <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+                    <Card key={i} className="p-5 animate-pulse">
+                      <div className="h-5 bg-muted rounded w-3/4 mb-3" />
+                      <div className="h-4 bg-muted rounded w-1/2 mb-2" />
                       <div className="h-3 bg-muted rounded w-full mb-1" />
                       <div className="h-3 bg-muted rounded w-2/3" />
                     </Card>
                   ))}
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {articles.map((article, i) => (
-                    <Card key={i} className="p-4 hover:shadow-lg transition-shadow group">
-                      <div className="flex items-start justify-between mb-2">
-                        <Badge variant={getCategoryColor(article.category) as any} className="flex items-center gap-1">
-                          {getCategoryIcon(article.category)}
-                          {article.category.replace("_", " ")}
-                        </Badge>
-                        <button onClick={() => toggleSaveArticle(article.url)} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          {savedArticles.includes(article.url) ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {jobs.map((job, i) => (
+                    <Card key={i} className="p-5 hover:shadow-lg transition-shadow group">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="font-semibold line-clamp-1 group-hover:text-primary transition-colors">{job.title}</h3>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <Building className="w-4 h-4" />
+                            <span>{job.source}</span>
+                          </div>
+                        </div>
+                        <button onClick={() => toggleSaveJob(job.url)} className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                          {savedJobs.includes(job.url) ? (
                             <BookmarkCheck className="w-5 h-5 text-primary" />
                           ) : (
                             <Bookmark className="w-5 h-5 text-muted-foreground hover:text-primary" />
                           )}
                         </button>
                       </div>
-                      <h3 className="font-semibold mb-2 line-clamp-2 group-hover:text-primary transition-colors">{article.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{article.description}</p>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{article.source}</span>
-                        <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <Badge variant={getCategoryColor(job.category)}>{job.category}</Badge>
+                        {job.contract && <Badge variant="outline">{job.contract}</Badge>}
                       </div>
-                      <a href={article.url} target="_blank" rel="noopener noreferrer" className="mt-3 flex items-center gap-1 text-sm text-primary hover:underline">
-                        Read more<ExternalLink className="w-3 h-3" />
+
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{job.description}</p>
+                      
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-3">
+                        {job.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />{job.location}
+                          </span>
+                        )}
+                        {job.salary && (
+                          <span className="flex items-center gap-1 text-green-600 font-medium">
+                            <DollarSign className="w-3 h-3" />{job.salary}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />{new Date(job.publishedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline font-medium">
+                        Apply Now<ExternalLink className="w-3 h-3" />
                       </a>
                     </Card>
                   ))}
                 </div>
               )}
 
-              {!loading && articles.length === 0 && (
+              {!loading && jobs.length === 0 && (
                 <Card className="p-12 text-center">
-                  <Newspaper className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-semibold">No news found</h3>
+                  <Briefcase className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold">No jobs found</h3>
                   <p className="text-muted-foreground">Try adjusting your search filters</p>
                 </Card>
               )}
@@ -382,10 +406,52 @@ export default function JobNews() {
                     <p className="text-muted-foreground">{trends.whatThisMeansForYou}</p>
                   </Card>
 
+                  {/* Hot Skills */}
+                  {trends.hotSkills && trends.hotSkills.length > 0 && (
+                    <Card className="p-6">
+                      <h3 className="font-semibold mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-green-500" />Hot Skills in Demand
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {trends.hotSkills.map((skill, i) => (
+                          <Badge key={i} variant="default" className="text-sm py-1 px-3">{skill}</Badge>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+
+                  {/* Salary Trends */}
+                  {trends.salaryTrends && (
+                    <Card className="p-6">
+                      <h3 className="font-semibold mb-4 flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-amber-500" />Salary Trends
+                      </h3>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="text-center p-4 bg-muted/50 rounded-lg">
+                          {trends.salaryTrends.direction === "up" ? (
+                            <TrendingUp className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                          ) : (
+                            <TrendingDown className="w-8 h-8 mx-auto mb-2 text-red-500" />
+                          )}
+                          <p className="text-2xl font-bold">{trends.salaryTrends.averageChange}</p>
+                          <p className="text-sm text-muted-foreground">Average Change</p>
+                        </div>
+                        <div className="md:col-span-2 p-4 bg-muted/50 rounded-lg">
+                          <p className="text-sm font-medium mb-2">Top Paying Roles</p>
+                          <div className="flex flex-wrap gap-2">
+                            {trends.salaryTrends.topPayingRoles?.map((role, i) => (
+                              <Badge key={i} variant="secondary">{role}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  )}
+
                   {/* Trends */}
                   <Card className="p-6">
                     <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-primary" />Market Trends
+                      <BarChart3 className="w-5 h-5 text-primary" />Market Trends
                     </h3>
                     <div className="space-y-4">
                       {trends.trends?.map((trend, i) => (
@@ -446,8 +512,8 @@ export default function JobNews() {
                 <Card className="p-12 text-center">
                   <BarChart3 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                   <h3 className="text-lg font-semibold">No trend analysis yet</h3>
-                  <p className="text-muted-foreground mb-4">Fetch news first, then click "Analyze Trends" to get AI insights</p>
-                  <Button onClick={analyzeTrends} disabled={articles.length === 0}>
+                  <p className="text-muted-foreground mb-4">Search for jobs first, then click "AI Insights" to analyze market trends</p>
+                  <Button onClick={analyzeTrends} disabled={jobs.length === 0}>
                     <Sparkles className="w-4 h-4 mr-2" />Analyze Trends
                   </Button>
                 </Card>

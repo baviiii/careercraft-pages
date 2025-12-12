@@ -11,63 +11,144 @@ serve(async (req) => {
   }
 
   try {
-    const { action, query, country, industry, category } = await req.json();
-    const NEWS_API_KEY = Deno.env.get("NEWS_API_KEY");
+    const { action, query, country, industry, category, page } = await req.json();
+    const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
+    const ADZUNA_APP_KEY = Deno.env.get("ADZUNA_APP_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    if (action === "fetch_news") {
-      if (!NEWS_API_KEY) {
-        throw new Error("NEWS_API_KEY is not configured");
+    if (action === "fetch_jobs" || action === "fetch_news") {
+      if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) {
+        throw new Error("Adzuna credentials not configured");
       }
 
-      // Build search queries for job-related news
-      const searchTerms = [
-        query || "jobs hiring",
-        industry ? `${industry} jobs` : "",
-        "employment trends",
-        "layoffs",
-        "tech hiring"
-      ].filter(Boolean).join(" OR ");
+      // Map country names to Adzuna country codes
+      const countryCodeMap: Record<string, string> = {
+        "United States": "us",
+        "United Kingdom": "gb",
+        "Australia": "au",
+        "Canada": "ca",
+        "Germany": "de",
+        "India": "in",
+        "Singapore": "sg",
+        "Netherlands": "nl",
+        "France": "fr",
+        "Brazil": "br",
+        "": "us", // Default
+      };
 
-      const newsUrl = new URL("https://newsapi.org/v2/everything");
-      newsUrl.searchParams.set("q", searchTerms);
-      newsUrl.searchParams.set("language", "en");
-      newsUrl.searchParams.set("sortBy", "publishedAt");
-      newsUrl.searchParams.set("pageSize", "20");
+      const countryCode = countryCodeMap[country || ""] || "us";
+      const pageNum = page || 1;
+
+      // Build Adzuna API URL
+      const adzunaUrl = new URL(`https://api.adzuna.com/v1/api/jobs/${countryCode}/search/${pageNum}`);
+      adzunaUrl.searchParams.set("app_id", ADZUNA_APP_ID);
+      adzunaUrl.searchParams.set("app_key", ADZUNA_APP_KEY);
+      adzunaUrl.searchParams.set("results_per_page", "20");
       
-      if (country) {
-        // NewsAPI uses country codes for top-headlines, but for everything endpoint we filter differently
-        newsUrl.searchParams.set("q", `${searchTerms} ${country}`);
+      if (query) {
+        adzunaUrl.searchParams.set("what", query);
+      }
+      if (industry) {
+        adzunaUrl.searchParams.set("what", `${query || ""} ${industry}`.trim());
+      }
+      if (category) {
+        adzunaUrl.searchParams.set("category", category);
       }
 
-      console.log(`Fetching news with query: ${searchTerms}`);
+      console.log(`Fetching jobs from Adzuna: ${countryCode}, query: ${query || industry || "all"}`);
 
-      const newsResponse = await fetch(newsUrl.toString(), {
-        headers: {
-          "X-Api-Key": NEWS_API_KEY,
-        },
+      const jobsResponse = await fetch(adzunaUrl.toString());
+
+      if (!jobsResponse.ok) {
+        const errorText = await jobsResponse.text();
+        console.error("Adzuna API error:", jobsResponse.status, errorText);
+        throw new Error(`Adzuna API error: ${jobsResponse.status}`);
+      }
+
+      const jobsData = await jobsResponse.json();
+      
+      // Transform Adzuna response to our format
+      const articles = jobsData.results?.map((job: any) => ({
+        title: job.title,
+        description: job.description?.substring(0, 200) + "...",
+        url: job.redirect_url,
+        source: job.company?.display_name || "Unknown Company",
+        publishedAt: job.created,
+        location: job.location?.display_name,
+        salary: job.salary_min && job.salary_max 
+          ? `${job.salary_min.toLocaleString()} - ${job.salary_max.toLocaleString()}`
+          : job.salary_min 
+            ? `From ${job.salary_min.toLocaleString()}`
+            : null,
+        category: categorizeJob(job.category?.label, job.title),
+        contract: job.contract_time,
+      })) || [];
+
+      // Also get histogram data for trends
+      let trendData = null;
+      try {
+        const histogramUrl = new URL(`https://api.adzuna.com/v1/api/jobs/${countryCode}/history`);
+        histogramUrl.searchParams.set("app_id", ADZUNA_APP_ID);
+        histogramUrl.searchParams.set("app_key", ADZUNA_APP_KEY);
+        histogramUrl.searchParams.set("months", "6");
+        
+        const histResponse = await fetch(histogramUrl.toString());
+        if (histResponse.ok) {
+          trendData = await histResponse.json();
+        }
+      } catch (e) {
+        console.log("Could not fetch trend data:", e);
+      }
+
+      return new Response(JSON.stringify({ 
+        articles, 
+        count: jobsData.count || articles.length,
+        trendData 
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
-      if (!newsResponse.ok) {
-        const errorText = await newsResponse.text();
-        console.error("NewsAPI error:", newsResponse.status, errorText);
-        throw new Error(`NewsAPI error: ${newsResponse.status}`);
+    } else if (action === "get_categories") {
+      if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) {
+        throw new Error("Adzuna credentials not configured");
       }
 
-      const newsData = await newsResponse.json();
-      
-      // Filter and enhance articles
-      const articles = newsData.articles?.map((article: any) => ({
-        title: article.title,
-        description: article.description,
-        url: article.url,
-        source: article.source?.name,
-        publishedAt: article.publishedAt,
-        urlToImage: article.urlToImage,
-        category: categorizeArticle(article.title, article.description),
-      })).filter((a: any) => a.title && !a.title.includes("[Removed]")) || [];
+      const countryCode = country || "us";
+      const categoriesUrl = new URL(`https://api.adzuna.com/v1/api/jobs/${countryCode}/categories`);
+      categoriesUrl.searchParams.set("app_id", ADZUNA_APP_ID);
+      categoriesUrl.searchParams.set("app_key", ADZUNA_APP_KEY);
 
-      return new Response(JSON.stringify({ articles }), {
+      const catResponse = await fetch(categoriesUrl.toString());
+      if (!catResponse.ok) {
+        throw new Error(`Categories fetch failed: ${catResponse.status}`);
+      }
+
+      const categories = await catResponse.json();
+      return new Response(JSON.stringify({ categories: categories.results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
+    } else if (action === "get_salary_data") {
+      if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) {
+        throw new Error("Adzuna credentials not configured");
+      }
+
+      const countryCode = country || "us";
+      const salaryUrl = new URL(`https://api.adzuna.com/v1/api/jobs/${countryCode}/history`);
+      salaryUrl.searchParams.set("app_id", ADZUNA_APP_ID);
+      salaryUrl.searchParams.set("app_key", ADZUNA_APP_KEY);
+      salaryUrl.searchParams.set("months", "12");
+      if (query) {
+        salaryUrl.searchParams.set("what", query);
+      }
+
+      const salaryResponse = await fetch(salaryUrl.toString());
+      if (!salaryResponse.ok) {
+        throw new Error(`Salary data fetch failed: ${salaryResponse.status}`);
+      }
+
+      const salaryData = await salaryResponse.json();
+      return new Response(JSON.stringify({ salaryData }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
@@ -76,7 +157,7 @@ serve(async (req) => {
         throw new Error("LOVABLE_API_KEY is not configured");
       }
 
-      const systemPrompt = `You are a job market analyst expert. Analyze the provided news articles and generate insights about job market trends.
+      const systemPrompt = `You are a job market analyst expert. Analyze the provided job listings and market data to generate insights about job market trends.
 
 Return a JSON object with this structure:
 {
@@ -89,6 +170,12 @@ Return a JSON object with this structure:
   "predictions": [
     {"prediction": "What might happen", "timeframe": "1-3 months", "likelihood": 75}
   ],
+  "salaryTrends": {
+    "direction": "up|down|stable",
+    "averageChange": "+5%",
+    "topPayingRoles": ["role1", "role2"]
+  },
+  "hotSkills": ["skill1", "skill2", "skill3"],
   "whatThisMeansForYou": "Personalized advice paragraph based on the industry/field"
 }`;
 
@@ -102,7 +189,7 @@ Return a JSON object with this structure:
           model: "google/gemini-2.5-flash",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: `Analyze these job market news for ${industry || "general"} industry:\n${query}` }
+            { role: "user", content: `Analyze these job market listings for ${industry || "general"} industry in ${country || "US"}:\n${query}` }
           ],
           response_format: { type: "json_object" }
         }),
@@ -112,6 +199,12 @@ Return a JSON object with this structure:
         if (response.status === 429) {
           return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
             status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (response.status === 402) {
+          return new Response(JSON.stringify({ error: "AI credits exhausted" }), {
+            status: 402,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
@@ -149,26 +242,27 @@ Return a JSON object with this structure:
   }
 });
 
-function categorizeArticle(title: string, description: string): string {
-  const text = `${title} ${description}`.toLowerCase();
+function categorizeJob(adzunaCategory: string | undefined, title: string): string {
+  const titleLower = title?.toLowerCase() || "";
+  const catLower = adzunaCategory?.toLowerCase() || "";
   
-  if (text.includes("layoff") || text.includes("cut jobs") || text.includes("workforce reduction")) {
-    return "layoffs";
+  if (catLower.includes("it") || titleLower.includes("software") || titleLower.includes("developer") || titleLower.includes("engineer")) {
+    return "technology";
   }
-  if (text.includes("hiring") || text.includes("new jobs") || text.includes("recruitment")) {
-    return "hiring";
+  if (catLower.includes("healthcare") || titleLower.includes("nurse") || titleLower.includes("medical")) {
+    return "healthcare";
   }
-  if (text.includes("salary") || text.includes("pay") || text.includes("compensation")) {
-    return "salary";
+  if (catLower.includes("finance") || titleLower.includes("accountant") || titleLower.includes("financial")) {
+    return "finance";
   }
-  if (text.includes("remote") || text.includes("work from home") || text.includes("hybrid")) {
-    return "remote_work";
+  if (catLower.includes("sales") || titleLower.includes("sales")) {
+    return "sales";
   }
-  if (text.includes("ai") || text.includes("artificial intelligence") || text.includes("automation")) {
-    return "ai_impact";
+  if (catLower.includes("marketing") || titleLower.includes("marketing")) {
+    return "marketing";
   }
-  if (text.includes("visa") || text.includes("immigration") || text.includes("h1b")) {
-    return "immigration";
+  if (titleLower.includes("remote") || titleLower.includes("work from home")) {
+    return "remote";
   }
-  return "general";
+  return adzunaCategory || "general";
 }
