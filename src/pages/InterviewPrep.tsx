@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { gsap } from "gsap";
+import InterviewDashboard from "@/components/interview/InterviewDashboard";
 import {
   Select,
   SelectContent,
@@ -36,6 +38,11 @@ import {
   MessageSquare,
   BarChart3,
   AlertTriangle,
+  LayoutDashboard,
+  BookOpen,
+  History,
+  Settings,
+  Flame,
 } from "lucide-react";
 
 const FIELDS = [
@@ -89,9 +96,20 @@ interface FinalEval {
 
 export default function InterviewPrep() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("setup");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // GSAP refs
+  const navItemsRef = useRef<HTMLButtonElement[]>([]);
+  const mainContentRef = useRef<HTMLDivElement>(null);
+
+  // Update URL when tab changes
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
   
   // Setup state
   const [field, setField] = useState("");
@@ -242,34 +260,98 @@ export default function InterviewPrep() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-64 bg-card border-r border-border z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
+      <aside className={`fixed top-0 left-0 h-full w-72 bg-card border-r border-border z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-6 h-full flex flex-col">
+          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 mb-8 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center group-hover:scale-105 transition-transform">
               <Brain className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold">Interview Prep</span>
           </button>
 
-          <nav className="space-y-1">
-            <button onClick={() => navigate("/dashboard")} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted">
-              <Home className="w-5 h-5" />Dashboard
+          <nav className="space-y-1 flex-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3">Navigation</p>
+            
+            <button 
+              ref={(el) => { if (el) navItemsRef.current[0] = el; }}
+              onClick={() => navigate("/dashboard")} 
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-muted hover:translate-x-1 transition-all"
+            >
+              <Home className="w-5 h-5" />Back to Main
             </button>
-            <button onClick={() => setActiveTab("setup")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg ${activeTab === 'setup' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`}>
-              <Target className="w-5 h-5" />Select Field
+            
+            <button 
+              ref={(el) => { if (el) navItemsRef.current[1] = el; }}
+              onClick={() => handleTabChange("dashboard")} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'dashboard' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <LayoutDashboard className="w-5 h-5" />Progress Dashboard
             </button>
-            <button onClick={() => questions.length > 0 && setActiveTab("interview")} disabled={questions.length === 0} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg ${activeTab === 'interview' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'} disabled:opacity-50`}>
-              <MessageSquare className="w-5 h-5" />Interview
+            
+            <button 
+              ref={(el) => { if (el) navItemsRef.current[2] = el; }}
+              onClick={() => handleTabChange("setup")} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'setup' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <Target className="w-5 h-5" />New Practice
             </button>
-            <button onClick={() => finalEvaluation && setActiveTab("evaluation")} disabled={!finalEvaluation} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg ${activeTab === 'evaluation' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'} disabled:opacity-50`}>
-              <BarChart3 className="w-5 h-5" />Evaluation
+            
+            <button 
+              ref={(el) => { if (el) navItemsRef.current[3] = el; }}
+              onClick={() => questions.length > 0 && handleTabChange("interview")} 
+              disabled={questions.length === 0} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'interview' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'} disabled:opacity-50 disabled:hover:translate-x-0`}
+            >
+              <MessageSquare className="w-5 h-5" />Active Interview
+              {questions.length > 0 && <Badge className="ml-auto bg-green-500 text-[10px]">Live</Badge>}
+            </button>
+            
+            <button 
+              ref={(el) => { if (el) navItemsRef.current[4] = el; }}
+              onClick={() => finalEvaluation && handleTabChange("evaluation")} 
+              disabled={!finalEvaluation} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'evaluation' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'} disabled:opacity-50 disabled:hover:translate-x-0`}
+            >
+              <BarChart3 className="w-5 h-5" />Results
+            </button>
+
+            <div className="border-t my-4" />
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3">Resources</p>
+            
+            <button 
+              ref={(el) => { if (el) navItemsRef.current[5] = el; }}
+              onClick={() => handleTabChange("history")} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'history' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <History className="w-5 h-5" />Session History
+            </button>
+            
+            <button 
+              ref={(el) => { if (el) navItemsRef.current[6] = el; }}
+              onClick={() => handleTabChange("resources")} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'resources' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <BookOpen className="w-5 h-5" />Learning Resources
             </button>
           </nav>
+
+          {/* Streak Card */}
+          <Card className="p-4 bg-gradient-to-br from-orange-500/10 to-amber-500/10 border-orange-500/20">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                <Flame className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Keep Practicing!</p>
+                <p className="text-xs text-muted-foreground">Build your streak</p>
+              </div>
+            </div>
+          </Card>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="lg:pl-64">
+      <div className="lg:pl-72">
         <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
           <div className="flex items-center justify-between px-4 md:px-8 py-4">
             <div className="flex items-center gap-4">
@@ -289,13 +371,19 @@ export default function InterviewPrep() {
           </div>
         </header>
 
-        <main className="p-4 md:p-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full max-w-lg grid-cols-3">
-              <TabsTrigger value="setup" className="gap-2"><Target className="w-4 h-4" />Setup</TabsTrigger>
+        <main ref={mainContentRef} className="p-4 md:p-8">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+            <TabsList className="grid w-full max-w-2xl grid-cols-4">
+              <TabsTrigger value="dashboard" className="gap-2"><LayoutDashboard className="w-4 h-4" />Dashboard</TabsTrigger>
+              <TabsTrigger value="setup" className="gap-2"><Target className="w-4 h-4" />Practice</TabsTrigger>
               <TabsTrigger value="interview" disabled={questions.length === 0} className="gap-2"><MessageSquare className="w-4 h-4" />Interview</TabsTrigger>
               <TabsTrigger value="evaluation" disabled={!finalEvaluation} className="gap-2"><BarChart3 className="w-4 h-4" />Results</TabsTrigger>
             </TabsList>
+
+            {/* DASHBOARD TAB */}
+            <TabsContent value="dashboard">
+              <InterviewDashboard />
+            </TabsContent>
 
             {/* SETUP TAB */}
             <TabsContent value="setup" className="space-y-6">
