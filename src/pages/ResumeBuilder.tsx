@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { gsap } from "gsap";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -47,6 +48,8 @@ import {
   Palette,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSecureResumeUpload } from "@/hooks/useSecurity";
+import { auditFileOperation } from "@/lib/security/auditLog";
 import { parseResumeWithAI, parseResumeStructured, AIResumeData } from "@/lib/resumeParser";
 import { rewriteBullet } from "@/lib/aiRewriter";
 import { Switch } from "@/components/ui/switch";
@@ -416,6 +419,25 @@ export default function ResumeBuilder() {
   const { toast } = useToast();
   const previewRef = useRef<HTMLDivElement>(null);
   
+  // Security - Secure file upload validation
+  const { validateFile: secureValidateFile, isValidating: isSecurityValidating } = useSecureResumeUpload({
+    onValidationError: (errors) => {
+      toast({
+        title: "Security Check Failed",
+        description: errors.join(", "),
+        variant: "destructive",
+      });
+    },
+    onSecurityThreat: (threats) => {
+      toast({
+        title: "⚠️ Security Threat Detected",
+        description: "The file contains potentially malicious content and was blocked.",
+        variant: "destructive",
+      });
+      console.error("Security threats:", threats);
+    },
+  });
+  
   // State
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -576,6 +598,27 @@ export default function ResumeBuilder() {
     setUploadProgress(0);
 
     try {
+      // ========== SECURITY VALIDATION ==========
+      // Validate file with enterprise-grade security checks
+      const securityResult = await secureValidateFile(file);
+      
+      if (!securityResult.isValid) {
+        // Log the security event
+        auditFileOperation('upload', file.name, undefined, false, securityResult.errors.join(', '));
+        
+        toast({
+          title: "File Rejected",
+          description: securityResult.errors[0] || "File failed security validation",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Log successful upload attempt
+      auditFileOperation('upload', securityResult.sanitizedFilename || file.name, undefined, true);
+      // ========================================
+      
       // Determine file type
       let fileType: "pdf" | "docx" | "image" | "txt" = "pdf";
       if (file.type.includes("word") || file.name.endsWith(".docx") || file.name.endsWith(".doc")) {
@@ -1094,16 +1137,32 @@ export default function ResumeBuilder() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/20">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-sky-50/50 to-blue-50 dark:from-slate-950 dark:via-cyan-950/30 dark:to-blue-950/20 relative overflow-hidden">
+      {/* Beautiful Animated Background - Ocean Blue Theme */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-100/80 via-transparent to-sky-100/60 dark:from-cyan-900/30 dark:to-sky-900/20" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.25),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.2),transparent_50%)]" />
+        
+        {/* Animated Floating Orbs */}
+        <div className="absolute top-20 right-[20%] w-[400px] h-[400px] bg-gradient-to-br from-cyan-400/35 to-sky-500/25 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
+        <div className="absolute top-[40%] -left-20 w-[350px] h-[350px] bg-gradient-to-br from-sky-400/30 to-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "5s", animationDelay: "1s" }} />
+        <div className="absolute bottom-20 right-[30%] w-[300px] h-[300px] bg-gradient-to-br from-blue-400/25 to-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "6s", animationDelay: "2s" }} />
+        
+        {/* Grid Pattern */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:50px_50px]" />
+      </div>
+
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="border-b border-cyan-200/50 dark:border-cyan-800/50 bg-gradient-to-r from-white/95 via-cyan-50/90 to-sky-50/85 dark:from-slate-900/95 dark:via-cyan-950/80 dark:to-sky-950/75 backdrop-blur-xl sticky top-0 z-50 relative">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.15),transparent_70%)]" />
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between relative">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
-                <FileText className="w-4 h-4 text-white" />
+            <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 group">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25 group-hover:shadow-cyan-500/40 transition-all duration-300 group-hover:scale-105">
+                <FileText className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold hidden sm:block">CareerCraft</span>
+              <span className="text-xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent hidden sm:block">Resume Builder</span>
             </button>
             
             {/* Editable Resume Name */}
@@ -1146,7 +1205,7 @@ export default function ResumeBuilder() {
       </header>
 
       {/* Progress Steps */}
-      <div className="border-b bg-background/50">
+      <div className="border-b border-cyan-200/50 dark:border-cyan-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm relative">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between max-w-3xl mx-auto">
             {STEPS.map((step, index) => {
@@ -1160,11 +1219,11 @@ export default function ResumeBuilder() {
                   onClick={() => index <= currentStep && setCurrentStep(index)}
                   disabled={index > currentStep}
                   className={`flex flex-col items-center gap-2 transition-all ${
-                    isActive ? "text-primary" : isCompleted ? "text-green-500" : "text-muted-foreground"
+                    isActive ? "text-cyan-600" : isCompleted ? "text-emerald-500" : "text-muted-foreground"
                   } ${index <= currentStep ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
                 >
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-                    isActive ? "border-primary bg-primary/10" : isCompleted ? "border-green-500 bg-green-500/10" : "border-muted"
+                    isActive ? "border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/20" : isCompleted ? "border-emerald-500 bg-emerald-500/10" : "border-muted"
                   }`}>
                     {isCompleted ? <Check className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                   </div>
@@ -1177,7 +1236,7 @@ export default function ResumeBuilder() {
       </div>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-6 relative">
         <AnimatePresence mode="wait">
           {/* Step 0: Upload */}
           {currentStep === 0 && (

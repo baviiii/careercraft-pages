@@ -6,9 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useRateLimit } from "@/hooks/useSecurity";
+import { sanitize } from "@/lib/security/sanitizers";
+import { auditLog } from "@/lib/security/auditLog";
+import { RATE_LIMITS } from "@/lib/security/rateLimiter";
+import { JobsDashboardLayout } from "@/components/job-market";
 import {
   Select,
   SelectContent,
@@ -23,8 +27,6 @@ import {
   BookmarkCheck,
   Loader2,
   RefreshCw,
-  Home,
-  Menu,
   Briefcase,
   DollarSign,
   MapPin,
@@ -33,8 +35,6 @@ import {
   Globe,
   Zap,
   ChevronDown,
-  Newspaper,
-  X,
   Users,
   TrendingUp,
   TrendingDown,
@@ -46,6 +46,7 @@ import {
   BarChart3,
   Target,
   Heart,
+  X,
 } from "lucide-react";
 
 // Australian cities for filtering
@@ -160,8 +161,20 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 export default function AustralianJobs() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("jobs");
+  
+  // Security - Rate limiting for API calls
+  const { checkLimit: checkSearchLimit, isLimited: isSearchLimited } = useRateLimit({
+    key: 'au-jobs-search',
+    config: RATE_LIMITS.SEARCH,
+    onLimitExceeded: (result) => {
+      toast({
+        title: "Too Many Requests",
+        description: `Please wait ${result.retryAfter} seconds before searching again.`,
+        variant: "destructive",
+      });
+    },
+  });
   
   // Jobs state
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -273,6 +286,12 @@ export default function AustralianJobs() {
   };
 
   const fetchJobs = useCallback(async (reset = false) => {
+    // Security: Check rate limit before making API call
+    const rateLimitResult = checkSearchLimit();
+    if (!rateLimitResult.allowed) {
+      return; // Toast is shown by the hook
+    }
+    
     if (reset) {
       setLoading(true);
       setPage(1);
@@ -283,14 +302,18 @@ export default function AustralianJobs() {
     try {
       const currentPage = reset ? 1 : page;
       
+      // Security: Sanitize user input before sending to API
+      const sanitizedQuery = sanitize(searchQuery || "developer", { maxLength: 200 });
+      const sanitizedIndustry = sanitize(selectedIndustry, { maxLength: 100 });
+      
       const { data, error } = await supabase.functions.invoke("job-news", {
         body: {
           action: "fetch_au_jobs",
-          query: searchQuery || "developer",
+          query: sanitizedQuery,
           location: selectedCity,
           jobType: selectedType,
           experienceLevel: selectedLevel,
-          industry: selectedIndustry,
+          industry: sanitizedIndustry,
           page: currentPage,
         },
       });
@@ -310,6 +333,15 @@ export default function AustralianJobs() {
       setStats(data.stats || null);
       setLastUpdated(new Date());
       
+      // Security: Audit log the search
+      auditLog({
+        type: 'API_CALL',
+        action: `Job search: ${sanitizedQuery}`,
+        resource: 'au-jobs',
+        details: { query: sanitizedQuery, city: selectedCity, page: currentPage },
+        success: true,
+      });
+      
       if (!reset) setPage(p => p + 1);
       
     } catch (error: any) {
@@ -323,7 +355,7 @@ export default function AustralianJobs() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [searchQuery, selectedCity, selectedType, selectedLevel, selectedIndustry, page, toast]);
+  }, [searchQuery, selectedCity, selectedType, selectedLevel, selectedIndustry, page, toast, checkSearchLimit]);
 
   const analyzeJobTrends = async () => {
     if (jobs.length === 0) {
@@ -420,136 +452,18 @@ export default function AustralianJobs() {
   const savedJobsList = jobs.filter(job => savedJobs.includes(job.id));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-72 bg-card/95 backdrop-blur-xl border-r border-border z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 h-full flex flex-col">
-          <button onClick={() => navigate("/dashboard")} className="flex items-center gap-3 mb-8 group">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:shadow-emerald-500/40 transition-shadow">
-              <Briefcase className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <span className="text-xl font-bold bg-gradient-to-r from-emerald-500 to-teal-600 bg-clip-text text-transparent">AU Jobs</span>
-              <p className="text-xs text-muted-foreground">Australian Job Board</p>
-            </div>
-          </button>
-
-          <nav className="space-y-2 flex-1">
-            <button onClick={() => navigate("/dashboard")} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-muted/50 transition-colors">
-              <Home className="w-5 h-5" />Dashboard
-            </button>
-            <button onClick={() => setActiveTab("jobs")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === "jobs" ? "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-600 border border-emerald-500/20" : "text-muted-foreground hover:bg-muted/50"}`}>
-              <Briefcase className="w-5 h-5" />Job Listings
-            </button>
-            <button onClick={() => setActiveTab("saved")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === "saved" ? "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-600 border border-emerald-500/20" : "text-muted-foreground hover:bg-muted/50"}`}>
-              <Heart className="w-5 h-5" />Saved Jobs
-              {savedJobs.length > 0 && <Badge variant="secondary" className="ml-auto">{savedJobs.length}</Badge>}
-            </button>
-            <button onClick={() => setActiveTab("analysis")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === "analysis" ? "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-600 border border-emerald-500/20" : "text-muted-foreground hover:bg-muted/50"}`}>
-              <BarChart3 className="w-5 h-5" />AI Analysis
-            </button>
-            <button onClick={() => setActiveTab("alerts")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === "alerts" ? "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-600 border border-emerald-500/20" : "text-muted-foreground hover:bg-muted/50"}`}>
-              <Bell className="w-5 h-5" />Alerts & Preferences
-            </button>
-            <button onClick={() => navigate("/job-market-news")} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-muted/50 transition-colors">
-              <Newspaper className="w-5 h-5" />Market News
-            </button>
-          </nav>
-
-          {/* Stats Card */}
-          {stats && (
-            <Card className="p-4 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20">
-              <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-500" />
-                Market Snapshot
-              </h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Jobs</span>
-                  <span className="font-semibold">{stats.totalJobs.toLocaleString()}+</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Avg Salary</span>
-                  <span className="font-semibold text-emerald-600">{stats.avgSalary}</span>
-                </div>
-              </div>
-              {stats.hotSkills && stats.hotSkills.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-border">
-                  <p className="text-xs text-muted-foreground mb-2">Hot Skills</p>
-                  <div className="flex flex-wrap gap-1">
-                    {stats.hotSkills.slice(0, 4).map((skill, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </Card>
-          )}
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <div className="lg:pl-72">
-        {/* Header */}
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
-          <div className="flex items-center justify-between px-4 md:px-8 py-4">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
-                <Menu className="w-5 h-5" />
-              </Button>
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                  <span className="text-2xl">🇦🇺</span>
-                  Australian Jobs
-                </h1>
-                <p className="text-sm text-muted-foreground hidden sm:block">
-                  {jobs.length > 0 ? `${jobs.length}+ jobs found` : "Search thousands of AU jobs"}
-                  {lastUpdated && <span className="ml-2">• Updated {lastUpdated.toLocaleTimeString()}</span>}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => fetchJobs(true)} disabled={loading}>
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
-              <Button size="sm" onClick={analyzeJobTrends} disabled={analyzingTrends || jobs.length === 0} className="bg-gradient-to-r from-emerald-500 to-teal-600">
-                {analyzingTrends ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                <span className="hidden sm:inline">AI Insights</span>
-              </Button>
-            </div>
-          </div>
-        </header>
-
-        <main className="p-4 md:p-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4 p-1 bg-muted/50">
-              <TabsTrigger value="jobs" className="gap-2 data-[state=active]:bg-background">
-                <Briefcase className="w-4 h-4" />
-                <span className="hidden sm:inline">Jobs</span>
-              </TabsTrigger>
-              <TabsTrigger value="saved" className="gap-2 data-[state=active]:bg-background">
-                <Heart className="w-4 h-4" />
-                <span className="hidden sm:inline">Saved</span>
-                {savedJobs.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{savedJobs.length}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="analysis" className="gap-2 data-[state=active]:bg-background">
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Analysis</span>
-              </TabsTrigger>
-              <TabsTrigger value="alerts" className="gap-2 data-[state=active]:bg-background">
-                <Bell className="w-4 h-4" />
-                <span className="hidden sm:inline">Alerts</span>
-              </TabsTrigger>
-            </TabsList>
-
-            {/* JOBS TAB */}
-            <TabsContent value="jobs" className="space-y-6">
+    <JobsDashboardLayout
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      onRefresh={() => fetchJobs(true)}
+      isLoading={loading}
+      stats={stats}
+      savedJobsCount={savedJobs.length}
+    >
+      <div className="space-y-6">
+        {/* JOBS TAB */}
+        {activeTab === "jobs" && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Search & Filters */}
               <Card className="p-4 md:p-6 bg-gradient-to-r from-card to-card/50">
                 <div className="flex flex-col gap-4">
@@ -769,11 +683,13 @@ export default function AustralianJobs() {
                   )}
                 </div>
               )}
-            </TabsContent>
+          </div>
+        )}
 
-            {/* SAVED JOBS TAB */}
-            <TabsContent value="saved" className="space-y-6">
-              {savedJobsList.length > 0 ? (
+        {/* SAVED JOBS TAB */}
+        {activeTab === "saved" && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {savedJobsList.length > 0 ? (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-lg font-semibold">{savedJobsList.length} Saved Jobs</h2>
@@ -801,11 +717,13 @@ export default function AustralianJobs() {
                   </Button>
                 </Card>
               )}
-            </TabsContent>
+          </div>
+        )}
 
-            {/* AI ANALYSIS TAB */}
-            <TabsContent value="analysis" className="space-y-6">
-              {trendAnalysis ? (
+        {/* AI ANALYSIS TAB */}
+        {activeTab === "analysis" && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {trendAnalysis ? (
                 <>
                   {/* What This Means For You */}
                   <Card className="p-6 bg-gradient-to-br from-emerald-500/5 to-teal-500/10 border-emerald-500/20">
@@ -928,11 +846,13 @@ export default function AustralianJobs() {
                   </Button>
                 </Card>
               )}
-            </TabsContent>
+          </div>
+        )}
 
-            {/* ALERTS & PREFERENCES TAB */}
-            <TabsContent value="alerts" className="space-y-6">
-              {/* Alert Types */}
+        {/* ALERTS & PREFERENCES TAB */}
+        {activeTab === "alerts" && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Alert Types */}
               <Card className="p-6">
                 <h3 className="font-semibold mb-4 flex items-center gap-2">
                   <Bell className="w-5 h-5 text-emerald-500" />Job Alert Types
@@ -1044,19 +964,18 @@ export default function AustralianJobs() {
                 </div>
               </Card>
 
-              <Button 
-                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600" 
-                onClick={saveUserPreferences}
-                disabled={savingPreferences}
-              >
-                {savingPreferences ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Settings className="w-4 h-4 mr-2" />}
-                Save All Preferences
-              </Button>
-            </TabsContent>
-          </Tabs>
-        </main>
+            <Button 
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-600" 
+              onClick={saveUserPreferences}
+              disabled={savingPreferences}
+            >
+              {savingPreferences ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Settings className="w-4 h-4 mr-2" />}
+              Save All Preferences
+            </Button>
+          </div>
+        )}
       </div>
-    </div>
+    </JobsDashboardLayout>
   );
 }
 
