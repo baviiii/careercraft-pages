@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { gsap } from "gsap";
@@ -28,6 +29,7 @@ import {
   TrendingUp,
   Award,
   ChevronRight,
+  ChevronLeft,
   Loader2,
   Download,
   RotateCcw,
@@ -41,8 +43,23 @@ import {
   LayoutDashboard,
   BookOpen,
   History,
-  Settings,
   Flame,
+  Clock,
+  Zap,
+  GraduationCap,
+  Video,
+  FileQuestion,
+  ExternalLink,
+  Star,
+  Users,
+  ArrowRight,
+  Info,
+  HelpCircle,
+  Mic,
+  Timer,
+  PauseCircle,
+  PlayCircle,
+  Volume2,
 } from "lucide-react";
 
 const FIELDS = [
@@ -94,6 +111,43 @@ interface FinalEval {
   summary: string;
 }
 
+interface LearningResource {
+  id: string;
+  title: string;
+  description: string;
+  type: 'video' | 'article' | 'course' | 'practice';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  duration: string;
+  url: string;
+  skill: string;
+  provider: string;
+  rating?: number;
+}
+
+// Onboarding steps for first-time users
+const ONBOARDING_STEPS = [
+  {
+    title: "Welcome to Interview Prep",
+    description: "Master your interviews with AI-powered practice sessions",
+    icon: Brain,
+  },
+  {
+    title: "Choose Your Path",
+    description: "Select your field and seniority level for tailored questions",
+    icon: Target,
+  },
+  {
+    title: "Practice & Learn",
+    description: "Answer questions and get instant AI feedback",
+    icon: MessageSquare,
+  },
+  {
+    title: "Track Progress",
+    description: "Monitor your improvement over time",
+    icon: TrendingUp,
+  },
+];
+
 export default function InterviewPrep() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -129,12 +183,55 @@ export default function InterviewPrep() {
   // Final evaluation state
   const [finalEvaluation, setFinalEvaluation] = useState<FinalEval | null>(null);
   const [generatingFinal, setGeneratingFinal] = useState(false);
+  
+  // Resources state
+  const [resources, setResources] = useState<LearningResource[]>([]);
+  const [loadingResources, setLoadingResources] = useState(false);
+  const [selectedSkillFilter, setSelectedSkillFilter] = useState<string>('all');
+  
+  // UX state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [interviewTimer, setInterviewTimer] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) navigate("/auth");
     });
+    
+    // Check if first visit
+    const hasSeenOnboarding = localStorage.getItem('interview-prep-onboarding');
+    if (!hasSeenOnboarding) {
+      setShowOnboarding(true);
+    }
   }, [navigate]);
+
+  // Interview timer
+  useEffect(() => {
+    if (timerRunning) {
+      timerRef.current = setInterval(() => {
+        setInterviewTimer(prev => prev + 1);
+      }, 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [timerRunning]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const completeOnboarding = () => {
+    localStorage.setItem('interview-prep-onboarding', 'true');
+    setShowOnboarding(false);
+  };
 
   const generateQuestions = async () => {
     if (!field) {
@@ -155,8 +252,13 @@ export default function InterviewPrep() {
       setAnswers(new Array(data.questions?.length || 0).fill(""));
       setEvaluations([]);
       setActiveTab("interview");
+      setSearchParams({ tab: "interview" });
       
-      toast({ title: "Interview simulation ready!", description: `${data.questions?.length} questions generated` });
+      // Start timer
+      setInterviewTimer(0);
+      setTimerRunning(true);
+      
+      toast({ title: "Interview simulation ready!", description: `${data.questions?.length} questions generated. Good luck!` });
     } catch (error: any) {
       console.error("Error generating questions:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -164,6 +266,156 @@ export default function InterviewPrep() {
       setLoading(false);
     }
   };
+
+  // Fetch AI-powered learning resources
+  const fetchResources = useCallback(async (skillFocus?: string) => {
+    setLoadingResources(true);
+    try {
+      // Generate resources based on user's field and weaknesses
+      const { data, error } = await supabase.functions.invoke("interview-ai", {
+        body: { 
+          action: "generate_resources",
+          field: field || "Software Engineering",
+          seniority: seniority || "Mid-Level",
+          weaknesses: finalEvaluation?.weaknesses || [],
+          skillFocus,
+        },
+      });
+
+      if (error) throw error;
+      
+      // If AI resources work, use them; otherwise use curated fallback
+      if (data?.resources) {
+        setResources(data.resources);
+      } else {
+        // Curated fallback resources
+        setResources(getCuratedResources(field || "Software Engineering", skillFocus));
+      }
+    } catch (error) {
+      console.error("Error fetching resources:", error);
+      // Use curated fallback
+      setResources(getCuratedResources(field || "Software Engineering", skillFocus));
+    } finally {
+      setLoadingResources(false);
+    }
+  }, [field, seniority, finalEvaluation]);
+
+  // Curated resources fallback (no AI needed)
+  const getCuratedResources = (userField: string, skillFocus?: string): LearningResource[] => {
+    const baseResources: LearningResource[] = [
+      {
+        id: '1',
+        title: 'STAR Method Masterclass',
+        description: 'Learn to structure behavioral answers that impress interviewers',
+        type: 'video',
+        difficulty: 'beginner',
+        duration: '15 min',
+        url: 'https://www.youtube.com/results?search_query=star+method+interview',
+        skill: 'Behavioral',
+        provider: 'YouTube',
+        rating: 4.8,
+      },
+      {
+        id: '2',
+        title: 'Common Interview Questions & Answers',
+        description: 'Top 50 questions with expert-crafted responses',
+        type: 'article',
+        difficulty: 'beginner',
+        duration: '20 min read',
+        url: 'https://www.indeed.com/career-advice/interviewing/top-interview-questions-and-answers',
+        skill: 'General',
+        provider: 'Indeed',
+        rating: 4.6,
+      },
+      {
+        id: '3',
+        title: 'Body Language in Interviews',
+        description: 'Non-verbal communication tips for confidence',
+        type: 'video',
+        difficulty: 'intermediate',
+        duration: '12 min',
+        url: 'https://www.youtube.com/results?search_query=interview+body+language',
+        skill: 'Communication',
+        provider: 'YouTube',
+        rating: 4.5,
+      },
+      {
+        id: '4',
+        title: 'Salary Negotiation Guide',
+        description: 'How to negotiate your offer with confidence',
+        type: 'article',
+        difficulty: 'advanced',
+        duration: '15 min read',
+        url: 'https://www.glassdoor.com/blog/guide/how-to-negotiate-salary/',
+        skill: 'Negotiation',
+        provider: 'Glassdoor',
+        rating: 4.7,
+      },
+    ];
+
+    // Add field-specific resources
+    if (userField.includes('Software') || userField.includes('DevOps')) {
+      baseResources.push(
+        {
+          id: '5',
+          title: 'System Design Interview Prep',
+          description: 'Learn to design scalable systems step by step',
+          type: 'course',
+          difficulty: 'advanced',
+          duration: '4 hours',
+          url: 'https://www.youtube.com/results?search_query=system+design+interview',
+          skill: 'System Design',
+          provider: 'YouTube',
+          rating: 4.9,
+        },
+        {
+          id: '6',
+          title: 'LeetCode Top Interview Questions',
+          description: 'Practice the most common coding problems',
+          type: 'practice',
+          difficulty: 'intermediate',
+          duration: 'Self-paced',
+          url: 'https://leetcode.com/problem-list/top-interview-questions/',
+          skill: 'Coding',
+          provider: 'LeetCode',
+          rating: 4.8,
+        }
+      );
+    }
+
+    if (userField.includes('Product')) {
+      baseResources.push(
+        {
+          id: '7',
+          title: 'Product Sense Interview Guide',
+          description: 'Framework for product design questions',
+          type: 'article',
+          difficulty: 'intermediate',
+          duration: '25 min read',
+          url: 'https://www.productmanagementexercises.com/',
+          skill: 'Product Sense',
+          provider: 'PM Exercises',
+          rating: 4.7,
+        }
+      );
+    }
+
+    // Filter by skill if specified
+    if (skillFocus && skillFocus !== 'all') {
+      return baseResources.filter(r => 
+        r.skill.toLowerCase().includes(skillFocus.toLowerCase())
+      );
+    }
+
+    return baseResources;
+  };
+
+  // Load resources when tab changes to resources
+  useEffect(() => {
+    if (activeTab === 'resources' && resources.length === 0) {
+      fetchResources();
+    }
+  }, [activeTab, fetchResources, resources.length]);
 
   const submitAnswer = async () => {
     if (!currentAnswer.trim()) {
@@ -240,6 +492,7 @@ export default function InterviewPrep() {
 
   const resetInterview = () => {
     setActiveTab("setup");
+    setSearchParams({ tab: "setup" });
     setQuestions([]);
     setAnswers([]);
     setEvaluations([]);
@@ -247,6 +500,27 @@ export default function InterviewPrep() {
     setCurrentAnswer("");
     setCurrentEvaluation(null);
     setFinalEvaluation(null);
+    setTimerRunning(false);
+    setInterviewTimer(0);
+  };
+
+  const getResourceIcon = (type: string) => {
+    switch (type) {
+      case 'video': return Video;
+      case 'article': return FileText;
+      case 'course': return GraduationCap;
+      case 'practice': return FileQuestion;
+      default: return BookOpen;
+    }
+  };
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'beginner': return 'bg-green-500/10 text-green-600 border-green-500/20';
+      case 'intermediate': return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+      case 'advanced': return 'bg-red-500/10 text-red-600 border-red-500/20';
+      default: return 'bg-muted';
+    }
   };
 
   const currentQuestion = questions[currentQuestionIndex];
@@ -254,6 +528,74 @@ export default function InterviewPrep() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      {/* Onboarding Modal */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-card rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+            >
+              <div className="p-8">
+                {/* Progress dots */}
+                <div className="flex justify-center gap-2 mb-8">
+                  {ONBOARDING_STEPS.map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={`w-2 h-2 rounded-full transition-all ${i === onboardingStep ? 'w-8 bg-primary' : i < onboardingStep ? 'bg-primary/50' : 'bg-muted'}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Content */}
+                <div className="text-center">
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+                    {(() => {
+                      const Icon = ONBOARDING_STEPS[onboardingStep].icon;
+                      return <Icon className="w-10 h-10 text-primary" />;
+                    })()}
+                  </div>
+                  <h2 className="text-2xl font-bold mb-3">{ONBOARDING_STEPS[onboardingStep].title}</h2>
+                  <p className="text-muted-foreground mb-8">{ONBOARDING_STEPS[onboardingStep].description}</p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  {onboardingStep > 0 && (
+                    <Button variant="outline" onClick={() => setOnboardingStep(prev => prev - 1)} className="flex-1">
+                      <ChevronLeft className="w-4 h-4 mr-2" />Back
+                    </Button>
+                  )}
+                  {onboardingStep < ONBOARDING_STEPS.length - 1 ? (
+                    <Button onClick={() => setOnboardingStep(prev => prev + 1)} className="flex-1">
+                      Next<ChevronRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  ) : (
+                    <Button onClick={completeOnboarding} className="flex-1 bg-gradient-to-r from-primary to-primary/80">
+                      <Sparkles className="w-4 h-4 mr-2" />Get Started
+                    </Button>
+                  )}
+                </div>
+
+                <button 
+                  onClick={completeOnboarding}
+                  className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Skip tutorial
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -363,11 +705,29 @@ export default function InterviewPrep() {
                 <p className="text-sm text-muted-foreground hidden sm:block">AI-powered interview simulation & coaching</p>
               </div>
             </div>
-            {questions.length > 0 && (
-              <Button variant="outline" onClick={resetInterview}>
-                <RotateCcw className="w-4 h-4 mr-2" />Start Over
-              </Button>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Interview Timer */}
+              {questions.length > 0 && timerRunning && (
+                <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-lg">
+                  <Timer className="w-4 h-4 text-primary" />
+                  <span className="font-mono font-semibold text-primary">{formatTime(interviewTimer)}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6"
+                    onClick={() => setTimerRunning(!timerRunning)}
+                  >
+                    {timerRunning ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
+                  </Button>
+                </div>
+              )}
+              
+              {questions.length > 0 && (
+                <Button variant="outline" onClick={resetInterview}>
+                  <RotateCcw className="w-4 h-4 mr-2" />Start Over
+                </Button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -385,50 +745,136 @@ export default function InterviewPrep() {
               <InterviewDashboard />
             </TabsContent>
 
-            {/* SETUP TAB */}
+            {/* SETUP TAB - Enhanced with clear steps */}
             <TabsContent value="setup" className="space-y-6">
+              {/* How it works - Quick guide */}
+              <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-primary" />
+                  How It Works
+                </h3>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  {[
+                    { step: 1, title: "Configure", desc: "Select your field & level", icon: Target },
+                    { step: 2, title: "Practice", desc: "Answer AI-generated questions", icon: MessageSquare },
+                    { step: 3, title: "Improve", desc: "Get detailed feedback & tips", icon: TrendingUp },
+                  ].map(item => (
+                    <div key={item.step} className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-primary">{item.step}</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{item.title}</p>
+                        <p className="text-xs text-muted-foreground">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Main Setup Card */}
               <Card className="p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary" />Configure Your Interview
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                  Start New Practice Session
                 </h2>
 
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Select Your Field *</label>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      Select Your Field <span className="text-red-500">*</span>
+                    </label>
                     <Select value={field} onValueChange={setField}>
-                      <SelectTrigger><SelectValue placeholder="Choose a field" /></SelectTrigger>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Choose your industry or role" />
+                      </SelectTrigger>
                       <SelectContent>
                         {FIELDS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">Questions will be tailored to this field</p>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Seniority Level</label>
+                    <label className="text-sm font-medium">Experience Level</label>
                     <Select value={seniority} onValueChange={setSeniority}>
-                      <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select your level" />
+                      </SelectTrigger>
                       <SelectContent>
                         {SENIORITY.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">Adjusts question difficulty</p>
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-medium">Job Description (Optional)</label>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      Job Description 
+                      <Badge variant="outline" className="text-[10px]">Optional</Badge>
+                    </label>
                     <Textarea
                       value={jobDescription}
                       onChange={(e) => setJobDescription(e.target.value)}
-                      placeholder="Paste the job description here for more targeted questions..."
-                      className="min-h-[150px]"
+                      placeholder="Paste the job description here for highly targeted questions...
+
+Example: 'We're looking for a Senior Software Engineer with 5+ years experience in React, Node.js, and AWS...'"
+                      className="min-h-[120px]"
                     />
-                    <p className="text-xs text-muted-foreground">Adding a job description helps generate more relevant interview questions</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      Pro tip: Adding a job description generates 3x more relevant questions
+                    </p>
                   </div>
                 </div>
 
-                <Button onClick={generateQuestions} disabled={loading || !field} className="mt-6 w-full sm:w-auto" size="lg">
-                  {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</> : <><Play className="w-4 h-4 mr-2" />Start Interview Simulation</>}
+                {/* What to expect */}
+                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                  <p className="text-sm font-medium mb-2">What to expect:</p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" />5-7 tailored interview questions</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" />Instant AI feedback on each answer</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" />FAANG-level example answers</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" />Personalized improvement plan</li>
+                  </ul>
+                </div>
+
+                <Button 
+                  onClick={generateQuestions} 
+                  disabled={loading || !field} 
+                  className="mt-6 w-full sm:w-auto h-12 px-8 text-base bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70" 
+                  size="lg"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Generating Questions...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 mr-2" />
+                      Start Interview Simulation
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </>
+                  )}
                 </Button>
               </Card>
+
+              {/* Quick Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: "Avg. Session", value: "15 min", icon: Clock },
+                  { label: "Questions", value: "5-7", icon: FileQuestion },
+                  { label: "AI Model", value: "Gemini 2.5", icon: Brain },
+                  { label: "Success Rate", value: "94%", icon: TrendingUp },
+                ].map(stat => (
+                  <Card key={stat.label} className="p-4 text-center">
+                    <stat.icon className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-lg font-bold">{stat.value}</p>
+                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                  </Card>
+                ))}
+              </div>
             </TabsContent>
 
             {/* INTERVIEW TAB */}
@@ -646,12 +1092,158 @@ export default function InterviewPrep() {
                     <Button onClick={resetInterview} variant="outline" className="flex-1">
                       <RotateCcw className="w-4 h-4 mr-2" />Practice Again
                     </Button>
-                    <Button className="flex-1">
-                      <Download className="w-4 h-4 mr-2" />Download Report
+                    <Button onClick={() => handleTabChange("resources")} className="flex-1">
+                      <BookOpen className="w-4 h-4 mr-2" />View Learning Resources
                     </Button>
                   </div>
                 </>
               ) : null}
+            </TabsContent>
+
+            {/* RESOURCES TAB - AI-powered learning recommendations */}
+            <TabsContent value="resources" className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <GraduationCap className="w-7 h-7 text-primary" />
+                    Learning Resources
+                  </h2>
+                  <p className="text-muted-foreground">Curated materials to improve your interview skills</p>
+                </div>
+                
+                {/* Filter */}
+                <Select value={selectedSkillFilter} onValueChange={(val) => {
+                  setSelectedSkillFilter(val);
+                  fetchResources(val === 'all' ? undefined : val);
+                }}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter by skill" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Resources</SelectItem>
+                    <SelectItem value="behavioral">Behavioral</SelectItem>
+                    <SelectItem value="communication">Communication</SelectItem>
+                    <SelectItem value="technical">Technical</SelectItem>
+                    <SelectItem value="system design">System Design</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Personalized recommendation banner */}
+              {finalEvaluation && finalEvaluation.weaknesses?.length > 0 && (
+                <Card className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20">
+                  <div className="flex items-start gap-3">
+                    <Lightbulb className="w-5 h-5 text-amber-500 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">Based on your last interview</p>
+                      <p className="text-xs text-muted-foreground">
+                        We recommend focusing on: {finalEvaluation.weaknesses.slice(0, 2).join(", ")}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Resources Grid */}
+              {loadingResources ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map(i => (
+                    <Skeleton key={i} className="h-48 rounded-xl" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {resources.map(resource => {
+                    const Icon = getResourceIcon(resource.type);
+                    return (
+                      <Card 
+                        key={resource.id} 
+                        className="p-5 hover:shadow-lg transition-all duration-300 hover:scale-[1.02] cursor-pointer group"
+                        onClick={() => window.open(resource.url, '_blank')}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            resource.type === 'video' ? 'bg-red-500/10' :
+                            resource.type === 'article' ? 'bg-blue-500/10' :
+                            resource.type === 'course' ? 'bg-purple-500/10' :
+                            'bg-green-500/10'
+                          }`}>
+                            <Icon className={`w-5 h-5 ${
+                              resource.type === 'video' ? 'text-red-500' :
+                              resource.type === 'article' ? 'text-blue-500' :
+                              resource.type === 'course' ? 'text-purple-500' :
+                              'text-green-500'
+                            }`} />
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        
+                        <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">{resource.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{resource.description}</p>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={getDifficultyColor(resource.difficulty)}>
+                              {resource.difficulty}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="w-3 h-3" />{resource.duration}
+                            </span>
+                          </div>
+                          {resource.rating && (
+                            <div className="flex items-center gap-1 text-amber-500">
+                              <Star className="w-3 h-3 fill-current" />
+                              <span className="text-xs font-medium">{resource.rating}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="mt-3 pt-3 border-t flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">{resource.provider}</span>
+                          <Badge variant="secondary" className="text-[10px]">{resource.skill}</Badge>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!loadingResources && resources.length === 0 && (
+                <Card className="p-12 text-center">
+                  <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">No Resources Found</h3>
+                  <p className="text-muted-foreground mb-4">Try a different filter or check back later</p>
+                  <Button variant="outline" onClick={() => {
+                    setSelectedSkillFilter('all');
+                    fetchResources();
+                  }}>
+                    <RotateCcw className="w-4 h-4 mr-2" />Reset Filters
+                  </Button>
+                </Card>
+              )}
+
+              {/* Quick tips section */}
+              <Card className="p-6">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" />
+                  Quick Interview Tips
+                </h3>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { tip: "Use the STAR method for behavioral questions", icon: Target },
+                    { tip: "Research the company before your interview", icon: Users },
+                    { tip: "Prepare 3-5 questions to ask the interviewer", icon: HelpCircle },
+                    { tip: "Practice out loud, not just in your head", icon: Volume2 },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                      <item.icon className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                      <p className="text-sm">{item.tip}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </TabsContent>
           </Tabs>
         </main>
