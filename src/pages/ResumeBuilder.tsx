@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSecureResumeUpload } from "@/hooks/useSecurity";
+import { usePersonalization } from "@/hooks/usePersonalization";
 import { auditFileOperation } from "@/lib/security/auditLog";
 import { parseResumeWithAI, parseResumeStructured, AIResumeData } from "@/lib/resumeParser";
 import { rewriteBullet } from "@/lib/aiRewriter";
@@ -469,6 +470,15 @@ export default function ResumeBuilder() {
   const [showJobDescDialog, setShowJobDescDialog] = useState(false);
   const [rewritingBulletId, setRewritingBulletId] = useState<string | null>(null);
   const [showLivePreview, setShowLivePreview] = useState(false);
+  const [showAutoFillDialog, setShowAutoFillDialog] = useState(false);
+  
+  // Personalization hook for auto-fill
+  const {
+    profile: userProfile,
+    loading: profileLoading,
+    hasPersonalizationData,
+    getResumeAutoFillData,
+  } = usePersonalization();
 
   // Check for data from Upload page or ATS Analysis on mount
   useEffect(() => {
@@ -924,6 +934,54 @@ export default function ResumeBuilder() {
     }
   };
 
+  // Auto-fill from user profile
+  const autoFillFromProfile = () => {
+    if (!hasPersonalizationData) {
+      toast({
+        title: "Profile not set up",
+        description: "Complete your profile in Settings to use auto-fill",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const autoFillData = getResumeAutoFillData();
+    
+    // Merge with existing data (don't overwrite if already filled)
+    setResumeData(prev => ({
+      ...prev,
+      contact: {
+        name: prev.contact.name || autoFillData.contact.name,
+        email: prev.contact.email || autoFillData.contact.email,
+        phone: prev.contact.phone || autoFillData.contact.phone,
+        location: prev.contact.location || autoFillData.contact.location,
+        linkedin: prev.contact.linkedin || autoFillData.contact.linkedin,
+        website: prev.contact.website || autoFillData.contact.website,
+      },
+      summary: prev.summary || autoFillData.summary,
+      skills: prev.skills.length > 0 ? prev.skills : autoFillData.skills,
+      experience: prev.experience.length > 0 && prev.experience[0].title 
+        ? prev.experience 
+        : autoFillData.experience.length > 0 
+          ? autoFillData.experience 
+          : prev.experience,
+    }));
+
+    setShowAutoFillDialog(false);
+    
+    const filledFields: string[] = [];
+    if (autoFillData.contact.name) filledFields.push('name');
+    if (autoFillData.contact.email) filledFields.push('email');
+    if (autoFillData.contact.phone) filledFields.push('phone');
+    if (autoFillData.skills.length > 0) filledFields.push(`${autoFillData.skills.length} skills`);
+    if (autoFillData.summary) filledFields.push('summary');
+    
+    toast({
+      title: "✓ Profile data imported",
+      description: `Filled: ${filledFields.join(', ')}`,
+    });
+  };
+
   // AI rewrite a bullet point
   const rewriteBulletWithAI = async (expId: string, bulletIndex: number) => {
     const exp = resumeData.experience.find(e => e.id === expId);
@@ -1137,32 +1195,31 @@ export default function ResumeBuilder() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-sky-50/50 to-blue-50 dark:from-slate-950 dark:via-cyan-950/30 dark:to-blue-950/20 relative overflow-hidden">
-      {/* Beautiful Animated Background - Ocean Blue Theme */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 dark:from-slate-950 dark:via-blue-950/20 dark:to-slate-900 relative overflow-hidden">
+      {/* Beautiful Animated Background - Blue/White Theme */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-100/80 via-transparent to-sky-100/60 dark:from-cyan-900/30 dark:to-sky-900/20" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.25),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.2),transparent_50%)]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60 dark:from-blue-950/30 dark:via-slate-900/50 dark:to-slate-950" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.15),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.1),transparent_50%)]" />
         
-        {/* Animated Floating Orbs */}
-        <div className="absolute top-20 right-[20%] w-[400px] h-[400px] bg-gradient-to-br from-cyan-400/35 to-sky-500/25 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
-        <div className="absolute top-[40%] -left-20 w-[350px] h-[350px] bg-gradient-to-br from-sky-400/30 to-blue-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "5s", animationDelay: "1s" }} />
-        <div className="absolute bottom-20 right-[30%] w-[300px] h-[300px] bg-gradient-to-br from-blue-400/25 to-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "6s", animationDelay: "2s" }} />
+        {/* Elegant Floating Orbs */}
+        <div className="absolute top-10 right-[15%] w-[600px] h-[600px] bg-gradient-to-br from-blue-400/20 to-sky-300/15 rounded-full blur-[100px]" style={{ animation: "float-slow 8s ease-in-out infinite" }} />
+        <div className="absolute top-[50%] -left-32 w-[500px] h-[500px] bg-gradient-to-br from-sky-400/15 to-blue-300/10 rounded-full blur-[80px]" style={{ animation: "float-slower 10s ease-in-out infinite" }} />
+        <div className="absolute bottom-10 right-[25%] w-[400px] h-[400px] bg-gradient-to-br from-blue-300/15 to-cyan-300/10 rounded-full blur-[90px]" style={{ animation: "glow-pulse 6s ease-in-out infinite" }} />
         
-        {/* Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:50px_50px]" />
+        {/* Subtle Grid Pattern */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
       </div>
 
       {/* Header */}
-      <header className="border-b border-cyan-200/50 dark:border-cyan-800/50 bg-gradient-to-r from-white/95 via-cyan-50/90 to-sky-50/85 dark:from-slate-900/95 dark:via-cyan-950/80 dark:to-sky-950/75 backdrop-blur-xl sticky top-0 z-50 relative">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.15),transparent_70%)]" />
+      <header className="border-b border-blue-100/50 dark:border-blue-900/30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl sticky top-0 z-50 relative">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between relative">
           <div className="flex items-center gap-4">
             <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25 group-hover:shadow-cyan-500/40 transition-all duration-300 group-hover:scale-105">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-all duration-300 group-hover:scale-105">
                 <FileText className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent hidden sm:block">Resume Builder</span>
+              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent hidden sm:block">Resume Builder</span>
             </button>
             
             {/* Editable Resume Name */}
@@ -1205,7 +1262,7 @@ export default function ResumeBuilder() {
       </header>
 
       {/* Progress Steps */}
-      <div className="border-b border-cyan-200/50 dark:border-cyan-800/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm relative">
+      <div className="border-b border-blue-100/50 dark:border-blue-900/30 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm relative">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between max-w-3xl mx-auto">
             {STEPS.map((step, index) => {
@@ -1326,6 +1383,36 @@ export default function ResumeBuilder() {
                 </div>
               </div>
 
+              {/* Auto-fill from Profile Banner */}
+              {hasPersonalizationData && (
+                <Card className="p-4 mb-4 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-emerald-500/20">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                        <User className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Quick start with your profile</p>
+                        <p className="text-xs text-muted-foreground">
+                          Auto-fill contact info, skills ({userProfile.skills.length}), and career details from your saved profile
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        autoFillFromProfile();
+                        setCurrentStep(1);
+                      }}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Auto-fill & Start
+                    </Button>
+                  </div>
+                </Card>
+              )}
+
               <div className="grid grid-cols-3 gap-4">
                 <Button
                   variant="outline"
@@ -1423,6 +1510,18 @@ export default function ResumeBuilder() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Auto-fill from Profile */}
+                  {hasPersonalizationData && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={autoFillFromProfile}
+                      className="text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                    >
+                      <User className="w-4 h-4 mr-2" />
+                      Auto-fill
+                    </Button>
+                  )}
                   {/* Job Description Button */}
                   <Button 
                     variant={jobDescription ? "default" : "outline"} 

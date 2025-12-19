@@ -144,42 +144,51 @@ export default function DashboardLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50/50 to-violet-50 dark:from-slate-950 dark:via-indigo-950/30 dark:to-violet-950/20 relative overflow-hidden">
-      {/* Beautiful Animated Background - More Visible */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 dark:from-slate-950 dark:via-blue-950/20 dark:to-slate-900 relative overflow-hidden">
+      {/* Beautiful Animated Background - Blue/White Theme */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Strong Base Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-100/80 via-transparent to-purple-100/60 dark:from-blue-900/30 dark:to-purple-900/20" />
-        
-        {/* Main Gradient Mesh - Increased Opacity */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.3),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(139,92,246,0.25),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(99,102,241,0.15),transparent_70%)]" />
-        
-        {/* Animated Floating Orbs - More Visible */}
-        <div className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-gradient-to-br from-blue-400/40 to-indigo-500/30 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "4s" }} />
-        <div className="absolute top-[40%] -left-20 w-[400px] h-[400px] bg-gradient-to-br from-violet-400/35 to-purple-500/25 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "5s", animationDelay: "1s" }} />
-        <div className="absolute bottom-20 right-[30%] w-[350px] h-[350px] bg-gradient-to-br from-cyan-400/30 to-blue-500/25 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "6s", animationDelay: "2s" }} />
-        <div className="absolute top-[60%] right-[10%] w-[300px] h-[300px] bg-gradient-to-br from-indigo-400/25 to-violet-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDuration: "7s", animationDelay: "0.5s" }} />
-        
-        {/* Grid Pattern - More Visible */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(99,102,241,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(99,102,241,0.07)_1px,transparent_1px)] bg-[size:50px_50px]" />
-        
-        {/* Floating Particles - Larger & More Visible */}
-        <div className="absolute top-[15%] left-[10%] w-3 h-3 bg-blue-500/60 rounded-full animate-bounce shadow-lg shadow-blue-500/50" style={{ animationDuration: "3s" }} />
-        <div className="absolute top-[25%] right-[15%] w-4 h-4 bg-indigo-500/50 rounded-full animate-bounce shadow-lg shadow-indigo-500/50" style={{ animationDuration: "4s", animationDelay: "1s" }} />
-        <div className="absolute top-[45%] left-[25%] w-3 h-3 bg-violet-500/55 rounded-full animate-bounce shadow-lg shadow-violet-500/50" style={{ animationDuration: "3.5s", animationDelay: "0.5s" }} />
-        <div className="absolute top-[65%] right-[25%] w-3.5 h-3.5 bg-cyan-500/50 rounded-full animate-bounce shadow-lg shadow-cyan-500/50" style={{ animationDuration: "4.5s", animationDelay: "1.5s" }} />
-        <div className="absolute top-[80%] left-[40%] w-3 h-3 bg-blue-500/45 rounded-full animate-bounce shadow-lg shadow-blue-500/50" style={{ animationDuration: "5s", animationDelay: "2s" }} />
-        
-        {/* Gradient Lines - More Visible */}
-        <div className="absolute top-0 left-[20%] w-px h-full bg-gradient-to-b from-transparent via-blue-400/30 to-transparent" />
-        <div className="absolute top-0 right-[30%] w-px h-full bg-gradient-to-b from-transparent via-indigo-400/30 to-transparent" />
-        <div className="absolute top-0 left-[50%] w-px h-full bg-gradient-to-b from-transparent via-violet-400/20 to-transparent" />
-        
-        {/* Corner Accents - Stronger */}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-blue-400/25 via-indigo-400/15 to-transparent" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-violet-400/25 via-purple-400/15 to-transparent" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-r from-blue-300/10 via-indigo-300/15 to-violet-300/10 rounded-full blur-3xl" />
+        {/* Clean Base Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60 dark:from-blue-950/30 dark:via-slate-900/50 dark:to-slate-950" />
+
+        {/* Soft Gradient Mesh */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.15),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.1),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.05),transparent_70%)]" />
+
+        {/* Elegant Floating Orbs */}
+        <div
+          className="absolute top-10 right-[15%] w-[600px] h-[600px] bg-gradient-to-br from-blue-400/20 to-sky-300/15 rounded-full blur-[100px]"
+          style={{ animation: "float-slow 8s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute top-[50%] -left-32 w-[500px] h-[500px] bg-gradient-to-br from-sky-400/15 to-blue-300/10 rounded-full blur-[80px]"
+          style={{ animation: "float-slower 10s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute bottom-10 right-[25%] w-[400px] h-[400px] bg-gradient-to-br from-blue-300/15 to-cyan-300/10 rounded-full blur-[90px]"
+          style={{ animation: "glow-pulse 6s ease-in-out infinite" }}
+        />
+
+        {/* Subtle Grid Pattern */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:60px_60px]" />
+
+        {/* Floating Dots */}
+        <div
+          className="absolute top-[20%] left-[8%] w-2 h-2 bg-blue-400/40 rounded-full shadow-lg shadow-blue-400/30"
+          style={{ animation: "float 4s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute top-[30%] right-[12%] w-3 h-3 bg-sky-400/30 rounded-full shadow-lg shadow-sky-400/30"
+          style={{ animation: "float 5s ease-in-out infinite 1s" }}
+        />
+
+        {/* Elegant Gradient Lines */}
+        <div className="absolute top-0 left-[25%] w-px h-full bg-gradient-to-b from-transparent via-blue-300/15 to-transparent" />
+        <div className="absolute top-0 right-[35%] w-px h-full bg-gradient-to-b from-transparent via-sky-300/10 to-transparent" />
+
+        {/* Corner Glow */}
+        <div className="absolute top-0 right-0 w-[700px] h-[700px] bg-gradient-to-bl from-blue-200/20 via-sky-200/10 to-transparent" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-sky-200/15 via-blue-200/10 to-transparent" />
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -197,12 +206,10 @@ export default function DashboardLayout({
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Sidebar Background with Strong Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/80 to-indigo-100/70 dark:from-slate-900 dark:via-blue-950/50 dark:to-indigo-950/40 backdrop-blur-xl border-r border-blue-200/50 dark:border-blue-800/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.2),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(139,92,246,0.15),transparent_60%)]" />
-        <div className="absolute bottom-0 left-0 right-0 h-60 bg-gradient-to-t from-indigo-200/50 via-blue-100/30 to-transparent dark:from-indigo-900/30 dark:via-blue-900/20 dark:to-transparent" />
-        <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-blue-100/60 to-transparent dark:from-blue-900/30 dark:to-transparent" />
+        {/* Sidebar Background with Blue Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/60 to-sky-50/50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 backdrop-blur-xl border-r border-blue-100/80 dark:border-blue-900/50" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.1),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(14,165,233,0.08),transparent_60%)]" />
         
         <div className="relative p-6 h-full flex flex-col">
           {/* Logo Section */}

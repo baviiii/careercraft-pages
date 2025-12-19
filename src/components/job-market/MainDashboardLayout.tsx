@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { gsap } from "gsap";
 import {
   FileText,
@@ -22,6 +23,13 @@ import {
   BarChart3,
   Layout,
   Zap,
+  ChevronRight,
+  Star,
+  Target,
+  Award,
+  Flame,
+  Settings,
+  Crown,
 } from "lucide-react";
 
 interface MainDashboardLayoutProps {
@@ -112,63 +120,63 @@ export default function MainDashboardLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-violet-50/30 to-indigo-50/50 dark:from-slate-950 dark:via-violet-950/20 dark:to-indigo-950/30 relative overflow-hidden">
-      {/* Beautiful Animated Background - Purple/Indigo Theme */}
+    <div className="min-h-screen bg-[#0a0f1a] relative overflow-hidden">
+      {/* Premium Animated Background - Deep Navy with Vibrant Accents */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Strong Base Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-100/60 via-transparent to-indigo-100/50 dark:from-violet-900/20 dark:to-indigo-900/15" />
+        {/* Deep Navy Base */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0f1a] via-[#0d1526] to-[#0f172a]" />
+        
+        {/* Ambient Gradient Mesh */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.12),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(20,184,166,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.05),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(251,146,60,0.04),transparent_40%)]" />
 
-        {/* Main Gradient Mesh */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(139,92,246,0.2),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(99,102,241,0.15),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.1),transparent_70%)]" />
+        {/* Large Morphing Gradient Orbs */}
+        <div
+          className="absolute -top-40 right-[10%] w-[800px] h-[800px] rounded-full opacity-60"
+          style={{ 
+            background: "radial-gradient(circle, rgba(59,130,246,0.15) 0%, rgba(139,92,246,0.08) 50%, transparent 70%)",
+            animation: "morph 15s ease-in-out infinite, float-slow 12s ease-in-out infinite" 
+          }}
+        />
+        <div
+          className="absolute top-[40%] -left-40 w-[700px] h-[700px] rounded-full opacity-50"
+          style={{ 
+            background: "radial-gradient(circle, rgba(20,184,166,0.12) 0%, rgba(59,130,246,0.06) 50%, transparent 70%)",
+            animation: "morph 18s ease-in-out infinite reverse, float-slower 15s ease-in-out infinite" 
+          }}
+        />
+        <div
+          className="absolute bottom-[-20%] right-[20%] w-[600px] h-[600px] rounded-full opacity-40"
+          style={{ 
+            background: "radial-gradient(circle, rgba(251,146,60,0.1) 0%, rgba(236,72,153,0.05) 50%, transparent 70%)",
+            animation: "morph 20s ease-in-out infinite, glow-pulse 8s ease-in-out infinite" 
+          }}
+        />
 
-        {/* Animated Floating Orbs */}
-        <div
-          className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-gradient-to-br from-violet-400/30 to-indigo-500/20 rounded-full blur-3xl animate-pulse"
-          style={{ animationDuration: "4s" }}
-        />
-        <div
-          className="absolute top-[40%] -left-20 w-[400px] h-[400px] bg-gradient-to-br from-indigo-400/25 to-purple-500/15 rounded-full blur-3xl animate-pulse"
-          style={{ animationDuration: "5s", animationDelay: "1s" }}
-        />
-        <div
-          className="absolute bottom-20 right-[30%] w-[350px] h-[350px] bg-gradient-to-br from-purple-400/20 to-violet-500/15 rounded-full blur-3xl animate-pulse"
-          style={{ animationDuration: "6s", animationDelay: "2s" }}
-        />
-        <div
-          className="absolute top-[60%] right-[10%] w-[300px] h-[300px] bg-gradient-to-br from-violet-400/15 to-indigo-500/10 rounded-full blur-3xl animate-pulse"
-          style={{ animationDuration: "7s", animationDelay: "0.5s" }}
-        />
-
-        {/* Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.05)_1px,transparent_1px)] bg-[size:50px_50px]" />
+        {/* Geometric Grid Overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:80px_80px]" />
+        
+        {/* Diagonal Light Streaks */}
+        <div className="absolute top-0 left-[15%] w-[2px] h-full bg-gradient-to-b from-transparent via-blue-500/20 to-transparent transform -skew-x-12" />
+        <div className="absolute top-0 right-[25%] w-[1px] h-full bg-gradient-to-b from-transparent via-teal-400/15 to-transparent transform skew-x-12" />
+        <div className="absolute top-0 left-[45%] w-[1px] h-full bg-gradient-to-b from-transparent via-purple-500/10 to-transparent" />
 
         {/* Floating Particles */}
-        <div
-          className="absolute top-[15%] left-[10%] w-3 h-3 bg-violet-500/50 rounded-full animate-bounce shadow-lg shadow-violet-500/50"
-          style={{ animationDuration: "3s" }}
-        />
-        <div
-          className="absolute top-[25%] right-[15%] w-4 h-4 bg-indigo-500/40 rounded-full animate-bounce shadow-lg shadow-indigo-500/50"
-          style={{ animationDuration: "4s", animationDelay: "1s" }}
-        />
-        <div
-          className="absolute top-[45%] left-[25%] w-3 h-3 bg-purple-500/45 rounded-full animate-bounce shadow-lg shadow-purple-500/50"
-          style={{ animationDuration: "3.5s", animationDelay: "0.5s" }}
-        />
-        <div
-          className="absolute top-[65%] right-[25%] w-3.5 h-3.5 bg-violet-500/40 rounded-full animate-bounce shadow-lg shadow-violet-500/50"
-          style={{ animationDuration: "4.5s", animationDelay: "1.5s" }}
-        />
+        <div className="absolute top-[15%] left-[5%] w-2 h-2 bg-blue-400/50 rounded-full" style={{ animation: "particle-float 10s ease-in-out infinite" }} />
+        <div className="absolute top-[25%] right-[8%] w-3 h-3 bg-teal-400/40 rounded-full" style={{ animation: "particle-float 12s ease-in-out infinite 2s" }} />
+        <div className="absolute top-[55%] left-[12%] w-2 h-2 bg-purple-400/45 rounded-full" style={{ animation: "particle-float 11s ease-in-out infinite 1s" }} />
+        <div className="absolute top-[70%] right-[15%] w-2.5 h-2.5 bg-orange-400/35 rounded-full" style={{ animation: "particle-float 13s ease-in-out infinite 3s" }} />
+        <div className="absolute top-[40%] left-[30%] w-1.5 h-1.5 bg-blue-300/40 rounded-full" style={{ animation: "particle-float 9s ease-in-out infinite 0.5s" }} />
+        <div className="absolute top-[85%] left-[40%] w-2 h-2 bg-teal-300/30 rounded-full" style={{ animation: "particle-float 14s ease-in-out infinite 4s" }} />
 
-        {/* Gradient Lines */}
-        <div className="absolute top-0 left-[20%] w-px h-full bg-gradient-to-b from-transparent via-violet-400/20 to-transparent" />
-        <div className="absolute top-0 right-[30%] w-px h-full bg-gradient-to-b from-transparent via-indigo-400/20 to-transparent" />
-
-        {/* Corner Accents */}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl from-violet-400/15 via-indigo-400/10 to-transparent" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-indigo-400/15 via-purple-400/10 to-transparent" />
+        {/* Corner Accent Glows */}
+        <div className="absolute top-0 right-0 w-[600px] h-[400px] bg-gradient-to-bl from-blue-600/10 via-purple-600/5 to-transparent" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[300px] bg-gradient-to-tr from-teal-600/10 via-blue-600/5 to-transparent" />
+        
+        {/* Noise Texture Overlay */}
+        <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")" }} />
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -179,126 +187,157 @@ export default function MainDashboardLayout({
         />
       )}
 
-      {/* Premium Sidebar with GSAP Animations */}
+      {/* Premium Glassmorphism Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-80 z-50 transform transition-all duration-300 ease-out lg:translate-x-0 ${
+        className={`fixed top-0 left-0 h-full w-[300px] z-50 transform transition-all duration-500 ease-out lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Sidebar Background with Purple Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white via-violet-50/80 to-indigo-100/70 dark:from-slate-900 dark:via-violet-950/50 dark:to-indigo-950/40 backdrop-blur-xl border-r border-violet-200/50 dark:border-violet-800/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(139,92,246,0.15),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(99,102,241,0.1),transparent_60%)]" />
+        {/* Glass Background */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-900/95 backdrop-blur-2xl" />
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-teal-500/5" />
+        <div className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-blue-500/30 to-transparent" />
+        
+        {/* Animated Glow Effect */}
+        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-blue-500/10 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-teal-500/10 to-transparent" />
 
         <div className="relative p-6 h-full flex flex-col">
-          {/* Logo Section */}
+          {/* Logo Section with Glow */}
           <div className="flex items-center justify-between mb-8">
             <button
               onClick={() => navigate("/")}
               className="flex items-center gap-3 group"
             >
               <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25 group-hover:shadow-violet-500/40 transition-all duration-300 group-hover:scale-105">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-teal-400 rounded-2xl blur-lg opacity-50 group-hover:opacity-80 transition-opacity" />
+                <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center shadow-lg group-hover:scale-110 transition-all duration-300">
                   <FileText className="w-6 h-6 text-white" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-gradient-to-br from-violet-400 to-indigo-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
-                  <Sparkles className="w-2 h-2 text-white" />
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full border-2 border-slate-900 flex items-center justify-center animate-bounce-subtle">
+                  <Crown className="w-2.5 h-2.5 text-white" />
                 </div>
               </div>
               <div>
-                <span className="text-xl font-bold bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
+                <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-teal-400 to-blue-400">
                   CareerCraft
                 </span>
-                <p className="text-xs text-muted-foreground">AI Resume Builder</p>
+                <p className="text-xs text-slate-400">AI Career Platform</p>
               </div>
             </button>
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
+              className="lg:hidden text-slate-400 hover:text-white hover:bg-white/10"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="w-5 h-5" />
             </Button>
           </div>
 
-          {/* Quick Stats */}
+          {/* Stats Cards with 3D Effect */}
           <div className="grid grid-cols-2 gap-3 mb-6">
             {quickStats.map((stat, index) => (
               <div
                 key={stat.label}
-                ref={(el) => {
-                  if (el) statsRef.current[index] = el;
-                }}
-                className="p-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border border-violet-200/30 dark:border-violet-700/30"
+                ref={(el) => { if (el) statsRef.current[index] = el; }}
+                className="group relative p-4 rounded-2xl bg-gradient-to-br from-slate-800/80 to-slate-800/40 border border-slate-700/50 hover:border-blue-500/30 transition-all duration-300 cursor-pointer card-3d"
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <stat.icon className="w-4 h-4 text-violet-500" />
-                  <span className="text-xs text-muted-foreground">{stat.label}</span>
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/10 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500/20 to-teal-500/20 flex items-center justify-center">
+                      <stat.icon className="w-4 h-4 text-blue-400" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold text-white mb-0.5">{stat.value}</p>
+                  <span className="text-xs text-slate-400">{stat.label}</span>
                 </div>
-                <p className="text-xl font-bold text-violet-600 dark:text-violet-400">{stat.value}</p>
               </div>
             ))}
           </div>
 
-          {/* Navigation with Stagger Animation */}
-          <nav className="space-y-1 flex-1 overflow-y-auto">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3">
-              Navigation
+          {/* Premium Navigation */}
+          <nav className="space-y-1 flex-1 overflow-y-auto pr-2 -mr-2">
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.2em] mb-4 px-3">
+              Main Menu
             </p>
             {sidebarLinks.map((link, index) => (
               <button
                 key={link.path}
-                ref={(el) => {
-                  if (el) navItemsRef.current[index] = el;
-                }}
-                onClick={() => {
-                  navigate(link.path);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:translate-x-1 transition-all duration-200 ${
+                ref={(el) => { if (el) navItemsRef.current[index] = el; }}
+                onClick={() => { navigate(link.path); setSidebarOpen(false); }}
+                className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
                   link.active
-                    ? "bg-gradient-to-r from-violet-500/10 to-indigo-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20"
+                    ? "bg-gradient-to-r from-blue-500/20 via-blue-500/10 to-transparent text-white border-l-2 border-blue-400"
                     : link.highlight
-                    ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                    : "text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800/50"
+                    ? "text-teal-400 hover:bg-teal-500/10 hover:text-teal-300"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <link.icon className="w-5 h-5" />
-                <span className={link.active ? "font-medium" : ""}>{link.label}</span>
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                  link.active 
+                    ? "bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25" 
+                    : link.highlight
+                    ? "bg-teal-500/20 group-hover:bg-teal-500/30"
+                    : "bg-slate-800/80 group-hover:bg-slate-700/80"
+                }`}>
+                  <link.icon className={`w-4 h-4 ${link.active ? "text-white" : ""}`} />
+                </div>
+                <span className={`flex-1 text-left text-sm ${link.active ? "font-semibold" : "font-medium"}`}>
+                  {link.label}
+                </span>
                 {link.active && (
-                  <Badge className="ml-auto bg-violet-500 text-white text-[10px] px-1.5">
-                    Active
-                  </Badge>
+                  <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
                 )}
                 {link.highlight && (
-                  <Badge className="ml-auto bg-emerald-500 text-white text-[10px] px-1.5">
-                    Free
+                  <Badge className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-[9px] px-2 border-0">
+                    FREE
                   </Badge>
                 )}
+                <ChevronRight className={`w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 ${link.active ? "opacity-100 translate-x-0" : ""}`} />
               </button>
             ))}
           </nav>
 
-          {/* User Card with Animation */}
+          {/* Settings Link */}
+          <button
+            onClick={() => navigate("/settings")}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all duration-300 mb-4"
+          >
+            <div className="w-9 h-9 rounded-xl bg-slate-800/80 flex items-center justify-center">
+              <Settings className="w-4 h-4" />
+            </div>
+            <span className="text-sm font-medium">Settings</span>
+          </button>
+
+          {/* Premium User Card */}
           <Card
             ref={cardRef}
-            className="p-4 bg-gradient-to-br from-violet-500 to-indigo-600 border-0 text-white hover:scale-[1.02] transition-transform cursor-pointer"
+            className="relative overflow-hidden p-4 bg-gradient-to-br from-slate-800/90 to-slate-800/50 border border-slate-700/50 hover:border-blue-500/30 transition-all duration-300 cursor-pointer group"
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold">
-                {userName.charAt(0).toUpperCase()}
+            {/* Animated Background */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+            
+            <div className="relative flex items-center gap-3 mb-3">
+              <div className="relative">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                  {userName.charAt(0).toUpperCase()}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-slate-800" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate">{userName}</p>
-                <p className="text-xs text-white/70 truncate">{userEmail}</p>
+                <p className="font-semibold text-white truncate">{userName}</p>
+                <p className="text-xs text-slate-400 truncate">{userEmail}</p>
               </div>
             </div>
+            
             {onSignOut && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-start text-white/80 hover:text-white hover:bg-white/10"
+                className="w-full justify-center text-slate-400 hover:text-white hover:bg-white/10 border border-slate-700/50 hover:border-red-500/30 transition-all"
                 onClick={onSignOut}
               >
                 <LogOut className="w-4 h-4 mr-2" />
@@ -309,55 +348,127 @@ export default function MainDashboardLayout({
         </div>
       </aside>
 
-      {/* Main Content */}
-      <div className="lg:pl-80 relative">
-        {/* Premium Header */}
-        <header className="sticky top-0 z-30 bg-gradient-to-r from-white/95 via-violet-50/90 to-indigo-50/85 dark:from-slate-900/95 dark:via-violet-950/80 dark:to-indigo-950/75 backdrop-blur-xl border-b border-violet-200/50 dark:border-violet-800/50">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(139,92,246,0.1),transparent_70%)]" />
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-violet-100/20 to-indigo-100/30 dark:via-violet-900/10 dark:to-indigo-900/20" />
-          <div className="relative flex items-center justify-between px-4 md:px-8 py-4">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <Menu className="w-5 h-5" />
-              </Button>
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                  <span className="text-2xl">✨</span>
-                  Dashboard
-                </h1>
-                <p className="text-sm text-muted-foreground hidden sm:block">
-                  Welcome back, {userName}!
-                </p>
+      {/* Main Content Area */}
+      <div className="lg:pl-[300px] relative min-h-screen">
+        {/* Premium Floating Header */}
+        <header className="sticky top-0 z-30 mx-4 mt-4 lg:mx-6">
+          <div className="relative rounded-2xl overflow-hidden">
+            {/* Glass Background */}
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-2xl" />
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-transparent to-teal-500/5" />
+            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+            
+            <div className="relative flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="lg:hidden text-slate-400 hover:text-white hover:bg-white/10"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
+                
+                {/* Welcome Section */}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl md:text-2xl font-bold text-white">
+                      Welcome back
+                    </h1>
+                    <span className="text-2xl animate-wave inline-block origin-bottom-right">👋</span>
+                  </div>
+                  <p className="text-sm text-slate-400">
+                    Ready to advance your career, <span className="text-blue-400 font-medium">{userName}</span>?
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate("/builder")}
-                className="border-violet-200 hover:bg-violet-50"
-              >
-                <Zap className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">New Resume</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => navigate("/my-resumes")}
-                className="bg-gradient-to-r from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">Upload</span>
-              </Button>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3">
+                {/* Notification Bell */}
+                <button className="relative p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-400 hover:text-white transition-all duration-300 group">
+                  <Bell className="w-5 h-5" />
+                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full border-2 border-slate-900 animate-pulse" />
+                </button>
+                
+                {/* Quick Actions */}
+                <Button
+                  onClick={() => navigate("/builder")}
+                  className="hidden sm:flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border-0 transition-all duration-300"
+                >
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                  New Resume
+                </Button>
+                
+                <Button
+                  onClick={() => navigate("/my-resumes")}
+                  className="relative overflow-hidden bg-gradient-to-r from-blue-500 to-teal-400 hover:from-blue-600 hover:to-teal-500 text-white border-0 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 btn-premium"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Upload</span>
+                </Button>
+              </div>
             </div>
           </div>
         </header>
 
-        <main ref={mainContentRef} className="p-4 md:p-8 relative">
+        {/* Main Content with Fade-in Animation */}
+        <main ref={mainContentRef} className="p-4 md:p-6 lg:p-8 relative">
+          {/* Quick Stats Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: "Applications", value: "24", change: "+12%", icon: Briefcase, color: "blue" },
+              { label: "Interviews", value: "8", change: "+25%", icon: Target, color: "teal" },
+              { label: "Profile Views", value: "156", change: "+8%", icon: TrendingUp, color: "purple" },
+              { label: "Score", value: "92", change: "+5", icon: Award, color: "orange" },
+            ].map((stat, idx) => (
+              <div
+                key={stat.label}
+                className="group relative p-5 rounded-2xl bg-slate-900/50 border border-slate-800/50 hover:border-slate-700/50 transition-all duration-300 cursor-pointer card-elevated overflow-hidden"
+              >
+                {/* Gradient Accent */}
+                <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${
+                  stat.color === "blue" ? "from-blue-500 to-blue-400" :
+                  stat.color === "teal" ? "from-teal-500 to-teal-400" :
+                  stat.color === "purple" ? "from-purple-500 to-purple-400" :
+                  "from-orange-500 to-orange-400"
+                }`} />
+                
+                {/* Hover Glow */}
+                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                  stat.color === "blue" ? "bg-blue-500/5" :
+                  stat.color === "teal" ? "bg-teal-500/5" :
+                  stat.color === "purple" ? "bg-purple-500/5" :
+                  "bg-orange-500/5"
+                }`} />
+                
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      stat.color === "blue" ? "bg-blue-500/20" :
+                      stat.color === "teal" ? "bg-teal-500/20" :
+                      stat.color === "purple" ? "bg-purple-500/20" :
+                      "bg-orange-500/20"
+                    }`}>
+                      <stat.icon className={`w-5 h-5 ${
+                        stat.color === "blue" ? "text-blue-400" :
+                        stat.color === "teal" ? "text-teal-400" :
+                        stat.color === "purple" ? "text-purple-400" :
+                        "text-orange-400"
+                      }`} />
+                    </div>
+                    <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
+                      {stat.change}
+                    </span>
+                  </div>
+                  <p className="text-3xl font-bold text-white mb-1">{stat.value}</p>
+                  <p className="text-sm text-slate-400">{stat.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Children Content */}
           {children}
         </main>
       </div>

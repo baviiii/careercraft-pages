@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { usePersonalization } from "@/hooks/usePersonalization";
 import { gsap } from "gsap";
 import InterviewDashboard from "@/components/interview/InterviewDashboard";
 import {
@@ -60,6 +62,9 @@ import {
   PauseCircle,
   PlayCircle,
   Volume2,
+  Wand2,
+  UserCheck,
+  Settings,
 } from "lucide-react";
 
 const FIELDS = [
@@ -154,6 +159,17 @@ export default function InterviewPrep() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Personalization
+  const {
+    profile: userProfile,
+    loading: profileLoading,
+    hasPersonalizationData,
+    getInterviewDefaults,
+    getPersonalizationSummary,
+  } = usePersonalization();
+  
+  const [usePersonalizedSettings, setUsePersonalizedSettings] = useState(true);
 
   // GSAP refs
   const navItemsRef = useRef<HTMLButtonElement[]>([]);
@@ -170,6 +186,60 @@ export default function InterviewPrep() {
   const [seniority, setSeniority] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // Apply personalized defaults when profile loads
+  useEffect(() => {
+    if (hasPersonalizationData && !profileLoading && usePersonalizedSettings && !field) {
+      const defaults = getInterviewDefaults();
+      if (defaults.field) {
+        // Map industry to field
+        const fieldMap: Record<string, string> = {
+          'technology': 'Software Engineering',
+          'software': 'Software Engineering',
+          'devops': 'DevOps / SRE',
+          'cloud': 'Cloud / AWS',
+          'data': 'Data Science',
+          'product': 'Product Management',
+          'design': 'UX/UI Design',
+          'sales': 'Sales',
+          'marketing': 'Marketing',
+          'finance': 'Finance',
+          'healthcare': 'Healthcare / Nursing',
+          'hr': 'Human Resources',
+          'legal': 'Legal',
+        };
+        const mappedField = Object.entries(fieldMap).find(([key]) => 
+          defaults.field.toLowerCase().includes(key)
+        )?.[1] || defaults.field;
+        
+        if (FIELDS.includes(mappedField)) {
+          setField(mappedField);
+        }
+      }
+      
+      // Map career level to seniority
+      if (userProfile.careerLevel) {
+        const seniorityMap: Record<string, string> = {
+          'entry': 'Junior',
+          'junior': 'Junior',
+          'mid': 'Mid-Level',
+          'senior': 'Senior',
+          'lead': 'Lead',
+          'manager': 'Manager',
+          'director': 'Director',
+          'vp': 'VP',
+          'executive': 'C-Level',
+        };
+        const mappedSeniority = Object.entries(seniorityMap).find(([key]) => 
+          userProfile.careerLevel?.toLowerCase().includes(key)
+        )?.[1];
+        
+        if (mappedSeniority && SENIORITY.includes(mappedSeniority)) {
+          setSeniority(mappedSeniority);
+        }
+      }
+    }
+  }, [hasPersonalizationData, profileLoading, usePersonalizedSettings]);
   
   // Interview state
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -527,7 +597,16 @@ export default function InterviewPrep() {
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 dark:from-slate-950 dark:via-blue-950/20 dark:to-slate-900 relative overflow-hidden">
+      {/* Beautiful Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60 dark:from-blue-950/30 dark:via-slate-900/50 dark:to-slate-950" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.12),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.08),transparent_50%)]" />
+        <div className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-gradient-to-br from-blue-400/15 to-sky-300/10 rounded-full blur-[100px]" style={{ animation: "float-slow 10s ease-in-out infinite" }} />
+        <div className="absolute bottom-20 left-[10%] w-[400px] h-[400px] bg-gradient-to-br from-sky-400/10 to-blue-300/10 rounded-full blur-[80px]" style={{ animation: "float-slower 12s ease-in-out infinite" }} />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.02)_1px,transparent_1px)] bg-[size:60px_60px]" />
+      </div>
       {/* Onboarding Modal */}
       <AnimatePresence>
         {showOnboarding && (
@@ -602,10 +681,12 @@ export default function InterviewPrep() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-72 bg-card border-r border-border z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 h-full flex flex-col">
+      <aside className={`fixed top-0 left-0 h-full w-72 z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/60 to-sky-50/50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 backdrop-blur-xl border-r border-blue-100/80 dark:border-blue-900/50" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.08),transparent_60%)]" />
+        <div className="relative p-6 h-full flex flex-col">
           <button onClick={() => navigate("/dashboard")} className="flex items-center gap-2 mb-8 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg shadow-blue-500/25">
               <Brain className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold">Interview Prep</span>
@@ -693,8 +774,8 @@ export default function InterviewPrep() {
       </aside>
 
       {/* Main Content */}
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border">
+      <div className="lg:pl-72 relative z-10">
+        <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-blue-100/50 dark:border-blue-900/30">
           <div className="flex items-center justify-between px-4 md:px-8 py-4">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
@@ -771,6 +852,73 @@ export default function InterviewPrep() {
                   ))}
                 </div>
               </Card>
+
+              {/* Personalization Banner */}
+              {hasPersonalizationData && !profileLoading && (
+                <Card className="p-4 bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-transparent border-purple-500/20">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                        <Wand2 className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm flex items-center gap-2">
+                          <UserCheck className="w-4 h-4 text-purple-600" />
+                          Personalized settings applied
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {userProfile.industry && `Industry: ${userProfile.industry}`}
+                          {userProfile.careerLevel && ` • Level: ${userProfile.careerLevel}`}
+                          {userProfile.skills.length > 0 && ` • ${userProfile.skills.length} skills`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">Use profile</span>
+                      <Switch 
+                        checked={usePersonalizedSettings} 
+                        onCheckedChange={setUsePersonalizedSettings}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => navigate('/settings')}
+                        className="text-xs"
+                      >
+                        <Settings className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Profile Setup Prompt */}
+              {!hasPersonalizationData && !profileLoading && (
+                <Card className="p-4 bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-transparent border-blue-500/20">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                        <Star className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">Get personalized interview prep</p>
+                        <p className="text-xs text-muted-foreground">
+                          Set your industry and skills to auto-configure practice sessions
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => navigate('/settings')}
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600"
+                    >
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      Setup Profile
+                    </Button>
+                  </div>
+                </Card>
+              )}
 
               {/* Main Setup Card */}
               <Card className="p-6">

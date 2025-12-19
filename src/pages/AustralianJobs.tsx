@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/useSecurity";
+import { usePersonalization } from "@/hooks/usePersonalization";
 import { sanitize } from "@/lib/security/sanitizers";
 import { auditLog } from "@/lib/security/auditLog";
 import { RATE_LIMITS } from "@/lib/security/rateLimiter";
@@ -43,10 +45,11 @@ import {
   Sparkles,
   AlertTriangle,
   Plane,
-  BarChart3,
+  Star,
   Target,
-  Heart,
   X,
+  Heart,
+  BarChart3,
 } from "lucide-react";
 
 // Australian cities for filtering
@@ -163,6 +166,19 @@ export default function AustralianJobs() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("jobs");
   
+  // Personalization hook
+  const { 
+    profile: userProfile, 
+    loading: profileLoading,
+    hasPersonalizationData,
+    getPersonalizedJobQuery,
+    getPersonalizedJobFilters,
+    isJobRecommended,
+    getPersonalizationSummary,
+  } = usePersonalization();
+  
+  const [showPersonalized, setShowPersonalized] = useState(true);
+  
   // Security - Rate limiting for API calls
   const { checkLimit: checkSearchLimit, isLimited: isSearchLimited } = useRateLimit({
     key: 'au-jobs-search',
@@ -199,6 +215,22 @@ export default function AustralianJobs() {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [savingPreferences, setSavingPreferences] = useState(false);
 
+  // Apply personalized filters when profile loads
+  useEffect(() => {
+    if (hasPersonalizationData && !profileLoading) {
+      const filters = getPersonalizedJobFilters();
+      if (filters.location && filters.location !== 'australia') {
+        setSelectedCity(filters.location);
+      }
+      if (filters.industry) {
+        setSelectedIndustry(filters.industry);
+      }
+      if (filters.experienceLevel && filters.experienceLevel !== 'all') {
+        setSelectedLevel(filters.experienceLevel);
+      }
+    }
+  }, [hasPersonalizationData, profileLoading]);
+
   useEffect(() => {
     let mounted = true;
     
@@ -213,13 +245,17 @@ export default function AustralianJobs() {
         loadUserPreferences(session.user.id);
         loadSavedJobs(session.user.id);
         
+        // Wait for profile to load for personalized search
+        // Use personalized query if available, otherwise default
+        const searchTerm = hasPersonalizationData ? getPersonalizedJobQuery() : "developer";
+        
         // Fetch jobs directly here to avoid stale closure
         setLoading(true);
         try {
           const { data, error } = await supabase.functions.invoke("job-news", {
             body: {
               action: "fetch_au_jobs",
-              query: "developer",
+              query: searchTerm,
               location: "australia",
               page: 1,
             },
@@ -250,7 +286,7 @@ export default function AustralianJobs() {
     
     init();
     return () => { mounted = false; };
-  }, [navigate, toast]);
+  }, [navigate, toast, hasPersonalizationData]);
 
   const loadUserPreferences = async (userId: string) => {
     const saved = localStorage.getItem(`jobPreferences_${userId}`);
@@ -451,6 +487,43 @@ export default function AustralianJobs() {
 
   const savedJobsList = jobs.filter(job => savedJobs.includes(job.id));
 
+  // Compute job match scores and sort - matching jobs first, then others
+  const sortedJobs = useMemo(() => {
+    if (!hasPersonalizationData) {
+      return jobs.map(job => ({ ...job, fitsPreferences: false }));
+    }
+    
+    const jobsWithScore = jobs.map(job => {
+      const result = isJobRecommended({
+        title: job.title,
+        company: job.company,
+        salary: job.salary,
+        salaryMin: job.salaryMin,
+        salaryMax: job.salaryMax,
+        location: job.location,
+        type: job.type,
+        skills: job.skills,
+        isRemote: job.isRemote,
+      });
+      
+      return {
+        ...job,
+        fitsPreferences: result.isRecommended && result.score >= 20,
+        matchScore: result.score,
+      };
+    });
+    
+    // Sort: matching jobs first (by score), then others
+    return jobsWithScore.sort((a, b) => {
+      if (a.fitsPreferences && !b.fitsPreferences) return -1;
+      if (!a.fitsPreferences && b.fitsPreferences) return 1;
+      if (a.fitsPreferences && b.fitsPreferences) return b.matchScore - a.matchScore;
+      return 0;
+    });
+  }, [jobs, hasPersonalizationData, isJobRecommended]);
+  
+  const matchingJobsCount = sortedJobs.filter(j => j.fitsPreferences).length;
+
   return (
     <JobsDashboardLayout
       activeTab={activeTab}
@@ -606,6 +679,40 @@ export default function AustralianJobs() {
                 </div>
               )}
 
+              {/* Personalization Info */}
+              {hasPersonalizationData && !loading && matchingJobsCount > 0 && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Star className="w-4 h-4 text-emerald-500" />
+                  <span><strong className="text-foreground">{matchingJobsCount}</strong> jobs fit your preferences</span>
+                  <span className="text-xs">•</span>
+                  <button 
+                    onClick={() => navigate('/settings')}
+                    className="text-primary hover:underline text-xs"
+                  >
+                    Edit profile
+                  </button>
+                </div>
+              )}
+
+              {/* Profile Setup Prompt */}
+              {!hasPersonalizationData && !profileLoading && !loading && (
+                <Card className="p-3 bg-muted/50 border-dashed">
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-sm text-muted-foreground">
+                      <Star className="w-4 h-4 inline mr-1 text-amber-500" />
+                      Complete your profile to see which jobs fit your preferences
+                    </p>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => navigate('/settings')}
+                    >
+                      Setup Profile
+                    </Button>
+                  </div>
+                </Card>
+              )}
+
               {/* Job Listings */}
               {loading ? (
                 <div className="space-y-4">
@@ -628,7 +735,7 @@ export default function AustralianJobs() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {jobs.map((job) => (
+                  {sortedJobs.map((job) => (
                     <JobCard 
                       key={job.id} 
                       job={job} 
@@ -637,6 +744,7 @@ export default function AustralianJobs() {
                       formatSalary={formatSalary}
                       getTimeAgo={getTimeAgo}
                       getSourceColor={getSourceColor}
+                      fitsPreferences={job.fitsPreferences}
                     />
                   ))}
 
@@ -986,7 +1094,8 @@ function JobCard({
   onToggleSave, 
   formatSalary, 
   getTimeAgo, 
-  getSourceColor 
+  getSourceColor,
+  fitsPreferences = false,
 }: { 
   job: Job; 
   isSaved: boolean; 
@@ -994,6 +1103,7 @@ function JobCard({
   formatSalary: (job: Job) => string | null;
   getTimeAgo: (date: string) => string;
   getSourceColor: (source: string) => string;
+  fitsPreferences?: boolean;
 }) {
   return (
     <Card className="p-5 md:p-6 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 group border-transparent hover:border-primary/20">
@@ -1033,6 +1143,12 @@ function JobCard({
 
           {/* Tags */}
           <div className="flex flex-wrap gap-2 mb-3">
+            {fitsPreferences && (
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex items-center gap-1">
+                <Star className="w-3 h-3" />
+                Fits your preferences
+              </Badge>
+            )}
             <Badge variant="outline" className="flex items-center gap-1">
               <MapPin className="w-3 h-3" />
               {job.location}

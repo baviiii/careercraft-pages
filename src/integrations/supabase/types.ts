@@ -277,24 +277,90 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          bio: string | null
+          career_level: string | null
           created_at: string
+          current_company: string | null
+          current_job_title: string | null
+          desired_salary_currency: string
+          desired_salary_max: number | null
+          desired_salary_min: number | null
+          employment_status: string
           full_name: string | null
+          headline: string | null
           id: string
+          industry: string | null
+          job_change_timeline: string | null
+          location_city: string | null
+          location_country: string | null
+          onboarding_completed: boolean
+          phone: string | null
+          preferred_locations: string[] | null
+          profile_completed_at: string | null
+          target_companies: string[] | null
+          target_job_titles: string[] | null
+          timezone: string
           updated_at: string
+          work_arrangement: string[] | null
+          years_of_experience: string | null
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
+          career_level?: string | null
           created_at?: string
+          current_company?: string | null
+          current_job_title?: string | null
+          desired_salary_currency?: string
+          desired_salary_max?: number | null
+          desired_salary_min?: number | null
+          employment_status?: string
           full_name?: string | null
+          headline?: string | null
           id: string
+          industry?: string | null
+          job_change_timeline?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          onboarding_completed?: boolean
+          phone?: string | null
+          preferred_locations?: string[] | null
+          profile_completed_at?: string | null
+          target_companies?: string[] | null
+          target_job_titles?: string[] | null
+          timezone?: string
           updated_at?: string
+          work_arrangement?: string[] | null
+          years_of_experience?: string | null
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
+          career_level?: string | null
           created_at?: string
+          current_company?: string | null
+          current_job_title?: string | null
+          desired_salary_currency?: string
+          desired_salary_max?: number | null
+          desired_salary_min?: number | null
+          employment_status?: string
           full_name?: string | null
+          headline?: string | null
           id?: string
+          industry?: string | null
+          job_change_timeline?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          onboarding_completed?: boolean
+          phone?: string | null
+          preferred_locations?: string[] | null
+          profile_completed_at?: string | null
+          target_companies?: string[] | null
+          target_job_titles?: string[] | null
+          timezone?: string
           updated_at?: string
+          work_arrangement?: string[] | null
+          years_of_experience?: string | null
         }
         Relationships: []
       }
@@ -435,17 +501,70 @@ export type Database = {
         }
         Relationships: []
       }
+      user_certifications: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          issuer: string | null
+          issue_date: string | null
+          expiry_date: string | null
+          credential_id: string | null
+          credential_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          issuer?: string | null
+          issue_date?: string | null
+          expiry_date?: string | null
+          credential_id?: string | null
+          credential_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          issuer?: string | null
+          issue_date?: string | null
+          expiry_date?: string | null
+          credential_id?: string | null
+          credential_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_certifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       user_preferences: {
         Row: {
           alert_types: string[] | null
           created_at: string
+          display_settings: Json | null
           email_notifications: boolean | null
           id: string
+          interview_preferences: Json | null
           interview_types: string[] | null
+          job_preferences: Json | null
           job_role_type: string | null
+          news_preferences: Json | null
+          notification_settings: Json | null
           preferred_countries: string[] | null
           preferred_field: string | null
           preferred_industries: string[] | null
+          privacy_settings: Json | null
           push_notifications: boolean | null
           seniority_level: string | null
           summary_frequency: string | null
@@ -455,13 +574,19 @@ export type Database = {
         Insert: {
           alert_types?: string[] | null
           created_at?: string
+          display_settings?: Json | null
           email_notifications?: boolean | null
           id?: string
+          interview_preferences?: Json | null
           interview_types?: string[] | null
+          job_preferences?: Json | null
           job_role_type?: string | null
+          news_preferences?: Json | null
+          notification_settings?: Json | null
           preferred_countries?: string[] | null
           preferred_field?: string | null
           preferred_industries?: string[] | null
+          privacy_settings?: Json | null
           push_notifications?: boolean | null
           seniority_level?: string | null
           summary_frequency?: string | null
@@ -471,13 +596,19 @@ export type Database = {
         Update: {
           alert_types?: string[] | null
           created_at?: string
+          display_settings?: Json | null
           email_notifications?: boolean | null
           id?: string
+          interview_preferences?: Json | null
           interview_types?: string[] | null
+          job_preferences?: Json | null
           job_role_type?: string | null
+          news_preferences?: Json | null
+          notification_settings?: Json | null
           preferred_countries?: string[] | null
           preferred_field?: string | null
           preferred_industries?: string[] | null
+          privacy_settings?: Json | null
           push_notifications?: boolean | null
           seniority_level?: string | null
           summary_frequency?: string | null
@@ -485,6 +616,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_skills: {
+        Row: {
+          id: string
+          user_id: string
+          skill_name: string
+          proficiency: string | null
+          category: string | null
+          years_experience: number | null
+          is_primary: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          skill_name: string
+          proficiency?: string | null
+          category?: string | null
+          years_experience?: number | null
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          skill_name?: string
+          proficiency?: string | null
+          category?: string | null
+          years_experience?: number | null
+          is_primary?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_skills_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       user_roles: {
         Row: {

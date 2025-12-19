@@ -20,6 +20,7 @@ const MyResumes = lazy(() => import("./pages/MyResumes"));
 const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
 const AustralianJobs = lazy(() => import("./pages/AustralianJobs"));
 const JobMarketNews = lazy(() => import("./pages/JobMarketNews"));
+const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
@@ -74,6 +75,7 @@ const App = () => (
             <Route path="/job-news" element={<AustralianJobs />} />
             <Route path="/au-jobs" element={<AustralianJobs />} />
             <Route path="/job-market-news" element={<JobMarketNews />} />
+            <Route path="/settings" element={<Settings />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>

@@ -3,9 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/useSecurity";
+import { usePersonalization } from "@/hooks/usePersonalization";
 import { sanitize } from "@/lib/security/sanitizers";
 import { auditLog } from "@/lib/security/auditLog";
 import { RATE_LIMITS } from "@/lib/security/rateLimiter";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -13,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Filter } from "lucide-react";
+import { Filter, Wand2, UserCheck, Star, Settings } from "lucide-react";
 
 // Import modular tab components
 import {
@@ -35,6 +40,17 @@ export default function JobMarketNews() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("news");
+  
+  // Personalization
+  const {
+    profile: userProfile,
+    loading: profileLoading,
+    hasPersonalizationData,
+    getNewsFilters,
+    getPersonalizationSummary,
+  } = usePersonalization();
+  
+  const [showPersonalized, setShowPersonalized] = useState(true);
 
   // Security - Rate limiting for API calls
   const { checkLimit: checkNewsLimit } = useRateLimit({
@@ -73,6 +89,16 @@ export default function JobMarketNews() {
   // Filters
   const [selectedIndustry, setSelectedIndustry] = useState("All");
   const [selectedLevel, setSelectedLevel] = useState("All");
+  
+  // Apply personalized filters when profile loads
+  useEffect(() => {
+    if (hasPersonalizationData && !profileLoading && showPersonalized) {
+      const newsFilters = getNewsFilters();
+      if (newsFilters.industries.length > 0) {
+        setSelectedIndustry(newsFilters.industries[0]);
+      }
+    }
+  }, [hasPersonalizationData, profileLoading, showPersonalized]);
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -297,6 +323,71 @@ export default function JobMarketNews() {
       onRefresh={handleRefresh}
       isLoading={loadingNews || loadingTrends}
     >
+      {/* Personalization Banner */}
+      {hasPersonalizationData && !profileLoading && (
+        <Card className="p-4 mb-6 bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-transparent border-blue-500/20">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <Wand2 className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-sm flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-blue-600" />
+                  Personalized news feed
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {userProfile.industry ? `Showing ${userProfile.industry} news` : 'Based on your profile preferences'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">Personalize</span>
+              <Switch 
+                checked={showPersonalized} 
+                onCheckedChange={setShowPersonalized}
+              />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/settings')}
+                className="text-xs"
+              >
+                <Settings className="w-3 h-3 mr-1" />
+                Preferences
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Profile Setup Prompt */}
+      {!hasPersonalizationData && !profileLoading && (
+        <Card className="p-4 mb-6 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-emerald-500/20">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <Star className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Get personalized market insights</p>
+                <p className="text-xs text-muted-foreground">
+                  Set your industry and preferences to see relevant news and trends
+                </p>
+              </div>
+            </div>
+            <Button 
+              size="sm" 
+              onClick={() => navigate('/settings')}
+              className="bg-gradient-to-r from-emerald-500 to-teal-600"
+            >
+              <UserCheck className="w-4 h-4 mr-2" />
+              Setup Profile
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* Filters for Trends & Insights */}
       {(activeTab === "trends" || activeTab === "insights") && (
         <div className="flex flex-wrap gap-4 mb-6 p-4 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-sm">
