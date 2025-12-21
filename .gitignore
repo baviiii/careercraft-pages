@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Infrastructure
+infrastructure/*.json
+infrastructure/.azure/
+*.bicep.state
+
+# Environment variables (SECURITY: Never commit API keys!)
+.env
+.env.local
+.env.*.local
+*.env

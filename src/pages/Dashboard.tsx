@@ -264,6 +264,14 @@ export default function Dashboard() {
       path: "/job-market-news",
       gradient: "from-blue-500 to-indigo-500",
     },
+    {
+      icon: Brain,
+      title: "🇦🇺 SA Career Hub",
+      description: "AI coach & SA Government career resources",
+      path: "/sa-career-hub",
+      gradient: "from-purple-500 to-pink-500",
+      featured: true,
+    },
   ];
 
   if (loading) {
@@ -278,10 +286,10 @@ export default function Dashboard() {
 
   const sidebarLinks = [
     { icon: Home, label: "Dashboard", path: "/dashboard", active: true },
+    { icon: Brain, label: "🇦🇺 SA Career Hub", path: "/sa-career-hub" },
     { icon: FileText, label: "My Resumes", path: "/my-resumes" },
     { icon: Mail, label: "Cover Letters", path: "/cover-letter" },
     { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
-    { icon: Brain, label: "Interview Prep", path: "/interview-prep" },
     { icon: Briefcase, label: "🇦🇺 AU Jobs", path: "/au-jobs" },
     { icon: Newspaper, label: "📊 Market News", path: "/job-market-news" },
     { icon: Settings, label: "Settings", path: "/settings" },
