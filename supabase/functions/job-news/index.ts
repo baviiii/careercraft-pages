@@ -432,7 +432,7 @@ serve(async (req) => {
         let cacheIsFresh = false;
         if (daySpan > 30) {
           // Historical data doesn't need to be "fresh" - just needs to exist
-          cacheIsFresh = hasSufficientCache;
+          cacheIsFresh = hasSufficientCache ?? false;
         } else {
           // Recent data should be fetched within last 6 hours
           const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
@@ -443,7 +443,7 @@ serve(async (req) => {
             .gte("fetched_at", sixHoursAgo)
             .limit(1);
 
-          cacheIsFresh = recentFetch && recentFetch.length > 0;
+          cacheIsFresh = !!(recentFetch && recentFetch.length > 0);
         }
 
         console.log(`Cache status: ${cachedArticles?.length || 0} articles, sufficient: ${hasSufficientCache}, fresh: ${cacheIsFresh}`);

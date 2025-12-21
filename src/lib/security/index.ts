@@ -13,12 +13,98 @@
  * - Secure API client
  */
 
+// Export from validators (includes ValidationResult interface)
 export * from './validators';
-export * from './sanitizers';
+
+// Export from sanitizers, excluding duplicates that exist in xss.ts
+export { 
+  encodeHTML,
+  decodeHTML,
+  stripHTML,
+  sanitizeHTML,
+  sanitizeForDisplay,
+  escapeSQLString,
+  containsSQLInjection,
+  sanitizeForSQL,
+  removeControlChars,
+  normalizeWhitespace,
+  sanitizeFilename,
+  sanitizeURL,
+  sanitizeEmail,
+  sanitizePhone,
+  sanitize,
+  deepSanitize,
+  type SanitizeOptions
+} from './sanitizers';
+
+// Export from fileUpload
 export * from './fileUpload';
+
+// Export from rateLimiter
 export * from './rateLimiter';
+
+// Export from auditLog
 export * from './auditLog';
-export * from './schemas';
-export * from './xss';
+
+// Export from schemas (rename ValidationResult to avoid conflict)
+export { 
+  safeString,
+  emailSchema,
+  phoneSchema,
+  urlSchema,
+  uuidSchema,
+  userProfileSchema,
+  passwordSchema,
+  loginSchema,
+  signupSchema,
+  contactInfoSchema,
+  experienceSchema,
+  educationSchema,
+  projectSchema,
+  resumeDataSchema,
+  jobSearchSchema,
+  jobApplicationSchema,
+  newsQuerySchema,
+  apiRequestSchema,
+  fileMetadataSchema,
+  feedbackSchema,
+  supportTicketSchema,
+  validateInput,
+  validateOrThrow,
+  type ValidationResult as SchemaValidationResult
+} from './schemas';
+
+// Export from xss (excluding sanitizeURL which exists in sanitizers)
+export {
+  detectXSS,
+  checkAndLogXSS,
+  sanitizeXSS,
+  encodeForHTML,
+  encodeForHTMLAttribute,
+  encodeForJavaScript,
+  encodeForURL,
+  encodeForCSS,
+  createSafeHTML,
+  safeTextContent,
+  safeHTMLContent,
+  isURLSafe,
+  type XSSSanitizeOptions
+} from './xss';
+
+// Export from csrf
 export * from './csrf';
-export * from './secureApi';
+
+// Export from secureApi (excluding sanitizeForDisplay which exists in sanitizers)
+export {
+  secureInvoke,
+  secureFormSubmit,
+  secureFetch,
+  createSecureApiConfig,
+  sanitizeForStorage,
+  secureEmail,
+  secureURL,
+  checkInputSecurity,
+  type SecureApiOptions,
+  type SecureApiResponse,
+  type UseSecureApiState
+} from './secureApi';

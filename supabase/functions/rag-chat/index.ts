@@ -170,7 +170,7 @@ serve(async (req) => {
     console.error('Chat Error:', error)
     return new Response(
       JSON.stringify({
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         response: "I'm having trouble processing your request. Please try again.",
         sources: [],
         suggestedQuestions: [],
