@@ -31,26 +31,26 @@ interface NavItem {
 const primaryNav: NavItem[] = [
   {
     label: "Intelligence Overview",
-    href: "/dashboard",
+    href: "/intelligence",
     icon: <LayoutDashboard className="w-5 h-5" />,
     description: "Live SA Career Pulse & insights",
   },
   {
     label: "Career Explorer",
-    href: "/sa-career-hub",
+    href: "/career-explorer",
     icon: <Compass className="w-5 h-5" />,
     description: "Interactive sector & region analysis",
   },
   {
     label: "Market Trends",
-    href: "/job-news",
+    href: "/market-trends",
     icon: <TrendingUp className="w-5 h-5" />,
     badge: "Live",
     description: "Real-time job & skills trends",
   },
   {
     label: "AI Career Coach",
-    href: "/interview",
+    href: "/sa-career-hub",
     icon: <MessageSquareText className="w-5 h-5" />,
     description: "RAG-powered career guidance",
   },
@@ -59,13 +59,13 @@ const primaryNav: NavItem[] = [
 const secondaryNav: NavItem[] = [
   {
     label: "Resume Intelligence",
-    href: "/resume-builder",
+    href: "/builder",
     icon: <FileText className="w-5 h-5" />,
     description: "ATS analysis & optimization",
   },
   {
     label: "Policy Insights",
-    href: "/australian-jobs",
+    href: "/policy",
     icon: <BarChart3 className="w-5 h-5" />,
     description: "Government investment data",
   },
