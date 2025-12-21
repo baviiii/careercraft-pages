@@ -36,11 +36,17 @@ export interface UserProfile {
 export interface UserSkill {
   id: string;
   user_id: string;
-  skill_name: string;
-  proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  category: 'technical' | 'behavioral' | 'leadership' | 'domain' | 'language';
+  skill_id: string | null;
+  skill_name?: string; // Virtual field for UI display, maps to skill_id
+  proficiency: string | null;
+  proficiency_level: number | null;
+  category: string | null;
   years_experience: number | null;
-  is_primary: boolean;
+  is_primary: boolean | null;
+  last_tested_at: string | null;
+  times_tested: number | null;
+  times_correct: number | null;
+  trend: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -271,7 +277,12 @@ export function useUserProfile() {
         } as UserPreferences);
       }
 
-      setSkills((skillsData as UserSkill[]) || []);
+      // Map skills with skill_name for UI display
+      const mappedSkills = (skillsData || []).map(s => ({
+        ...s,
+        skill_name: s.skill_id || 'Unknown Skill', // Use skill_id as display name for now
+      })) as UserSkill[];
+      setSkills(mappedSkills);
       setCertifications((certsData as UserCertification[]) || []);
 
       // Calculate completeness
@@ -399,11 +410,15 @@ export function useUserProfile() {
 
       if (error) throw error;
 
-      setSkills(prev => [...prev, data as UserSkill]);
+      const mappedData = {
+        ...data,
+        skill_name: (skill as any).skill_name || data.skill_id || 'New Skill',
+      } as UserSkill;
+      setSkills(prev => [...prev, mappedData]);
       
       toast({
         title: 'Skill added',
-        description: `${skill.skill_name} has been added to your profile`,
+        description: `Skill has been added to your profile`,
       });
       
       return data;

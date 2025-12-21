@@ -147,8 +147,9 @@ export default function Settings() {
 
   const [newSkill, setNewSkill] = useState({
     skill_name: "",
-    proficiency: "intermediate" as const,
-    category: "technical" as const,
+    skill_id: null as string | null,
+    proficiency: "intermediate" as string,
+    category: "technical" as string,
     is_primary: false,
   });
 
@@ -258,12 +259,13 @@ export default function Settings() {
     if (!newSkill.skill_name.trim()) return;
     
     await addSkill({
+      skill_id: newSkill.skill_name.trim(), // Use skill_name as skill_id for now
       skill_name: newSkill.skill_name.trim(),
       proficiency: newSkill.proficiency,
       category: newSkill.category,
       is_primary: newSkill.is_primary,
       years_experience: null,
-    });
+    } as any);
     
     toast({
       title: "✓ Skill added",
@@ -272,6 +274,7 @@ export default function Settings() {
     
     setNewSkill({
       skill_name: "",
+      skill_id: null,
       proficiency: "intermediate",
       category: "technical",
       is_primary: false,

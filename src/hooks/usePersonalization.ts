@@ -238,7 +238,7 @@ export function usePersonalization() {
         jobChangeTimeline: profileData?.job_change_timeline || null,
         skills: (skillsData || []).map(s => ({
           id: s.id,
-          name: s.skill_name,
+          name: s.skill_id || 'Unknown Skill',
           proficiency: s.proficiency || 'intermediate',
           category: s.category || 'technical',
           yearsExperience: s.years_experience,
