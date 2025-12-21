@@ -200,7 +200,7 @@ async function callRAGQuery(request: {
   const openAIEndpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT')
   const openAIKey = Deno.env.get('AZURE_OPENAI_KEY')
   const embeddingDeployment = Deno.env.get('AZURE_OPENAI_EMBEDDING_DEPLOYMENT') || 'text-embedding-3-large'
-  const chatDeployment = Deno.env.get('AZURE_OPENAI_CHAT_DEPLOYMENT') || 'gpt-4'
+  const chatDeployment = Deno.env.get('AZURE_OPENAI_CHAT_DEPLOYMENT') || 'gpt-4o-mini'
 
   // Generate embedding for query
   const embeddingResponse = await fetch(

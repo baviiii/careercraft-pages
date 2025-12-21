@@ -1,249 +1,345 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+interface ParsedResume {
+  // Personal Info
+  personalInfo: {
+    fullName: string | null
+    email: string | null
+    phone: string | null
+    location: string | null
+    linkedin: string | null
+    website: string | null
+    summary: string | null
+  }
+  // Work Experience
+  workExperience: {
+    company: string
+    title: string
+    location: string | null
+    startDate: string | null
+    endDate: string | null
+    current: boolean
+    bullets: string[]
+  }[]
+  // Education
+  education: {
+    institution: string
+    degree: string
+    field: string | null
+    startDate: string | null
+    endDate: string | null
+    gpa: string | null
+    achievements: string[]
+  }[]
+  // Skills
+  skills: {
+    category: string
+    items: string[]
+  }[]
+  // Certifications
+  certifications: {
+    name: string
+    issuer: string | null
+    date: string | null
+    expiryDate: string | null
+  }[]
+  // Languages
+  languages: {
+    language: string
+    proficiency: string | null
+  }[]
+  // Projects
+  projects: {
+    name: string
+    description: string | null
+    technologies: string[]
+    url: string | null
+  }[]
+  // Raw text for reference
+  rawText: string
+  // Confidence score
+  confidence: number
+  // Source file info
+  sourceFile: {
+    name: string
+    type: string
+    pages: number
+  }
+}
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    const { rawText } = await req.json();
-    
-    if (!rawText) {
+    const formData = await req.formData()
+    const file = formData.get('file') as File
+    const fileName = formData.get('fileName') as string || file?.name || 'document'
+
+    if (!file) {
       return new Response(
-        JSON.stringify({ error: "Missing resume text" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        JSON.stringify({ error: 'No file provided' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not found");
+    // Get Azure Document Intelligence credentials
+    const docIntelEndpoint = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT')
+    const docIntelKey = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_KEY')
+
+    if (!docIntelEndpoint || !docIntelKey) {
       return new Response(
-        JSON.stringify({ error: "AI service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        JSON.stringify({ error: 'Azure Document Intelligence not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    const systemPrompt = `You are an expert resume parser. Extract structured information from the resume text provided. Be thorough and accurate. If information is not present, use empty strings or empty arrays.`;
+    // Convert file to base64
+    const arrayBuffer = await file.arrayBuffer()
+    const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+
+    // Determine content type
+    const contentType = file.type || 'application/pdf'
     
-    const userPrompt = `Parse this resume and extract all information:
+    console.log(`Processing file: ${fileName}, type: ${contentType}, size: ${file.size} bytes`)
 
-${rawText}
+    // Step 1: Use prebuilt-document model for general document extraction
+    // This handles PDFs, images, and Office documents
+    const analyzeUrl = `${docIntelEndpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-02-29-preview`
 
-Extract all details including contact info, work experience with bullet points, education, skills, and any other relevant sections.`;
-
-    const requestBody = {
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      tools: [
-        {
-          type: "function",
-          function: {
-            name: "extract_resume_data",
-            description: "Extract structured resume data",
-            parameters: {
-              type: "object",
-              properties: {
-                contact: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string", description: "Full name" },
-                    email: { type: "string", description: "Email address" },
-                    phone: { type: "string", description: "Phone number" },
-                    location: { type: "string", description: "City, State or full address" },
-                    linkedin: { type: "string", description: "LinkedIn URL or profile path" },
-                    website: { type: "string", description: "Personal website or portfolio URL" }
-                  },
-                  required: ["name", "email", "phone", "location"]
-                },
-                summary: { 
-                  type: "string", 
-                  description: "Professional summary or objective statement" 
-                },
-                experience: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      title: { type: "string", description: "Job title" },
-                      company: { type: "string", description: "Company name" },
-                      location: { type: "string", description: "Job location" },
-                      startDate: { type: "string", description: "Start date (e.g., Jan 2020 or 2020)" },
-                      endDate: { type: "string", description: "End date or 'Present'" },
-                      current: { type: "boolean", description: "Is this the current job" },
-                      bullets: { 
-                        type: "array", 
-                        items: { type: "string" },
-                        description: "Achievement/responsibility bullet points"
-                      }
-                    },
-                    required: ["title", "company", "startDate", "endDate", "bullets"]
-                  }
-                },
-                education: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      degree: { type: "string", description: "Degree name (e.g., Bachelor of Science in Computer Science)" },
-                      school: { type: "string", description: "School/University name" },
-                      location: { type: "string", description: "School location" },
-                      graduationDate: { type: "string", description: "Graduation date or expected date" },
-                      gpa: { type: "string", description: "GPA if mentioned" }
-                    },
-                    required: ["degree", "school", "graduationDate"]
-                  }
-                },
-                skills: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "List of skills, technologies, tools"
-                },
-                certifications: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "List of certifications"
-                },
-                projects: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string", description: "Project name" },
-                      description: { type: "string", description: "Project description" },
-                      technologies: { 
-                        type: "array", 
-                        items: { type: "string" },
-                        description: "Technologies used"
-                      }
-                    },
-                    required: ["name", "description"]
-                  }
-                }
-              },
-              required: ["contact", "summary", "experience", "education", "skills"],
-              additionalProperties: false
-            }
-          }
-        }
-      ],
-      tool_choice: { type: "function", function: { name: "extract_resume_data" } }
-    };
-
-    console.log("Parsing resume with AI...");
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
+    const analyzeResponse = await fetch(analyzeUrl, {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        'Ocp-Apim-Subscription-Key': docIntelKey,
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
-    });
+      body: JSON.stringify({
+        base64Source: base64Content
+      })
+    })
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ error: "AI service error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!analyzeResponse.ok) {
+      const error = await analyzeResponse.text()
+      console.error('Document Intelligence error:', error)
+      throw new Error(`Document analysis failed: ${analyzeResponse.status}`)
     }
 
-    const data = await response.json();
-    
-    // Log token usage for tracking
-    const usage = data.usage;
-    if (usage) {
-      console.log("📊 TOKEN USAGE:", {
-        prompt_tokens: usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens,
-        total_tokens: usage.total_tokens
-      });
+    // Get operation location for polling
+    const operationLocation = analyzeResponse.headers.get('Operation-Location')
+    if (!operationLocation) {
+      throw new Error('No operation location returned')
     }
-    console.log("AI parsing complete");
 
-    // Extract structured data from tool call
-    const toolCall = data.choices[0].message.tool_calls?.[0];
-    if (toolCall && toolCall.function) {
-      const parsedResume = JSON.parse(toolCall.function.arguments);
+    // Poll for results
+    let result = null
+    let attempts = 0
+    const maxAttempts = 30
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // Add IDs to experience and education for React keys
-      if (parsedResume.experience) {
-        parsedResume.experience = parsedResume.experience.map((exp: any, idx: number) => ({
-          ...exp,
-          id: `exp-${Date.now()}-${idx}`,
-          current: exp.current || exp.endDate?.toLowerCase() === 'present',
-          location: exp.location || '',
-          bullets: exp.bullets || []
-        }));
-      }
-      
-      if (parsedResume.education) {
-        parsedResume.education = parsedResume.education.map((edu: any, idx: number) => ({
-          ...edu,
-          id: `edu-${Date.now()}-${idx}`,
-          location: edu.location || '',
-          gpa: edu.gpa || ''
-        }));
-      }
-      
-      if (parsedResume.projects) {
-        parsedResume.projects = parsedResume.projects.map((proj: any, idx: number) => ({
-          ...proj,
-          id: `proj-${Date.now()}-${idx}`,
-          technologies: proj.technologies || []
-        }));
+      const statusResponse = await fetch(operationLocation, {
+        headers: {
+          'Ocp-Apim-Subscription-Key': docIntelKey,
+        }
+      })
+
+      const statusData = await statusResponse.json()
+
+      if (statusData.status === 'succeeded') {
+        result = statusData.analyzeResult
+        break
+      } else if (statusData.status === 'failed') {
+        throw new Error('Document analysis failed')
       }
 
-      // Ensure contact has all fields
-      parsedResume.contact = {
-        name: parsedResume.contact?.name || '',
-        email: parsedResume.contact?.email || '',
-        phone: parsedResume.contact?.phone || '',
-        location: parsedResume.contact?.location || '',
-        linkedin: parsedResume.contact?.linkedin || '',
-        website: parsedResume.contact?.website || ''
-      };
+      attempts++
+    }
 
+    if (!result) {
+      throw new Error('Document analysis timed out')
+    }
+
+    // Extract raw text from all pages
+    const rawText = result.content || ''
+    const pageCount = result.pages?.length || 1
+
+    console.log(`Extracted ${rawText.length} characters from ${pageCount} pages`)
+
+    // Step 2: Use GPT to intelligently parse the resume content
+    const openAIEndpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT')
+    const openAIKey = Deno.env.get('AZURE_OPENAI_KEY')
+    const chatDeployment = Deno.env.get('AZURE_OPENAI_CHAT_DEPLOYMENT') || 'gpt-4o-mini'
+
+    if (!openAIEndpoint || !openAIKey) {
+      // Return raw text if OpenAI not configured
       return new Response(
-        JSON.stringify({ 
-          data: parsedResume,
-          usage: usage ? {
-            prompt_tokens: usage.prompt_tokens,
-            completion_tokens: usage.completion_tokens,
-            total_tokens: usage.total_tokens
-          } : null
+        JSON.stringify({
+          success: true,
+          parsed: {
+            personalInfo: { fullName: null, email: null, phone: null, location: null, linkedin: null, website: null, summary: null },
+            workExperience: [],
+            education: [],
+            skills: [],
+            certifications: [],
+            languages: [],
+            projects: [],
+            rawText,
+            confidence: 0.5,
+            sourceFile: { name: fileName, type: contentType, pages: pageCount }
+          },
+          message: 'Basic extraction only - AI parsing not available'
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    } else {
-      return new Response(
-        JSON.stringify({ error: "Failed to parse resume" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
-  } catch (error) {
-    console.error("Error in parse-resume function:", error);
+
+    // AI-powered resume parsing
+    const parsePrompt = `You are an expert resume parser. Extract structured information from the following resume text.
+
+RESUME TEXT:
+${rawText.substring(0, 15000)}
+
+Extract and return a JSON object with this exact structure:
+{
+  "personalInfo": {
+    "fullName": "extracted full name or null",
+    "email": "extracted email or null",
+    "phone": "extracted phone or null",
+    "location": "city, state/country or null",
+    "linkedin": "linkedin URL or null",
+    "website": "personal website or null",
+    "summary": "professional summary/objective if present or null"
+  },
+  "workExperience": [
+    {
+      "company": "company name",
+      "title": "job title",
+      "location": "location or null",
+      "startDate": "YYYY-MM or YYYY or null",
+      "endDate": "YYYY-MM or YYYY or null",
+      "current": true/false,
+      "bullets": ["achievement 1", "achievement 2"]
+    }
+  ],
+  "education": [
+    {
+      "institution": "school name",
+      "degree": "degree type (Bachelor's, Master's, etc.)",
+      "field": "field of study or null",
+      "startDate": "YYYY or null",
+      "endDate": "YYYY or null",
+      "gpa": "GPA if mentioned or null",
+      "achievements": ["honors", "relevant coursework"]
+    }
+  ],
+  "skills": [
+    {
+      "category": "Technical Skills",
+      "items": ["skill1", "skill2"]
+    }
+  ],
+  "certifications": [
+    {
+      "name": "certification name",
+      "issuer": "issuing organization or null",
+      "date": "date obtained or null",
+      "expiryDate": "expiry date or null"
+    }
+  ],
+  "languages": [
+    {
+      "language": "language name",
+      "proficiency": "Native/Fluent/Professional/Basic or null"
+    }
+  ],
+  "projects": [
+    {
+      "name": "project name",
+      "description": "brief description or null",
+      "technologies": ["tech1", "tech2"],
+      "url": "project URL or null"
+    }
+  ],
+  "confidence": 0.0-1.0 (how confident you are in the extraction quality)
+}
+
+Important:
+- Extract ALL work experiences, even if they seem minor
+- Parse dates into consistent format (YYYY-MM or YYYY)
+- Group skills by logical categories
+- If information is unclear, use null rather than guessing
+- Set confidence based on how complete and clear the resume was
+
+Return ONLY valid JSON, no explanations.`
+
+    const chatResponse = await fetch(
+      `${openAIEndpoint}/openai/deployments/${chatDeployment}/chat/completions?api-version=2024-02-15-preview`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': openAIKey,
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: 'You are a precise resume parsing assistant. Always return valid JSON.' },
+            { role: 'user', content: parsePrompt }
+          ],
+          temperature: 0.1,
+          max_tokens: 4000,
+          response_format: { type: 'json_object' }
+        })
+      }
+    )
+
+    if (!chatResponse.ok) {
+      const error = await chatResponse.text()
+      console.error('OpenAI parsing error:', error)
+      throw new Error('AI parsing failed')
+    }
+
+    const chatData = await chatResponse.json()
+    const parsedContent = JSON.parse(chatData.choices[0].message.content)
+
+    // Combine with source info
+    const parsedResume: ParsedResume = {
+      ...parsedContent,
+      rawText,
+      sourceFile: {
+        name: fileName,
+        type: contentType,
+        pages: pageCount
+      }
+    }
+
+    console.log(`Successfully parsed resume with confidence: ${parsedResume.confidence}`)
+
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+      JSON.stringify({
+        success: true,
+        parsed: parsedResume,
+        message: `Successfully parsed ${pageCount} page(s) with ${parsedResume.confidence * 100}% confidence`
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    console.error('Parse resume error:', error)
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message || 'Failed to parse document',
+        details: 'Please try uploading a different file format'
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
-});
+})

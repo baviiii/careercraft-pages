@@ -7,22 +7,43 @@ Add these to your Supabase project: **Settings > Edge Functions > Secrets**
 ### Azure AI Search
 ```
 AZURE_SEARCH_ENDPOINT=https://careercraft-search-dev.search.windows.net
-AZURE_SEARCH_KEY=1kn8HVzeYuz2s6ceQSMj42LR5WwUaNOw14vYAGgoJMAzSeBP8HKl
+AZURE_SEARCH_KEY=<your-search-key>
 AZURE_SEARCH_INDEX=sa-gov-documents
 ```
 
 ### Azure OpenAI
 ```
 AZURE_OPENAI_ENDPOINT=https://careercraft-openai-dev.openai.azure.com/
-AZURE_OPENAI_KEY=321bbea1de2f40aab0b972eeebfd9d0d
+AZURE_OPENAI_KEY=<your-openai-key>
 AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-large
-AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4
+AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o-mini
+```
+
+### Azure Document Intelligence (for Resume Parser)
+```
+AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://careercraft-docintel-dev.cognitiveservices.azure.com/
+AZURE_DOCUMENT_INTELLIGENCE_KEY=<your-docintel-key>
 ```
 
 ### Azure Storage (for document URLs)
 ```
 AZURE_STORAGE_ACCOUNT=ccdevc5takjp4zp3pw
 AZURE_STORAGE_CONTAINER=rag-documents
+```
+
+---
+
+## Get Your Keys (Run in PowerShell)
+
+```powershell
+# AI Search Key
+az search admin-key show --resource-group rg-careercraft-dev --service-name careercraft-search-dev --query primaryKey -o tsv
+
+# OpenAI Key  
+az cognitiveservices account keys list --name careercraft-openai-dev --resource-group rg-careercraft-dev --query key1 -o tsv
+
+# Document Intelligence Key
+az cognitiveservices account keys list --name careercraft-docintel-dev --resource-group rg-careercraft-dev --query key1 -o tsv
 ```
 
 ---
@@ -36,21 +57,14 @@ AZURE_STORAGE_CONTAINER=rag-documents
 
 ---
 
-## Deploy GPT-4 Model (Required for Chat)
+## OpenAI Models Deployed
 
-You need to deploy a GPT-4 model for response generation:
+| Model | Deployment Name | Purpose |
+|-------|-----------------|---------|
+| `text-embedding-3-large` | `text-embedding-3-large` | Vector embeddings |
+| `gpt-4o-mini` | `gpt-4o-mini` | Chat/RAG answers |
 
-```powershell
-az cognitiveservices account deployment create `
-    --name careercraft-openai-dev `
-    --resource-group rg-careercraft-dev `
-    --deployment-name gpt-4 `
-    --model-name gpt-4 `
-    --model-version "turbo-2024-04-09" `
-    --model-format OpenAI `
-    --sku-capacity 1 `
-    --sku-name Standard
-```
+Both are deployed in Australia East with GlobalStandard SKU.
 
 ---
 
@@ -81,4 +95,26 @@ curl -X POST 'https://YOUR_PROJECT.supabase.co/functions/v1/rag-query' \
 | `rag-chat` | Conversational with history | `/functions/v1/rag-chat` |
 | `rag-tag-documents` | Auto-tag documents | `/functions/v1/rag-tag-documents` |
 | `rag-extract-insights` | Extract budgets/trends | `/functions/v1/rag-extract-insights` |
+| `parse-resume` | AI resume/document parser | `/functions/v1/parse-resume` |
+
+---
+
+## AI Resume Parser
+
+The `parse-resume` function uses Azure Document Intelligence + GPT-4o-mini to:
+- Parse PDFs, Word docs, images (OCR)
+- Extract personal info, work experience, education, skills
+- Auto-populate the template builder
+
+**Usage:**
+```typescript
+const formData = new FormData()
+formData.append('file', file)
+
+const { data } = await supabase.functions.invoke('parse-resume', {
+  body: formData
+})
+
+// data.parsed contains structured resume data
+```
 

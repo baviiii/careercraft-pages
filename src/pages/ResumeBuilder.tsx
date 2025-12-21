@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { gsap } from "gsap";
 import { useDropzone } from "react-dropzone";
+import SmartResumeFlow from "@/components/SmartResumeFlow";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -471,6 +472,7 @@ export default function ResumeBuilder() {
   const [rewritingBulletId, setRewritingBulletId] = useState<string | null>(null);
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [showAutoFillDialog, setShowAutoFillDialog] = useState(false);
+  const [showAIImportDialog, setShowAIImportDialog] = useState(false);
   
   // Personalization hook for auto-fill
   const {
@@ -1311,6 +1313,30 @@ export default function ResumeBuilder() {
                 </p>
               </div>
 
+              {/* AI Smart Import - Premium Feature */}
+              <Card 
+                className="p-4 mb-4 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border-purple-500/30 cursor-pointer hover:border-purple-500/50 transition-all group"
+                onClick={() => setShowAIImportDialog(true)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-medium flex items-center gap-2">
+                        AI Smart Import
+                        <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] px-1.5">NEW</Badge>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Upload any resume format • AI extracts everything • Edit before applying
+                      </p>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
+                </div>
+              </Card>
+
               {/* AI Toggle */}
               <Card className="p-4 mb-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/20">
                 <div className="flex items-center justify-between">
@@ -1318,7 +1344,7 @@ export default function ResumeBuilder() {
                     <Sparkles className={`w-5 h-5 ${useAIParsing ? 'text-purple-500' : 'text-muted-foreground'}`} />
                     <div>
                       <Label htmlFor="ai-toggle" className="font-medium cursor-pointer">
-                        AI-Powered Parsing
+                        AI-Powered Parsing (Quick Drop)
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         {useAIParsing 
@@ -2385,6 +2411,57 @@ Requirements:
               {jobDescription ? "Save & Close" : "Close"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Smart Import Dialog */}
+      <Dialog open={showAIImportDialog} onOpenChange={setShowAIImportDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] p-0 overflow-hidden bg-slate-950 border-slate-800">
+          <SmartResumeFlow
+            onComplete={(templateData) => {
+              // Convert template data to ResumeData format
+              const newResumeData: ResumeData = {
+                contact: {
+                  name: templateData.personalDetails.fullName,
+                  email: templateData.personalDetails.email,
+                  phone: templateData.personalDetails.phone,
+                  location: templateData.personalDetails.location,
+                  linkedin: templateData.personalDetails.linkedin,
+                  website: templateData.personalDetails.website,
+                },
+                summary: templateData.personalDetails.summary,
+                experience: templateData.experience.map((exp: any) => ({
+                  id: exp.id,
+                  title: exp.position,
+                  company: exp.company,
+                  location: exp.location,
+                  startDate: exp.startDate,
+                  endDate: exp.endDate,
+                  current: exp.endDate === 'Present',
+                  bullets: exp.highlights || exp.description?.split('\n').filter((b: string) => b.trim()) || [],
+                })),
+                education: templateData.education.map((edu: any) => ({
+                  id: edu.id,
+                  degree: edu.degree,
+                  school: edu.institution,
+                  location: '',
+                  graduationDate: edu.endDate,
+                  gpa: edu.gpa,
+                })),
+                skills: templateData.skills,
+              };
+              
+              setResumeData(newResumeData);
+              setShowAIImportDialog(false);
+              setCurrentStep(1); // Move to editing step
+              
+              toast({
+                title: "✓ Resume imported successfully!",
+                description: "Your resume data has been extracted and is ready for editing.",
+              });
+            }}
+            onCancel={() => setShowAIImportDialog(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -42,7 +42,7 @@ serve(async (req) => {
     // Get Azure OpenAI key from environment (if available)
     const azureOpenAIKey = Deno.env.get('AZURE_OPENAI_API_KEY')
     const azureOpenAIEndpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT')
-    const azureOpenAIDeployment = Deno.env.get('AZURE_OPENAI_DEPLOYMENT') || 'gpt-4'
+    const azureOpenAIDeployment = Deno.env.get('AZURE_OPENAI_DEPLOYMENT') || 'gpt-4o-mini'
 
     let tags: DocumentTags
 
