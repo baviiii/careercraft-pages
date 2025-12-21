@@ -22,6 +22,10 @@ const AustralianJobs = lazy(() => import("./pages/AustralianJobs"));
 const JobMarketNews = lazy(() => import("./pages/JobMarketNews"));
 const Settings = lazy(() => import("./pages/Settings"));
 const SACareerHub = lazy(() => import("./pages/SACareerHub"));
+const IntelligenceOverview = lazy(() => import("./pages/IntelligenceOverview"));
+const CareerExplorer = lazy(() => import("./pages/CareerExplorer"));
+const MarketTrends = lazy(() => import("./pages/MarketTrends"));
+const PolicyVisualizer = lazy(() => import("./pages/PolicyVisualizer"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
@@ -77,6 +81,10 @@ const App = () => (
             <Route path="/au-jobs" element={<AustralianJobs />} />
             <Route path="/job-market-news" element={<JobMarketNews />} />
             <Route path="/sa-career-hub" element={<SACareerHub />} />
+            <Route path="/intelligence" element={<IntelligenceOverview />} />
+            <Route path="/career-explorer" element={<CareerExplorer />} />
+            <Route path="/market-trends" element={<MarketTrends />} />
+            <Route path="/policy" element={<PolicyVisualizer />} />
             <Route path="/settings" element={<Settings />} />
             
             {/* Admin Routes */}
