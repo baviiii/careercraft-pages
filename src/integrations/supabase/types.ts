@@ -186,6 +186,33 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_sessions: {
+        Row: {
+          context: Json | null
+          created_at: string | null
+          id: string
+          messages: Json | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string | null
+          id?: string
+          messages?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string | null
+          id?: string
+          messages?: Json | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       cover_letters: {
         Row: {
           category: string | null
@@ -852,6 +879,53 @@ export type Database = {
           years_of_experience?: string | null
         }
         Relationships: []
+      }
+      rag_feedback: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          feedback_type: string | null
+          id: string
+          query: string
+          rating: number | null
+          response: string
+          session_id: string | null
+          sources: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          feedback_type?: string | null
+          id?: string
+          query: string
+          rating?: number | null
+          response: string
+          session_id?: string | null
+          sources?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          feedback_type?: string | null
+          id?: string
+          query?: string
+          rating?: number | null
+          response?: string
+          session_id?: string | null
+          sources?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_feedback_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resumes: {
         Row: {
