@@ -104,10 +104,11 @@ Write-Host "   .\deploy-openai-model.ps1 -ResourceGroupName $ResourceGroupName" 
 Write-Host "4. Create search index:" -ForegroundColor Yellow
 Write-Host "   .\create-search-index.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
 Write-Host "5. Configure web scraping:" -ForegroundColor Yellow
-Write-Host "   .\configure-web-scraping.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
+Write-Host "   cd web-scraper; .\configure-web-scraping.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
 Write-Host ""
 
 Write-Host "📚 See infrastructure/SECURITY-AUDIT.md for full security details" -ForegroundColor Cyan
+
 
 
 

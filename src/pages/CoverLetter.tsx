@@ -632,7 +632,7 @@ export default function CoverLetter() {
                         />
                       </Card>
 
-                      <Card className="p-6 bg-gradient-subtle">
+                      <Card className="p-6 bg-gradient-to-br from-blue-50/50 to-sky-50/50 dark:from-blue-950/20 dark:to-slate-900/50">
                         <h2 className="text-xl font-bold mb-4">Tone</h2>
                         <Select
                           value={tone}

@@ -95,7 +95,7 @@ if (-not $SkipWebScraping) {
     Write-Host "[STEP 4/4] Configuring Web Scraping..." -ForegroundColor Yellow
     Write-Host "   Setting up 6 indexers to crawl SA Government websites" -ForegroundColor Gray
     Write-Host ""
-    & "$PSScriptRoot\configure-web-scraping.ps1" -ResourceGroupName $ResourceGroupName -SearchIndexName "sa-gov-documents"
+    & "$PSScriptRoot\web-scraper\configure-web-scraping.ps1" -ResourceGroupName $ResourceGroupName -SearchIndexName "sa-gov-documents"
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[WARN] Web scraping configuration had issues" -ForegroundColor Yellow

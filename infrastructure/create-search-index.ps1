@@ -118,6 +118,45 @@ $indexDefinition = @{
             retrievable = $true
         },
         @{
+            name = "chunkType"
+            type = "Edm.String"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            facetable = $true
+        },
+        @{
+            name = "confidence"
+            type = "Edm.Double"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            sortable = $true
+        },
+        @{
+            name = "retrievalWeight"
+            type = "Edm.Double"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            sortable = $true
+        },
+        @{
+            name = "embeddingModel"
+            type = "Edm.String"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+        },
+        @{
+            name = "embeddingGeneratedAt"
+            type = "Edm.DateTimeOffset"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            sortable = $true
+        },
+        @{
             name = "indexedAt"
             type = "Edm.DateTimeOffset"
             searchable = $false
@@ -231,11 +270,21 @@ try {
     Write-Host ""
     Write-Host "Search index created successfully!" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Index Details:" -ForegroundColor Cyan
-    Write-Host "  Name: $($response.name)" -ForegroundColor White
-    Write-Host "  Fields: $($response.fields.Count)" -ForegroundColor White
-    Write-Host "  Vector Search: Enabled" -ForegroundColor White
-    Write-Host "  Semantic Search: Enabled" -ForegroundColor White
+    
+    # Verify by fetching the index details
+    try {
+        $getIndexUrl = "$searchEndpoint/indexes/${IndexName}?api-version=2023-11-01"
+        $indexDetails = Invoke-RestMethod -Uri $getIndexUrl -Method Get -Headers $headers
+        
+        Write-Host "Index Details:" -ForegroundColor Cyan
+        Write-Host "  Name: $($indexDetails.name)" -ForegroundColor White
+        Write-Host "  Fields: $($indexDetails.fields.Count)" -ForegroundColor White
+        Write-Host "  Vector Search: Enabled" -ForegroundColor White
+        Write-Host "  Semantic Search: Enabled" -ForegroundColor White
+    }
+    catch {
+        Write-Host "Index created but could not verify details" -ForegroundColor Yellow
+    }
 }
 catch {
     $errorDetails = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue

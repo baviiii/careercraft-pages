@@ -185,7 +185,7 @@ export const Hero = memo(({ session }: HeroProps) => {
   ];
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-subtle">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-blue-50 via-blue-100/50 to-sky-50 dark:from-slate-950 dark:via-blue-950/30 dark:to-slate-900">
       {/* Static background elements with CSS animations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <GradientOrb className="w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-primary/15 -top-20 md:-top-40 -left-20 md:-left-40" />

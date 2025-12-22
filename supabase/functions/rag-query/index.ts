@@ -22,6 +22,7 @@ interface RAGRequest {
     topK?: number
     includeMetadata?: boolean
     responseStyle?: 'concise' | 'detailed' | 'bullet-points'
+    timeAwareRanking?: boolean  // Enable time-aware ranking (default: true)
   }
 }
 
@@ -66,6 +67,8 @@ interface Source {
   category?: string
   relevanceScore: number
   snippet: string
+  publicationYear?: number | null
+  confidence?: number
 }
 
 serve(async (req) => {
@@ -104,8 +107,9 @@ serve(async (req) => {
     const queryEmbedding = await generateEmbedding(query, openAIEndpoint, openAIKey, embeddingDeployment)
     const embeddingTime = Date.now()
 
-    // Step 2: Hybrid search (vector + keyword + semantic)
+    // Step 2: Hybrid search (vector + keyword + semantic) with time-aware ranking
     const topK = options.topK || 10
+    const enableTimeAwareRanking = options.timeAwareRanking !== false  // Default: enabled
     const searchResults = await hybridSearch(
       query,
       queryEmbedding,
@@ -113,7 +117,8 @@ serve(async (req) => {
       searchKey,
       searchIndex,
       topK,
-      filters
+      filters,
+      enableTimeAwareRanking
     )
     const searchTime = Date.now() - embeddingTime
 
@@ -241,7 +246,8 @@ async function hybridSearch(
   key: string,
   indexName: string,
   topK: number,
-  filters: RAGRequest['filters']
+  filters: RAGRequest['filters'],
+  enableTimeAwareRanking: boolean = true
 ): Promise<SearchResult[]> {
   // Build filter expression
   let filterExpr = ""
@@ -279,7 +285,7 @@ async function hybridSearch(
     queryType: "semantic",
     semanticConfiguration: "default",
     top: topK,
-    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,category,sector,tags,url",
+    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,category,sector,tags,url,metadata,retrievalWeight,confidence",
     captions: "extractive",
     answers: "extractive|count-3",
   }
@@ -331,13 +337,14 @@ async function fallbackSearch(
   key: string,
   indexName: string,
   topK: number,
-  filter: string
+  filter: string,
+  enableTimeAwareRanking: boolean = true
 ): Promise<SearchResult[]> {
   const searchBody: any = {
     search: query,
     queryType: "simple",
     top: topK,
-    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,category,sector,tags,url",
+    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,category,sector,tags,url,metadata,retrievalWeight,confidence",
   }
 
   if (filter) {
@@ -494,6 +501,8 @@ function extractSources(results: SearchResult[]): Source[] {
         category: result.category,
         relevanceScore: result.score,
         snippet: result.content.substring(0, 200) + '...',
+        publicationYear: (result as any).publicationYear,
+        confidence: (result as any).confidence,
       })
     }
   }

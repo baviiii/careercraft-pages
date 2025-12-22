@@ -4,3 +4,6 @@ export { CareerPulse } from './CareerPulse';
 export { SectorHeatmap } from './SectorHeatmap';
 export { InvestmentHighlights } from './InvestmentHighlights';
 export { BreakingNews } from './BreakingNews';
+export { CareersDashboard } from './CareersDashboard';
+export { SkillsDashboard } from './SkillsDashboard';
+export { FundingDashboard } from './FundingDashboard';

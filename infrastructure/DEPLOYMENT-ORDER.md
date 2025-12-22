@@ -62,6 +62,7 @@ If you want to run steps manually:
 .\create-search-index.ps1 -ResourceGroupName "rg-careercraft-dev"
 
 # Step 4: Configure Web Scraping
+cd web-scraper
 .\configure-web-scraping.ps1 -ResourceGroupName "rg-careercraft-dev"
 ```
 

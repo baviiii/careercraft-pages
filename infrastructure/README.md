@@ -91,6 +91,12 @@ The deployment script will output all necessary environment variables. Save thes
    az storage blob upload-batch --account-name $storageAccount --source "../RAG-training" --destination rag-documents --auth-mode login
    ```
 
+   **Then process PDFs with embeddings:**
+   ```powershell
+   .\process-pdfs.ps1 -ResourceGroupName "rg-careercraft-dev" -GenerateEmbeddings
+   ```
+   ⚠️ **Important**: The `-GenerateEmbeddings` flag must be used to generate vector embeddings for better RAG performance!
+
 3. **Create AI Search Index**
    ```powershell
    .\create-search-index.ps1 -ResourceGroupName "rg-careercraft-dev"
@@ -99,8 +105,10 @@ The deployment script will output all necessary environment variables. Save thes
 
 4. **Configure Web Scraping (Highly Recommended)**
    ```powershell
+   cd web-scraper
    .\configure-web-scraping.ps1 -ResourceGroupName "rg-careercraft-dev" -SearchIndexName "sa-gov-documents"
    ```
+   **See `web-scraper/README.md` for detailed scraping options and recommendations.**
    This sets up indexers to crawl comprehensive SA Government websites including:
    - **Job Portals**: jobs.sa.gov.au, I Work for SA
    - **Career Guidance**: sa.gov.au (looking for work, finding a job, career info)
@@ -112,7 +120,26 @@ The deployment script will output all necessary environment variables. Save thes
    
    Automatically crawls every 6 hours to capture new job postings, programs, and updates.
 
-5. **Configure Supabase Edge Function**
+5. **Verify Data is in the Index**
+   ```powershell
+   cd web-scraper
+   .\verify-scraper-data.ps1 -ResourceGroupName "rg-careercraft-dev"
+   ```
+   This checks:
+   - If index exists
+   - How many documents are indexed
+   - Sample documents
+   - Document type breakdown
+   - If embeddings exist
+
+6. **Check Indexer Status** (if using Azure indexers)
+   ```powershell
+   cd web-scraper
+   .\check-indexer-status.ps1 -ResourceGroupName "rg-careercraft-dev"
+   ```
+   Shows status of all indexers, last run results, and errors.
+
+7. **Configure Supabase Edge Function**
    - Add Azure credentials as environment variables
    - Deploy `rag-query` function
    - Test query endpoint
@@ -157,6 +184,24 @@ az group delete --name rg-careercraft-dev --yes --no-wait
 - Monitor usage in Azure Cost Management
 - Document Intelligence is usage-based (check page count)
 - AI Search Basic tier is fixed $200/month
+
+### Scraper shows no data / Index is empty
+**First, verify what's in the index:**
+```powershell
+cd web-scraper
+.\verify-scraper-data.ps1 -ResourceGroupName "rg-careercraft-dev"
+```
+
+**If index is empty:**
+- Check if scraper script ran successfully (look for errors)
+- Check indexer status: `cd web-scraper; .\check-indexer-status.ps1 -ResourceGroupName "rg-careercraft-dev"`
+- Try running smart scraper manually: `cd web-scraper; .\smart-web-scraper.ps1 -ResourceGroupName "rg-careercraft-dev" -GenerateEmbeddings`
+- See `web-scraper/README.md` for detailed scraping options
+- Check Azure Portal → AI Search → Indexes → Documents count
+
+**If index has data but no embeddings:**
+- Run smart scraper with `-GenerateEmbeddings` flag
+- Embeddings are needed for vector search (better RAG results)
 - Consider using AI Search integrated vectorization instead of OpenAI
 
 ## Support

@@ -127,6 +127,6 @@ Write-Host "   .\create-search-index.ps1 -ResourceGroupName $ResourceGroupName" 
 Write-Host "3. Upload your 53 PDFs to Blob Storage container: $($deployment.containerName.value)" -ForegroundColor Yellow
 Write-Host "4. Configure indexer to process PDFs from Blob Storage" -ForegroundColor Yellow
 Write-Host "5. (Optional) Configure web scraping:" -ForegroundColor Yellow
-Write-Host "   .\configure-web-scraping.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
+Write-Host "   cd web-scraper; .\configure-web-scraping.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
 Write-Host "6. Start indexing your documents!" -ForegroundColor Yellow
 Write-Host ""
