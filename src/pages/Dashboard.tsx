@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,7 @@ interface ResumeStats {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<ResumeStats>({
@@ -285,14 +286,15 @@ export default function Dashboard() {
   const userName = session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'there';
 
   const sidebarLinks = [
-    { icon: Home, label: "Dashboard", path: "/dashboard", active: true },
-    { icon: Brain, label: "🇦🇺 SA Career Hub", path: "/sa-career-hub" },
-    { icon: FileText, label: "My Resumes", path: "/my-resumes" },
-    { icon: Mail, label: "Cover Letters", path: "/cover-letter" },
-    { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
-    { icon: Briefcase, label: "🇦🇺 AU Jobs", path: "/au-jobs" },
-    { icon: Newspaper, label: "📊 Market News", path: "/job-market-news" },
-    { icon: Settings, label: "Settings", path: "/settings" },
+    { icon: Home, label: "Dashboard", path: "/dashboard", active: location.pathname === "/dashboard" },
+    { icon: BarChart3, label: "Intelligence", path: "/intelligence", active: location.pathname === "/intelligence" },
+    { icon: Brain, label: "🇦🇺 SA Career Hub", path: "/sa-career-hub", active: location.pathname === "/sa-career-hub" },
+    { icon: FileText, label: "My Resumes", path: "/my-resumes", active: location.pathname === "/my-resumes" },
+    { icon: Mail, label: "Cover Letters", path: "/cover-letter", active: location.pathname === "/cover-letter" },
+    { icon: Briefcase, label: "Job Tracker", path: "/tracker", active: location.pathname === "/tracker" },
+    { icon: Briefcase, label: "🇦🇺 AU Jobs", path: "/au-jobs", active: location.pathname === "/au-jobs" },
+    { icon: Newspaper, label: "📊 Market News", path: "/job-market-news", active: location.pathname === "/job-market-news" },
+    { icon: Settings, label: "Settings", path: "/settings", active: location.pathname === "/settings" },
   ];
 
   return (

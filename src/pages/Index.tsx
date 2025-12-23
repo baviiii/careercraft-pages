@@ -31,18 +31,9 @@ const Index = memo(() => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Ensure home page always shows beautiful blue (force light mode on home page)
-  useEffect(() => {
-    // Remove dark class on home page to ensure blue gradient shows
-    document.documentElement.classList.remove('dark');
-    
-    return () => {
-      // Optionally restore dark mode when leaving (but usually we want it to stay light)
-    };
-  }, []);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-blue-100/50 to-sky-50 dark:from-blue-950 dark:via-blue-900/80 dark:to-indigo-950">
+    <main className="min-h-screen overflow-x-hidden bg-gradient-to-br from-blue-50 via-blue-100/50 to-sky-50">
       <Suspense fallback={null}>
         <SplashCursor />
       </Suspense>
