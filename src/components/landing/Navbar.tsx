@@ -77,7 +77,7 @@ export const Navbar = ({ session }: NavbarProps) => {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-lg">
                 <FileText className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-foreground">CareerCraft</span>
+              <span className="text-xl font-bold text-slate-800">CareerCraft</span>
             </motion.div>
 
             {/* Desktop Navigation */}
@@ -89,7 +89,7 @@ export const Navbar = ({ session }: NavbarProps) => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   onClick={() => scrollToSection(link.href)}
-                  className="text-muted-foreground hover:text-foreground transition-colors font-medium"
+                  className="text-slate-600 hover:text-slate-900 transition-colors font-medium"
                 >
                   {link.name}
                 </motion.button>
@@ -150,7 +150,7 @@ export const Navbar = ({ session }: NavbarProps) => {
 
             {/* Mobile menu button */}
             <button
-              className="lg:hidden p-2 text-foreground"
+              className="lg:hidden p-2 text-slate-800"
               onClick={() => setIsOpen(!isOpen)}
             >
               {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -166,7 +166,7 @@ export const Navbar = ({ session }: NavbarProps) => {
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         className="fixed inset-0 z-40 lg:hidden"
       >
-        <div className="absolute inset-0 bg-background/95 backdrop-blur-xl">
+        <div className="absolute inset-0 bg-white/95 backdrop-blur-xl">
           <div className="container mx-auto px-4 pt-24 pb-8">
             <div className="flex flex-col gap-6">
               {navLinks.map((link, index) => (
@@ -176,7 +176,7 @@ export const Navbar = ({ session }: NavbarProps) => {
                   animate={isOpen ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
                   transition={{ delay: index * 0.1 }}
                   onClick={() => scrollToSection(link.href)}
-                  className="text-2xl font-semibold text-foreground text-left"
+                  className="text-2xl font-semibold text-slate-800 text-left"
                 >
                   {link.name}
                 </motion.button>

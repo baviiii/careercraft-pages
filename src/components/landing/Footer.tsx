@@ -68,7 +68,7 @@ const FooterLink = ({ name, href, badge }: { name: string; href: string; badge?:
     <a
       href={href}
       onClick={handleClick}
-      className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+      className="group flex items-center gap-2 text-slate-600 hover:text-slate-800 transition-colors"
     >
       <span>{name}</span>
       {badge && (
@@ -86,7 +86,7 @@ const FooterLink = ({ name, href, badge }: { name: string; href: string; badge?:
 // Footer section component
 const FooterSection = ({ title, links }: { title: string; links: typeof footerLinks.product }) => (
   <div>
-    <h4 className="font-semibold text-foreground mb-4">{title}</h4>
+    <h4 className="font-semibold text-slate-800 mb-4">{title}</h4>
     <ul className="space-y-3">
       {links.map((link) => (
         <li key={link.name}>
@@ -101,14 +101,14 @@ const FooterSection = ({ title, links }: { title: string; links: typeof footerLi
 const Newsletter = () => (
   <div className="lg:col-span-2">
     <h4 className="font-semibold text-foreground mb-4">Stay Updated</h4>
-    <p className="text-muted-foreground mb-4">
+    <p className="text-slate-600 mb-4">
       Get the latest career tips and product updates delivered to your inbox.
     </p>
     <form className="flex flex-col sm:flex-row gap-2" onSubmit={(e) => e.preventDefault()}>
       <input
         type="email"
         placeholder="Enter your email"
-        className="flex-1 px-4 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+        className="flex-1 px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />
       <motion.button
         whileHover={{ scale: 1.02 }}
@@ -118,7 +118,7 @@ const Newsletter = () => (
         Subscribe
       </motion.button>
     </form>
-    <p className="text-xs text-muted-foreground mt-2">
+    <p className="text-xs text-slate-600 mt-2">
       No spam, unsubscribe anytime.
     </p>
   </div>
@@ -144,9 +144,9 @@ export const Footer = () => {
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
                   <FileText className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold text-foreground">CareerCraft</span>
+                <span className="text-xl font-bold text-slate-800">CareerCraft</span>
               </div>
-              <p className="text-muted-foreground leading-relaxed max-w-sm">
+              <p className="text-slate-600 leading-relaxed max-w-sm">
                 AI-powered resume optimization that helps you beat ATS systems and land more interviews. 
                 Built for job seekers who want to stand out.
               </p>
@@ -160,7 +160,7 @@ export const Footer = () => {
                   href={social.href}
                   whileHover={{ scale: 1.1, y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="w-10 h-10 rounded-lg bg-muted hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                  className="w-10 h-10 rounded-lg bg-slate-100 hover:bg-blue-100 flex items-center justify-center text-slate-600 hover:text-slate-800 transition-colors"
                   aria-label={social.name}
                 >
                   <social.icon className="w-5 h-5" />
@@ -183,7 +183,7 @@ export const Footer = () => {
       <div className="border-t border-border">
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
               <span>© {currentYear} CareerCraft. All rights reserved.</span>
               <span className="hidden md:inline">•</span>
               <div className="flex gap-4">
@@ -191,7 +191,7 @@ export const Footer = () => {
                   <a
                     key={link.name}
                     href={link.href}
-                    className="hover:text-foreground transition-colors"
+                    className="hover:text-slate-800 transition-colors"
                   >
                     {link.name}
                   </a>
@@ -199,7 +199,7 @@ export const Footer = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1 text-sm text-slate-600">
               <span>Made with</span>
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}

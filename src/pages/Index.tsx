@@ -28,6 +28,10 @@ const Index = memo(() => {
 
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
 
+    // Force light mode for landing page
+    document.documentElement.classList.remove('dark');
+    document.documentElement.style.colorScheme = 'light';
+
     return () => subscription.unsubscribe();
   }, []);
 

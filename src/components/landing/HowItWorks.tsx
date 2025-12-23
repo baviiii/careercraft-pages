@@ -57,7 +57,7 @@ const StepCard = ({ step, index, inView }: { step: typeof steps[0]; index: numbe
       }}
       className="relative group"
     >
-      <div className="relative bg-card border border-border/50 rounded-2xl p-8 text-center hover:border-primary/30 transition-all duration-500 hover:shadow-elegant overflow-hidden">
+      <div className="relative bg-white border border-slate-200/50 rounded-2xl p-8 text-center hover:border-blue-500/30 transition-all duration-500 hover:shadow-elegant overflow-hidden">
         {/* Step number badge */}
         <motion.div
           initial={{ scale: 0, rotate: -180 }}
@@ -83,10 +83,10 @@ const StepCard = ({ step, index, inView }: { step: typeof steps[0]; index: numbe
         </motion.div>
         
         {/* Content */}
-        <h3 className="text-xl font-bold mb-3 text-foreground">
+        <h3 className="text-xl font-bold mb-3 text-slate-800">
           {step.title}
         </h3>
-        <p className="text-muted-foreground leading-relaxed">
+        <p className="text-slate-600 leading-relaxed">
           {step.description}
         </p>
         
@@ -122,7 +122,7 @@ export const HowItWorks = () => {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section ref={ref} className="py-32 bg-background relative overflow-hidden">
+    <section ref={ref} className="py-32 bg-gradient-to-br from-blue-50 via-blue-100/50 to-sky-50 relative overflow-hidden">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
@@ -158,7 +158,7 @@ export const HowItWorks = () => {
             How It Works
           </h2>
           
-          <p className="text-base md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed px-4">
+          <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed px-4">
             Get your ATS-optimized resume in minutes, not hours. 
             Our streamlined process makes resume optimization effortless.
           </p>
@@ -181,7 +181,7 @@ export const HowItWorks = () => {
           transition={{ duration: 0.6, delay: 1 }}
           className="mt-16 text-center"
         >
-          <p className="text-muted-foreground">
+          <p className="text-slate-600">
             Average time from upload to optimized resume: <span className="text-primary font-semibold">Under 2 minutes</span>
           </p>
         </motion.div>

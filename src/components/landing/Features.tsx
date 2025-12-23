@@ -109,7 +109,7 @@ const FeatureCard = ({ feature, index }: { feature: typeof features[0]; index: n
       }}
       className="group relative"
     >
-      <div className="relative h-full bg-card border border-border/50 rounded-2xl p-5 md:p-8 overflow-hidden transition-all duration-500 hover:border-primary/30 hover:shadow-elegant">
+      <div className="relative h-full bg-white border border-slate-200/50 rounded-2xl p-5 md:p-8 overflow-hidden transition-all duration-500 hover:border-blue-500/30 hover:shadow-elegant">
         {/* Gradient background on hover */}
         <motion.div
           className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity duration-500`}
@@ -137,10 +137,10 @@ const FeatureCard = ({ feature, index }: { feature: typeof features[0]; index: n
         
         {/* Content */}
         <motion.div style={{ transform: "translateZ(30px)" }}>
-          <h3 className="text-xl font-bold mb-3 text-card-foreground group-hover:text-foreground transition-colors">
+          <h3 className="text-xl font-bold mb-3 text-slate-800 group-hover:text-slate-900 transition-colors">
             {feature.title}
           </h3>
-          <p className="text-muted-foreground leading-relaxed group-hover:text-muted-foreground/80 transition-colors">
+          <p className="text-slate-600 leading-relaxed group-hover:text-slate-700/80 transition-colors">
             {feature.description}
           </p>
         </motion.div>
@@ -178,7 +178,7 @@ const BackgroundShapes = () => (
 
 export const Features = () => {
   return (
-    <section id="features" className="py-16 md:py-32 bg-background relative overflow-hidden">
+    <section id="features" className="py-16 md:py-32 bg-gradient-to-br from-blue-50 via-blue-100/50 to-sky-50 relative overflow-hidden">
       <BackgroundShapes />
 
       <div className="container mx-auto px-4 relative z-10">
@@ -208,7 +208,7 @@ export const Features = () => {
             </span>
           </h2>
           
-          <p className="text-base md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed px-4">
+          <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed px-4">
             Comprehensive tools to optimize your resume for both ATS systems and human recruiters. 
             Powered by advanced AI trained on millions of successful resumes.
           </p>
@@ -229,7 +229,7 @@ export const Features = () => {
           transition={{ duration: 0.8, delay: 0.4 }}
           className="mt-20 text-center"
         >
-          <div className="inline-flex flex-wrap justify-center items-center gap-4 md:gap-8 px-4 md:px-8 py-4 bg-card border border-border rounded-2xl">
+          <div className="inline-flex flex-wrap justify-center items-center gap-4 md:gap-8 px-4 md:px-8 py-4 bg-white border border-slate-200 rounded-2xl">
             <div className="flex items-center gap-3">
               <Brain className="w-6 h-6 text-primary" />
               <span className="text-sm font-medium">GPT-4 Powered</span>

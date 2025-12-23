@@ -86,7 +86,7 @@ const ResumeMockup = memo(() => (
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.3 }}
-        className="relative bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden will-change-transform"
+        className="relative bg-white rounded-2xl border border-slate-200/50 shadow-2xl overflow-hidden will-change-transform"
       >
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
         
@@ -110,13 +110,13 @@ const ResumeMockup = memo(() => (
           </motion.div>
           
           <div className="space-y-3">
-            <div className="h-3 bg-muted rounded w-full" />
-            <div className="h-3 bg-muted rounded w-5/6" />
-            <div className="h-3 bg-muted rounded w-4/5" />
+            <div className="h-3 bg-slate-100 rounded w-full" />
+            <div className="h-3 bg-slate-100 rounded w-5/6" />
+            <div className="h-3 bg-slate-100 rounded w-4/5" />
           </div>
           
           <div className="space-y-3">
-            <div className="h-4 bg-foreground/60 rounded w-1/4" />
+            <div className="h-4 bg-slate-700/60 rounded w-1/4" />
             <div className="flex flex-wrap gap-2">
               {["React", "TypeScript", "Node.js", "AWS"].map((skill, i) => (
                 <motion.span
@@ -141,7 +141,7 @@ const ResumeMockup = memo(() => (
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 1.2 }}
-      className="absolute -left-16 top-1/4 bg-card border border-border rounded-xl p-4 shadow-elegant hidden xl:block"
+      className="absolute -left-16 top-1/4 bg-white border border-slate-200 rounded-xl p-4 shadow-elegant hidden xl:block"
     >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
@@ -149,7 +149,7 @@ const ResumeMockup = memo(() => (
         </div>
         <div>
           <p className="text-sm font-semibold">ATS Optimized</p>
-          <p className="text-xs text-muted-foreground">100% Compatible</p>
+          <p className="text-xs text-slate-600">100% Compatible</p>
         </div>
       </div>
     </motion.div>
@@ -158,7 +158,7 @@ const ResumeMockup = memo(() => (
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 1.4 }}
-      className="absolute -right-12 bottom-1/4 bg-card border border-border rounded-xl p-4 shadow-elegant hidden xl:block"
+      className="absolute -right-12 bottom-1/4 bg-white border border-slate-200 rounded-xl p-4 shadow-elegant hidden xl:block"
     >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
@@ -166,7 +166,7 @@ const ResumeMockup = memo(() => (
         </div>
         <div>
           <p className="text-sm font-semibold">AI Enhanced</p>
-          <p className="text-xs text-muted-foreground">Smart Rewrite</p>
+          <p className="text-xs text-slate-600">Smart Rewrite</p>
         </div>
       </div>
     </motion.div>
@@ -242,7 +242,7 @@ export const Hero = memo(({ session }: HeroProps) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.6 }}
-                className="text-base sm:text-lg lg:text-2xl text-muted-foreground leading-relaxed max-w-xl"
+                className="text-base sm:text-lg lg:text-2xl text-slate-600 leading-relaxed max-w-xl"
               >
                 Transform your resume into an ATS-optimized masterpiece. Our AI analyzes, 
                 scores, and rewrites your resume to get past automated systems and into 
@@ -314,14 +314,14 @@ export const Hero = memo(({ session }: HeroProps) => {
         <motion.div
           animate={{ y: [0, 10, 0] }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="flex flex-col items-center gap-2 text-muted-foreground"
+          className="flex flex-col items-center gap-2 text-slate-600"
         >
           <span className="text-sm">Scroll to explore</span>
-          <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex justify-center pt-2">
+          <div className="w-6 h-10 rounded-full border-2 border-slate-400/30 flex justify-center pt-2">
             <motion.div
               animate={{ y: [0, 12, 0], opacity: [1, 0.3, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="w-1.5 h-1.5 rounded-full bg-primary"
+              className="w-1.5 h-1.5 rounded-full bg-blue-500"
             />
           </div>
         </motion.div>

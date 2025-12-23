@@ -61,7 +61,7 @@ const FloatingBadge = ({
     whileInView={{ opacity: 1, scale: 1 }}
     viewport={{ once: true }}
     transition={{ delay, type: "spring", stiffness: 200 }}
-    className={`absolute ${position} hidden lg:flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-full shadow-elegant z-20`}
+    className={`absolute ${position} hidden lg:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-elegant z-20`}
   >
     <Icon className="w-4 h-4 text-primary" />
     <span className="text-sm font-medium">{text}</span>
@@ -128,7 +128,7 @@ export const CTA = () => {
           <FloatingBadge icon={Clock} text="24/7 Available" delay={0.9} position="bottom-20 -left-16" />
           
           {/* Main content card */}
-          <div className="relative bg-card border border-border/50 rounded-3xl p-12 lg:p-16 text-center overflow-hidden">
+          <div className="relative bg-white border border-slate-200/50 rounded-3xl p-12 lg:p-16 text-center overflow-hidden">
             {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary-glow/5" />
             
@@ -170,7 +170,7 @@ export const CTA = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={isInView ? { opacity: 1, y: 0 } : {}}
                 transition={{ delay: 0.4 }}
-                className="text-base md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed px-4"
+                className="text-base md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto leading-relaxed px-4"
               >
                 Upload your resume and get instant AI-powered feedback. 
                 Optimize for ATS systems and start landing more interviews.
@@ -211,7 +211,7 @@ export const CTA = () => {
                 initial={{ opacity: 0 }}
                 animate={isInView ? { opacity: 1 } : {}}
                 transition={{ delay: 0.7 }}
-                className="flex flex-wrap justify-center gap-6 text-sm text-muted-foreground"
+                className="flex flex-wrap justify-center gap-6 text-sm text-slate-600"
               >
                 <span className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-success" />

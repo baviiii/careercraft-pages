@@ -87,7 +87,7 @@ const StatCard = ({ stat, index, inView }: { stat: typeof stats[0]; index: numbe
       }}
       className="relative group"
     >
-      <div className="relative bg-card border border-border/50 rounded-2xl p-8 text-center overflow-hidden hover:border-primary/30 transition-all duration-500 hover:shadow-elegant">
+      <div className="relative bg-white border border-slate-200/50 rounded-2xl p-8 text-center overflow-hidden hover:border-blue-500/30 transition-all duration-500 hover:shadow-elegant">
         {/* Background gradient */}
         <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
         
@@ -112,12 +112,12 @@ const StatCard = ({ stat, index, inView }: { stat: typeof stats[0]; index: numbe
         </div>
         
         {/* Label */}
-        <h3 className="text-lg font-semibold text-foreground mb-2">
+        <h3 className="text-lg font-semibold text-slate-800 mb-2">
           {stat.label}
         </h3>
         
         {/* Description */}
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-slate-600">
           {stat.description}
         </p>
         
@@ -138,7 +138,7 @@ export const Stats = () => {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section ref={ref} className="py-24 bg-muted/50 relative overflow-hidden">
+    <section ref={ref} className="py-24 bg-gradient-to-br from-blue-50 via-blue-100/50 to-sky-50 relative overflow-hidden">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -174,7 +174,7 @@ export const Stats = () => {
           <h2 className="text-2xl sm:text-3xl lg:text-5xl font-bold mb-4">
             Built for Job Seekers
           </h2>
-          <p className="text-base md:text-lg text-muted-foreground max-w-xl mx-auto px-4">
+          <p className="text-base md:text-lg text-slate-600 max-w-xl mx-auto px-4">
             Everything you need to optimize your resume and land more interviews.
           </p>
         </motion.div>

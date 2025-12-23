@@ -109,10 +109,10 @@ const PricingCard = ({
         </motion.div>
       )}
       
-      <div className={`relative h-full bg-card border rounded-2xl p-8 overflow-hidden transition-all duration-500 ${
+      <div className={`relative h-full bg-white border rounded-2xl p-8 overflow-hidden transition-all duration-500 ${
         plan.popular 
-          ? 'border-primary shadow-glow hover:shadow-[0_0_80px_hsl(195_92%_48%/0.3)]' 
-          : 'border-border/50 hover:border-primary/30 hover:shadow-elegant'
+          ? 'border-blue-500 shadow-glow hover:shadow-[0_0_80px_hsl(195_92%_48%/0.3)]' 
+          : 'border-slate-200/50 hover:border-blue-500/30 hover:shadow-elegant'
       }`}>
         {/* Background gradient for popular */}
         {plan.popular && (
@@ -125,18 +125,18 @@ const PricingCard = ({
             <plan.icon className="w-7 h-7 text-white" />
           </div>
           
-          <h3 className="text-2xl font-bold text-foreground mb-2">{plan.name}</h3>
-          <p className="text-muted-foreground">{plan.description}</p>
+          <h3 className="text-2xl font-bold text-slate-800 mb-2">{plan.name}</h3>
+          <p className="text-slate-600">{plan.description}</p>
         </div>
         
         {/* Price */}
         <div className="relative mb-8">
           <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-bold text-foreground">
+            <span className="text-5xl font-bold text-slate-800">
               ${price}
             </span>
             {price > 0 && (
-              <span className="text-muted-foreground">/month</span>
+              <span className="text-slate-600">/month</span>
             )}
           </div>
           {isYearly && price > 0 && (
@@ -159,7 +159,7 @@ const PricingCard = ({
         
         {/* Features */}
         <div className="space-y-4">
-          <p className="text-sm font-semibold text-foreground">What's included:</p>
+          <p className="text-sm font-semibold text-slate-800">What's included:</p>
           <ul className="space-y-3">
             {plan.features.map((feature, i) => (
               <motion.li
@@ -172,7 +172,7 @@ const PricingCard = ({
                 <div className={`flex-shrink-0 w-5 h-5 rounded-full bg-gradient-to-br ${plan.color} flex items-center justify-center mt-0.5`}>
                   <Check className="w-3 h-3 text-white" />
                 </div>
-                <span className="text-sm text-muted-foreground">{feature}</span>
+                <span className="text-sm text-slate-600">{feature}</span>
               </motion.li>
             ))}
           </ul>
@@ -202,7 +202,7 @@ export const Pricing = () => {
   const [isYearly, setIsYearly] = useState(true);
 
   return (
-    <section ref={ref} id="pricing" className="py-16 md:py-32 bg-background relative overflow-hidden">
+    <section ref={ref} id="pricing" className="py-16 md:py-32 bg-gradient-to-br from-blue-50 via-blue-100/50 to-sky-50 relative overflow-hidden">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -234,20 +234,20 @@ export const Pricing = () => {
             Choose Your Plan
           </h2>
           
-          <p className="text-base md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-10 px-4">
+          <p className="text-base md:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed mb-10 px-4">
             Start free and upgrade when you're ready. No hidden fees, cancel anytime.
           </p>
           
           {/* Billing toggle */}
           <div className="inline-flex items-center gap-4 px-6 py-3 bg-muted rounded-full">
-            <span className={`text-sm font-medium transition-colors ${!isYearly ? 'text-foreground' : 'text-muted-foreground'}`}>
+            <span className={`text-sm font-medium transition-colors ${!isYearly ? 'text-slate-800' : 'text-slate-600'}`}>
               Monthly
             </span>
             <Switch
               checked={isYearly}
               onCheckedChange={setIsYearly}
             />
-            <span className={`text-sm font-medium transition-colors ${isYearly ? 'text-foreground' : 'text-muted-foreground'}`}>
+            <span className={`text-sm font-medium transition-colors ${isYearly ? 'text-slate-800' : 'text-slate-600'}`}>
               Yearly
             </span>
             <span className="px-2 py-0.5 bg-primary text-primary-foreground rounded-full text-xs font-bold">
@@ -276,13 +276,13 @@ export const Pricing = () => {
           transition={{ duration: 0.6, delay: 0.8 }}
           className="mt-16 text-center"
         >
-          <div className="inline-flex items-center gap-3 px-6 py-3 bg-card border border-border rounded-full">
+          <div className="inline-flex items-center gap-3 px-6 py-3 bg-white border border-slate-200 rounded-full">
             <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
               <Check className="w-5 h-5 text-success" />
             </div>
             <div className="text-left">
-              <p className="font-semibold text-foreground">30-Day Money-Back Guarantee</p>
-              <p className="text-sm text-muted-foreground">Not satisfied? Get a full refund, no questions asked.</p>
+              <p className="font-semibold text-slate-800">30-Day Money-Back Guarantee</p>
+              <p className="text-sm text-slate-600">Not satisfied? Get a full refund, no questions asked.</p>
             </div>
           </div>
         </motion.div>
