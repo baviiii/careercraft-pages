@@ -138,6 +138,7 @@ $qualityMetrics = @{
     MissingEmbeddings = @()
     MissingMetadata = @()
     MissingSourceUrl = @()
+    PdfCoverageDetails = @()
 }
 
 foreach ($pdfGroup in $pdfGroups) {
@@ -149,14 +150,32 @@ foreach ($pdfGroup in $pdfGroups) {
     $metadata = try { $firstChunk.metadata | ConvertFrom-Json } catch { $null }
     
     $pages = ($chunks | Select-Object -ExpandProperty pageNumber -Unique).Count
-    $chunkCount = $chunks.Count
+    $chunkCount = $chunks.Count  # Actually indexed chunks
     $hasEmbeddings = ($chunks | Where-Object { $_.contentVector -ne $null -and $_.contentVector.Count -gt 0 }).Count -gt 0
     $chunksWithEmbeddings = ($chunks | Where-Object { $_.contentVector -ne $null -and $_.contentVector.Count -gt 0 }).Count
     $tablesFound = if ($metadata -and $metadata.tablesFound) { $metadata.tablesFound } else { 0 }
     
+    # Get expected chunk count from metadata (what should have been indexed)
+    $expectedChunks = if ($metadata -and $metadata.totalChunks) { $metadata.totalChunks } else { $chunkCount }
+    $skippedChunks = $expectedChunks - $chunkCount
+    
     $qualityMetrics.TotalPages += $pages
     $qualityMetrics.TotalChunks += $chunkCount
     $qualityMetrics.ChunksWithEmbeddings += $chunksWithEmbeddings
+    
+    # Calculate REAL per-PDF coverage (based on expected chunks, not just indexed)
+    # This shows true coverage including skipped chunks
+    $pdfCoverage = if ($expectedChunks -gt 0) { [math]::Round(($chunksWithEmbeddings / $expectedChunks) * 100, 1) } else { 0 }
+    $qualityMetrics.PdfCoverageDetails += [PSCustomObject]@{
+        PdfId = $pdfId
+        ExpectedChunks = $expectedChunks
+        IndexedChunks = $chunkCount
+        ChunksWithEmbeddings = $chunksWithEmbeddings
+        SkippedChunks = $skippedChunks
+        Coverage = $pdfCoverage
+        Pages = $pages
+        HasTables = $tablesFound -gt 0
+    }
     
     if ($hasEmbeddings) { $qualityMetrics.PDFsWithEmbeddings++ } else { $qualityMetrics.MissingEmbeddings += $pdfId }
     if ($tablesFound -gt 0) { $qualityMetrics.PDFsWithTables++ }
@@ -222,6 +241,72 @@ if ($qualityMetrics.MissingEmbeddings.Count -gt 0) {
         Write-Host "    PDFs without embeddings:" -ForegroundColor Yellow
         $qualityMetrics.MissingEmbeddings | ForEach-Object { Write-Host "      - $_" -ForegroundColor Gray }
     }
+}
+Write-Host ""
+
+# Per-PDF Coverage Report
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  PER-PDF COVERAGE REPORT" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+
+if ($qualityMetrics.PdfCoverageDetails) {
+    # Sort by coverage (lowest first)
+    $sortedCoverage = $qualityMetrics.PdfCoverageDetails | Sort-Object { $_.Coverage }
+    
+    # Show all PDFs with coverage
+    Write-Host "Coverage by PDF (sorted by coverage):" -ForegroundColor White
+    Write-Host ""
+    
+    # Table header
+    $header = "{0,-50} {1,8} {2,8} {3,8} {4,8} {5,10} {6,8}" -f "PDF Name", "Expected", "Indexed", "Embedded", "Skipped", "Coverage", "Status"
+    Write-Host $header -ForegroundColor Cyan
+    Write-Host ("-" * 110) -ForegroundColor Gray
+    
+    foreach ($pdf in $sortedCoverage) {
+        $status = if ($pdf.Coverage -ge 98) { "EXCELLENT" } elseif ($pdf.Coverage -ge 95) { "GOOD" } elseif ($pdf.Coverage -ge 90) { "WARNING" } else { "LOW" }
+        $statusColor = if ($pdf.Coverage -ge 98) { "Green" } elseif ($pdf.Coverage -ge 95) { "Yellow" } elseif ($pdf.Coverage -ge 90) { "Yellow" } else { "Red" }
+        $coverageColor = if ($pdf.Coverage -ge 98) { "Green" } elseif ($pdf.Coverage -ge 95) { "Yellow" } elseif ($pdf.Coverage -ge 90) { "Yellow" } else { "Red" }
+        
+        # Truncate PDF name if too long
+        $pdfName = if ($pdf.PdfId.Length -gt 48) { $pdf.PdfId.Substring(0, 45) + "..." } else { $pdf.PdfId }
+        
+        $skippedDisplay = if ($pdf.SkippedChunks -gt 0) { "$($pdf.SkippedChunks)" } else { "0" }
+        $skippedColor = if ($pdf.SkippedChunks -gt 0) { "Yellow" } else { "Gray" }
+        
+        $row = "{0,-50} {1,8} {2,8} {3,8} {4,8} {5,9}% {6,-8}" -f $pdfName, $pdf.ExpectedChunks, $pdf.IndexedChunks, $pdf.ChunksWithEmbeddings, $skippedDisplay, $pdf.Coverage, $status
+        Write-Host $row -ForegroundColor $coverageColor
+    }
+    
+    Write-Host ""
+    
+    # Summary statistics
+    $lowCoverage = ($sortedCoverage | Where-Object { $_.Coverage -lt 95 }).Count
+    $excellentCoverage = ($sortedCoverage | Where-Object { $_.Coverage -ge 98 }).Count
+    $goodCoverage = ($sortedCoverage | Where-Object { $_.Coverage -ge 95 -and $_.Coverage -lt 98 }).Count
+    
+    Write-Host "Coverage Summary:" -ForegroundColor White
+    Write-Host "  Excellent (98%+): $excellentCoverage PDFs" -ForegroundColor Green
+    Write-Host "  Good (95-98%):    $goodCoverage PDFs" -ForegroundColor Yellow
+    Write-Host "  Low (<95%):       $lowCoverage PDFs" -ForegroundColor $(if ($lowCoverage -gt 0) { "Red" } else { "Green" })
+    Write-Host ""
+    
+    # List PDFs that need reprocessing
+    if ($lowCoverage -gt 0) {
+        Write-Host "PDFs that need reprocessing (coverage < 95%):" -ForegroundColor Red
+        $sortedCoverage | Where-Object { $_.Coverage -lt 95 } | ForEach-Object {
+            $skippedInfo = if ($_.SkippedChunks -gt 0) { " (Skipped: $($_.SkippedChunks) chunks)" } else { "" }
+            Write-Host "  - $($_.PdfId) ($($_.Coverage)% - $($_.ChunksWithEmbeddings)/$($_.ExpectedChunks) expected$skippedInfo)" -ForegroundColor Yellow
+        }
+        Write-Host ""
+        Write-Host "  To reprocess these PDFs:" -ForegroundColor Yellow
+        Write-Host "    1. Fix token limit in process-pdfs.ps1 (already done)" -ForegroundColor Gray
+        Write-Host "    2. Temporarily move other PDFs from blob storage" -ForegroundColor Gray
+        Write-Host "    3. Run: .\process-pdfs.ps1 -ResourceGroupName $ResourceGroupName -GenerateEmbeddings -ForceReprocess" -ForegroundColor White
+        Write-Host ""
+    }
+} else {
+    Write-Host "  No coverage data available" -ForegroundColor Yellow
 }
 Write-Host ""
 

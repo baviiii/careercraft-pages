@@ -173,6 +173,71 @@ Write-Host ""
 # HELPER FUNCTIONS
 # ============================================================
 
+function Test-PdfCoverage {
+    param(
+        [string]$PdfName,
+        [string]$SearchEndpoint,
+        [string]$SearchKey,
+        [string]$SearchIndexName,
+        [double]$MinCoverage = 95.0
+    )
+    
+    try {
+        $headers = @{
+            "Content-Type" = "application/json"
+            "api-key" = $SearchKey
+        }
+        
+        # Query Azure Search for chunks from this PDF
+        $searchUrl = "$SearchEndpoint/indexes/$SearchIndexName/docs/search?api-version=2023-11-01"
+        $searchBody = @{
+            search = "*"
+            filter = "documentType eq 'pdf' and documentId eq '$PdfName'"
+            top = 1
+            select = "metadata"
+        } | ConvertTo-Json
+        
+        $result = Invoke-RestMethod -Uri $searchUrl -Method Post -Headers $headers -Body $searchBody -ErrorAction SilentlyContinue
+        
+        if (-not $result -or $result.value.Count -eq 0) {
+            return $false  # PDF not found, needs processing
+        }
+        
+        # Get metadata from first chunk to find expected chunk count
+        $firstChunk = $result.value[0]
+        $metadata = try { $firstChunk.metadata | ConvertFrom-Json } catch { $null }
+        
+        if (-not $metadata -or -not $metadata.totalChunks) {
+            return $false  # No metadata, needs processing
+        }
+        
+        $expectedChunks = $metadata.totalChunks
+        
+        # Now count actual chunks with embeddings
+        $countBody = @{
+            search = "*"
+            filter = "documentType eq 'pdf' and documentId eq '$PdfName' and contentVector/any()"
+            top = 0
+            includeTotalResultCount = $true
+        } | ConvertTo-Json
+        
+        $countResult = Invoke-RestMethod -Uri $searchUrl -Method Post -Headers $headers -Body $countBody -ErrorAction SilentlyContinue
+        
+        if (-not $countResult -or -not $countResult.'@odata.count') {
+            return $false  # Can't determine, needs processing
+        }
+        
+        $chunksWithEmbeddings = $countResult.'@odata.count'
+        $coverage = if ($expectedChunks -gt 0) { ($chunksWithEmbeddings / $expectedChunks) * 100 } else { 0 }
+        
+        return $coverage -ge $MinCoverage
+    }
+    catch {
+        # If check fails, assume needs processing
+        return $false
+    }
+}
+
 function Invoke-DocumentIntelligence {
     param(
         [string]$PdfUrl,
@@ -453,8 +518,10 @@ function Generate-Embedding {
     }
     
     # ELITE: Proper token guard (text-embedding-3-large supports ~8000 tokens, ~32k chars)
-    # Conservative limit with safety margin
-    $maxChars = 30000
+    # Conservative limit with safety margin - reduced to prevent token limit errors
+    # Complex text (tables, numbers, symbols) can convert at ~2 chars per token
+    # 15000 chars = ~7500 tokens (safe margin under 8192 limit)
+    $maxChars = 15000
     $textToEmbed = $Text.Substring(0, [Math]::Min($maxChars, $Text.Length)).Trim()
     
     if ([string]::IsNullOrWhiteSpace($textToEmbed) -or $textToEmbed.Length -lt 10) {
@@ -682,6 +749,7 @@ $stats = @{
     embeddingsGenerated = 0
     embeddingErrors = 0
     failed = 0
+    skipped = 0
     chunks = 0
     indexed = 0
     rateLimitHits = 0  # Track rate limit hits for adaptive throttling
@@ -695,12 +763,16 @@ $stats = @{
 
 # OPTIMIZATION: If deployment capacity is high (scaled up), reduce delays
 # Capacity 120 = S0 tier (conservative delays)
-# Capacity 240+ = Scaled up (can use faster delays)
-if ($deploymentCapacity -and $deploymentCapacity -ge 240) {
-    $baseEmbeddingDelay = 500  # 0.5 seconds - safe for high capacity (240+)
+# Capacity 240-999 = Scaled up (can use faster delays)
+# Capacity 1000+ = Very high capacity (minimal delays for maximum speed)
+if ($deploymentCapacity -and $deploymentCapacity -ge 1000) {
+    $baseEmbeddingDelay = 100  # 0.1 seconds - minimal delay for very high capacity (1000+)
+    Write-Host "[INFO] Very high capacity detected ($deploymentCapacity) - using minimal delays for maximum speed" -ForegroundColor Green
+} elseif ($deploymentCapacity -and $deploymentCapacity -ge 240) {
+    $baseEmbeddingDelay = 500  # 0.5 seconds - safe for high capacity (240-999)
     Write-Host "[INFO] High capacity detected ($deploymentCapacity) - using optimized delays" -ForegroundColor Green
 } else {
-    $baseEmbeddingDelay = 3000  # 3 seconds - conservative for S0 tier (capacity 120)
+    $baseEmbeddingDelay = 3000  # 3 seconds - conservative for S0 tier (capacity < 240)
 }
 
 $baseIndexingDelay = 200   # Base delay for indexing operations
@@ -730,6 +802,23 @@ foreach ($pdf in $pdfs) {
     }
     
     Write-Host "[$pdfIndex/$($pdfs.Count)] $pdfName" -ForegroundColor Cyan
+    
+    # Check if PDF already has good coverage (unless ForceReprocess is set)
+    if (-not $ForceReprocess) {
+        Write-Host "   [CHECK] Checking if PDF already processed..." -ForegroundColor Gray
+        $hasGoodCoverage = Test-PdfCoverage -PdfName $pdfName -SearchEndpoint $searchEndpoint -SearchKey $searchKey -SearchIndexName $SearchIndexName -MinCoverage 95.0
+        
+        if ($hasGoodCoverage) {
+            Write-Host "   [SKIP] PDF already processed with >= 95% coverage - skipping to save costs" -ForegroundColor Green
+            Write-Host "         (Use -ForceReprocess to reprocess anyway)" -ForegroundColor Gray
+            $stats.skipped++
+            continue
+        } else {
+            Write-Host "   [OK] PDF needs processing or has low coverage - proceeding..." -ForegroundColor Cyan
+        }
+    } else {
+        Write-Host "   [INFO] ForceReprocess enabled - will reprocess even if already done" -ForegroundColor Yellow
+    }
     
     try {
         # Generate SAS URL for Document Intelligence
@@ -1384,7 +1473,8 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 Write-Host "  Duration:       $([math]::Round($duration.TotalMinutes, 1)) minutes" -ForegroundColor White
 Write-Host "  PDFs Processed: $($stats.processed)/$($pdfs.Count)" -ForegroundColor $(if ($stats.failed -eq 0) { "Green" } else { "Yellow" })
-Write-Host "  PDFs Failed:    $($stats.failed)" -ForegroundColor $(if ($stats.failed -eq 0) { "Green" } else { "Red" })
+Write-Host "  PDFs Skipped:  $($stats.skipped) (already had >= 95% coverage)" -ForegroundColor Cyan
+Write-Host "  PDFs Failed:   $($stats.failed)" -ForegroundColor $(if ($stats.failed -eq 0) { "Green" } else { "Red" })
 Write-Host "  Total Chunks:   $($stats.chunks)" -ForegroundColor White
 Write-Host "  Chunks Indexed: $($stats.indexed)" -ForegroundColor Green
 

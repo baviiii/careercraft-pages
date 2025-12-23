@@ -1125,9 +1125,13 @@ Example: 'We're looking for a Senior Software Engineer with 5+ years experience 
                             <div className="space-y-2">
                               <h4 className="font-medium flex items-center gap-2 text-red-600"><AlertTriangle className="w-4 h-4" />Red Flags</h4>
                               <ul className="text-sm space-y-1">
-                                {currentEvaluation.validation?.redFlags?.length ? currentEvaluation.validation.redFlags.map((item, i) => (
-                                  <li key={i} className="text-muted-foreground">• {item}</li>
-                                )) : <li className="text-muted-foreground">• None detected</li>}
+                                {currentEvaluation.validation?.redFlags && currentEvaluation.validation.redFlags.length > 0 ? (
+                                  currentEvaluation.validation.redFlags.map((item, i) => (
+                                    <li key={i} className="text-muted-foreground">• {item}</li>
+                                  ))
+                                ) : (
+                                  <li className="text-muted-foreground text-green-600">✓ None detected</li>
+                                )}
                               </ul>
                             </div>
                           </div>
@@ -1207,15 +1211,17 @@ Example: 'We're looking for a Senior Software Engineer with 5+ years experience 
                     </Card>
                   </div>
 
-                  {/* Must Fix */}
-                  <Card className="p-6 border-red-200 bg-red-50/50 dark:bg-red-950/20">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2 text-red-600"><AlertTriangle className="w-5 h-5" />Must Fix Before Applying</h3>
-                    <ul className="space-y-2">
-                      {finalEvaluation.mustFix?.map((fix, i) => (
-                        <li key={i} className="flex items-start gap-2"><AlertTriangle className="w-4 h-4 text-red-500 mt-1 shrink-0" />{fix}</li>
-                      ))}
-                    </ul>
-                  </Card>
+                  {/* Must Fix - Only show if there are items */}
+                  {finalEvaluation.mustFix && finalEvaluation.mustFix.length > 0 && (
+                    <Card className="p-6 border-red-200 bg-red-50/50 dark:bg-red-950/20">
+                      <h3 className="font-semibold mb-4 flex items-center gap-2 text-red-600"><AlertTriangle className="w-5 h-5" />Must Fix Before Applying</h3>
+                      <ul className="space-y-2">
+                        {finalEvaluation.mustFix.map((fix, i) => (
+                          <li key={i} className="flex items-start gap-2"><AlertTriangle className="w-4 h-4 text-red-500 mt-1 shrink-0" />{fix}</li>
+                        ))}
+                      </ul>
+                    </Card>
+                  )}
 
                   {/* Improvement Plan */}
                   <Card className="p-6">

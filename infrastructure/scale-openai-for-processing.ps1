@@ -13,6 +13,9 @@ param(
     [int]$LowCapacity = 120,   # Low capacity for normal operation (cost-effective)
     
     [Parameter(Mandatory=$false)]
+    [int]$CustomCapacity = 0,  # Set custom capacity (e.g., 1000 for 1M tokens/min)
+    
+    [Parameter(Mandatory=$false)]
     [switch]$ScaleDown,  # Use this flag to scale back down after processing
     
     [Parameter(Mandatory=$false)]
@@ -108,9 +111,15 @@ try {
 # Determine target capacity
 if ($ScaleDown) {
     $targetCapacity = $LowCapacity
-    Write-Host ""
+    Write-Host "" 
     Write-Host " SCALING DOWN to save costs..." -ForegroundColor Yellow
     Write-Host "Target capacity: $targetCapacity (from $currentCapacity)" -ForegroundColor Yellow
+} elseif ($CustomCapacity -gt 0) {
+    $targetCapacity = $CustomCapacity
+    Write-Host ""
+    Write-Host " USING CUSTOM CAPACITY..." -ForegroundColor Cyan
+    Write-Host "Target capacity: $targetCapacity (from $currentCapacity)" -ForegroundColor Cyan
+    Write-Host "Token limit: $($targetCapacity * 1000)K tokens/minute" -ForegroundColor Green
 } else {
     $targetCapacity = $HighCapacity
     Write-Host ""

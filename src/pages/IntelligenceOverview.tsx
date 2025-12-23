@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import {
@@ -9,8 +9,14 @@ import {
   SectorHeatmap,
   InvestmentHighlights,
   BreakingNews,
+  CareersDashboard,
+  SkillsDashboard,
+  FundingDashboard,
 } from "@/components/intelligence";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Briefcase, Brain, DollarSign, LayoutDashboard } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const container = {
   hidden: { opacity: 0 },
@@ -25,10 +31,13 @@ const item = {
   show: { opacity: 1, y: 0 }
 };
 
+type DashboardTab = "overview" | "careers" | "skills" | "funding";
+
 export default function IntelligenceOverview() {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -79,7 +88,7 @@ export default function IntelligenceOverview() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="space-y-8"
+        className="space-y-6"
       >
         {/* Header */}
         <motion.div variants={item}>
@@ -89,7 +98,7 @@ export default function IntelligenceOverview() {
                 Welcome back, {userName}
               </p>
               <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">
-                Intelligence Overview
+                Intelligence Dashboard
               </h1>
               <p className="text-muted-foreground mt-2 max-w-xl">
                 Real-time insights into South Australia's job market, government investments, 
@@ -103,24 +112,127 @@ export default function IntelligenceOverview() {
           </div>
         </motion.div>
 
-        {/* Career Pulse - Key Metrics */}
+        {/* Dashboard Tabs */}
         <motion.div variants={item}>
-          <CareerPulse />
-        </motion.div>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as DashboardTab)} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1 h-auto">
+              <TabsTrigger 
+                value="overview" 
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 data-[state=active]:bg-card data-[state=active]:shadow-sm",
+                  "transition-all duration-200"
+                )}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span className="hidden sm:inline">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="careers"
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 data-[state=active]:bg-card data-[state=active]:shadow-sm",
+                  "transition-all duration-200"
+                )}
+              >
+                <Briefcase className="w-4 h-4" />
+                <span className="hidden sm:inline">Careers</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="skills"
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 data-[state=active]:bg-card data-[state=active]:shadow-sm",
+                  "transition-all duration-200"
+                )}
+              >
+                <Brain className="w-4 h-4" />
+                <span className="hidden sm:inline">Skills</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="funding"
+                className={cn(
+                  "flex items-center gap-2 px-4 py-3 data-[state=active]:bg-card data-[state=active]:shadow-sm",
+                  "transition-all duration-200"
+                )}
+              >
+                <DollarSign className="w-4 h-4" />
+                <span className="hidden sm:inline">Funding</span>
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Main Grid: Heatmap + Investment Highlights */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <motion.div variants={item} className="lg:col-span-2">
-            <SectorHeatmap />
-          </motion.div>
-          <motion.div variants={item}>
-            <InvestmentHighlights />
-          </motion.div>
-        </div>
+            {/* Overview Tab */}
+            <TabsContent value="overview" className="mt-6 space-y-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="overview"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-6"
+                >
+                  {/* Career Pulse - Key Metrics */}
+                  <CareerPulse />
 
-        {/* Breaking News */}
-        <motion.div variants={item}>
-          <BreakingNews />
+                  {/* Main Grid: Heatmap + Investment Highlights */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2">
+                      <SectorHeatmap />
+                    </div>
+                    <div>
+                      <InvestmentHighlights />
+                    </div>
+                  </div>
+
+                  {/* Breaking News */}
+                  <BreakingNews />
+                </motion.div>
+              </AnimatePresence>
+            </TabsContent>
+
+            {/* Careers Tab */}
+            <TabsContent value="careers" className="mt-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="careers"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CareersDashboard />
+                </motion.div>
+              </AnimatePresence>
+            </TabsContent>
+
+            {/* Skills Tab */}
+            <TabsContent value="skills" className="mt-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="skills"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <SkillsDashboard />
+                </motion.div>
+              </AnimatePresence>
+            </TabsContent>
+
+            {/* Funding Tab */}
+            <TabsContent value="funding" className="mt-6">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="funding"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <FundingDashboard />
+                </motion.div>
+              </AnimatePresence>
+            </TabsContent>
+          </Tabs>
         </motion.div>
       </motion.div>
     </IntelligenceLayout>
