@@ -333,10 +333,11 @@ Return ONLY valid JSON, no explanations.`
 
   } catch (error) {
     console.error('Parse resume error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to parse document'
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message || 'Failed to parse document',
+        error: errorMessage,
         details: 'Please try uploading a different file format'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
