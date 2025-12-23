@@ -249,7 +249,7 @@ async function getCategoryStats(
         categoryStats.push({
           category: facet.value,
           count: uniqueDocIds.size,
-          documentIds: Array.from(uniqueDocIds),
+          documentIds: Array.from(uniqueDocIds) as string[],
         })
       }
     }
