@@ -28,7 +28,7 @@ export default {
           foreground: "hsl(var(--primary-foreground))",
           light: "hsl(var(--primary-light))",
           dark: "hsl(var(--primary-dark))",
-          glow: "hsl(195 92% 48%)",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -64,6 +64,7 @@ export default {
           emerald: "hsl(var(--accent-emerald))",
           coral: "hsl(var(--accent-coral))",
           slate: "hsl(var(--accent-slate))",
+          sky: "hsl(var(--accent-sky))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -82,6 +83,7 @@ export default {
         'gradient-teal': 'var(--gradient-teal)',
         'gradient-authority': 'var(--gradient-authority)',
         'gradient-surface': 'var(--gradient-surface)',
+        'gradient-blue-sky': 'var(--gradient-blue-sky)',
       },
       boxShadow: {
         'sm': 'var(--shadow-sm)',
@@ -93,6 +95,7 @@ export default {
         'glow-gold': 'var(--shadow-glow-gold)',
         'glow-teal': 'var(--shadow-glow-teal)',
         'glow-primary': 'var(--shadow-glow-primary)',
+        'glow-blue': 'var(--shadow-glow-blue)',
         'inner': 'var(--shadow-inner)',
       },
       borderRadius: {

@@ -9,133 +9,140 @@
 
 @layer base {
   :root {
-    /* Core Government Blues - Deep, authoritative */
-    --background: 220 23% 97%;
-    --foreground: 222 47% 11%;
+    /* Beautiful Blue Theme - Premium SA Government */
+    --background: 210 50% 98%;
+    --foreground: 215 50% 15%;
 
-    /* Cards - Clean with subtle warmth */
+    /* Cards - Crisp white with blue tint */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 215 50% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 215 50% 15%;
 
-    /* Primary - Deep Navy Blue (Government authority) */
-    --primary: 220 65% 18%;
+    /* Primary - Vibrant Royal Blue */
+    --primary: 217 91% 50%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 220 50% 35%;
-    --primary-dark: 220 70% 12%;
+    --primary-light: 217 85% 60%;
+    --primary-dark: 217 95% 38%;
+    --primary-glow: 217 91% 60%;
 
-    /* Secondary - Slate (Calm professionalism) */
-    --secondary: 215 20% 95%;
-    --secondary-foreground: 222 47% 11%;
+    /* Secondary - Soft Blue-Gray */
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 215 50% 15%;
 
-    /* Intelligence Accents */
-    --accent-gold: 43 96% 56%;
-    --accent-gold-muted: 43 60% 68%;
-    --accent-teal: 187 72% 45%;
-    --accent-teal-muted: 187 45% 60%;
-    --accent-emerald: 160 84% 39%;
-    --accent-coral: 12 76% 61%;
-    --accent-slate: 215 25% 50%;
+    /* Intelligence Accents - Blues & Teals */
+    --accent-gold: 45 93% 58%;
+    --accent-gold-muted: 45 70% 65%;
+    --accent-teal: 192 82% 45%;
+    --accent-teal-muted: 192 55% 55%;
+    --accent-emerald: 162 78% 42%;
+    --accent-coral: 16 85% 60%;
+    --accent-slate: 215 20% 55%;
+    --accent-sky: 200 95% 55%;
 
     /* Status Colors */
-    --success: 160 84% 39%;
+    --success: 162 78% 42%;
     --success-foreground: 0 0% 100%;
-    --warning: 43 96% 56%;
-    --warning-foreground: 222 47% 11%;
-    --info: 200 80% 50%;
+    --warning: 45 93% 58%;
+    --warning-foreground: 215 50% 15%;
+    --info: 200 95% 55%;
     --info-foreground: 0 0% 100%;
 
-    --muted: 215 20% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 214 32% 93%;
+    --muted-foreground: 215 20% 50%;
 
-    --accent: 220 50% 94%;
-    --accent-foreground: 220 65% 18%;
+    --accent: 214 95% 93%;
+    --accent-foreground: 217 91% 40%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 20% 88%;
-    --input: 215 20% 88%;
-    --ring: 220 65% 35%;
+    --border: 214 32% 87%;
+    --input: 214 32% 87%;
+    --ring: 217 91% 55%;
 
     --radius: 0.75rem;
 
-    /* Premium Government Gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(220 65% 12%) 0%, hsl(220 55% 20%) 50%, hsl(215 45% 28%) 100%);
-    --gradient-hero-warm: linear-gradient(135deg, hsl(220 65% 12%) 0%, hsl(220 50% 22%) 60%, hsl(43 40% 35%) 100%);
-    --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%);
-    --gradient-gold: linear-gradient(135deg, hsl(43 96% 56%), hsl(35 90% 50%));
-    --gradient-teal: linear-gradient(135deg, hsl(187 72% 45%), hsl(175 60% 50%));
-    --gradient-authority: linear-gradient(135deg, hsl(220 65% 18%), hsl(215 45% 28%));
-    --gradient-surface: linear-gradient(180deg, hsl(220 23% 98%) 0%, hsl(220 23% 95%) 100%);
+    /* Premium Blue Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(217 91% 35%) 0%, hsl(217 85% 50%) 50%, hsl(200 95% 55%) 100%);
+    --gradient-hero-warm: linear-gradient(135deg, hsl(217 91% 40%) 0%, hsl(217 85% 55%) 60%, hsl(192 82% 50%) 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.97) 0%, rgba(240,248,255,0.9) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(45 93% 58%), hsl(38 90% 52%));
+    --gradient-teal: linear-gradient(135deg, hsl(192 82% 45%), hsl(180 70% 50%));
+    --gradient-authority: linear-gradient(135deg, hsl(217 91% 45%), hsl(200 85% 50%));
+    --gradient-surface: linear-gradient(180deg, hsl(210 50% 99%) 0%, hsl(214 40% 96%) 100%);
+    --gradient-blue-sky: linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(200 95% 55%) 100%);
     
-    /* Sophisticated Shadows */
-    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.03);
-    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -1px rgba(15, 23, 42, 0.03);
-    --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.03);
-    --shadow-xl: 0 20px 40px -5px rgba(15, 23, 42, 0.1), 0 10px 15px -5px rgba(15, 23, 42, 0.04);
-    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
-    --shadow-card-hover: 0 12px 40px rgba(15, 23, 42, 0.1), 0 4px 12px rgba(15, 23, 42, 0.05);
-    --shadow-glow-gold: 0 0 40px hsl(43 96% 56% / 0.15);
-    --shadow-glow-teal: 0 0 40px hsl(187 72% 45% / 0.12);
-    --shadow-glow-primary: 0 0 40px hsl(220 65% 35% / 0.15);
-    --shadow-inner: inset 0 2px 4px rgba(15, 23, 42, 0.04);
+    /* Sophisticated Blue Shadows */
+    --shadow-sm: 0 1px 2px rgba(30, 64, 175, 0.04);
+    --shadow-md: 0 4px 6px -1px rgba(30, 64, 175, 0.06), 0 2px 4px -1px rgba(30, 64, 175, 0.04);
+    --shadow-lg: 0 10px 25px -3px rgba(30, 64, 175, 0.08), 0 4px 6px -2px rgba(30, 64, 175, 0.04);
+    --shadow-xl: 0 20px 40px -5px rgba(30, 64, 175, 0.12), 0 10px 15px -5px rgba(30, 64, 175, 0.05);
+    --shadow-card: 0 1px 3px rgba(30, 64, 175, 0.05), 0 8px 24px rgba(30, 64, 175, 0.08);
+    --shadow-card-hover: 0 12px 40px rgba(30, 64, 175, 0.12), 0 4px 12px rgba(30, 64, 175, 0.06);
+    --shadow-glow-gold: 0 0 40px hsl(45 93% 58% / 0.2);
+    --shadow-glow-teal: 0 0 40px hsl(192 82% 45% / 0.15);
+    --shadow-glow-primary: 0 0 40px hsl(217 91% 55% / 0.25);
+    --shadow-glow-blue: 0 0 60px hsl(217 91% 50% / 0.3);
+    --shadow-inner: inset 0 2px 4px rgba(30, 64, 175, 0.05);
   }
 
   .dark {
-    /* Dark Mode - Command Center aesthetic */
-    --background: 222 47% 7%;
+    /* Dark Mode - Deep Blue Command Center */
+    --background: 222 50% 8%;
     --foreground: 210 40% 96%;
 
-    --card: 222 47% 10%;
+    --card: 222 50% 12%;
     --card-foreground: 210 40% 96%;
 
-    --popover: 222 47% 10%;
+    --popover: 222 50% 12%;
     --popover-foreground: 210 40% 96%;
 
-    --primary: 215 60% 55%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-    --primary-light: 215 55% 65%;
-    --primary-dark: 220 65% 18%;
+    --primary-light: 217 85% 70%;
+    --primary-dark: 217 91% 45%;
+    --primary-glow: 217 91% 65%;
 
-    --secondary: 222 47% 15%;
+    --secondary: 222 50% 18%;
     --secondary-foreground: 210 40% 96%;
 
-    --accent-gold: 43 96% 58%;
-    --accent-gold-muted: 43 50% 50%;
-    --accent-teal: 187 72% 50%;
-    --accent-teal-muted: 187 45% 45%;
-    --accent-emerald: 160 84% 45%;
-    --accent-coral: 12 76% 55%;
-    --accent-slate: 215 25% 60%;
+    --accent-gold: 45 93% 60%;
+    --accent-gold-muted: 45 55% 52%;
+    --accent-teal: 192 82% 52%;
+    --accent-teal-muted: 192 50% 48%;
+    --accent-emerald: 162 78% 48%;
+    --accent-coral: 16 85% 58%;
+    --accent-slate: 215 20% 62%;
+    --accent-sky: 200 95% 60%;
 
-    --success: 160 84% 45%;
+    --success: 162 78% 48%;
     --success-foreground: 0 0% 100%;
 
-    --muted: 222 47% 15%;
-    --muted-foreground: 215 16% 60%;
+    --muted: 222 50% 18%;
+    --muted-foreground: 215 20% 62%;
 
-    --accent: 220 50% 18%;
-    --accent-foreground: 215 60% 70%;
+    --accent: 217 50% 20%;
+    --accent-foreground: 217 91% 70%;
 
     --destructive: 0 62% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 222 47% 18%;
-    --input: 222 47% 18%;
-    --ring: 215 60% 55%;
+    --border: 222 50% 20%;
+    --input: 222 50% 20%;
+    --ring: 217 91% 60%;
 
-    --gradient-hero: linear-gradient(135deg, hsl(222 47% 6%) 0%, hsl(220 50% 12%) 50%, hsl(215 45% 18%) 100%);
-    --gradient-glass: linear-gradient(135deg, rgba(30,41,59,0.9) 0%, rgba(30,41,59,0.7) 100%);
-    --gradient-surface: linear-gradient(180deg, hsl(222 47% 8%) 0%, hsl(222 47% 6%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(222 50% 7%) 0%, hsl(217 60% 18%) 50%, hsl(200 50% 25%) 100%);
+    --gradient-glass: linear-gradient(135deg, rgba(30,41,75,0.92) 0%, rgba(30,41,75,0.75) 100%);
+    --gradient-surface: linear-gradient(180deg, hsl(222 50% 10%) 0%, hsl(222 50% 7%) 100%);
     
-    --shadow-card: 0 1px 3px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.2);
-    --shadow-card-hover: 0 12px 40px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
-    --shadow-glow-gold: 0 0 50px hsl(43 96% 58% / 0.2);
-    --shadow-glow-teal: 0 0 50px hsl(187 72% 50% / 0.15);
-    --shadow-glow-primary: 0 0 50px hsl(215 60% 55% / 0.2);
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.25);
+    --shadow-card-hover: 0 12px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.22);
+    --shadow-glow-gold: 0 0 50px hsl(45 93% 60% / 0.22);
+    --shadow-glow-teal: 0 0 50px hsl(192 82% 52% / 0.18);
+    --shadow-glow-primary: 0 0 50px hsl(217 91% 60% / 0.28);
+    --shadow-glow-blue: 0 0 60px hsl(217 91% 60% / 0.35);
   }
 }
 
