@@ -543,29 +543,29 @@ export default function ExploreSA() {
               whileTap={{ scale: 0.98 }}
             >
               <Card
-                onClick={() => setSelectedCategory(selectedCategory === category.id ? null : category.id)}
+              onClick={() => setSelectedCategory(selectedCategory === category.id ? null : category.id)}
                 className={cn(
                   "group relative p-5 cursor-pointer transition-all duration-300 overflow-hidden border-0",
-                  selectedCategory === category.id
-                    ? "bg-gradient-to-br " + category.color + " scale-[1.02] shadow-lg"
-                    : "bg-slate-900/50 hover:bg-slate-800/50"
+                selectedCategory === category.id
+                  ? "bg-gradient-to-br " + category.color + " scale-[1.02] shadow-lg"
+                  : "bg-slate-900/50 hover:bg-slate-800/50"
                 )}
-              >
+            >
                 <div className={cn(
                   "absolute top-0 left-0 w-full h-1 bg-gradient-to-r " + category.color,
-                  selectedCategory === category.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                selectedCategory === category.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 )} />
-                
-                <div className="flex items-start gap-3">
+              
+              <div className="flex items-start gap-3">
                   <div className={cn(
                     "w-12 h-12 rounded-xl flex items-center justify-center",
-                    selectedCategory === category.id 
-                      ? "bg-white/20" 
-                      : `bg-gradient-to-br ${category.color}`
+                  selectedCategory === category.id 
+                    ? "bg-white/20" 
+                    : `bg-gradient-to-br ${category.color}`
                   )}>
-                    <category.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
+                  <category.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="font-semibold text-white truncate text-sm">{category.name}</h3>
                       {category.growth && (
@@ -578,19 +578,19 @@ export default function ExploreSA() {
                       "text-xs line-clamp-2 mb-2",
                       selectedCategory === category.id ? "text-white/80" : "text-slate-400"
                     )}>
-                      {category.description}
-                    </p>
+                    {category.description}
+                  </p>
                     <Badge className={cn(
                       "text-[10px]",
-                      selectedCategory === category.id 
-                        ? "bg-white/20 text-white" 
-                        : "bg-slate-800 text-slate-300"
+                    selectedCategory === category.id 
+                      ? "bg-white/20 text-white" 
+                      : "bg-slate-800 text-slate-300"
                     )}>
-                      {category.count} resources
-                    </Badge>
-                  </div>
+                    {category.count} resources
+                  </Badge>
                 </div>
-              </Card>
+              </div>
+            </Card>
             </motion.div>
           ))}
         </div>
@@ -600,7 +600,7 @@ export default function ExploreSA() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-teal-400" />
+          <TrendingUp className="w-5 h-5 text-teal-400" />
             {searchQuery ? "Search Results" : "Featured Resources"}
             {displayedResources.length > 0 && (
               <Badge variant="secondary" className="bg-slate-800 text-slate-300">
@@ -627,18 +627,18 @@ export default function ExploreSA() {
             <AnimatePresence>
               {displayedResources.map((resource, index) => (
                 <motion.div
-                  key={resource.id}
+              key={resource.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ delay: index * 0.05 }}
-                >
+            >
                   <Card className={cn(
                     "group relative p-5 bg-slate-900/50 border border-slate-800/50 hover:border-slate-700/50 transition-all duration-300 cursor-pointer overflow-hidden",
                     viewMode === "list" && "flex items-start gap-4"
                   )}>
-                    <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-blue-500 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    
+              <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-blue-500 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+              
                     {resource.featured && (
                       <div className="absolute top-3 right-3">
                         <Badge className="bg-yellow-500/20 text-yellow-400 border-0">
@@ -651,47 +651,47 @@ export default function ExploreSA() {
                     <div className={cn("flex items-start gap-3 mb-3", viewMode === "list" && "mb-0")}>
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                        resource.type === 'pdf' 
-                          ? "bg-red-500/20" 
-                          : resource.type === 'web' 
-                          ? "bg-blue-500/20" 
-                          : "bg-purple-500/20"
+                  resource.type === 'pdf' 
+                    ? "bg-red-500/20" 
+                    : resource.type === 'web' 
+                    ? "bg-blue-500/20" 
+                    : "bg-purple-500/20"
                       )}>
                         <FileText className={cn(
                           "w-5 h-5",
-                          resource.type === 'pdf' 
-                            ? "text-red-400" 
-                            : resource.type === 'web' 
-                            ? "text-blue-400" 
-                            : "text-purple-400"
+                    resource.type === 'pdf' 
+                      ? "text-red-400" 
+                      : resource.type === 'web' 
+                      ? "text-blue-400" 
+                      : "text-purple-400"
                         )} />
-                      </div>
-                      <div className="flex-1 min-w-0">
+                </div>
+                <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-white group-hover:text-blue-400 transition-colors line-clamp-2 mb-1">
-                          {resource.title}
-                        </h3>
+                    {resource.title}
+                  </h3>
                         <p className="text-xs text-slate-500 mb-2">{resource.source}</p>
                         {viewMode === "list" && (
                           <p className="text-sm text-slate-400 line-clamp-2">
                             {resource.description}
                           </p>
                         )}
-                      </div>
-                    </div>
-                    
+                </div>
+              </div>
+              
                     {viewMode === "grid" && (
-                      <p className="text-sm text-slate-400 mb-3 line-clamp-2">
-                        {resource.description}
-                      </p>
+              <p className="text-sm text-slate-400 mb-3 line-clamp-2">
+                {resource.description}
+              </p>
                     )}
-                    
+              
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1">
                         {resource.tags.slice(0, 3).map((tag) => (
                           <Badge key={tag} variant="secondary" className="text-[10px] bg-slate-800 text-slate-300">
-                            {tag}
-                          </Badge>
-                        ))}
+                      {tag}
+                    </Badge>
+                  ))}
                         {resource.tags.length > 3 && (
                           <Badge variant="secondary" className="text-[10px] bg-slate-800 text-slate-300">
                             +{resource.tags.length - 3}
@@ -785,13 +785,13 @@ export default function ExploreSA() {
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                      </div>
-                    </div>
-                  </Card>
+                </div>
+              </div>
+            </Card>
                 </motion.div>
-              ))}
+          ))}
             </AnimatePresence>
-          </div>
+        </div>
         )}
       </div>
 
@@ -801,29 +801,29 @@ export default function ExploreSA() {
           <Globe className="w-5 h-5 text-blue-400" />
           Official Resources
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
             { title: "SA Government Jobs Portal", url: "https://jobs.sa.gov.au", icon: Briefcase, color: "blue", description: "Official job listings" },
             { title: "Skills SA Training", url: "https://www.skills.sa.gov.au", icon: GraduationCap, color: "purple", description: "Training programs" },
             { title: "Migration SA", url: "https://www.migration.sa.gov.au", icon: Users, color: "teal", description: "Migrant support" },
-          ].map((link) => (
-            <a
-              key={link.title}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-4 p-4 rounded-xl bg-slate-900/50 border border-slate-800/50 hover:border-slate-700/50 transition-all"
-            >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-${link.color}-500/20`}>
-                <link.icon className={`w-6 h-6 text-${link.color}-400`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-medium text-white group-hover:text-blue-400 transition-colors">{link.title}</h3>
+        ].map((link) => (
+          <a
+            key={link.title}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-4 p-4 rounded-xl bg-slate-900/50 border border-slate-800/50 hover:border-slate-700/50 transition-all"
+          >
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-${link.color}-500/20`}>
+              <link.icon className={`w-6 h-6 text-${link.color}-400`} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-medium text-white group-hover:text-blue-400 transition-colors">{link.title}</h3>
                 <p className="text-sm text-slate-400">{link.description}</p>
-              </div>
-              <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
-            </a>
-          ))}
+            </div>
+            <ExternalLink className="w-4 h-4 text-slate-500 group-hover:text-blue-400" />
+          </a>
+        ))}
         </div>
       </div>
     </div>
