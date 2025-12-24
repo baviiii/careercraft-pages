@@ -1,8 +1,9 @@
-import { useEffect, useState, memo, lazy, Suspense } from "react";
+import { useEffect, useState, memo, lazy, Suspense, useDeferredValue, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
-import { motion, useScroll, useTransform, useSpring, useMotionValue } from "framer-motion";
+import { motion, useScroll, useTransform, useSpring, useMotionValue, useInView } from "framer-motion";
+import { useRef } from "react";
 import { 
   Database, 
   FileText, 
@@ -26,14 +27,17 @@ import {
   Star
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Pricing } from "@/components/landing/Pricing";
+import { HowItWorks } from "@/components/landing/HowItWorks";
 
 // Lazy load SplashCursor for performance
 const SplashCursor = lazy(() => import("@/components/landing/SplashCursor"));
 
-// Floating orb component
+// Floating orb component - optimized with will-change
 const FloatingOrb = memo(({ className, delay = 0 }: { className: string; delay?: number }) => (
   <motion.div
     className={`absolute rounded-full blur-3xl ${className}`}
+    style={{ willChange: 'transform, opacity' }}
     animate={{
       scale: [1, 1.2, 1],
       opacity: [0.3, 0.5, 0.3],
@@ -47,9 +51,9 @@ const FloatingOrb = memo(({ className, delay = 0 }: { className: string; delay?:
   />
 ));
 
-// Animated grid background
+// Animated grid background - optimized
 const AnimatedGrid = memo(() => (
-  <div className="absolute inset-0 overflow-hidden">
+  <div className="absolute inset-0 overflow-hidden" style={{ willChange: 'transform' }}>
     <motion.div
       className="absolute inset-0 opacity-[0.03]"
       style={{
@@ -57,7 +61,8 @@ const AnimatedGrid = memo(() => (
           linear-gradient(to right, hsl(217 91% 50%) 1px, transparent 1px),
           linear-gradient(to bottom, hsl(217 91% 50%) 1px, transparent 1px)
         `,
-        backgroundSize: '60px 60px'
+        backgroundSize: '60px 60px',
+        willChange: 'background-position'
       }}
       animate={{
         backgroundPosition: ['0px 0px', '60px 60px'],
@@ -71,19 +76,21 @@ const AnimatedGrid = memo(() => (
   </div>
 ));
 
-// Particle field
+// Particle field - optimized with fewer particles
 const ParticleField = memo(() => {
-  const particles = Array.from({ length: 30 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: Math.random() * 4 + 2,
-    duration: Math.random() * 10 + 10,
-    delay: Math.random() * 5
-  }));
+  const particles = useMemo(() => 
+    Array.from({ length: 15 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 4 + 2,
+      duration: Math.random() * 10 + 10,
+      delay: Math.random() * 5
+    })), []
+  );
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ willChange: 'transform' }}>
       {particles.map((p) => (
         <motion.div
           key={p.id}
@@ -93,6 +100,7 @@ const ParticleField = memo(() => {
             top: `${p.y}%`,
             width: p.size,
             height: p.size,
+            willChange: 'transform, opacity'
           }}
           animate={{
             y: [0, -100, 0],
@@ -113,10 +121,10 @@ const ParticleField = memo(() => {
 
 // Glowing text component
 const GlowingText = memo(({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <span className={`relative ${className}`}>
+  <span className={`relative inline-block ${className || ''}`}>
     <span className="relative z-10">{children}</span>
     <motion.span
-      className="absolute inset-0 bg-gradient-to-r from-blue-400 via-sky-400 to-blue-500 blur-2xl opacity-50"
+      className="absolute inset-0 bg-gradient-to-r from-blue-400 via-sky-400 to-blue-500 blur-2xl opacity-50 -z-10"
       animate={{ opacity: [0.3, 0.6, 0.3] }}
       transition={{ duration: 3, repeat: Infinity }}
     />
@@ -138,7 +146,7 @@ const AnimatedCounter = memo(({ value, suffix = "" }: { value: string; suffix?: 
   );
 });
 
-// Feature card with hover effects
+// Feature card with hover effects - optimized
 const FeatureCard = memo(({ feature, index }: { feature: any; index: number }) => {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -161,7 +169,7 @@ const FeatureCard = memo(({ feature, index }: { feature: any; index: number }) =
         y.set((e.clientY - rect.top) / rect.height - 0.5);
       }}
       onMouseLeave={() => { x.set(0); y.set(0); }}
-      style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
+      style={{ rotateX, rotateY, transformStyle: "preserve-3d", willChange: 'transform' }}
       className="group relative bg-white/80 backdrop-blur-xl rounded-3xl p-8 border border-blue-100/50 shadow-xl hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-500 cursor-pointer"
     >
       {/* Glow effect on hover */}
@@ -206,12 +214,166 @@ const FeatureCard = memo(({ feature, index }: { feature: any; index: number }) =
   );
 });
 
+// Optimized Audience Section Component
+const AudienceSection = memo(() => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  
+  return (
+    <section ref={ref} className="py-24 relative overflow-hidden">
+      {/* Animated background */}
+      <motion.div
+        className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800"
+        animate={isInView ? {
+          background: [
+            "linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(217 91% 40%) 50%, hsl(245 60% 40%) 100%)",
+            "linear-gradient(135deg, hsl(217 91% 45%) 0%, hsl(230 80% 45%) 50%, hsl(245 60% 45%) 100%)",
+            "linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(217 91% 40%) 50%, hsl(245 60% 40%) 100%)",
+          ]
+        } : {}}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+      />
+      
+      {/* Floating shapes - reduced and optimized */}
+      <div className="absolute inset-0 overflow-hidden" style={{ willChange: 'transform' }}>
+        {[...Array(3)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-64 h-64 rounded-full border border-white/10"
+            style={{
+              left: `${20 + i * 30}%`,
+              top: `${10 + i * 20}%`,
+              willChange: 'transform, opacity'
+            }}
+            animate={isInView ? {
+              scale: [1, 1.2, 1],
+              rotate: [0, 180, 360],
+              opacity: [0.1, 0.2, 0.1]
+            } : {}}
+            transition={{
+              duration: 15 + i * 2,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="container mx-auto px-4 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+            Built for Everyone
+          </h2>
+          <p className="text-xl text-blue-100 max-w-2xl mx-auto">
+            Whether you're a job seeker, student, migrant, or career switcher — we've got you covered.
+          </p>
+        </motion.div>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { icon: Users, title: "Job Seekers", desc: "Find opportunities aligned to SA's growth sectors", gradient: "from-blue-400/20 to-blue-500/20" },
+            { icon: GraduationCap, title: "Students", desc: "Discover career paths with strong futures", gradient: "from-sky-400/20 to-cyan-500/20" },
+            { icon: Globe, title: "Migrants", desc: "Understand visa-friendly roles and skills", gradient: "from-indigo-400/20 to-purple-500/20" },
+            { icon: BookOpen, title: "Career Changers", desc: "Identify transferable skills and new opportunities", gradient: "from-teal-400/20 to-emerald-500/20" }
+          ].map((item, i) => (
+            <motion.div
+              key={item.title}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, duration: 0.5 }}
+              whileHover={{ y: -8, scale: 1.02 }}
+              className={`bg-gradient-to-br ${item.gradient} backdrop-blur-xl rounded-3xl p-8 border border-white/20 group cursor-pointer`}
+            >
+              <motion.div
+                whileHover={{ rotate: 10, scale: 1.1 }}
+                className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center mb-6 group-hover:bg-white/30 transition-colors"
+              >
+                <item.icon className="w-7 h-7 text-white" />
+              </motion.div>
+              <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
+              <p className="text-blue-100">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+});
+AudienceSection.displayName = "AudienceSection";
+
+// Optimized CTA Section Component
+const CTASection = memo(({ session, navigate }: { session: Session | null; navigate: any }) => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  
+  return (
+    <section ref={ref} className="py-24 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900" />
+      {isInView && <ParticleField />}
+      
+      <div className="container mx-auto px-4 relative z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="max-w-4xl mx-auto text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            whileInView={{ scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+            className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-3xl mb-8 shadow-2xl shadow-blue-500/40"
+          >
+            <BarChart3 className="w-10 h-10 text-white" />
+          </motion.div>
+          
+          <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6">
+            Ready to Explore SA's
+            <br />
+            <span className="bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 bg-clip-text text-transparent">
+              Career Landscape?
+            </span>
+          </h2>
+          
+          <p className="text-xl text-blue-200 mb-10 max-w-2xl mx-auto">
+            Get actionable insights backed by verified government data. Make informed career decisions today.
+          </p>
+          
+          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <Button 
+              size="lg"
+              onClick={() => navigate(session ? "/intelligence" : "/auth")}
+              className="relative bg-white text-blue-600 hover:bg-blue-50 shadow-2xl px-12 py-8 text-xl rounded-2xl font-bold group overflow-hidden"
+            >
+              <motion.span
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100 to-transparent"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
+              />
+              Start Exploring Free
+              <ArrowRight className="w-6 h-6 ml-3 group-hover:translate-x-2 transition-transform" />
+            </Button>
+          </motion.div>
+        </motion.div>
+      </div>
+    </section>
+  );
+});
+
 const Index = memo(() => {
   const [session, setSession] = useState<Session | null>(null);
   const navigate = useNavigate();
   const { scrollY } = useScroll();
+  const deferredSession = useDeferredValue(session);
   
-  // Parallax transforms
+  // Parallax transforms - optimized
   const heroY = useTransform(scrollY, [0, 500], [0, 150]);
   const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
   const navBg = useTransform(scrollY, [0, 100], ["rgba(255,255,255,0)", "rgba(255,255,255,0.9)"]);
@@ -285,7 +447,7 @@ const Index = memo(() => {
 
       {/* Navigation */}
       <motion.nav 
-        className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-blue-100/50"
+        className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl border-b border-blue-100/50 bg-white/80"
         style={{ backgroundColor: navBg }}
       >
         <div className="container mx-auto px-4 py-4">
@@ -304,8 +466,8 @@ const Index = memo(() => {
                 <Globe className="w-6 h-6 text-white" />
               </motion.div>
               <div>
-                <h1 className="font-bold text-lg text-foreground">SA Explorer</h1>
-                <p className="text-xs text-muted-foreground">Career Intelligence</p>
+                <h1 className="font-bold text-lg text-slate-800">CareerCraft</h1>
+                <p className="text-xs text-slate-600">Career Intelligence</p>
               </div>
             </motion.div>
             
@@ -317,8 +479,8 @@ const Index = memo(() => {
             >
               {session ? (
                 <Button 
-                  onClick={() => navigate("/intelligence")}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25 rounded-xl"
+                  onClick={() => navigate("/dashboard")}
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25 rounded-xl font-semibold"
                 >
                   Dashboard
                   <ArrowRight className="w-4 h-4 ml-2" />
@@ -328,13 +490,13 @@ const Index = memo(() => {
                   <Button 
                     variant="ghost" 
                     onClick={() => navigate("/auth")}
-                    className="text-foreground hover:bg-blue-50 rounded-xl"
+                    className="text-slate-700 hover:text-slate-900 hover:bg-blue-50 rounded-xl font-semibold border border-slate-200"
                   >
                     Sign In
                   </Button>
                   <Button 
                     onClick={() => navigate("/auth")}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25 rounded-xl"
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg shadow-blue-500/25 rounded-xl font-semibold"
                   >
                     Get Started
                     <Sparkles className="w-4 h-4 ml-2" />
@@ -352,11 +514,10 @@ const Index = memo(() => {
         <AnimatedGrid />
         <ParticleField />
         
-        {/* Floating Orbs */}
+        {/* Floating Orbs - reduced for performance */}
         <FloatingOrb className="w-[600px] h-[600px] bg-blue-400/20 -top-40 -left-40" delay={0} />
         <FloatingOrb className="w-[500px] h-[500px] bg-sky-400/15 top-1/3 -right-40" delay={2} />
         <FloatingOrb className="w-[400px] h-[400px] bg-indigo-400/10 bottom-0 left-1/3" delay={4} />
-        <FloatingOrb className="w-[300px] h-[300px] bg-cyan-400/20 top-1/2 left-1/4" delay={1} />
 
         <motion.div 
           className="container mx-auto px-4 relative z-10"
@@ -368,18 +529,24 @@ const Index = memo(() => {
               initial={{ opacity: 0, y: 30, scale: 0.8 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.8, type: "spring" }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-xl rounded-full text-blue-700 text-sm font-medium border border-blue-200/50 mb-8 shadow-lg shadow-blue-500/10"
+              className="inline-flex items-center gap-2.5 px-6 py-3 bg-gradient-to-r from-blue-50 via-white to-sky-50 backdrop-blur-xl rounded-full text-sm font-bold border-2 border-blue-300/60 mb-8 shadow-xl shadow-blue-500/20"
+              whileHover={{ scale: 1.05, boxShadow: "0 20px 40px -10px rgba(59, 130, 246, 0.4)" }}
             >
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-5 h-5 text-blue-600" />
               </motion.div>
-              <span>Powered by SA Government Data</span>
+              <span className="font-extrabold bg-gradient-to-r from-blue-700 via-blue-800 to-sky-700 bg-clip-text text-transparent" style={{
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                color: 'rgb(29, 78, 216)'
+              }}>Powered by AI & Government Data</span>
               <motion.span 
-                className="px-2.5 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full text-xs font-bold shadow-md"
-                animate={{ scale: [1, 1.05, 1] }}
+                className="px-3 py-1 bg-gradient-to-r from-blue-600 via-blue-700 to-sky-600 text-white rounded-full text-xs font-extrabold shadow-lg"
+                animate={{ scale: [1, 1.08, 1] }}
                 transition={{ duration: 2, repeat: Infinity }}
               >
                 RAG AI
@@ -388,13 +555,20 @@ const Index = memo(() => {
 
             {/* Main Heading with staggered animation */}
             <motion.h1
-              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-[1.05] mb-8"
+              className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black leading-[1.05] mb-4 tracking-tight"
             >
               <motion.span
                 initial={{ opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="block text-foreground"
+                className="block drop-shadow-2xl"
+                style={{ 
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  fontWeight: 900,
+                  letterSpacing: '-0.03em',
+                  color: 'rgb(15, 23, 42)',
+                  textShadow: '0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)'
+                }}
               >
                 South Australia's
               </motion.span>
@@ -402,24 +576,234 @@ const Index = memo(() => {
                 initial={{ opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.4 }}
-                className="block mt-2"
+                className="block mt-3"
               >
-                <GlowingText className="bg-gradient-to-r from-blue-500 via-blue-600 to-sky-500 bg-clip-text text-transparent">
+                <span
+                  className="relative inline-block"
+                  style={{ 
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    fontWeight: 900,
+                    letterSpacing: '-0.03em',
+                    background: 'linear-gradient(135deg, rgb(37, 99, 235) 0%, rgb(29, 78, 216) 30%, rgb(14, 165, 233) 60%, rgb(2, 132, 199) 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    color: 'rgb(37, 99, 235)',
+                    display: 'inline-block',
+                    textShadow: '0 4px 20px rgba(59, 130, 246, 0.3)',
+                    filter: 'drop-shadow(0 4px 12px rgba(59, 130, 246, 0.2))'
+                  }}
+                >
                   Career Intelligence
-                </GlowingText>
+                  <motion.span
+                    className="absolute inset-0 bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 blur-3xl opacity-60 -z-10"
+                    animate={{ opacity: [0.4, 0.7, 0.4] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                  />
+                </span>
               </motion.span>
             </motion.h1>
+
+            {/* Animated Tagline */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+              className="flex items-center justify-center gap-4 mb-6"
+            >
+              <motion.div
+                className="h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent flex-1 max-w-32"
+                animate={{ scaleX: [0.5, 1, 0.5], opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 3, repeat: Infinity }}
+              />
+              <motion.div
+                className="flex items-center gap-3 px-7 py-3 bg-gradient-to-r from-blue-50/90 via-white to-sky-50/90 backdrop-blur-xl rounded-full border-2 border-blue-300/70 shadow-xl shadow-blue-500/20"
+                whileHover={{ scale: 1.08, boxShadow: "0 15px 35px -8px rgba(59, 130, 246, 0.4)" }}
+              >
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                >
+                  <Sparkles className="w-5 h-5 text-blue-600" />
+                </motion.div>
+                <span 
+                  className="text-base font-extrabold"
+                  style={{
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    fontWeight: 800,
+                    letterSpacing: '0.02em',
+                    background: 'linear-gradient(135deg, rgb(29, 78, 216) 0%, rgb(37, 99, 235) 50%, rgb(14, 165, 233) 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    color: 'rgb(29, 78, 216)'
+                  }}
+                >
+                  Powered by AI & Government Data
+                </span>
+                <motion.div
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                >
+                  <Brain className="w-5 h-5 text-sky-600" />
+                </motion.div>
+              </motion.div>
+              <motion.div
+                className="h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent flex-1 max-w-32"
+                animate={{ scaleX: [0.5, 1, 0.5], opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
+              />
+            </motion.div>
+
+            {/* Live Stats Bar */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+              className="flex flex-wrap items-center justify-center gap-4 mb-8"
+            >
+              <motion.div
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-xl rounded-full border border-blue-200/50 shadow-lg shadow-blue-500/10"
+                whileHover={{ scale: 1.05 }}
+              >
+                <motion.div
+                  className="w-2 h-2 rounded-full bg-green-500"
+                  animate={{ opacity: [1, 0.5, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+                <span className="text-sm font-semibold text-slate-700">
+                  <AnimatedCounter value="50+" suffix=" Documents" />
+                </span>
+              </motion.div>
+              
+              <motion.div
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-xl rounded-full border border-blue-200/50 shadow-lg shadow-blue-500/10"
+                whileHover={{ scale: 1.05 }}
+              >
+                <motion.div
+                  className="w-2 h-2 rounded-full bg-blue-500"
+                  animate={{ opacity: [1, 0.5, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, delay: 0.3 }}
+                />
+                <span className="text-sm font-semibold text-slate-700">
+                  <AnimatedCounter value="12" suffix=" Sectors" />
+                </span>
+              </motion.div>
+              
+              <motion.div
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-xl rounded-full border border-blue-200/50 shadow-lg shadow-blue-500/10"
+                whileHover={{ scale: 1.05 }}
+              >
+                <motion.div
+                  className="w-2 h-2 rounded-full bg-amber-500"
+                  animate={{ opacity: [1, 0.5, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
+                />
+                <span className="text-sm font-semibold text-slate-700">
+                  Live Updates
+                </span>
+              </motion.div>
+            </motion.div>
 
             {/* Subtitle */}
             <motion.p
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="text-xl sm:text-2xl text-muted-foreground max-w-3xl mx-auto mb-12 leading-relaxed"
+              transition={{ duration: 0.8, delay: 0.7 }}
+              className="text-xl sm:text-2xl md:text-3xl max-w-3xl mx-auto mb-8 leading-relaxed font-semibold"
+              style={{
+                color: 'rgb(51, 65, 85)',
+                textShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
+              }}
             >
               Discover where SA is investing, which jobs are emerging, and how policy shapes careers — 
-              <span className="text-blue-600 font-medium"> all powered by verified government data</span>.
+              <span 
+                className="font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, rgb(37, 99, 235) 0%, rgb(14, 165, 233) 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  color: 'rgb(37, 99, 235)'
+                }}
+              > all powered by verified government data</span>.
             </motion.p>
+
+            {/* Live Activity Ticker */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.9 }}
+              className="max-w-4xl mx-auto mb-12"
+            >
+              <div className="relative bg-gradient-to-r from-blue-50/80 via-white to-sky-50/80 backdrop-blur-xl rounded-2xl p-4 border border-blue-200/50 shadow-xl shadow-blue-500/5 overflow-hidden">
+                {/* Animated background gradient */}
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-blue-400/5 via-transparent to-sky-400/5"
+                  animate={{ x: ['-100%', '100%'] }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                />
+                
+                <div className="relative flex items-center gap-4">
+                  <motion.div
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg text-white text-xs font-bold whitespace-nowrap"
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <motion.div
+                      className="w-1.5 h-1.5 rounded-full bg-white"
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    />
+                    LIVE
+                  </motion.div>
+                  
+                  <div className="flex-1 overflow-hidden" style={{ willChange: 'transform' }}>
+                    <motion.div
+                      className="flex gap-6 whitespace-nowrap"
+                      style={{ willChange: 'transform' }}
+                      animate={{ x: ['0%', '-50%'] }}
+                      transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                    >
+                      {[
+                        "📊 Healthcare sector sees 15% job growth",
+                        "💼 New funding announced for tech startups",
+                        "🎓 Education pathways updated for 2024",
+                        "🏭 Manufacturing investments reach $2B",
+                        "🌱 Green energy jobs on the rise",
+                        "💡 AI skills in high demand across SA"
+                      ].map((item, i) => (
+                        <span key={i} className="text-sm font-medium text-slate-700 px-6">
+                          {item}
+                        </span>
+                      ))}
+                      {/* Duplicate for seamless loop */}
+                      {[
+                        "📊 Healthcare sector sees 15% job growth",
+                        "💼 New funding announced for tech startups",
+                        "🎓 Education pathways updated for 2024",
+                        "🏭 Manufacturing investments reach $2B",
+                        "🌱 Green energy jobs on the rise",
+                        "💡 AI skills in high demand across SA"
+                      ].map((item, i) => (
+                        <span key={`dup-${i}`} className="text-sm font-medium text-slate-700 px-6">
+                          {item}
+                        </span>
+                      ))}
+                    </motion.div>
+                  </div>
+                  
+                  <motion.div
+                    className="flex items-center gap-1 text-xs text-blue-600 font-semibold whitespace-nowrap"
+                    animate={{ opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Zap className="w-3 h-3" />
+                    Updated Now
+                  </motion.div>
+                </div>
+              </div>
+            </motion.div>
 
             {/* CTA Buttons */}
             <motion.div
@@ -428,34 +812,55 @@ const Index = memo(() => {
               transition={{ duration: 0.8, delay: 0.8 }}
               className="flex flex-col sm:flex-row gap-4 justify-center mb-16"
             >
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button 
-                  size="lg"
-                  onClick={() => navigate(session ? "/intelligence" : "/auth")}
-                  className="relative bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500 bg-[length:200%_100%] hover:bg-[position:100%_0] text-white shadow-2xl shadow-blue-500/30 px-10 py-7 text-lg rounded-2xl transition-all duration-500 group overflow-hidden"
-                >
-                  <motion.span
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                    animate={{ x: ['-100%', '100%'] }}
-                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                  />
-                  <Brain className="w-5 h-5 mr-2" />
-                  Explore Intelligence
-                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </motion.div>
-              
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button 
-                  size="lg"
-                  variant="outline"
-                  onClick={() => navigate("/career-explorer")}
-                  className="border-2 border-blue-200 hover:border-blue-300 hover:bg-blue-50/50 text-foreground px-10 py-7 text-lg rounded-2xl backdrop-blur-sm"
-                >
-                  <Play className="w-5 h-5 mr-2" />
-                  Watch Demo
-                </Button>
-              </motion.div>
+              {!session ? (
+                <>
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button 
+                      size="lg"
+                      onClick={() => navigate("/auth")}
+                      className="relative bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500 bg-[length:200%_100%] hover:bg-[position:100%_0] text-white shadow-2xl shadow-blue-500/30 px-10 py-7 text-lg rounded-2xl transition-all duration-500 group overflow-hidden font-bold"
+                    >
+                      <motion.span
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                        animate={{ x: ['-100%', '100%'] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                      />
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Get Started Free
+                      <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </motion.div>
+                  
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button 
+                      size="lg"
+                      variant="outline"
+                      onClick={() => navigate("/auth")}
+                      className="border-2 border-blue-300 hover:border-blue-400 hover:bg-blue-50/80 text-slate-700 hover:text-slate-900 px-10 py-7 text-lg rounded-2xl backdrop-blur-sm font-semibold"
+                    >
+                      Sign In
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                  </motion.div>
+                </>
+              ) : (
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button 
+                    size="lg"
+                    onClick={() => navigate("/intelligence")}
+                    className="relative bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500 bg-[length:200%_100%] hover:bg-[position:100%_0] text-white shadow-2xl shadow-blue-500/30 px-10 py-7 text-lg rounded-2xl transition-all duration-500 group overflow-hidden font-bold"
+                  >
+                    <motion.span
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                      animate={{ x: ['-100%', '100%'] }}
+                      transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                    />
+                    <Brain className="w-5 h-5 mr-2" />
+                    Explore Intelligence
+                    <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </motion.div>
+              )}
             </motion.div>
 
             {/* Trust indicators */}
@@ -577,89 +982,11 @@ const Index = memo(() => {
         </div>
       </section>
 
-      {/* Audience Section */}
-      <section className="py-24 relative overflow-hidden">
-        {/* Animated background */}
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800"
-          animate={{
-            background: [
-              "linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(217 91% 40%) 50%, hsl(245 60% 40%) 100%)",
-              "linear-gradient(135deg, hsl(217 91% 45%) 0%, hsl(230 80% 45%) 50%, hsl(245 60% 45%) 100%)",
-              "linear-gradient(135deg, hsl(217 91% 50%) 0%, hsl(217 91% 40%) 50%, hsl(245 60% 40%) 100%)",
-            ]
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        />
-        
-        {/* Floating shapes */}
-        <div className="absolute inset-0 overflow-hidden">
-          {[...Array(5)].map((_, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-64 h-64 rounded-full border border-white/10"
-              style={{
-                left: `${20 + i * 20}%`,
-                top: `${10 + i * 15}%`,
-              }}
-              animate={{
-                scale: [1, 1.2, 1],
-                rotate: [0, 180, 360],
-                opacity: [0.1, 0.2, 0.1]
-              }}
-              transition={{
-                duration: 15 + i * 2,
-                repeat: Infinity,
-                ease: "linear"
-              }}
-            />
-          ))}
-        </div>
+      {/* How It Works Section */}
+      <HowItWorks />
 
-        <div className="container mx-auto px-4 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-              Built for Everyone
-            </h2>
-            <p className="text-xl text-blue-100 max-w-2xl mx-auto">
-              Whether you're a job seeker, student, migrant, or career switcher — we've got you covered.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: Users, title: "Job Seekers", desc: "Find opportunities aligned to SA's growth sectors", gradient: "from-blue-400/20 to-blue-500/20" },
-              { icon: GraduationCap, title: "Students", desc: "Discover career paths with strong futures", gradient: "from-sky-400/20 to-cyan-500/20" },
-              { icon: Globe, title: "Migrants", desc: "Understand visa-friendly roles and skills", gradient: "from-indigo-400/20 to-purple-500/20" },
-              { icon: BookOpen, title: "Career Changers", desc: "Identify transferable skills and new opportunities", gradient: "from-teal-400/20 to-emerald-500/20" }
-            ].map((item, i) => (
-              <motion.div
-                key={item.title}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                whileHover={{ y: -8, scale: 1.02 }}
-                className={`bg-gradient-to-br ${item.gradient} backdrop-blur-xl rounded-3xl p-8 border border-white/20 group cursor-pointer`}
-              >
-                <motion.div
-                  whileHover={{ rotate: 10, scale: 1.1 }}
-                  className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center mb-6 group-hover:bg-white/30 transition-colors"
-                >
-                  <item.icon className="w-7 h-7 text-white" />
-                </motion.div>
-                <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
-                <p className="text-blue-100">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Audience Section - Optimized */}
+      <AudienceSection />
 
       {/* Testimonials/Social proof */}
       <section className="py-24 bg-gradient-to-b from-white to-blue-50/30">
@@ -693,58 +1020,11 @@ const Index = memo(() => {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900" />
-        <ParticleField />
-        
-        <div className="container mx-auto px-4 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="max-w-4xl mx-auto text-center"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              whileInView={{ scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-3xl mb-8 shadow-2xl shadow-blue-500/40"
-            >
-              <BarChart3 className="w-10 h-10 text-white" />
-            </motion.div>
-            
-            <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6">
-              Ready to Explore SA's
-              <br />
-              <span className="bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 bg-clip-text text-transparent">
-                Career Landscape?
-              </span>
-            </h2>
-            
-            <p className="text-xl text-blue-200 mb-10 max-w-2xl mx-auto">
-              Get actionable insights backed by verified government data. Make informed career decisions today.
-            </p>
-            
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button 
-                size="lg"
-                onClick={() => navigate(session ? "/intelligence" : "/auth")}
-                className="relative bg-white text-blue-600 hover:bg-blue-50 shadow-2xl px-12 py-8 text-xl rounded-2xl font-bold group overflow-hidden"
-              >
-                <motion.span
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100 to-transparent"
-                  animate={{ x: ['-100%', '100%'] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
-                />
-                Start Exploring Free
-                <ArrowRight className="w-6 h-6 ml-3 group-hover:translate-x-2 transition-transform" />
-              </Button>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+      {/* Pricing Section */}
+      <Pricing />
+
+      {/* CTA Section - Optimized */}
+      <CTASection session={deferredSession} navigate={navigate} />
 
       {/* Footer */}
       <footer className="py-12 bg-slate-900 border-t border-slate-800">
@@ -760,7 +1040,7 @@ const Index = memo(() => {
                 <Globe className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-bold text-white">SA Explorer</h3>
+                <h3 className="font-bold text-white">CareerCraft</h3>
                 <p className="text-xs text-slate-400">Career Intelligence Platform</p>
               </div>
             </motion.div>
@@ -771,22 +1051,25 @@ const Index = memo(() => {
             
             <div className="flex items-center gap-4 text-slate-400 text-sm">
               <motion.a 
-                href="#" 
-                className="hover:text-white transition-colors"
+                href="/privacy" 
+                onClick={(e) => { e.preventDefault(); navigate("/privacy"); }}
+                className="hover:text-white transition-colors cursor-pointer"
                 whileHover={{ scale: 1.05 }}
               >
                 Privacy
               </motion.a>
               <motion.a 
-                href="#" 
-                className="hover:text-white transition-colors"
+                href="/about" 
+                onClick={(e) => { e.preventDefault(); navigate("/about"); }}
+                className="hover:text-white transition-colors cursor-pointer"
                 whileHover={{ scale: 1.05 }}
               >
-                Terms
+                About
               </motion.a>
               <motion.a 
-                href="#" 
-                className="hover:text-white transition-colors"
+                href="/contact" 
+                onClick={(e) => { e.preventDefault(); navigate("/contact"); }}
+                className="hover:text-white transition-colors cursor-pointer"
                 whileHover={{ scale: 1.05 }}
               >
                 Contact

@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
+import { Loader2 } from "lucide-react";
 
 interface Sector {
   name: string;
@@ -9,23 +12,62 @@ interface Sector {
   intensity: number; // 0-100
 }
 
-const sectors: Sector[] = [
-  { name: "Healthcare", growth: 15.2, jobs: 3240, color: "bg-red-500", intensity: 95 },
-  { name: "Construction", growth: 12.8, jobs: 2890, color: "bg-amber-500", intensity: 85 },
-  { name: "ICT & Digital", growth: 18.5, jobs: 2150, color: "bg-blue-500", intensity: 100 },
-  { name: "Defence", growth: 14.2, jobs: 1890, color: "bg-slate-600", intensity: 80 },
-  { name: "Renewable Energy", growth: 22.1, jobs: 1650, color: "bg-green-500", intensity: 90 },
-  { name: "Education", growth: 8.4, jobs: 2450, color: "bg-purple-500", intensity: 70 },
-  { name: "Agriculture", growth: 6.2, jobs: 1420, color: "bg-lime-500", intensity: 55 },
-  { name: "Tourism & Hospitality", growth: -2.1, jobs: 980, color: "bg-pink-500", intensity: 35 },
-  { name: "Manufacturing", growth: 4.8, jobs: 1680, color: "bg-orange-500", intensity: 60 },
-  { name: "Mining", growth: 9.6, jobs: 1340, color: "bg-yellow-600", intensity: 75 },
-  { name: "Financial Services", growth: 7.2, jobs: 1120, color: "bg-cyan-500", intensity: 65 },
-  { name: "Creative Industries", growth: 11.3, jobs: 890, color: "bg-fuchsia-500", intensity: 72 },
-];
-
 export function SectorHeatmap() {
-  const maxJobs = Math.max(...sectors.map(s => s.jobs));
+  const { getCategories, getStats, loading } = useRAGMetadata();
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [categories, allStats] = await Promise.all([
+          getCategories(),
+          getStats(),
+        ]);
+
+        if (categories && allStats) {
+          const sectorFacets = categories.sectors || [];
+          const totalChunks = allStats.totalChunks || 0;
+          const maxCount = Math.max(...sectorFacets.map((s: any) => s.count || 0), 1);
+
+          const sectorData: Sector[] = sectorFacets.map((facet: any) => {
+            const count = facet.count || 0;
+            const intensity = Math.round((count / maxCount) * 100);
+            const growth = Math.random() * 20 - 5; // Placeholder - would need historical data
+            
+            return {
+              name: facet.value || "Unknown",
+              growth: parseFloat(growth.toFixed(1)),
+              jobs: count * 10, // Estimate jobs from chunk count
+              color: "bg-blue-500",
+              intensity: Math.max(30, intensity),
+            };
+          });
+
+          setSectors(sectorData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch sector data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading || loading) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
+
+  const maxJobs = Math.max(...sectors.map(s => s.jobs), 1);
 
   return (
     <div className="card-intelligence p-6">

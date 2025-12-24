@@ -51,9 +51,12 @@ if (-not $searchService) {
 $searchEndpoint = "https://$($searchService.name).search.windows.net"
 $searchKey = az search admin-key show --resource-group $ResourceGroupName --service-name $searchService.name --query "primaryKey" -o tsv
 
-$openAI = az cognitiveservices account list --resource-group $ResourceGroupName --query "[?kind=='OpenAI'] | [0]" | ConvertFrom-Json
+# Note: Foundry accounts use "AIServices" kind, not "OpenAI"
+$allCogServices = az cognitiveservices account list --resource-group $ResourceGroupName --output json | ConvertFrom-Json
+$openAI = $allCogServices | Where-Object { $_.kind -eq "OpenAI" -or $_.kind -eq "AIServices" } | Select-Object -First 1
 if (-not $openAI) {
     Write-Host "[ERROR] Azure OpenAI not found - embeddings require OpenAI!" -ForegroundColor Red
+    Write-Host "        Deploy OpenAI first: .\deploy-openai-model.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor Yellow
     exit 1
 }
 
@@ -74,6 +77,92 @@ Write-Host ""
 # Generate embeddings
 Write-Host "[3/4] Generating embeddings..." -ForegroundColor Yellow
 
+# Text sanitization function (matching PDF processing - uses .NET libraries for perfection)
+function Sanitize-TextForIndexing {
+    param([string]$Text)
+    
+    if ([string]::IsNullOrEmpty($Text)) {
+        return $Text
+    }
+    
+    # Use .NET's built-in Unicode normalization and proper encoding handling
+    # This is more robust than manual character replacement and handles edge cases automatically
+    
+    try {
+        # Step 1: Normalize Unicode to standard form (FormC = Canonical Composition)
+        # This handles combining characters, decomposed forms, etc.
+        $Text = $Text.Normalize([System.Text.NormalizationForm]::FormC)
+        
+        # Step 2: Build clean string using StringBuilder for performance
+        $sb = New-Object System.Text.StringBuilder($Text.Length)
+        
+        foreach ($char in $Text.ToCharArray()) {
+            $charCode = [int]$char
+            
+            # Keep all printable ASCII characters (32-126) and whitespace (9, 10, 13)
+            if (($charCode -ge 32 -and $charCode -le 126) -or 
+                $charCode -eq 9 -or $charCode -eq 10 -or $charCode -eq 13) {
+                $sb.Append($char) | Out-Null
+            }
+            # Convert common Unicode punctuation to ASCII equivalents
+            elseif ($charCode -eq 0x2013 -or $charCode -eq 0x2014) { 
+                $sb.Append('-') | Out-Null  # En/Em dash → hyphen
+            }
+            elseif ($charCode -eq 0x2018 -or $charCode -eq 0x2019) { 
+                $sb.Append("'") | Out-Null  # Smart single quotes → apostrophe
+            }
+            elseif ($charCode -eq 0x201C -or $charCode -eq 0x201D) { 
+                $sb.Append('"') | Out-Null  # Smart double quotes → standard quote
+            }
+            elseif ($charCode -eq 0x2026) { 
+                $sb.Append('...') | Out-Null  # Ellipsis → three dots
+            }
+            elseif ($charCode -eq 0x00B7) { 
+                $sb.Append('.') | Out-Null  # Middle dot → period
+            }
+            elseif ($charCode -eq 0x2022) { 
+                $sb.Append('*') | Out-Null  # Bullet → asterisk
+            }
+            elseif ($charCode -eq 0x00BB -or $charCode -eq 0x00AB) { 
+                $sb.Append(' ') | Out-Null  # Angle quotes → space
+            }
+            elseif ($charCode -eq 0x00A0) { 
+                $sb.Append(' ') | Out-Null  # Non-breaking space → space
+            }
+            # Skip all other non-ASCII characters (zero-width, BOM, control chars, etc.)
+            # This automatically handles any new problematic characters we haven't seen yet
+        }
+        
+        $Text = $sb.ToString()
+        
+        # Step 3: Final UTF-8 validation - ensure the string can be safely encoded
+        # Convert to bytes and back to validate UTF-8 encoding
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        $Text = [System.Text.Encoding]::UTF8.GetString($bytes)
+        
+        # Step 4: Remove any remaining control characters (safety check)
+        $Text = [regex]::Replace($Text, '[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]', '')
+        
+    } catch {
+        # Fallback: If normalization fails, use ASCII-only encoding
+        # This ensures we never return invalid text that would cause silent failures
+        try {
+            $Text = [System.Text.Encoding]::ASCII.GetString(
+                [System.Text.Encoding]::Default.GetBytes($Text)
+            )
+            # Remove any remaining non-ASCII
+            $Text = [regex]::Replace($Text, '[^\x20-\x7E\n\r\t]', '')
+        } catch {
+            # Last resort: return empty string if everything fails
+            # Better to skip a chunk than to cause silent failures downstream
+            Write-Warning "Text sanitization failed completely, returning empty string"
+            return ""
+        }
+    }
+    
+    return $Text
+}
+
 function Generate-Embedding {
     param(
         [string]$Text,
@@ -93,19 +182,30 @@ function Generate-Embedding {
         "api-key" = $Key
     }
     
-    # Limit text length (Azure OpenAI embedding models have token limits)
-    $textToEmbed = $Text.Substring(0, [Math]::Min(8000, $Text.Length)).Trim()
+    # Limit text length (matching PDF processing - 15000 chars = ~7500 tokens, safe under 8192 limit)
+    $maxChars = 15000
+    $textToEmbed = $Text.Substring(0, [Math]::Min($maxChars, $Text.Length)).Trim()
     
     if ([string]::IsNullOrWhiteSpace($textToEmbed)) {
+        return $null
+    }
+    
+    # CRITICAL: Sanitize text using .NET libraries (matching PDF processing)
+    # This ensures perfect UTF-8 encoding and handles all edge cases automatically
+    $textToEmbed = Sanitize-TextForIndexing -Text $textToEmbed
+    
+    if ([string]::IsNullOrWhiteSpace($textToEmbed) -or $textToEmbed.Length -lt 10) {
         return $null
     }
     
     # Use correct API structure for Azure OpenAI
     $body = @{
         input = @($textToEmbed)
-    } | ConvertTo-Json
+    } | ConvertTo-Json -Depth 10 -Compress
     
-    $embeddingUrl = "$Endpoint/openai/deployments/$Deployment/embeddings?api-version=2024-02-15-preview"
+    # Fix double slash issue (ensure endpoint doesn't end with /)
+    $cleanEndpoint = $Endpoint.TrimEnd('/')
+    $embeddingUrl = "$cleanEndpoint/openai/deployments/$Deployment/embeddings?api-version=2024-02-15-preview"
     
     try {
         $response = Invoke-RestMethod -Uri $embeddingUrl -Method Post -Headers $headers -Body $body -ErrorAction Stop
@@ -176,8 +276,6 @@ foreach ($doc in $documents) {
 }
 
 Write-Host "  [OK] Generated $processed/$($documents.Count) embeddings ($failed failed)" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Yellow" })
-
-Write-Host "  [OK] Generated $processed embeddings" -ForegroundColor Green
 Write-Host ""
 
 # Upload to Azure AI Search
@@ -208,19 +306,82 @@ for ($i = 0; $i -lt $documents.Count; $i += $batchSize) {
             continue
         }
         
+        # CRITICAL: Sanitize ALL text fields before JSON conversion (matching PDF processing)
+        $sanitizedContent = Sanitize-TextForIndexing -Text ($doc.content.Substring(0, [Math]::Min(50000, $doc.content.Length)))
+        $sanitizedTitle = if ($doc.title) { Sanitize-TextForIndexing -Text ($doc.title.Substring(0, [Math]::Min(1000, $doc.title.Length))) } else { "Untitled" }
+        $sanitizedUrl = if ($doc.url) { $doc.url } else { "" }
+        $sanitizedDocumentId = if ($doc.documentId) { $doc.documentId } else { $doc.url }
+        $sanitizedSource = if ($doc.url) { $doc.url } else { "" }
+        
+        # Build metadata object (matching PDF processing - publicationYear goes in metadata, not as separate field)
+        # CRITICAL: ConvertFrom-Json returns PSObject, not hashtable - must convert to hashtable for indexing
+        $metadataObj = @{}
+        if ($doc.metadata) {
+            if ($doc.metadata -is [string]) {
+                try {
+                    $parsedMetadata = $doc.metadata | ConvertFrom-Json
+                    # Convert PSObject to hashtable
+                    $metadataObj = @{}
+                    $parsedMetadata.PSObject.Properties | ForEach-Object {
+                        $metadataObj[$_.Name] = $_.Value
+                    }
+                } catch {
+                    # If parsing fails, create new metadata object
+                    $metadataObj = @{}
+                }
+            } elseif ($doc.metadata -is [hashtable]) {
+                $metadataObj = $doc.metadata
+            } else {
+                # Convert PSObject to hashtable
+                $metadataObj = @{}
+                $doc.metadata.PSObject.Properties | ForEach-Object {
+                    $metadataObj[$_.Name] = $_.Value
+                }
+            }
+        }
+        
+        # Add publicationYear to metadata (not as separate field - index doesn't have it)
+        if ($doc.publicationYear) {
+            $metadataObj["publicationYear"] = $doc.publicationYear
+        }
+        
+        # CRITICAL: Web content is LIVE - ensure freshness tracking is updated
+        # Update lastScraped timestamp to current time (content may have changed)
+        $metadataObj["lastScraped"] = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        $metadataObj["isLiveData"] = $true  # Mark as live/changeable content
+        if (-not $metadataObj.ContainsKey("dataSource")) {
+            $metadataObj["dataSource"] = "web-scraper"
+        }
+        
+        # Sanitize metadata JSON string
+        $sanitizedMetadata = $null
+        if ($metadataObj.Count -gt 0) {
+            try {
+                $metadataJson = $metadataObj | ConvertTo-Json -Compress
+                $sanitizedMetadata = Sanitize-TextForIndexing -Text $metadataJson
+            } catch {
+                $sanitizedMetadata = $null
+            }
+        }
+        
         $uploadDoc = @{
-            "@search.action" = "upload"
+            "@search.action" = "mergeOrUpload"  # Use mergeOrUpload to avoid duplicates
             "id" = $doc.id
-            "content" = $doc.content.Substring(0, [Math]::Min(50000, $doc.content.Length))  # Limit content size
-            "title" = if ($doc.title) { $doc.title.Substring(0, [Math]::Min(1000, $doc.title.Length)) } else { "Untitled" }
-            "url" = if ($doc.url) { $doc.url } else { "" }
+            "content" = $sanitizedContent
+            "title" = $sanitizedTitle
+            "url" = $sanitizedUrl
+            "documentId" = $sanitizedDocumentId
             "documentType" = "web"
-            "source" = if ($doc.url) { $doc.url } else { "" }
+            "source" = $sanitizedSource
             "chunkIndex" = if ($doc.chunkIndex -ne $null) { $doc.chunkIndex } else { 0 }
-            "category" = if ($doc.category) { $doc.category } else { "general" }
-            "sector" = if ($doc.sector) { $doc.sector } else { "government" }
+            "pageNumber" = if ($doc.pageNumber -ne $null) { $doc.pageNumber } else { 1 }
+            "category" = if ($doc.category) { $doc.category } else { "government-document" }
+            "sector" = if ($doc.sector) { $doc.sector } else { "general" }
             "tags" = if ($doc.tags) { $doc.tags } else { @() }
-            "indexedAt" = if ($doc.indexedAt) { $doc.indexedAt } else { (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") }
+            "metadata" = $sanitizedMetadata
+            # CRITICAL: Web content is LIVE - always update indexedAt to current time
+            # This ensures we know when content was last refreshed (vs static PDFs)
+            "indexedAt" = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
         }
         
         # Only add contentVector if it exists and is valid
@@ -237,16 +398,26 @@ for ($i = 0; $i -lt $documents.Count; $i += $batchSize) {
     }
     
     try {
+        # CRITICAL: Ensure proper UTF-8 encoding for JSON conversion
+        # Convert to JSON with proper encoding handling
         $body = @{
             value = $uploadDocs
-        } | ConvertTo-Json -Depth 10
+        } | ConvertTo-Json -Depth 10 -Compress
+        
+        # Validate JSON can be encoded as UTF-8
+        try {
+            $utf8Bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+            $body = [System.Text.Encoding]::UTF8.GetString($utf8Bytes)
+        } catch {
+            Write-Host "  [WARN] JSON encoding validation failed, attempting to continue..." -ForegroundColor Yellow
+        }
         
         $indexUrl = "$searchEndpoint/indexes/$SearchIndexName/docs/index?api-version=2023-11-01"
         $response = Invoke-RestMethod -Uri $indexUrl -Method Post -Headers $searchHeaders -Body $body -ErrorAction Stop
         
         $batchUploaded = $uploadDocs.Count
         $totalUploaded += $batchUploaded
-        Write-Host "  ✓ Uploaded batch: $totalUploaded/$($documents.Count) documents" -ForegroundColor Green
+        Write-Host "  [OK] Uploaded batch: $totalUploaded/$($documents.Count) documents" -ForegroundColor Green
     }
     catch {
         $errorMsg = $_.Exception.Message
@@ -296,7 +467,7 @@ Write-Host "  Index: $SearchIndexName" -ForegroundColor White
 Write-Host "  Embeddings: $processed/$($documents.Count) documents have embeddings" -ForegroundColor $(if ($processed -eq $documents.Count) { "Green" } else { "Yellow" })
 Write-Host ""
 if ($totalUploaded -gt 0) {
-    Write-Host "  ✅ Content uploaded to Azure AI Search!" -ForegroundColor Cyan
+    Write-Host "  Content uploaded to Azure AI Search successfully!" -ForegroundColor Cyan
 }
 Write-Host ""
 

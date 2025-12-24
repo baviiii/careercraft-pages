@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Minus, Activity } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Activity, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 
 interface PulseMetric {
   label: string;
@@ -10,38 +12,81 @@ interface PulseMetric {
   trend: "up" | "down" | "stable";
 }
 
-const pulseMetrics: PulseMetric[] = [
-  {
-    label: "Active Job Postings",
-    value: "12,847",
-    change: 8.2,
-    changeLabel: "vs last month",
-    trend: "up",
-  },
-  {
-    label: "Skills in Demand",
-    value: "847",
-    change: 12.5,
-    changeLabel: "emerging skills",
-    trend: "up",
-  },
-  {
-    label: "Avg. Time to Hire",
-    value: "23 days",
-    change: -4.1,
-    changeLabel: "faster hiring",
-    trend: "down",
-  },
-  {
-    label: "Salary Growth",
-    value: "+4.2%",
-    change: 4.2,
-    changeLabel: "year over year",
-    trend: "up",
-  },
-];
-
 export function CareerPulse() {
+  const { getStats, getCategories, loading } = useRAGMetadata();
+  const [metrics, setMetrics] = useState<PulseMetric[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [allStats, careerStats, skillsStats, categories] = await Promise.all([
+          getStats(),
+          getStats({ category: "career-guidance" }),
+          getStats({ category: "workforce" }),
+          getCategories(),
+        ]);
+
+        if (allStats && categories) {
+          const totalDocs = allStats.totalDocuments || 0;
+          const totalChunks = allStats.totalChunks || 0;
+          const careerDocs = careerStats?.totalDocuments || 0;
+          const skillsDocs = skillsStats?.totalDocuments || 0;
+          
+          // Calculate skills count from tags
+          const skillsCount = categories.sectors?.length || 0;
+          
+          setMetrics([
+            {
+              label: "Total Documents",
+              value: totalDocs.toLocaleString(),
+              change: 0,
+              changeLabel: "indexed documents",
+              trend: "stable",
+            },
+            {
+              label: "Career Resources",
+              value: careerDocs.toString(),
+              change: 0,
+              changeLabel: "career guidance docs",
+              trend: "stable",
+            },
+            {
+              label: "Skills & Training",
+              value: skillsCount.toString(),
+              change: 0,
+              changeLabel: "sectors covered",
+              trend: "stable",
+            },
+            {
+              label: "Total Chunks",
+              value: totalChunks.toLocaleString(),
+              change: 0,
+              changeLabel: "searchable chunks",
+              trend: "stable",
+            },
+          ]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch pulse data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading || loading) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="card-intelligence p-6">
       <div className="flex items-center gap-3 mb-6">
@@ -59,7 +104,7 @@ export function CareerPulse() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {pulseMetrics.map((metric, index) => (
+        {metrics.map((metric, index) => (
           <motion.div
             key={metric.label}
             initial={{ opacity: 0, y: 20 }}

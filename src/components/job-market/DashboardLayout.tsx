@@ -1,5 +1,6 @@
 import { useState, ReactNode, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -144,11 +145,11 @@ export default function DashboardLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 dark:from-slate-950 dark:via-blue-950/20 dark:to-slate-900 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 relative overflow-hidden">
       {/* Beautiful Animated Background - Blue/White Theme */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         {/* Clean Base Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60 dark:from-blue-950/30 dark:via-slate-900/50 dark:to-slate-950" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60" />
 
         {/* Soft Gradient Mesh */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.15),transparent_50%)]" />
@@ -207,7 +208,7 @@ export default function DashboardLayout({
         }`}
       >
         {/* Sidebar Background with Blue Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/60 to-sky-50/50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 backdrop-blur-xl border-r border-blue-100/80 dark:border-blue-900/50" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/60 to-sky-50/50 backdrop-blur-xl border-r border-blue-100/80 shadow-lg shadow-blue-500/5" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.1),transparent_60%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(14,165,233,0.08),transparent_60%)]" />
         
@@ -222,7 +223,7 @@ export default function DashboardLayout({
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-all duration-300 group-hover:scale-105">
                   <Activity className="w-6 h-6 text-white" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-slate-900 flex items-center justify-center">
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-md">
                   <span className="text-[8px] text-white font-bold">AU</span>
                 </div>
               </div>
@@ -248,37 +249,38 @@ export default function DashboardLayout({
           {/* Quick Stats with Stagger Animation */}
           <div className="grid grid-cols-3 gap-2 mb-6">
             {quickStats.map((stat, i) => (
-              <div
+              <motion.div
                 key={i}
                 ref={(el) => { if (el) statsRef.current[i] = el; }}
-                className="p-3 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-800/50 dark:to-slate-800/30 border border-slate-200/50 dark:border-slate-700/50 hover:scale-105 transition-transform cursor-pointer"
+                whileHover={{ scale: 1.05, y: -2 }}
+                className="p-3 rounded-xl bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 shadow-md hover:shadow-lg transition-all cursor-pointer hover:border-blue-300/80 bg-gradient-to-br from-white to-blue-50/30"
               >
-                <p className="text-lg font-bold text-slate-900 dark:text-white">
+                <p className="text-lg font-bold text-slate-800 mb-1">
                   {stat.value}
                 </p>
-                <p className="text-[10px] text-muted-foreground truncate">
+                <p className="text-[10px] text-slate-600 truncate font-medium">
                   {stat.label}
                 </p>
                 <p
-                  className={`text-[10px] font-medium ${
+                  className={`text-[10px] font-bold mt-1 ${
                     stat.up ? "text-emerald-600" : "text-rose-600"
                   }`}
                 >
                   {stat.change}
                 </p>
-              </div>
+              </motion.div>
             ))}
           </div>
 
           {/* Navigation with Stagger Animation */}
           <nav className="space-y-2 flex-1">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3">
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3 px-3">
               Navigation
             </p>
             <button
               ref={(el) => { if (el) navItemsRef.current[0] = el; }}
               onClick={() => navigate("/dashboard")}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all duration-200"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 hover:translate-x-1 transition-all duration-200 font-medium"
             >
               <Home className="w-5 h-5" />
               <span>Dashboard</span>
@@ -286,14 +288,14 @@ export default function DashboardLayout({
             <button
               ref={(el) => { if (el) navItemsRef.current[1] = el; }}
               onClick={() => navigate("/australian-jobs")}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all duration-200"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 hover:translate-x-1 transition-all duration-200 font-medium"
             >
               <Briefcase className="w-5 h-5" />
               <span>Job Listings</span>
             </button>
             <button
               ref={(el) => { if (el) navItemsRef.current[2] = el; }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:translate-x-1 transition-all duration-200"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-2 border-blue-300/50 shadow-sm hover:shadow-md hover:translate-x-1 transition-all duration-200 font-semibold"
             >
               <BarChart3 className="w-5 h-5" />
               <span className="font-medium">Market Intel</span>
@@ -304,7 +306,7 @@ export default function DashboardLayout({
             <button
               ref={(el) => { if (el) navItemsRef.current[3] = el; }}
               onClick={() => navigate("/resume-builder")}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all duration-200"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 hover:translate-x-1 transition-all duration-200 font-medium"
             >
               <Users className="w-5 h-5" />
               <span>Resume Builder</span>
@@ -312,7 +314,7 @@ export default function DashboardLayout({
             <button
               ref={(el) => { if (el) navItemsRef.current[4] = el; }}
               onClick={() => navigate("/interview-prep")}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:translate-x-1 transition-all duration-200"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 hover:translate-x-1 transition-all duration-200 font-medium"
             >
               <Sparkles className="w-5 h-5" />
               <span>Interview Prep</span>
@@ -350,10 +352,10 @@ export default function DashboardLayout({
       {/* Main Content Area */}
       <div className="lg:pl-80 relative">
         {/* Premium Header */}
-        <header className="sticky top-0 z-30 bg-gradient-to-r from-white/95 via-blue-50/90 to-indigo-50/85 dark:from-slate-900/95 dark:via-blue-950/80 dark:to-indigo-950/75 backdrop-blur-xl border-b border-blue-200/50 dark:border-blue-800/50">
+        <header className="sticky top-0 z-30 bg-gradient-to-r from-white/95 via-blue-50/90 to-indigo-50/85 backdrop-blur-xl border-b border-blue-200/50 shadow-sm">
           {/* Header Gradient Accent */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.15),transparent_70%)]" />
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100/30 to-indigo-100/40 dark:via-blue-900/20 dark:to-indigo-900/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-100/30 to-indigo-100/40" />
           <div className="relative flex items-center justify-between px-4 md:px-8 py-4">
             <div className="flex items-center gap-4">
               <Button
@@ -366,25 +368,28 @@ export default function DashboardLayout({
               </Button>
 
               {/* Tab Navigation - Premium Style */}
-              <div className="hidden md:flex items-center gap-1 p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-2xl">
+              <div className="hidden md:flex items-center gap-1 p-1 bg-white/60 backdrop-blur-sm rounded-2xl border border-blue-100/50 shadow-sm">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => onTabChange(tab.id)}
-                    className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+                    className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
                       activeTab === tab.id
-                        ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-lg shadow-slate-200/50 dark:shadow-slate-900/50"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-blue-50/50"
                     }`}
                   >
                     <tab.icon
                       className={`w-4 h-4 ${
-                        activeTab === tab.id ? "text-blue-500" : ""
+                        activeTab === tab.id ? "text-white" : "text-slate-500"
                       }`}
                     />
                     {tab.label}
                     {activeTab === tab.id && (
-                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full" />
+                      <motion.span 
+                        className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full"
+                        layoutId="activeTab"
+                      />
                     )}
                   </button>
                 ))}
@@ -395,38 +400,42 @@ export default function DashboardLayout({
             <div className="flex items-center gap-2">
               {/* Search */}
               <div className="relative">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-xl"
-                  onClick={() => setSearchOpen(!searchOpen)}
-                >
-                  <Search className="w-5 h-5" />
-                </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-xl hover:bg-blue-50 text-slate-700"
+                onClick={() => setSearchOpen(!searchOpen)}
+              >
+                <Search className="w-5 h-5" />
+              </Button>
                 {searchOpen && (
-                  <div className="absolute right-0 top-12 w-80 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2">
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute right-0 top-12 w-80 p-4 bg-white rounded-2xl shadow-2xl border-2 border-blue-100/50 z-50"
+                  >
                     <Input
                       placeholder="Search jobs, trends, insights..."
-                      className="rounded-xl"
+                      className="rounded-xl border-2 border-blue-100 focus:border-blue-400"
                       autoFocus
                     />
                     <div className="mt-3 space-y-2">
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-slate-600 font-semibold">
                         Recent searches
                       </p>
                       {["Software Engineer", "Remote Jobs", "AI/ML"].map(
                         (term) => (
                           <button
                             key={term}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors"
                           >
-                            <Search className="w-3 h-3 text-muted-foreground" />
+                            <Search className="w-3 h-3 text-blue-500" />
                             {term}
                           </button>
                         )
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </div>
 
@@ -435,18 +444,22 @@ export default function DashboardLayout({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-xl relative"
+                  className="rounded-xl relative hover:bg-blue-50 text-slate-700"
                   onClick={() => setNotificationsOpen(!notificationsOpen)}
                 >
                   <Bell className="w-5 h-5" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full" />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border border-white" />
                 </Button>
                 {notificationsOpen && (
-                  <div className="absolute right-0 top-12 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 animate-in fade-in slide-in-from-top-2 overflow-hidden">
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-2xl border-2 border-blue-100/50 overflow-hidden z-50"
+                  >
+                    <div className="p-4 border-b border-blue-100 bg-gradient-to-r from-blue-50/50 to-indigo-50/50">
                       <div className="flex items-center justify-between">
-                        <h3 className="font-semibold">Notifications</h3>
-                        <Badge variant="secondary" className="text-xs">
+                        <h3 className="font-bold text-slate-800">Notifications</h3>
+                        <Badge className="bg-blue-500 text-white text-xs">
                           3 new
                         </Badge>
                       </div>
@@ -455,7 +468,7 @@ export default function DashboardLayout({
                       {notifications.map((notif) => (
                         <div
                           key={notif.id}
-                          className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-b border-slate-100 dark:border-slate-700/50 last:border-0"
+                          className="p-4 hover:bg-blue-50/50 transition-colors cursor-pointer border-b border-blue-50 last:border-0"
                         >
                           <div className="flex items-start gap-3">
                             <div
@@ -490,12 +503,12 @@ export default function DashboardLayout({
                         </div>
                       ))}
                     </div>
-                    <div className="p-3 border-t border-slate-200 dark:border-slate-700">
-                      <Button variant="ghost" size="sm" className="w-full">
+                    <div className="p-3 border-t border-blue-100 bg-blue-50/30">
+                      <Button variant="ghost" size="sm" className="w-full text-blue-700 hover:text-blue-800 hover:bg-blue-100">
                         View all notifications
                       </Button>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </div>
 
@@ -506,7 +519,7 @@ export default function DashboardLayout({
                   size="sm"
                   onClick={onRefresh}
                   disabled={isLoading}
-                  className="rounded-xl hidden sm:flex"
+                  className="rounded-xl hidden sm:flex border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-slate-700 font-semibold"
                 >
                   <Activity
                     className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
@@ -516,7 +529,7 @@ export default function DashboardLayout({
               )}
 
               {/* Settings */}
-              <Button variant="ghost" size="icon" className="rounded-xl">
+              <Button variant="ghost" size="icon" className="rounded-xl hover:bg-blue-50 text-slate-700">
                 <Settings className="w-5 h-5" />
               </Button>
             </div>
@@ -524,15 +537,15 @@ export default function DashboardLayout({
 
           {/* Mobile Tab Navigation */}
           <div className="md:hidden px-4 pb-4">
-            <div className="flex items-center gap-1 p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-2xl">
+            <div className="flex items-center gap-1 p-1 bg-white/60 backdrop-blur-sm rounded-2xl border border-blue-100/50 shadow-sm">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => onTabChange(tab.id)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-300 ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-300 ${
                     activeTab === tab.id
-                      ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md"
-                      : "text-slate-600 dark:text-slate-400"
+                      ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-blue-50/50"
                   }`}
                 >
                   <tab.icon className="w-3.5 h-3.5" />
@@ -557,10 +570,10 @@ export default function DashboardLayout({
                   })()}
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-slate-900 dark:text-white">
+                  <h1 className="text-lg font-bold text-slate-800">
                     {tabs.find((t) => t.id === activeTab)?.label}
                   </h1>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-slate-600">
                     {tabs.find((t) => t.id === activeTab)?.description} •
                     Australian Job Market
                   </p>
@@ -588,19 +601,17 @@ export default function DashboardLayout({
         <main className="p-4 md:p-8 relative">{children}</main>
 
         {/* Footer */}
-        <footer className="relative px-4 md:px-8 py-6 border-t border-blue-200/50 dark:border-blue-800/50 overflow-hidden">
-          {/* Footer Background - More Visible */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-100/70 via-indigo-50/60 to-violet-100/70 dark:from-blue-950/50 dark:via-indigo-950/40 dark:to-violet-950/50" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(59,130,246,0.2),transparent_70%)]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-indigo-100/50 to-transparent dark:from-indigo-900/30 dark:to-transparent" />
-          <div className="relative flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <p>© 2025 CareerCraft. Australian Job Market Intelligence.</p>
+        <footer className="relative px-4 md:px-8 py-6 border-t border-blue-200/50 overflow-hidden bg-gradient-to-r from-blue-50/50 via-indigo-50/40 to-sky-50/50">
+          {/* Footer Background */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(59,130,246,0.15),transparent_70%)]" />
+          <div className="relative flex flex-col md:flex-row items-center justify-between gap-4 text-sm">
+            <p className="text-slate-700 font-medium">© 2025 CareerCraft. Australian Job Market Intelligence.</p>
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 rounded-full">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200/50 rounded-full shadow-sm">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-emerald-700 dark:text-emerald-400 font-medium">Live data from 4 sources</span>
+                <span className="text-emerald-700 font-semibold text-xs">Live data from 4 sources</span>
               </span>
-              <span className="px-3 py-1.5 bg-blue-500/10 rounded-full text-blue-700 dark:text-blue-400 font-medium">Updated every 15 min</span>
+              <span className="px-3 py-1.5 bg-blue-50 border border-blue-200/50 rounded-full text-blue-700 font-semibold text-xs shadow-sm">Updated every 15 min</span>
             </div>
           </div>
         </footer>

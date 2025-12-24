@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, TrendingUp, Users, GraduationCap, Building2, ArrowRight } from "lucide-react";
+import { DollarSign, TrendingUp, Users, GraduationCap, Building2, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 
 interface Investment {
   title: string;
@@ -12,42 +14,60 @@ interface Investment {
   source: string;
 }
 
-const investments: Investment[] = [
-  {
-    title: "Health & Medical Research",
-    amount: "$2.4B",
-    sector: "Healthcare",
-    impact: "15,000+ new jobs projected",
-    icon: <Users className="w-5 h-5" />,
-    source: "2025-26 SA Budget",
-  },
-  {
-    title: "Defence Industry Growth",
-    amount: "$1.8B",
-    sector: "Defence",
-    impact: "Naval shipbuilding expansion",
-    icon: <Building2 className="w-5 h-5" />,
-    source: "2025-26 SA Budget",
-  },
-  {
-    title: "Renewable Energy Transition",
-    amount: "$890M",
-    sector: "Energy",
-    impact: "Green hydrogen initiatives",
-    icon: <TrendingUp className="w-5 h-5" />,
-    source: "Climate Action Plan",
-  },
-  {
-    title: "Skills & Training Boost",
-    amount: "$450M",
-    sector: "Education",
-    impact: "TAFE SA modernisation",
-    icon: <GraduationCap className="w-5 h-5" />,
-    source: "Workforce Strategy",
-  },
-];
+const iconMap: Record<string, React.ReactNode> = {
+  health: <Users className="w-5 h-5" />,
+  education: <GraduationCap className="w-5 h-5" />,
+  technology: <TrendingUp className="w-5 h-5" />,
+  construction: <Building2 className="w-5 h-5" />,
+  default: <DollarSign className="w-5 h-5" />,
+};
 
 export function InvestmentHighlights() {
+  const { getDocuments, loading } = useRAGMetadata();
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const result = await getDocuments({ category: "budget", documentType: "pdf" }, 4);
+        if (result && result.documents.length > 0) {
+          const items: Investment[] = result.documents.map((doc) => {
+            const sector = doc.sector || "general";
+            const title = doc.title || "Budget Document";
+            const year = doc.title?.match(/\d{4}/)?.[0] || "2025";
+            
+            return {
+              title: title.length > 40 ? title.substring(0, 40) + "..." : title,
+              amount: "Budget",
+              sector: sector.charAt(0).toUpperCase() + sector.slice(1),
+              impact: `${doc.chunkCount || 0} sections indexed`,
+              icon: iconMap[sector] || iconMap.default,
+              source: `${year} SA Budget`,
+            };
+          });
+          setInvestments(items);
+        }
+      } catch (error) {
+        console.error("Failed to fetch investments:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading || loading) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="card-intelligence p-6">
       <div className="flex items-center gap-3 mb-6">

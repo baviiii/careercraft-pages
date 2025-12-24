@@ -21,7 +21,8 @@ const TARGETS = {
     { name: 'SA Gov - Finding a Job', url: 'https://www.sa.gov.au/topics/employment-and-work/finding-a-job', strategy: 'jobs' },
   ],
   skills: [
-    { name: 'Migration SA', url: 'https://www.migration.sa.gov.au', strategy: 'skills' },
+    { name: 'Migration SA', url: 'https://www.migration.sa.gov.au', strategy: 'skills', followLinks: true },
+    { name: 'Migration SA - Occupation List', url: 'https://www.migration.sa.gov.au/occupation-lists/south-australia-skilled-occupation-list', strategy: 'skills' },
     { name: 'Skills SA', url: 'https://www.skills.sa.gov.au', strategy: 'skills' },
     { name: 'Skilled Workers SA', url: 'https://skilledworkers.business.sa.gov.au', strategy: 'skills' },
     { name: 'Business SA', url: 'https://www.business.sa.gov.au', strategy: 'skills' },
@@ -123,9 +124,78 @@ function extractContent(page, strategy) {
   }
 }
 
+// Function to discover important internal links on a page
+async function discoverImportantLinks(page, baseUrl, visitedUrls) {
+  try {
+    const links = await page.evaluate((baseUrl) => {
+      const importantKeywords = [
+        'occupation', 'occupation-list', 'skilled-occupation', 'visa', 'nomination',
+        'career', 'job', 'employment', 'skills', 'training', 'education',
+        'migration', 'immigration', 'workforce', 'industry'
+      ];
+      
+      const allLinks = Array.from(document.querySelectorAll('a[href]'));
+      const discovered = [];
+      const baseDomain = new URL(baseUrl).hostname;
+      
+      for (const link of allLinks) {
+        try {
+          const href = link.getAttribute('href');
+          if (!href) continue;
+          
+          const fullUrl = new URL(href, baseUrl).href;
+          const linkDomain = new URL(fullUrl).hostname;
+          
+          // Only follow links from same domain
+          if (linkDomain !== baseDomain) continue;
+          
+          // Check if link text or URL contains important keywords
+          const linkText = (link.textContent || '').toLowerCase();
+          const urlLower = fullUrl.toLowerCase();
+          
+          const isImportant = importantKeywords.some(keyword => 
+            linkText.includes(keyword) || urlLower.includes(keyword)
+          );
+          
+          if (isImportant) {
+            discovered.push({
+              url: fullUrl,
+              text: linkText.trim(),
+              href: href
+            });
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      // Remove duplicates and return
+      const unique = [];
+      const seen = new Set();
+      for (const link of discovered) {
+        const normalized = link.url.split('#')[0].split('?')[0];
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          unique.push(link);
+        }
+      }
+      
+      return unique.slice(0, 10); // Limit to 10 important links per page
+    }, baseUrl);
+    
+    // Filter out already visited URLs
+    return links.filter(link => {
+      const normalized = link.url.split('#')[0].split('?')[0];
+      return !visitedUrls.has(normalized);
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
 // Main scraping function with pagination and scrolling
 async function scrapeWebsite(browser, target, options = {}) {
-  const { waitForSelector, waitForTimeout = 2000, maxPages = 10 } = options;
+  const { waitForSelector, waitForTimeout = 2000, maxPages = 10, followLinks = false } = options;
   
   const page = await browser.newPage({
     viewport: { width: 1920, height: 1080 },
@@ -141,6 +211,8 @@ async function scrapeWebsite(browser, target, options = {}) {
     let pageNum = 1;
     let pageTitle = null;
     const visitedUrls = new Set(); // Track visited URLs to prevent loops
+    const linkQueue = []; // Queue for discovered links to scrape
+    const shouldFollowLinks = target.followLinks || followLinks;
     
     // Navigate through multiple pages
     while (pageNum <= maxPages && currentUrl) {
@@ -225,6 +297,19 @@ async function scrapeWebsite(browser, target, options = {}) {
           console.log(`    [Page ${pageNum}] Content too short (${pageContent?.length || 0} chars), may be last page`);
         }
         
+        // Discover important links if enabled (on first page)
+        if (shouldFollowLinks && pageNum === 1) {
+          console.log(`    [Page ${pageNum}] Discovering important links...`);
+          const discoveredLinks = await discoverImportantLinks(page, target.url, visitedUrls);
+          for (const link of discoveredLinks) {
+            const normalized = link.url.split('#')[0].split('?')[0];
+            if (!visitedUrls.has(normalized)) {
+              linkQueue.push(link.url);
+              console.log(`    [Page ${pageNum}] Discovered: ${link.text.substring(0, 50)}...`);
+            }
+          }
+        }
+        
         // Try to find next page link (only if we haven't reached max pages)
         if (pageNum >= maxPages) {
           console.log(`    [Page ${pageNum}] Reached max pages limit (${maxPages})`);
@@ -232,43 +317,51 @@ async function scrapeWebsite(browser, target, options = {}) {
         }
         
         console.log(`    [Page ${pageNum}] Looking for next page...`);
-        const nextUrl = await page.evaluate(() => {
-          // First, try to find explicit "next" buttons/links
-          const nextSelectors = [
-            'a[aria-label*="next" i]',
-            'a[aria-label*="Next" i]',
-            '.pagination .next:not(.disabled)',
-            '.pagination-next:not(.disabled)',
-            'a.next:not(.disabled)',
-            'a[class*="next"]:not([class*="disabled"])'
-          ];
-          
-          for (const selector of nextSelectors) {
-            try {
-              const link = document.querySelector(selector);
-              if (link && !link.classList.contains('disabled') && link.getAttribute('aria-disabled') !== 'true') {
-                const href = link.getAttribute('href');
-                if (href) {
-                  try {
-                    const fullUrl = new URL(href, window.location.href).href;
-                    if (fullUrl !== window.location.href) {
-                      return fullUrl;
+        let nextUrl = null;
+        
+        // First, check if we have links in queue
+        if (linkQueue.length > 0) {
+          nextUrl = linkQueue.shift();
+          console.log(`    [Page ${pageNum}] Using queued link: ${nextUrl}`);
+        } else {
+          // Try to find explicit "next" buttons/links
+          nextUrl = await page.evaluate(() => {
+            const nextSelectors = [
+              'a[aria-label*="next" i]',
+              'a[aria-label*="Next" i]',
+              '.pagination .next:not(.disabled)',
+              '.pagination-next:not(.disabled)',
+              'a.next:not(.disabled)',
+              'a[class*="next"]:not([class*="disabled"])'
+            ];
+            
+            for (const selector of nextSelectors) {
+              try {
+                const link = document.querySelector(selector);
+                if (link && !link.classList.contains('disabled') && link.getAttribute('aria-disabled') !== 'true') {
+                  const href = link.getAttribute('href');
+                  if (href) {
+                    try {
+                      const fullUrl = new URL(href, window.location.href).href;
+                      if (fullUrl !== window.location.href) {
+                        return fullUrl;
+                      }
+                    } catch (e) {
+                      continue;
                     }
-                  } catch (e) {
-                    continue;
                   }
                 }
+              } catch (e) {
+                continue;
               }
-            } catch (e) {
-              continue;
             }
-          }
-          
-          // If no explicit next button, don't auto-increment - let it stop
-          return null;
-        });
+            
+            // If no explicit next button, don't auto-increment - let it stop
+            return null;
+          });
+        }
         
-        // Only use nextUrl if we found an actual next button
+        // Only use nextUrl if we found an actual next button or have queued links
         if (!nextUrl) {
           console.log(`    [Page ${pageNum}] No next page link found, stopping pagination`);
           break;
@@ -276,7 +369,10 @@ async function scrapeWebsite(browser, target, options = {}) {
         
         // Check if nextUrl is different from current
         const currentFullUrl = page.url();
-        if (nextUrl === currentFullUrl || nextUrl === currentUrl) {
+        const normalizedNext = nextUrl.split('#')[0].split('?')[0];
+        const normalizedCurrent = currentFullUrl.split('#')[0].split('?')[0];
+        
+        if (normalizedNext === normalizedCurrent || normalizedNext === currentUrl.split('#')[0].split('?')[0]) {
           console.log(`    [Page ${pageNum}] Next URL same as current, stopping`);
           break;
         }
@@ -327,8 +423,115 @@ async function scrapeWebsite(browser, target, options = {}) {
   }
 }
 
-// Chunk content for embeddings
-function chunkContent(content, chunkSize = 1500, overlap = 200) {
+// Enhanced metadata extraction functions (matching PDF processing)
+function extractCategory(title, content, strategy) {
+  const lowerTitle = (title || '').toLowerCase();
+  const lowerContent = (content || '').toLowerCase().substring(0, 2000);
+  
+  // Strategy-based defaults
+  if (strategy === 'jobs') return 'workforce';
+  if (strategy === 'skills') return 'workforce';
+  if (strategy === 'news') return 'report';
+  
+  // Title-based detection
+  if (lowerTitle.match(/budget|financial|revenue|expenditure/)) return 'budget';
+  if (lowerTitle.match(/strategy|strategic|plan|roadmap/)) return 'strategy';
+  if (lowerTitle.match(/workforce|employment|jobs|career/)) return 'workforce';
+  if (lowerTitle.match(/education|learning|school|training/)) return 'education';
+  if (lowerTitle.match(/health|medical|hospital/)) return 'health';
+  if (lowerTitle.match(/interview|resume|cv|selection/)) return 'career-guidance';
+  if (lowerTitle.match(/report|annual|review/)) return 'report';
+  if (lowerTitle.match(/policy|guideline|procedure/)) return 'policy';
+  
+  // Content-based detection
+  if (lowerContent.match(/budget|appropriation|revenue|expenditure/)) return 'budget';
+  if (lowerContent.match(/interview|resume|selection criteria/)) return 'career-guidance';
+  if (lowerContent.match(/workforce|employment|job market/)) return 'workforce';
+  
+  return 'government-document';
+}
+
+function extractSector(content, url) {
+  const lowerContent = (content || '').toLowerCase().substring(0, 3000);
+  const lowerUrl = (url || '').toLowerCase();
+  
+  if (lowerContent.match(/health|hospital|nursing|medical|sa health/) || lowerUrl.match(/health/)) return 'health';
+  if (lowerContent.match(/education|school|teacher|learning|department for education/) || lowerUrl.match(/education/)) return 'education';
+  if (lowerContent.match(/public sector|government|department|commissioner for public sector/) || lowerUrl.match(/publicsector/)) return 'public-sector';
+  if (lowerContent.match(/construction|building|infrastructure/)) return 'construction';
+  if (lowerContent.match(/technology|it|digital|software|ict/) || lowerUrl.match(/tech/)) return 'technology';
+  if (lowerContent.match(/agriculture|farming|rural/)) return 'agriculture';
+  if (lowerContent.match(/mining|resources|energy/)) return 'resources';
+  if (lowerContent.match(/retail|hospitality|tourism/)) return 'services';
+  if (lowerContent.match(/finance|accounting|treasury/)) return 'finance';
+  if (lowerContent.match(/defense|security|police/) || lowerUrl.match(/defence/)) return 'defense';
+  if (lowerContent.match(/transport|logistics/)) return 'transport';
+  if (lowerContent.match(/community|social services|welfare/)) return 'community-services';
+  
+  return 'general';
+}
+
+function extractTags(content, title, category, sector) {
+  const tags = [];
+  const lowerContent = (content || '').toLowerCase();
+  const lowerTitle = (title || '').toLowerCase();
+  const combined = `${lowerTitle} ${lowerContent}`;
+  
+  // Always add base tags
+  tags.push('web-scraped', 'south-australia');
+  
+  // Category-based tags
+  if (category === 'workforce') tags.push('employment', 'jobs');
+  if (category === 'career-guidance') tags.push('job-application', 'career-advice');
+  if (category === 'budget') tags.push('budget', 'funding');
+  if (category === 'education') tags.push('education', 'training');
+  
+  // Content-based tags
+  if (combined.match(/south australia|sa government/)) tags.push('south-australia');
+  if (combined.match(/education|school|learning/)) tags.push('education');
+  if (combined.match(/health|medical|nursing/)) tags.push('health');
+  if (combined.match(/employment|job|career|workforce/)) tags.push('employment');
+  if (combined.match(/budget|financial|funding/)) tags.push('budget');
+  if (combined.match(/training|skills|qualification/)) tags.push('training');
+  if (combined.match(/interview|resume|application/)) tags.push('job-application');
+  if (combined.match(/migration|immigrant|visa/)) tags.push('migration');
+  if (combined.match(/regional|rural|country/)) tags.push('regional');
+  if (combined.match(/disability|inclusion|accessibility/)) tags.push('disability-inclusion');
+  if (combined.match(/indigenous|aboriginal/)) tags.push('indigenous');
+  if (combined.match(/youth|young people|graduate/)) tags.push('youth');
+  
+  // Sector tag
+  if (sector && sector !== 'general') tags.push(sector);
+  
+  // Remove duplicates
+  return [...new Set(tags)];
+}
+
+function extractPublicationYear(title, content) {
+  // Try to extract year from title (most reliable)
+  const titleMatch = (title || '').match(/\b(19|20)\d{2}\b/);
+  if (titleMatch) {
+    const year = parseInt(titleMatch[0]);
+    if (year >= 2000 && year <= new Date().getFullYear() + 1) {
+      return year;
+    }
+  }
+  
+  // Try to extract from content
+  const contentMatch = (content || '').match(/\b(20\d{2})\b/);
+  if (contentMatch) {
+    const years = contentMatch[0] ? [parseInt(contentMatch[0])] : [];
+    const validYears = years.filter(y => y >= 2000 && y <= new Date().getFullYear() + 1);
+    if (validYears.length > 0) {
+      return Math.max(...validYears);
+    }
+  }
+  
+  return null;
+}
+
+// Chunk content for embeddings (matching PDF processing strategy)
+function chunkContent(content, chunkSize = 800, overlap = 200) {
   const chunks = [];
   let position = 0;
   let previousPosition = -1;
@@ -466,26 +669,51 @@ async function main() {
         console.log(`  ✓ Success: ${result.title}${pagesInfo} (${result.content.length} chars)`);
         console.log(`  → Starting to chunk content...`);
         
-        // Chunk the content (limit chunk size to reduce memory)
-        const chunks = chunkContent(result.content, 800, 100);  // Even smaller chunks
+        // Chunk the content (matching PDF processing: 800 chars, 200 overlap)
+        const chunks = chunkContent(result.content, 800, 200);
         console.log(`  → Created ${chunks.length} chunk(s)`);
         
         console.log(`  → Processing chunks into documents...`);
         chunks.forEach((chunk, idx) => {
           try {
-            const docId = Buffer.from(`${result.url}-chunk-${idx}`).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 50);
+            // Create unique ID for each chunk (matching PDF processing format)
+            const baseId = result.url.replace(/[^a-zA-Z0-9]/g, '').substring(0, 40);
+            const docId = `${baseId}-chunk-${idx}`;
+            
+            // Enhanced metadata extraction (matching PDF processing quality)
+            const category = extractCategory(result.title, chunk, result.strategy);
+            const sector = extractSector(chunk, result.url);
+            const tags = extractTags(chunk, result.title, category, sector);
+            const publicationYear = extractPublicationYear(result.title, chunk);
+            
+            // Add metadata structure matching PDF processing
+            // CRITICAL: Web content is LIVE - track freshness for updates
+            const metadata = {
+              totalChunks: chunks.length,
+              sourceUrl: result.url,
+              scrapedAt: new Date().toISOString(),
+              lastScraped: new Date().toISOString(),  // Track when this specific scrape happened
+              strategy: result.strategy,
+              pagesScraped: result.pagesScraped || 1,
+              isLiveData: true,  // Mark as live/changeable content (vs static PDFs)
+              dataSource: 'web-scraper'  // Identify source for freshness tracking
+            };
             
             allDocuments.push({
               id: docId,
               title: result.title,
               content: chunk,
               url: result.url,
+              documentId: result.url, // For grouping chunks from same page
               documentType: 'web',
               source: result.url,
               chunkIndex: idx,
-              category: result.strategy === 'jobs' ? 'jobs' : result.strategy === 'skills' ? 'skills' : 'general',
-              sector: 'government',
-              tags: [result.strategy, 'web-scraped', 'government'],
+              pageNumber: 1, // Web pages are single "page"
+              category: category,
+              sector: sector,
+              tags: tags,
+              publicationYear: publicationYear,
+              metadata: JSON.stringify(metadata),
               indexedAt: new Date().toISOString()
             });
           } catch (chunkError) {

@@ -26,6 +26,9 @@ const IntelligenceOverview = lazy(() => import("./pages/IntelligenceOverview"));
 const CareerExplorer = lazy(() => import("./pages/CareerExplorer"));
 const MarketTrends = lazy(() => import("./pages/MarketTrends"));
 const PolicyVisualizer = lazy(() => import("./pages/PolicyVisualizer"));
+const ContactUs = lazy(() => import("./pages/ContactUs"));
+const AboutUs = lazy(() => import("./pages/AboutUs"));
+const Privacy = lazy(() => import("./pages/Privacy"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
@@ -86,6 +89,9 @@ const App = () => (
             <Route path="/market-trends" element={<MarketTrends />} />
             <Route path="/policy" element={<PolicyVisualizer />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/contact" element={<ContactUs />} />
+            <Route path="/about" element={<AboutUs />} />
+            <Route path="/privacy" element={<Privacy />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>

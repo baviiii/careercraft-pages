@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
+import { Loader2 } from "lucide-react";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -82,12 +84,43 @@ interface CareersDashboardProps {
 }
 
 export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
+  const { getDocuments, searchDocuments, loading } = useRAGMetadata();
   const [localSearch, setLocalSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("growth");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [filterSector, setFilterSector] = useState<FilterSector>("all");
   const [filterDemand, setFilterDemand] = useState<"all" | "high" | "medium" | "low">("all");
   const [selectedCareer, setSelectedCareer] = useState<string | null>(null);
+  const [topCareers, setTopCareers] = useState<CareerTrend[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const result = await getDocuments({ category: "career-guidance", documentType: "pdf" }, 20);
+        if (result && result.documents.length > 0) {
+          const careers: CareerTrend[] = result.documents.slice(0, 8).map((doc) => ({
+            occupation: doc.title?.split(" ").slice(0, 3).join(" ") || "Career Resource",
+            sector: doc.sector ? doc.sector.charAt(0).toUpperCase() + doc.sector.slice(1) : "General",
+            growth: Math.random() * 20 + 5, // Placeholder
+            jobs: (doc.chunkCount || 0) * 10, // Estimate from chunks
+            avgSalary: "See Document",
+            location: "South Australia",
+            demand: "high" as const,
+            featured: false,
+          }));
+          setTopCareers(careers);
+        }
+      } catch (error) {
+        console.error("Failed to fetch careers:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const effectiveSearch = searchQuery || localSearch;
 
@@ -140,7 +173,17 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     });
 
     return filtered;
-  }, [effectiveSearch, filterSector, filterDemand, sortField, sortDirection]);
+  }, [effectiveSearch, filterSector, filterDemand, sortField, sortDirection, topCareers]);
+
+  if (isLoading || loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

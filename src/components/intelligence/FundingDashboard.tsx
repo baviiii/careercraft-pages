@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
+import { Loader2 } from "lucide-react";
 import { 
   DollarSign, 
   TrendingUp, 
@@ -133,10 +135,58 @@ interface FundingDashboardProps {
 }
 
 export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
+  const { getDocuments, searchDocuments, getStats, loading } = useRAGMetadata();
   const [localSearch, setLocalSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [filterSector, setFilterSector] = useState<FilterSector>("all");
   const [sortBy, setSortBy] = useState<"amount" | "name" | "deadline">("amount");
+  const [fundingPrograms, setFundingPrograms] = useState<FundingProgram[]>([]);
+  const [budgetAllocations, setBudgetAllocations] = useState<BudgetAllocation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [budgetDocs, stats] = await Promise.all([
+          getDocuments({ category: "budget", documentType: "pdf" }, 50),
+          getStats({ category: "budget" }),
+        ]);
+
+        if (budgetDocs && stats) {
+          // Create funding programs from budget documents
+          const programs: FundingProgram[] = budgetDocs.documents.map((doc) => ({
+            name: doc.title || "Budget Document",
+            amount: "See Document",
+            sector: doc.sector ? doc.sector.charAt(0).toUpperCase() + doc.sector.slice(1) : "General",
+            year: doc.title?.match(/\d{4}/)?.[0] || "2025",
+            status: "active" as const,
+            eligibility: "See document for details",
+            description: `${doc.category || "Budget"} document from ${doc.sector || "various"} sector`,
+          }));
+
+          // Create budget allocations from sector facets
+          if (stats.facets?.sector) {
+            const allocations: BudgetAllocation[] = stats.facets.sector.map((facet: any) => ({
+              sector: facet.value || "Unknown",
+              amount: facet.count * 100, // Estimate from chunk count
+              change: 0,
+              programs: 1,
+            }));
+            setBudgetAllocations(allocations);
+          }
+
+          setFundingPrograms(programs);
+        }
+      } catch (error) {
+        console.error("Failed to fetch funding data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const effectiveSearch = searchQuery || localSearch;
 
@@ -157,8 +207,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "amount":
-          const aAmount = parseFloat(a.amount.replace(/[^0-9.]/g, ""));
-          const bAmount = parseFloat(b.amount.replace(/[^0-9.]/g, ""));
+          const aAmount = parseFloat(a.amount.replace(/[^0-9.]/g, "") || "0");
+          const bAmount = parseFloat(b.amount.replace(/[^0-9.]/g, "") || "0");
           return bAmount - aAmount;
         case "name":
           return a.name.localeCompare(b.name);
@@ -170,7 +220,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
     });
 
     return filtered;
-  }, [effectiveSearch, filterStatus, filterSector, sortBy]);
+  }, [effectiveSearch, filterStatus, filterSector, sortBy, fundingPrograms]);
 
   const totalBudget = budgetAllocations.reduce((sum, b) => sum + b.amount, 0);
   const activePrograms = fundingPrograms.filter(p => p.status === "active").length;
@@ -203,6 +253,16 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
   };
 
   const uniqueSectors = Array.from(new Set(fundingPrograms.map(p => p.sector)));
+
+  if (isLoading || loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

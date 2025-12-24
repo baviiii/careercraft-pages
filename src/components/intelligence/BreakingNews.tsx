@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Newspaper, Clock, ExternalLink, Bookmark, Share2 } from "lucide-react";
+import { Newspaper, Clock, ExternalLink, Bookmark, Share2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 
 interface NewsItem {
   id: string;
@@ -12,45 +14,51 @@ interface NewsItem {
   time: string;
   category: string;
   isBreaking?: boolean;
+  url?: string;
 }
 
-const newsItems: NewsItem[] = [
-  {
-    id: "1",
-    title: "SA Government announces $500M TAFE investment for critical skills",
-    summary: "Major funding boost targets healthcare, defence and renewable energy training pathways across regional SA.",
-    source: "Premier's Office",
-    time: "2 hours ago",
-    category: "Policy",
-    isBreaking: true,
-  },
-  {
-    id: "2",
-    title: "Healthcare sector to add 8,000 jobs by 2027",
-    summary: "New hospitals and aged care facilities driving unprecedented workforce demand in South Australia.",
-    source: "Jobs & Skills SA",
-    time: "5 hours ago",
-    category: "Employment",
-  },
-  {
-    id: "3",
-    title: "Tech industry salary growth outpaces national average",
-    summary: "Adelaide's tech workers seeing 12% year-on-year salary increases as demand for digital skills surges.",
-    source: "Industry Report",
-    time: "8 hours ago",
-    category: "Salary",
-  },
-  {
-    id: "4",
-    title: "Defence contracts create 3,000 new apprenticeship opportunities",
-    summary: "Naval shipbuilding program opening doors for young South Australians seeking skilled trades careers.",
-    source: "Defence Industry SA",
-    time: "1 day ago",
-    category: "Training",
-  },
-];
-
 export function BreakingNews() {
+  const { getDocuments, loading } = useRAGMetadata();
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const result = await getDocuments({ documentType: "pdf" }, 5);
+        if (result && result.documents.length > 0) {
+          const items: NewsItem[] = result.documents.slice(0, 4).map((doc, index) => ({
+            id: doc.documentId,
+            title: doc.title || "Untitled Document",
+            summary: `${doc.category || "Government"} document from ${doc.sector || "various"} sector`,
+            source: doc.sector ? `${doc.sector.charAt(0).toUpperCase() + doc.sector.slice(1)} Sector` : "SA Government",
+            time: doc.lastModified ? new Date(doc.lastModified).toLocaleDateString() : "Recently",
+            category: doc.category || "Document",
+            isBreaking: index === 0,
+            url: doc.url,
+          }));
+          setNewsItems(items);
+        }
+      } catch (error) {
+        console.error("Failed to fetch news:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (isLoading || loading) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="card-intelligence p-6">
       <div className="flex items-center gap-3 mb-6">
@@ -105,9 +113,13 @@ export function BreakingNews() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Bookmark className="w-4 h-4" />
-                  </Button>
+                  {item.url && (
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
+                    </a>
+                  )}
                   <Button variant="ghost" size="icon" className="h-8 w-8">
                     <Share2 className="w-4 h-4" />
                   </Button>
