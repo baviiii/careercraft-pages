@@ -169,43 +169,56 @@ const FeatureCard = memo(({ feature, index }: { feature: any; index: number }) =
         y.set((e.clientY - rect.top) / rect.height - 0.5);
       }}
       onMouseLeave={() => { x.set(0); y.set(0); }}
-      style={{ rotateX, rotateY, transformStyle: "preserve-3d", willChange: 'transform' }}
-      className="group relative bg-white/80 backdrop-blur-xl rounded-3xl p-8 border border-blue-100/50 shadow-xl hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-500 cursor-pointer"
+      style={{ 
+        rotateX, 
+        rotateY, 
+        transformStyle: "preserve-3d", 
+        willChange: 'transform',
+      }}
+      className="group relative rounded-3xl pt-16 pb-8 px-8 border border-white/40 shadow-xl hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 cursor-pointer overflow-visible min-h-[280px] bg-white/60 backdrop-blur-xl"
     >
+      {/* Glassmorphism background gradient */}
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/80 via-white/60 to-white/40" />
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/30 via-transparent to-sky-50/30" />
+      
       {/* Glow effect on hover */}
       <motion.div
-        className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-500/10 via-transparent to-sky-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+        className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-500/20 via-transparent to-sky-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
       />
       
-      {/* Icon */}
-      <motion.div 
-        className={`relative inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br ${feature.color} rounded-2xl mb-6 shadow-lg group-hover:scale-110 transition-transform duration-300`}
-        style={{ transform: "translateZ(40px)" }}
-      >
-        <feature.icon className="w-7 h-7 text-white" />
-        <motion.div
-          className="absolute inset-0 rounded-2xl bg-white/20"
-          animate={{ opacity: [0, 0.5, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-      </motion.div>
-      
-      <h3 
-        className="text-xl font-bold text-foreground mb-3 group-hover:text-blue-600 transition-colors"
-        style={{ transform: "translateZ(30px)" }}
-      >
-        {feature.title}
-      </h3>
-      <p 
-        className="text-muted-foreground leading-relaxed"
-        style={{ transform: "translateZ(20px)" }}
-      >
-        {feature.description}
-      </p>
+      {/* Content wrapper with z-index */}
+      <div className="relative z-10">
+        {/* Icon with proper spacing - no clipping */}
+        <div className="relative mb-6" style={{ transform: "translateZ(40px)" }}>
+          <motion.div 
+            className={`relative inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br ${feature.color} rounded-2xl shadow-lg group-hover:scale-110 transition-transform duration-300`}
+          >
+            <feature.icon className="w-7 h-7 text-white" />
+            <motion.div
+              className="absolute inset-0 rounded-2xl bg-white/20"
+              animate={{ opacity: [0, 0.5, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+          </motion.div>
+        </div>
+        
+        <div className="relative overflow-visible" style={{ transform: "translateZ(30px)" }}>
+          <h3 
+            className="text-xl font-bold text-slate-800 mb-3 group-hover:text-blue-600 transition-colors leading-tight"
+          >
+            {feature.title}
+          </h3>
+          <p 
+            className="text-slate-600 leading-relaxed"
+          >
+            {feature.description}
+          </p>
+        </div>
+      </div>
       
       {/* Arrow indicator */}
       <motion.div
-        className="absolute bottom-8 right-8 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute bottom-8 right-8 w-10 h-10 rounded-full bg-white/80 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-white/60 shadow-lg z-20"
         whileHover={{ scale: 1.1 }}
       >
         <ArrowRight className="w-5 h-5 text-blue-500" />
@@ -335,15 +348,15 @@ const CTASection = memo(({ session, navigate }: { session: Session | null; navig
           </motion.div>
           
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6">
-            Ready to Explore SA's
+            Ready to Understand
             <br />
             <span className="bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 bg-clip-text text-transparent">
-              Career Landscape?
+              South Australia?
             </span>
           </h2>
           
           <p className="text-xl text-blue-200 mb-10 max-w-2xl mx-auto">
-            Get actionable insights backed by verified government data. Make informed career decisions today.
+            Access policy intelligence, workforce analytics, and investment insights — plus personalized career tools. All backed by verified government data.
           </p>
           
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -389,38 +402,38 @@ const Index = memo(() => {
   const features = [
     {
       icon: Database,
-      title: "Government Data Intelligence",
-      description: "Access 50+ verified SA Government PDFs including budgets, workforce strategies, and education plans.",
+      title: "Policy Intelligence",
+      description: "Real-time analysis of SA government policies, budgets, and strategic plans. Understand where investment is flowing.",
       color: "from-blue-500 to-blue-600"
     },
     {
+      icon: Building2,
+      title: "Investment & Budget Tracking",
+      description: "Track government spending, sector priorities, and funding programs. See which industries are growing.",
+      color: "from-amber-500 to-orange-500"
+    },
+    {
       icon: TrendingUp,
-      title: "Job Market Trends",
-      description: "Real-time analysis of emerging roles, declining sectors, and salary movements across South Australia.",
+      title: "Workforce Analytics",
+      description: "Live job market trends, emerging roles, sector growth, and skills demand across South Australia.",
       color: "from-sky-500 to-cyan-500"
     },
     {
       icon: Brain,
-      title: "AI Career Coach",
-      description: "Get personalized career advice backed by policy data, with full citations and evidence.",
+      title: "AI Intelligence Assistant",
+      description: "Ask questions about SA policy, workforce, and opportunities. Get answers backed by verified government data.",
       color: "from-indigo-500 to-purple-500"
     },
     {
       icon: FileText,
-      title: "Resume & Interview Tools",
-      description: "ATS-optimized resume analysis and interview prep aligned to SA workforce trends.",
+      title: "Career Tools",
+      description: "Resume builder, interview prep, and job search tools — all personalized using SA workforce intelligence.",
       color: "from-teal-500 to-emerald-500"
     },
     {
-      icon: Building2,
-      title: "Policy & Investment Visualizer",
-      description: "See where government is investing, which industries are prioritized, and how it affects careers.",
-      color: "from-amber-500 to-orange-500"
-    },
-    {
       icon: Search,
-      title: "Career Explorer",
-      description: "Interactive exploration by sector, region, and audience with policy-backed explanations.",
+      title: "Live Job & News Feed",
+      description: "Real-time job listings and market news from APIs, filtered and enhanced with SA intelligence context.",
       color: "from-rose-500 to-pink-500"
     }
   ];
@@ -466,8 +479,8 @@ const Index = memo(() => {
                 <Globe className="w-6 h-6 text-white" />
               </motion.div>
               <div>
-                <h1 className="font-bold text-lg text-slate-800">CareerCraft</h1>
-                <p className="text-xs text-slate-600">Career Intelligence</p>
+                <h1 className="font-bold text-lg text-slate-800">SA Intelligence</h1>
+                <p className="text-xs text-slate-600">Intelligence Platform</p>
               </div>
             </motion.div>
             
@@ -594,7 +607,7 @@ const Index = memo(() => {
                     filter: 'drop-shadow(0 4px 12px rgba(59, 130, 246, 0.2))'
                   }}
                 >
-                  Career Intelligence
+                  Intelligence Platform
                   <motion.span
                     className="absolute inset-0 bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400 blur-3xl opacity-60 -z-10"
                     animate={{ opacity: [0.4, 0.7, 0.4] }}
@@ -716,7 +729,7 @@ const Index = memo(() => {
                 textShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
               }}
             >
-              Discover where SA is investing, which jobs are emerging, and how policy shapes careers — 
+              Understand South Australia's policy landscape, workforce trends, and investment priorities — 
               <span 
                 className="font-bold"
                 style={{
@@ -726,7 +739,7 @@ const Index = memo(() => {
                   backgroundClip: 'text',
                   color: 'rgb(37, 99, 235)'
                 }}
-              > all powered by verified government data</span>.
+              > powered by AI and verified government data</span>. Plus personalized career tools to help you succeed.
             </motion.p>
 
             {/* Live Activity Ticker */}
@@ -967,10 +980,10 @@ const Index = memo(() => {
               Powerful Features
             </motion.span>
             <h2 className="text-4xl sm:text-5xl font-bold text-foreground mb-6">
-              Complete Career Intelligence
+              Complete SA Intelligence Platform
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Everything you need to understand SA's job market, powered by verified government data and AI.
+              Policy insights, workforce analytics, and investment tracking — plus personalized career tools. All powered by verified government data and AI.
             </p>
           </motion.div>
 
@@ -1040,13 +1053,13 @@ const Index = memo(() => {
                 <Globe className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-bold text-white">CareerCraft</h3>
-                <p className="text-xs text-slate-400">Career Intelligence Platform</p>
+                <h3 className="font-bold text-white">SA Intelligence</h3>
+                <p className="text-xs text-slate-400">Intelligence Platform</p>
               </div>
             </motion.div>
             
             <p className="text-sm text-slate-400 text-center">
-              Powered by verified South Australian Government data
+              Intelligence-Powered South Australia — Policy, Workforce & Opportunity Insights
             </p>
             
             <div className="flex items-center gap-4 text-slate-400 text-sm">

@@ -605,7 +605,7 @@ export default function DashboardLayout({
           {/* Footer Background */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(59,130,246,0.15),transparent_70%)]" />
           <div className="relative flex flex-col md:flex-row items-center justify-between gap-4 text-sm">
-            <p className="text-slate-700 font-medium">© 2025 CareerCraft. Australian Job Market Intelligence.</p>
+            <p className="text-slate-700 font-medium">© 2025 SA Intelligence. Intelligence-Powered South Australia.</p>
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200/50 rounded-full shadow-sm">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />

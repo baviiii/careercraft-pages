@@ -349,8 +349,8 @@ export default function Dashboard() {
                 </div>
               </div>
               <div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">CareerCraft</span>
-                <p className="text-xs text-slate-600">AI Career Platform</p>
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">SA Intelligence</span>
+                <p className="text-xs text-slate-600">Intelligence Platform</p>
               </div>
             </button>
             <Button variant="ghost" size="icon" className="lg:hidden text-slate-600 hover:text-slate-900 hover:bg-blue-50" onClick={() => setSidebarOpen(false)}>

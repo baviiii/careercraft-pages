@@ -66,7 +66,7 @@ export function BreakingNews() {
           <Newspaper className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1">
-          <h2 className="font-display text-lg font-bold text-foreground">Career Intelligence Feed</h2>
+          <h2 className="font-display text-lg font-bold text-foreground">Intelligence Feed</h2>
           <p className="text-sm text-muted-foreground">AI-summarised, policy-backed news</p>
         </div>
         <Link to="/job-news">

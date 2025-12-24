@@ -220,9 +220,9 @@ export default function MainDashboardLayout({
               </div>
               <div>
                 <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-teal-400 to-blue-400">
-                  CareerCraft
+                  SA Intelligence
                 </span>
-                <p className="text-xs text-slate-400">AI Career Platform</p>
+                <p className="text-xs text-slate-400">Intelligence Platform</p>
               </div>
             </button>
             <Button

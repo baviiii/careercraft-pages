@@ -132,11 +132,11 @@ const Auth = () => {
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                CareerCraft
+                SA Intelligence
               </CardTitle>
             </motion.div>
             <CardDescription className="text-center text-base text-slate-600">
-              Transform your professional journey with AI-powered career intelligence
+              Intelligence-powered platform for understanding SA policy, workforce, and opportunities
             </CardDescription>
           </CardHeader>
           <CardContent>

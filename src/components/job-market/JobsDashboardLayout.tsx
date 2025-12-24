@@ -640,7 +640,7 @@ export default function JobsDashboardLayout({
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(16,185,129,0.2),transparent_70%)]" />
           <div className="absolute inset-0 bg-gradient-to-t from-teal-100/50 to-transparent dark:from-teal-900/30 dark:to-transparent" />
           <div className="relative flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <p>© 2025 CareerCraft. Australian Job Board.</p>
+            <p>© 2025 SA Intelligence. Intelligence-Powered South Australia.</p>
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 rounded-full">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />

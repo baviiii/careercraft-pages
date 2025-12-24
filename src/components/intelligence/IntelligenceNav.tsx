@@ -100,7 +100,7 @@ export function IntelligenceNav() {
             </div>
             <div className="flex flex-col">
               <span className="font-display font-bold text-lg text-foreground leading-tight">
-                SA Career Hub
+                SA Intelligence
               </span>
               <span className="text-xs text-muted-foreground">
                 Intelligence Platform

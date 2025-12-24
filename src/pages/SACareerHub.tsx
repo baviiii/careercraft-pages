@@ -140,8 +140,8 @@ export default function SACareerHub() {
                 </div>
               </div>
               <div>
-                <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400">CareerCraft</span>
-                <p className="text-xs text-slate-400">AI Career Platform</p>
+                <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400">SA Intelligence</span>
+                <p className="text-xs text-slate-400">Intelligence Platform</p>
               </div>
             </button>
             <Button variant="ghost" size="icon" className="lg:hidden text-slate-400 hover:text-white hover:bg-white/10" onClick={() => setSidebarOpen(false)}>
