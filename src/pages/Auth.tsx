@@ -31,10 +31,20 @@ const GoogleIcon = () => (
   </svg>
 );
 
+const MicrosoftIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24">
+    <path fill="#F25022" d="M1 1h10v10H1z" />
+    <path fill="#00A4EF" d="M1 13h10v10H1z" />
+    <path fill="#7FBA00" d="M13 1h10v10H13z" />
+    <path fill="#FFB900" d="M13 13h10v10H13z" />
+  </svg>
+);
+
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -75,6 +85,24 @@ const Auth = () => {
     } catch (error: any) {
       toast.error(error.message || "Failed to sign in with Google");
       setIsGoogleLoading(false);
+    }
+  };
+
+  const handleMicrosoftAuth = async () => {
+    setIsMicrosoftLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'azure',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+          scopes: 'email profile openid',
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error(error.message || "Failed to sign in with Microsoft");
+      setIsMicrosoftLoading(false);
     }
   };
 
@@ -211,17 +239,18 @@ const Auth = () => {
               </TabsList>
 
               <TabsContent value="signin" className="mt-6">
-                {/* Google Sign In Button */}
+                {/* OAuth Buttons */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
+                  className="space-y-3"
                 >
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleGoogleAuth}
-                    disabled={isGoogleLoading}
+                    disabled={isGoogleLoading || isMicrosoftLoading}
                     className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
                   >
                     {isGoogleLoading ? (
@@ -230,6 +259,20 @@ const Auth = () => {
                       <GoogleIcon />
                     )}
                     <span className="ml-3">Continue with Google</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleMicrosoftAuth}
+                    disabled={isGoogleLoading || isMicrosoftLoading}
+                    className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
+                  >
+                    {isMicrosoftLoading ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <MicrosoftIcon />
+                    )}
+                    <span className="ml-3">Continue with Microsoft</span>
                   </Button>
                 </motion.div>
 
@@ -302,17 +345,18 @@ const Auth = () => {
               </TabsContent>
 
               <TabsContent value="signup" className="mt-6">
-                {/* Google Sign Up Button */}
+                {/* OAuth Buttons */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
+                  className="space-y-3"
                 >
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleGoogleAuth}
-                    disabled={isGoogleLoading}
+                    disabled={isGoogleLoading || isMicrosoftLoading}
                     className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
                   >
                     {isGoogleLoading ? (
@@ -321,6 +365,20 @@ const Auth = () => {
                       <GoogleIcon />
                     )}
                     <span className="ml-3">Continue with Google</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleMicrosoftAuth}
+                    disabled={isGoogleLoading || isMicrosoftLoading}
+                    className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
+                  >
+                    {isMicrosoftLoading ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <MicrosoftIcon />
+                    )}
+                    <span className="ml-3">Continue with Microsoft</span>
                   </Button>
                 </motion.div>
 
