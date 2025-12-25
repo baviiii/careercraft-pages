@@ -140,8 +140,15 @@ async function getStats(
   let response: Response
   try {
     // Use $count=true as URL parameter instead of includeTotalCount in body
-    response = await fetch(
-      `${endpoint}/indexes/${indexName}/docs/search?api-version=2023-11-01&$count=true`,
+    const statsUrl = `${endpoint}/indexes/${indexName}/docs/search?api-version=2023-11-01&$count=true`
+    console.log('getStats: Azure Search request', {
+      url: statsUrl,
+      hasIncludeTotalCount: Object.prototype.hasOwnProperty.call(searchBody, 'includeTotalCount'),
+      top: searchBody.top,
+      filter: searchBody.filter,
+    })
+
+    response = await fetch(statsUrl,
       {
         method: 'POST',
         headers: {
