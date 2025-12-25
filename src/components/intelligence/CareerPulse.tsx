@@ -1,20 +1,44 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Minus, Activity, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Activity, Loader2, FileText, Users, Briefcase, GraduationCap, Building2, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRAGMetadata } from "@/hooks/useRAGMetadata";
+import { useRAGMetadata, CategoryStats } from "@/hooks/useRAGMetadata";
 
 interface PulseMetric {
   label: string;
   value: string;
-  change: number;
-  changeLabel: string;
-  trend: "up" | "down" | "stable";
+  subValue?: string;
+  icon: React.ReactNode;
+  color: string;
+  bgColor: string;
 }
+
+const categoryIcons: Record<string, React.ReactNode> = {
+  "budget": <DollarSign className="w-5 h-5" />,
+  "strategy": <Building2 className="w-5 h-5" />,
+  "workforce": <Briefcase className="w-5 h-5" />,
+  "career-guidance": <GraduationCap className="w-5 h-5" />,
+  "education": <GraduationCap className="w-5 h-5" />,
+  "policy": <FileText className="w-5 h-5" />,
+  "report": <FileText className="w-5 h-5" />,
+};
+
+const categoryColors: Record<string, { color: string; bgColor: string }> = {
+  "budget": { color: "text-amber-600", bgColor: "bg-amber-500/10" },
+  "strategy": { color: "text-blue-600", bgColor: "bg-blue-500/10" },
+  "workforce": { color: "text-emerald-600", bgColor: "bg-emerald-500/10" },
+  "career-guidance": { color: "text-purple-600", bgColor: "bg-purple-500/10" },
+  "education": { color: "text-indigo-600", bgColor: "bg-indigo-500/10" },
+  "policy": { color: "text-rose-600", bgColor: "bg-rose-500/10" },
+  "report": { color: "text-cyan-600", bgColor: "bg-cyan-500/10" },
+};
 
 export function CareerPulse() {
   const { getStats, getCategories, loading, error } = useRAGMetadata();
   const [metrics, setMetrics] = useState<PulseMetric[]>([]);
+  const [categories, setCategories] = useState<CategoryStats[]>([]);
+  const [totalDocs, setTotalDocs] = useState(0);
+  const [totalChunks, setTotalChunks] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -23,52 +47,41 @@ export function CareerPulse() {
       setIsLoading(true);
       setFetchError(null);
       try {
-        const [allStats, careerStats, skillsStats, categories] = await Promise.all([
-          getStats(),
-          getStats({ category: "career-guidance" }),
-          getStats({ category: "workforce" }),
-          getCategories(),
-        ]);
+        const categoriesData = await getCategories();
 
-        if (allStats && categories) {
-          const totalDocs = allStats.totalDocuments || 0;
-          const totalChunks = allStats.totalChunks || 0;
-          const careerDocs = careerStats?.totalDocuments || 0;
-          const skillsDocs = skillsStats?.totalDocuments || 0;
+        if (categoriesData) {
+          setCategories(categoriesData.categories || []);
           
-          // Calculate skills count from tags
-          const skillsCount = categories.sectors?.length || 0;
+          // Calculate totals
+          const docCount = categoriesData.categories?.reduce((sum, cat) => sum + cat.count, 0) || 0;
+          const chunkCount = categoriesData.sectors?.reduce((sum: number, sector: any) => sum + sector.count, 0) || 0;
           
-          setMetrics([
-            {
-              label: "Total Documents",
-              value: totalDocs.toLocaleString(),
-              change: 0,
-              changeLabel: "indexed documents",
-              trend: "stable",
-            },
-            {
-              label: "Career Resources",
-              value: careerDocs.toString(),
-              change: 0,
-              changeLabel: "career guidance docs",
-              trend: "stable",
-            },
-            {
-              label: "Skills & Training",
-              value: skillsCount.toString(),
-              change: 0,
-              changeLabel: "sectors covered",
-              trend: "stable",
-            },
-            {
-              label: "Total Chunks",
-              value: totalChunks.toLocaleString(),
-              change: 0,
-              changeLabel: "searchable chunks",
-              trend: "stable",
-            },
-          ]);
+          setTotalDocs(docCount);
+          setTotalChunks(chunkCount);
+
+          // Build metrics from categories
+          const topCategories = (categoriesData.categories || [])
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 6);
+
+          const metricsData: PulseMetric[] = topCategories.map(cat => {
+            const colorConfig = categoryColors[cat.category] || { color: "text-blue-600", bgColor: "bg-blue-500/10" };
+            const displayName = cat.category
+              .split("-")
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ");
+            
+            return {
+              label: displayName,
+              value: cat.count.toString(),
+              subValue: `${cat.count} documents`,
+              icon: categoryIcons[cat.category] || <FileText className="w-5 h-5" />,
+              color: colorConfig.color,
+              bgColor: colorConfig.bgColor,
+            };
+          });
+
+          setMetrics(metricsData);
         } else {
           setFetchError("Unable to load dashboard data. Please check your Azure Search configuration.");
         }
@@ -88,6 +101,7 @@ export function CareerPulse() {
       <div className="card-intelligence p-6">
         <div className="flex items-center justify-center h-32">
           <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading intelligence data...</span>
         </div>
       </div>
     );
@@ -101,8 +115,8 @@ export function CareerPulse() {
             <Activity className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-lg font-bold text-foreground">SA Career Pulse</h2>
-            <p className="text-sm text-muted-foreground">Today's job market intelligence</p>
+            <h2 className="font-display text-lg font-bold text-foreground">SA Career Intelligence</h2>
+            <p className="text-sm text-muted-foreground">Real-time data from government sources</p>
           </div>
         </div>
         <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -115,67 +129,65 @@ export function CareerPulse() {
     );
   }
 
-  if (metrics.length === 0) {
-    return (
-      <div className="card-intelligence p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-gold flex items-center justify-center shadow-lg shadow-accent-gold/20">
-            <Activity className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="font-display text-lg font-bold text-foreground">SA Career Pulse</h2>
-            <p className="text-sm text-muted-foreground">Today's job market intelligence</p>
-          </div>
-        </div>
-        <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
-          <p className="text-sm text-muted-foreground text-center">No data available</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="card-intelligence p-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-gradient-gold flex items-center justify-center shadow-lg shadow-accent-gold/20">
           <Activity className="w-5 h-5 text-white" />
         </div>
-        <div>
-          <h2 className="font-display text-lg font-bold text-foreground">SA Career Pulse</h2>
-          <p className="text-sm text-muted-foreground">Today's job market intelligence</p>
+        <div className="flex-1">
+          <h2 className="font-display text-lg font-bold text-foreground">SA Career Intelligence</h2>
+          <p className="text-sm text-muted-foreground">
+            Powered by {totalDocs.toLocaleString()} documents • {totalChunks.toLocaleString()} indexed segments
+          </p>
         </div>
-        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-emerald/10 border border-accent-emerald/20">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-emerald/10 border border-accent-emerald/20">
           <span className="w-2 h-2 bg-accent-emerald rounded-full animate-pulse-subtle" />
           <span className="text-xs font-semibold text-accent-emerald">Live</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20">
+          <div className="flex items-center gap-2 mb-1">
+            <FileText className="w-4 h-4 text-blue-500" />
+            <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Total Documents</span>
+          </div>
+          <p className="text-3xl font-bold text-foreground">{totalDocs.toLocaleString()}</p>
+          <p className="text-xs text-muted-foreground">Government sources indexed</p>
+        </div>
+        <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Searchable Segments</span>
+          </div>
+          <p className="text-3xl font-bold text-foreground">{totalChunks.toLocaleString()}</p>
+          <p className="text-xs text-muted-foreground">AI-searchable content chunks</p>
+        </div>
+      </div>
+
+      {/* Category Breakdown */}
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">By Category</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {metrics.map((metric, index) => (
           <motion.div
             key={metric.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="p-4 rounded-xl bg-muted/50 border border-border/50"
+            transition={{ delay: index * 0.05 }}
+            className={cn(
+              "p-4 rounded-xl border border-border/50 hover:shadow-md transition-all cursor-pointer group",
+              metric.bgColor
+            )}
           >
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              {metric.label}
-            </p>
-            <p className="text-2xl font-bold text-foreground mb-1">{metric.value}</p>
-            <div className={cn(
-              "flex items-center gap-1 text-sm font-medium",
-              metric.trend === "up" && metric.change > 0 && "text-accent-emerald",
-              metric.trend === "down" && metric.change < 0 && "text-accent-emerald",
-              metric.trend === "up" && metric.change < 0 && "text-destructive",
-              metric.trend === "stable" && "text-muted-foreground"
-            )}>
-              {metric.trend === "up" && <TrendingUp className="w-3.5 h-3.5" />}
-              {metric.trend === "down" && <TrendingDown className="w-3.5 h-3.5" />}
-              {metric.trend === "stable" && <Minus className="w-3.5 h-3.5" />}
-              <span>{Math.abs(metric.change)}%</span>
-              <span className="text-muted-foreground font-normal">{metric.changeLabel}</span>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={cn("p-1.5 rounded-lg bg-background/80", metric.color)}>
+                {metric.icon}
+              </div>
             </div>
+            <p className="text-2xl font-bold text-foreground mb-0.5">{metric.value}</p>
+            <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
           </motion.div>
         ))}
       </div>
