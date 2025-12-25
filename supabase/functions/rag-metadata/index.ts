@@ -138,20 +138,28 @@ async function getStats(
     searchBody.filter = filterExpr
   }
 
-  const response = await fetch(
-    `${endpoint}/indexes/${indexName}/docs/search?api-version=2023-11-01`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': key,
-      },
-      body: JSON.stringify(searchBody),
-    }
-  )
+  let response: Response
+  try {
+    response = await fetch(
+      `${endpoint}/indexes/${indexName}/docs/search?api-version=2023-11-01`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': key,
+        },
+        body: JSON.stringify(searchBody),
+      }
+    )
+  } catch (fetchError) {
+    console.error('Fetch error getting stats:', fetchError)
+    throw new Error(`Failed to connect to Azure Search: ${fetchError instanceof Error ? fetchError.message : 'Network error'}`)
+  }
 
   if (!response.ok) {
-    throw new Error('Failed to get stats')
+    const errorText = await response.text()
+    console.error('Azure Search error response:', response.status, errorText)
+    throw new Error(`Azure Search API error (${response.status}): ${errorText}`)
   }
 
   const data = await response.json()
