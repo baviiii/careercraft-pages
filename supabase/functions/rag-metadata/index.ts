@@ -1,7 +1,8 @@
-// RAG Metadata Function
+// RAG Metadata Function - Version 2.0
+// Fixed: Removed includeTotalCount from body, using $count=true in URL
 // Provides document statistics, counts, and metadata without full content
 // Powers dashboards and resource listings
-
+// Deployed: ${new Date().toISOString()}
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
