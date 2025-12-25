@@ -126,7 +126,6 @@ async function getStats(
     search: '*',
     queryType: 'simple',
     top: 0, // We only want count
-    includeTotalCount: true,
     facets: [
       'category,count:100',
       'sector,count:100',
@@ -140,8 +139,9 @@ async function getStats(
 
   let response: Response
   try {
+    // Use $count=true as URL parameter instead of includeTotalCount in body
     response = await fetch(
-      `${endpoint}/indexes/${indexName}/docs/search?api-version=2023-11-01`,
+      `${endpoint}/indexes/${indexName}/docs/search?api-version=2023-11-01&$count=true`,
       {
         method: 'POST',
         headers: {
