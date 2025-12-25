@@ -13,13 +13,15 @@ interface Sector {
 }
 
 export function SectorHeatmap() {
-  const { getCategories, getStats, loading } = useRAGMetadata();
+  const { getCategories, getStats, loading, error } = useRAGMetadata();
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
+      setFetchError(null);
       try {
         const [categories, allStats] = await Promise.all([
           getCategories(),
@@ -46,9 +48,12 @@ export function SectorHeatmap() {
           });
 
           setSectors(sectorData);
+        } else {
+          setFetchError("Unable to load sector data. Please check your Azure Search configuration.");
         }
       } catch (error) {
         console.error("Failed to fetch sector data:", error);
+        setFetchError(error instanceof Error ? error.message : "Failed to load sector data");
       } finally {
         setIsLoading(false);
       }
@@ -62,6 +67,41 @@ export function SectorHeatmap() {
       <div className="card-intelligence p-6">
         <div className="flex items-center justify-center h-32">
           <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError || error) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="font-display text-lg font-bold text-foreground">Sector Heatmap</h2>
+            <p className="text-sm text-muted-foreground">Employment demand by industry</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+          <p className="text-sm text-destructive font-medium">Unable to load data</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {fetchError || error || "Please check your Azure Search configuration."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sectors.length === 0) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="font-display text-lg font-bold text-foreground">Sector Heatmap</h2>
+            <p className="text-sm text-muted-foreground">Employment demand by industry</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
+          <p className="text-sm text-muted-foreground text-center">No sector data available</p>
         </div>
       </div>
     );

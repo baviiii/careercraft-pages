@@ -23,13 +23,15 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export function InvestmentHighlights() {
-  const { getDocuments, loading } = useRAGMetadata();
+  const { getDocuments, loading, error } = useRAGMetadata();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
+      setFetchError(null);
       try {
         const result = await getDocuments({ category: "budget", documentType: "pdf" }, 4);
         if (result && result.documents.length > 0) {
@@ -48,9 +50,12 @@ export function InvestmentHighlights() {
             };
           });
           setInvestments(items);
+        } else {
+          setFetchError("No budget documents found. Please ensure documents are indexed in Azure Search.");
         }
       } catch (error) {
         console.error("Failed to fetch investments:", error);
+        setFetchError(error instanceof Error ? error.message : "Failed to load investment data");
       } finally {
         setIsLoading(false);
       }
@@ -68,6 +73,48 @@ export function InvestmentHighlights() {
       </div>
     );
   }
+
+  if (fetchError || error) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-gradient-authority flex items-center justify-center shadow-lg shadow-primary/20">
+            <DollarSign className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display text-lg font-bold text-foreground">Government Investment</h2>
+            <p className="text-sm text-muted-foreground">Key funding signals for careers</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+          <p className="text-sm text-destructive font-medium">Unable to load data</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {fetchError || error || "Please check your Azure Search configuration."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (investments.length === 0) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-gradient-authority flex items-center justify-center shadow-lg shadow-primary/20">
+            <DollarSign className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display text-lg font-bold text-foreground">Government Investment</h2>
+            <p className="text-sm text-muted-foreground">Key funding signals for careers</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
+          <p className="text-sm text-muted-foreground text-center">No investment data available</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card-intelligence p-6">
       <div className="flex items-center gap-3 mb-6">

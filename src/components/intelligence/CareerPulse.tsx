@@ -13,13 +13,15 @@ interface PulseMetric {
 }
 
 export function CareerPulse() {
-  const { getStats, getCategories, loading } = useRAGMetadata();
+  const { getStats, getCategories, loading, error } = useRAGMetadata();
   const [metrics, setMetrics] = useState<PulseMetric[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
+      setFetchError(null);
       try {
         const [allStats, careerStats, skillsStats, categories] = await Promise.all([
           getStats(),
@@ -67,9 +69,12 @@ export function CareerPulse() {
               trend: "stable",
             },
           ]);
+        } else {
+          setFetchError("Unable to load dashboard data. Please check your Azure Search configuration.");
         }
       } catch (error) {
         console.error("Failed to fetch pulse data:", error);
+        setFetchError(error instanceof Error ? error.message : "Failed to load dashboard data");
       } finally {
         setIsLoading(false);
       }
@@ -87,6 +92,48 @@ export function CareerPulse() {
       </div>
     );
   }
+
+  if (fetchError || error) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-gradient-gold flex items-center justify-center shadow-lg shadow-accent-gold/20">
+            <Activity className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-bold text-foreground">SA Career Pulse</h2>
+            <p className="text-sm text-muted-foreground">Today's job market intelligence</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+          <p className="text-sm text-destructive font-medium">Unable to load data</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {fetchError || error || "Please check your Azure Search configuration and ensure the rag-metadata function is deployed."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (metrics.length === 0) {
+    return (
+      <div className="card-intelligence p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-gradient-gold flex items-center justify-center shadow-lg shadow-accent-gold/20">
+            <Activity className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-bold text-foreground">SA Career Pulse</h2>
+            <p className="text-sm text-muted-foreground">Today's job market intelligence</p>
+          </div>
+        </div>
+        <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
+          <p className="text-sm text-muted-foreground text-center">No data available</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card-intelligence p-6">
       <div className="flex items-center gap-3 mb-6">
