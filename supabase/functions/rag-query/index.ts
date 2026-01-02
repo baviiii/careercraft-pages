@@ -60,15 +60,19 @@ interface RAGResponse {
 }
 
 interface Source {
+  id?: string
   title: string
   documentId: string
   pageNumber?: number
   url?: string
   category?: string
+  sector?: string
   relevanceScore: number
+  content?: string  // Full content for extraction
   snippet: string
   publicationYear?: number | null
   confidence?: number
+  metadata?: any  // Raw metadata for table extraction
 }
 
 serve(async (req) => {
@@ -108,7 +112,7 @@ serve(async (req) => {
     const embeddingTime = Date.now()
 
     // Step 2: Hybrid search (vector + keyword + semantic) with time-aware ranking
-    const topK = options.topK || 10
+    const topK = options.topK || 30  // Default to 30 for dashboard data extraction
     const enableTimeAwareRanking = options.timeAwareRanking !== false  // Default: enabled
     const searchResults = await hybridSearch(
       query,
@@ -160,8 +164,8 @@ serve(async (req) => {
     )
     const generationTime = Date.now() - embeddingTime - searchTime
 
-    // Step 5: Extract sources for citations
-    const sources = extractSources(searchResults)
+    // Step 5: Extract sources for citations (use topK to return more for dashboard)
+    const sources = extractSources(searchResults, topK)
 
     // Step 6: Generate follow-up questions
     const suggestedQuestions = await generateSuggestedQuestions(
@@ -328,6 +332,7 @@ async function hybridSearch(
     tags: hit.tags || [],
     url: hit.url,
     score: hit['@search.score'] || 0,
+    metadata: hit.metadata,  // Include metadata for table extraction
   }))
 }
 
@@ -382,6 +387,7 @@ async function fallbackSearch(
     tags: hit.tags || [],
     url: hit.url,
     score: hit['@search.score'] || 0,
+    metadata: hit.metadata,  // Include metadata for table extraction
   }))
 }
 
@@ -485,31 +491,25 @@ Remember: Every claim must be traceable to a source document. No hallucinations.
   return { answer }
 }
 
-function extractSources(results: SearchResult[]): Source[] {
-  // Deduplicate by document
-  const documentMap = new Map<string, Source>()
-
-  for (const result of results) {
-    const key = `${result.documentId}-${result.pageNumber || 0}`
-    
-    if (!documentMap.has(key)) {
-      documentMap.set(key, {
-        title: result.title,
-        documentId: result.documentId,
-        pageNumber: result.pageNumber,
-        url: result.url,
-        category: result.category,
-        relevanceScore: result.score,
-        snippet: result.content.substring(0, 200) + '...',
-        publicationYear: (result as any).publicationYear,
-        confidence: (result as any).confidence,
-      })
-    }
-  }
-
-  return Array.from(documentMap.values())
-    .sort((a, b) => b.relevanceScore - a.relevanceScore)
-    .slice(0, 5) // Top 5 sources
+function extractSources(results: SearchResult[], maxSources: number = 20): Source[] {
+  // Return all results with full content for dashboard extraction
+  return results.map((result) => ({
+    id: result.id,
+    title: result.title,
+    documentId: result.documentId,
+    pageNumber: result.pageNumber,
+    url: result.url,
+    category: result.category,
+    sector: result.sector,
+    relevanceScore: result.score,
+    // Include full content for extraction, not just snippet
+    content: result.content,
+    snippet: result.content.substring(0, 300) + '...',
+    publicationYear: (result as any).publicationYear,
+    confidence: (result as any).confidence,
+    // Include raw metadata for table extraction
+    metadata: (result as any).metadata,
+  })).slice(0, maxSources)
 }
 
 async function generateSuggestedQuestions(

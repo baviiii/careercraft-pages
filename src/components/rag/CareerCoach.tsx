@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { useEnterpriseRAG } from "@/hooks/useEnterpriseRAG";
+import {
+  FollowUpQuestions,
+  ProactiveInsightCard,
+  ConfidenceIndicator,
+  EmbeddedChart,
+} from "./ChatEnhancements";
+import { exportConversationToPDF } from "@/lib/pdfExport";
 import {
   Send,
   Bot,
@@ -86,17 +94,24 @@ interface ConversationStats {
 }
 
 export default function CareerCoach() {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSources, setShowSources] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "insights">("chat");
-  const [conversationHistory, setConversationHistory] = useState<Message[][]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // FERRARI ENGINE: Enterprise RAG with all features
+  const {
+    messages,
+    sendMessage,
+    rateMessage,
+    clearChat,
+    context,
+    analytics,
+    isStreaming,
+  } = useEnterpriseRAG();
 
   const suggestedQuestions: SuggestedQuestion[] = [
     { 
@@ -135,15 +150,13 @@ export default function CareerCoach() {
   ];
 
   const conversationStats: ConversationStats = useMemo(() => {
-    const totalMessages = messages.filter(m => !m.isLoading).length;
+    const totalMessages = messages.filter(m => !m.isLoading && !m.isStreaming).length;
     const totalTokens = messages.reduce((sum, m) => sum + (m.tokens || 0), 0);
-    const avgResponseTime = messages.length > 0
-      ? messages.reduce((sum, m) => sum + (m.responseTime || 0), 0) / messages.filter(m => m.responseTime).length
-      : 0;
+    const avgResponseTime = analytics.avgResponseTime;
     const helpfulCount = messages.filter(m => m.rating === "helpful").length;
-    
+
     return { totalMessages, totalTokens, avgResponseTime, helpfulCount };
-  }, [messages]);
+  }, [messages, analytics]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -155,123 +168,29 @@ export default function CareerCoach() {
     inputRef.current?.focus();
   }, []);
 
-  const sendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return;
-
-    const startTime = Date.now();
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: content.trim(),
-      timestamp: new Date(),
-    };
-
-    const loadingMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      timestamp: new Date(),
-      isLoading: true,
-    };
-
-    setMessages((prev) => [...prev, userMessage, loadingMessage]);
-    setInput("");
-    setIsLoading(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("rag-chat", {
-        body: {
-          message: content.trim(),
-          sessionId,
-        },
-      });
-
-      if (error) throw error;
-
-      const responseTime = Date.now() - startTime;
-
-      // Remove loading message and add real response
-      setMessages((prev) => {
-        const filtered = prev.filter((m) => !m.isLoading);
-        return [
-          ...filtered,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: data.response || "I'm here to help!",
-            sources: data.sources,
-            timestamp: new Date(),
-            tokens: data.tokens || 0,
-            responseTime,
-          },
-        ];
-      });
-
-      if (data.sessionId) {
-        setSessionId(data.sessionId);
-      }
-    } catch (error) {
-      console.error("Chat error:", error);
-      
-      // Remove loading and add error message
-      setMessages((prev) => {
-        const filtered = prev.filter((m) => !m.isLoading);
-        return [
-          ...filtered,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: "I'm sorry, I encountered an error processing your request. Please try again.",
-            timestamp: new Date(),
-          },
-        ];
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    sendMessage(input);
-  };
+    if (input.trim() && !isStreaming) {
+      sendMessage(input.trim());
+      setInput("");
+    }
+  }, [input, isStreaming, sendMessage]);
 
-  const copyToClipboard = async (text: string, id: string) => {
+  const copyToClipboard = useCallback(async (text: string, id: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
-  };
+  }, []);
 
-  const clearChat = () => {
-    if (messages.length > 0) {
-      setConversationHistory(prev => [...prev, messages]);
-    }
-    setMessages([]);
-    setSessionId(null);
-  };
+  const handleExportPDF = useCallback(() => {
+    exportConversationToPDF(messages, {
+      includeSources: true,
+      includeMetadata: true,
+      includeAnalytics: false,
+    });
+  }, [messages]);
 
-  const rateMessage = (messageId: string, rating: "helpful" | "not-helpful") => {
-    setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, rating } : m
-    ));
-  };
-
-  const exportConversation = () => {
-    const conversationText = messages
-      .filter(m => !m.isLoading)
-      .map(m => `${m.role === "user" ? "You" : "Career Coach"}: ${m.content}`)
-      .join("\n\n");
-    
-    const blob = new Blob([conversationText], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `career-coach-conversation-${new Date().toISOString()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const formatMessage = (content: string) => {
+  const formatMessage = useCallback((content: string) => {
     // Convert markdown-style formatting
     return content
       .split("\n")
@@ -291,7 +210,7 @@ export default function CareerCoach() {
         return line;
       })
       .join("<br />");
-  };
+  }, []);
 
   return (
     <div className={cn(
@@ -311,7 +230,19 @@ export default function CareerCoach() {
           </div>
           <div>
             <h2 className="text-xl font-bold text-white">Career Coach AI</h2>
-            <p className="text-sm text-slate-400">Powered by 54+ SA Government documents</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-slate-400">Azure-powered • 20+ sources • Real-time streaming</p>
+              {isStreaming && (
+                <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] animate-pulse">
+                  ⚡ STREAMING
+                </Badge>
+              )}
+              {analytics.cacheHitRate > 0 && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
+                  {Math.round(analytics.cacheHitRate * 100)}% cached
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         
@@ -324,7 +255,7 @@ export default function CareerCoach() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={exportConversation}
+                      onClick={handleExportPDF}
                       className="text-slate-400 hover:text-white"
                     >
                       <Download className="w-4 h-4" />
@@ -427,9 +358,9 @@ export default function CareerCoach() {
             <TabsTrigger value="insights" className="flex-1">Insights</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="chat" className="flex-1 flex flex-col mt-0">
+          <TabsContent value="chat" className="flex-1 flex flex-col mt-0 overflow-hidden">
             {/* Messages Area */}
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 px-4 py-2">
               {messages.length === 0 ? (
                 /* Enhanced Welcome State */
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
@@ -491,8 +422,8 @@ export default function CareerCoach() {
                 </div>
               ) : (
                 /* Enhanced Messages */
-                <div className="space-y-4">
-                  <AnimatePresence>
+                <div className="space-y-4 pb-4">
+                  <AnimatePresence mode="popLayout">
                     {messages.map((message) => (
                       <motion.div
                         key={message.id}
@@ -592,7 +523,56 @@ export default function CareerCoach() {
                               </AnimatePresence>
                             </div>
                           )}
-                          
+
+                          {/* FERRARI FEATURES: Confidence, Charts, Insights, Follow-ups */}
+                          {message.role === "assistant" && !message.isLoading && (
+                            <>
+                              {/* Confidence Indicator */}
+                              {message.confidence && (
+                                <div className="mt-3">
+                                  <ConfidenceIndicator
+                                    confidence={message.confidence}
+                                    avgRelevance={
+                                      message.sources
+                                        ? message.sources.reduce((sum, s) => sum + (s.relevance || 0), 0) / message.sources.length
+                                        : undefined
+                                    }
+                                    sourceCount={message.sources?.length}
+                                  />
+                                </div>
+                              )}
+
+                              {/* Embedded Chart */}
+                              {message.visualData && (
+                                <EmbeddedChart visualData={message.visualData} />
+                              )}
+
+                              {/* Follow-up Questions */}
+                              {message.followUpQuestions && message.followUpQuestions.length > 0 && (
+                                <FollowUpQuestions
+                                  questions={message.followUpQuestions}
+                                  onSelect={(q) => {
+                                    setInput(q);
+                                    sendMessage(q);
+                                  }}
+                                />
+                              )}
+
+                              {/* Proactive Insight */}
+                              {message.proactiveInsight && (
+                                <ProactiveInsightCard
+                                  insight={message.proactiveInsight}
+                                  onClickAction={() => {
+                                    if (message.proactiveInsight?.relatedQuery) {
+                                      setInput(message.proactiveInsight.relatedQuery);
+                                      sendMessage(message.proactiveInsight.relatedQuery);
+                                    }
+                                  }}
+                                />
+                              )}
+                            </>
+                          )}
+
                           {/* Enhanced Actions */}
                           {message.role === "assistant" && !message.isLoading && (
                             <div className="flex items-center gap-2 mt-2">
@@ -694,7 +674,7 @@ export default function CareerCoach() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask about SA careers, jobs, training, budgets..."
-                    disabled={isLoading}
+                    disabled={isStreaming}
                     className="pr-12 py-6 bg-slate-800/50 border-slate-700/50 focus:border-purple-500/50 rounded-xl text-white placeholder:text-slate-500"
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -703,10 +683,10 @@ export default function CareerCoach() {
                 </div>
                 <Button
                   type="submit"
-                  disabled={!input.trim() || isLoading}
+                  disabled={!input.trim() || isStreaming}
                   className="px-6 py-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl shadow-lg shadow-purple-500/25 disabled:opacity-50"
                 >
-                  {isLoading ? (
+                  {isStreaming ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <Send className="w-5 h-5" />
@@ -718,7 +698,7 @@ export default function CareerCoach() {
                 <p className="text-xs text-slate-500">
                   Responses are based on SA Government documents. Always verify important information.
                 </p>
-                {sessionId && (
+                {messages.length > 0 && (
                   <Badge variant="secondary" className="bg-slate-800 text-slate-300 text-[10px]">
                     Session active
                   </Badge>
@@ -727,8 +707,9 @@ export default function CareerCoach() {
             </div>
           </TabsContent>
 
-          <TabsContent value="insights" className="flex-1 p-4">
-            <div className="space-y-4">
+          <TabsContent value="insights" className="flex-1 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="space-y-4 p-4">
               <h3 className="text-lg font-semibold text-white mb-4">Conversation Insights</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -780,7 +761,8 @@ export default function CareerCoach() {
                   <p className="text-slate-400">Start a conversation to see insights</p>
                 </Card>
               )}
-            </div>
+              </div>
+            </ScrollArea>
           </TabsContent>
         </Tabs>
       </Card>

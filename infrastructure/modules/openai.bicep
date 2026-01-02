@@ -11,6 +11,9 @@ param environment string
 param projectName string
 
 // Azure OpenAI - for generating embeddings and chat
+// IMPORTANT: If resource already exists with different kind (e.g., AIServices),
+// this will fail. Use existing resource reference instead or skip this module.
+// Bicep deployments are idempotent - existing resources won't be deleted or reset.
 resource openAIAccount 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
   name: accountName
   location: location

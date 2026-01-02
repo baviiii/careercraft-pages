@@ -53,6 +53,8 @@ module aiSearch 'modules/ai-search.bicep' = {
 }
 
 // Optional: Azure OpenAI for embeddings (if enabled)
+// Note: If OpenAI account already exists, this will update it (idempotent)
+// Only creates if it doesn't exist
 module openAI 'modules/openai.bicep' = if (enableOpenAI) {
   name: 'openAIDeployment'
   params: {
@@ -62,6 +64,26 @@ module openAI 'modules/openai.bicep' = if (enableOpenAI) {
     projectName: projectName
   }
   dependsOn: [aiSearch]
+}
+
+// Azure Functions for dashboard intelligence
+var functionsAppName = '${toLower(projectName)}-functions-${environment}'
+module azureFunctions 'modules/azure-functions.bicep' = {
+  name: 'azureFunctionsDeployment'
+  params: {
+    functionAppName: functionsAppName
+    location: location
+    environment: environment
+    projectName: projectName
+    searchEndpoint: aiSearch.outputs.endpoint
+    searchKey: aiSearch.outputs.key
+    searchIndex: 'sa-gov-documents'
+    openAIEndpoint: enableOpenAI && openAI != null ? openAI.outputs.endpoint : ''
+    openAIKey: enableOpenAI && openAI != null ? openAI.outputs.key : ''
+    storageAccountName: storage.outputs.storageAccountName
+    storageAccountKey: storage.outputs.storageAccountKey
+  }
+  dependsOn: [aiSearch, storage]
 }
 
 // Outputs for environment variables
@@ -77,6 +99,9 @@ output aiSearchServiceName string = aiSearch.outputs.serviceName
 output openAIEndpoint string = enableOpenAI && openAI != null ? openAI.outputs.endpoint : ''
 output openAIKey string = enableOpenAI && openAI != null ? openAI.outputs.key : ''
 output openAIAccountName string = enableOpenAI && openAI != null ? openAI.outputs.accountName : ''
+output functionsAppName string = azureFunctions.outputs.functionAppName
+output functionsAppUrl string = azureFunctions.outputs.functionAppUrl
+output appInsightsKey string = azureFunctions.outputs.appInsightsKey
 
 // Cost summary
 output estimatedMonthlyCost string = enableOpenAI ? '''

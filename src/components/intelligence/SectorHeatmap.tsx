@@ -1,147 +1,72 @@
-import { useEffect, useState } from "react";
+/**
+ * SectorHeatmap - Visual sector analysis
+ * Uses IntelligenceContext for data
+ */
+
+import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { TrendingUp, TrendingDown, BarChart3, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRAGMetadata } from "@/hooks/useRAGMetadata";
-import { Loader2, TrendingUp, Building2, Heart, GraduationCap, Cpu, Leaf, HardHat } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useIntelligence } from "@/contexts/IntelligenceContext";
 
-interface Sector {
-  name: string;
-  displayName: string;
-  count: number;
-  percentage: number;
-  icon: React.ReactNode;
-  color: string;
-  bgGradient: string;
-}
-
-const sectorConfig: Record<string, { icon: React.ReactNode; color: string; bgGradient: string }> = {
-  health: { 
-    icon: <Heart className="w-5 h-5" />, 
-    color: "text-rose-600",
-    bgGradient: "from-rose-500/20 to-rose-600/10"
-  },
-  "public-sector": { 
-    icon: <Building2 className="w-5 h-5" />, 
-    color: "text-blue-600",
-    bgGradient: "from-blue-500/20 to-blue-600/10"
-  },
-  education: { 
-    icon: <GraduationCap className="w-5 h-5" />, 
-    color: "text-purple-600",
-    bgGradient: "from-purple-500/20 to-purple-600/10"
-  },
-  technology: { 
-    icon: <Cpu className="w-5 h-5" />, 
-    color: "text-cyan-600",
-    bgGradient: "from-cyan-500/20 to-cyan-600/10"
-  },
-  construction: { 
-    icon: <HardHat className="w-5 h-5" />, 
-    color: "text-amber-600",
-    bgGradient: "from-amber-500/20 to-amber-600/10"
-  },
-  general: { 
-    icon: <Building2 className="w-5 h-5" />, 
-    color: "text-slate-600",
-    bgGradient: "from-slate-500/20 to-slate-600/10"
-  },
+const sectorColors: Record<string, { bg: string; text: string; gradient: string }> = {
+  "Healthcare": { bg: "bg-red-500/20", text: "text-red-600", gradient: "from-red-500 to-rose-600" },
+  "Technology": { bg: "bg-blue-500/20", text: "text-blue-600", gradient: "from-blue-500 to-cyan-600" },
+  "Education": { bg: "bg-purple-500/20", text: "text-purple-600", gradient: "from-purple-500 to-violet-600" },
+  "Construction": { bg: "bg-amber-500/20", text: "text-amber-600", gradient: "from-amber-500 to-orange-600" },
+  "Renewable Energy": { bg: "bg-green-500/20", text: "text-green-600", gradient: "from-green-500 to-emerald-600" },
+  "Regional Development": { bg: "bg-cyan-500/20", text: "text-cyan-600", gradient: "from-cyan-500 to-teal-600" },
+  "Skills & Training": { bg: "bg-indigo-500/20", text: "text-indigo-600", gradient: "from-indigo-500 to-blue-600" },
 };
 
 export function SectorHeatmap() {
-  const { getCategories, loading, error } = useRAGMetadata();
-  const [sectors, setSectors] = useState<Sector[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const { fundingAllocations, careerOpportunities, globalLoading, totalBudget } = useIntelligence();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setFetchError(null);
-      try {
-        const categories = await getCategories();
+  // Build heatmap data from context
+  const heatmapData = useMemo(() => {
+    const sectorMap = new Map<string, { funding: number; jobs: number; growth: number; change: number }>();
 
-        if (categories && categories.sectors) {
-          const sectorFacets = categories.sectors || [];
-          const total = sectorFacets.reduce((sum: number, s: any) => sum + (s.count || 0), 0);
-          setTotalCount(total);
+    fundingAllocations.forEach(alloc => {
+      const existing = sectorMap.get(alloc.sector) || { funding: 0, jobs: 0, growth: 0, change: 0 };
+      sectorMap.set(alloc.sector, {
+        ...existing,
+        funding: existing.funding + alloc.amount,
+        change: alloc.change,
+      });
+    });
 
-          const sectorData: Sector[] = sectorFacets
-            .filter((facet: any) => facet.value && facet.count > 0)
-            .map((facet: any) => {
-              const sectorKey = facet.value.toLowerCase().replace(/\s+/g, "-");
-              const config = sectorConfig[sectorKey] || sectorConfig.general;
-              const displayName = facet.value
-                .split("-")
-                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(" ");
-              
-              return {
-                name: facet.value,
-                displayName,
-                count: facet.count,
-                percentage: total > 0 ? Math.round((facet.count / total) * 100) : 0,
-                ...config,
-              };
-            })
-            .sort((a: Sector, b: Sector) => b.count - a.count);
+    careerOpportunities.forEach(career => {
+      const existing = sectorMap.get(career.sector) || { funding: 0, jobs: 0, growth: 0, change: 0 };
+      sectorMap.set(career.sector, {
+        ...existing,
+        jobs: existing.jobs + career.jobs,
+        growth: (existing.growth + career.growth) / 2 || career.growth,
+      });
+    });
 
-          setSectors(sectorData);
-        } else {
-          setFetchError("Unable to load sector data. Please check your Azure Search configuration.");
-        }
-      } catch (error) {
-        console.error("Failed to fetch sector data:", error);
-        setFetchError(error instanceof Error ? error.message : "Failed to load sector data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    return Array.from(sectorMap.entries())
+      .map(([sector, data]) => ({
+        sector,
+        ...data,
+        intensity: Math.min(100, (data.funding / 1000) * 10 + data.growth * 2),
+        colors: sectorColors[sector] || { bg: "bg-slate-500/20", text: "text-slate-600", gradient: "from-slate-500 to-gray-600" },
+      }))
+      .sort((a, b) => b.intensity - a.intensity)
+      .slice(0, 8);
+  }, [fundingAllocations, careerOpportunities]);
 
-    fetchData();
-  }, []);
-
-  if (isLoading || loading) {
+  if (globalLoading) {
     return (
       <div className="card-intelligence p-6">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-          <span className="ml-2 text-sm text-muted-foreground">Analyzing sector data...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (fetchError || error) {
-    return (
-      <div className="card-intelligence p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="font-display text-lg font-bold text-foreground">Sector Coverage</h2>
-            <p className="text-sm text-muted-foreground">Document distribution by industry</p>
-          </div>
-        </div>
-        <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
-          <p className="text-sm text-destructive font-medium">Unable to load data</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {fetchError || error || "Please check your Azure Search configuration."}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (sectors.length === 0) {
-    return (
-      <div className="card-intelligence p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="font-display text-lg font-bold text-foreground">Sector Coverage</h2>
-            <p className="text-sm text-muted-foreground">Document distribution by industry</p>
-          </div>
-        </div>
-        <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
-          <p className="text-sm text-muted-foreground text-center">No sector data available</p>
         </div>
       </div>
     );
@@ -150,78 +75,101 @@ export function SectorHeatmap() {
   return (
     <div className="card-intelligence p-6">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="font-display text-lg font-bold text-foreground">Sector Coverage</h2>
-          <p className="text-sm text-muted-foreground">
-            {totalCount.toLocaleString()} indexed segments across {sectors.length} sectors
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <BarChart3 className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-bold text-foreground">Sector Heatmap</h2>
+            <p className="text-sm text-muted-foreground">Investment intensity by sector</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20">
-          <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
-          <span className="text-xs font-semibold text-blue-600">All Sectors</span>
-        </div>
+        <Badge variant="secondary" className="text-xs">{heatmapData.length} sectors</Badge>
       </div>
 
-      {/* Main Sectors - Visual Cards */}
-      <div className="space-y-3">
-        {sectors.slice(0, 6).map((sector, index) => (
-          <motion.div
-            key={sector.name}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.08 }}
-            className={cn(
-              "relative p-4 rounded-xl cursor-pointer group transition-all",
-              "hover:shadow-lg hover:-translate-y-0.5",
-              `bg-gradient-to-r ${sector.bgGradient}`,
-              "border border-border/30"
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "p-2.5 rounded-xl bg-background/80 shadow-sm",
-                  sector.color
-                )}>
-                  {sector.icon}
+      {/* Heatmap Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {heatmapData.map((sector, index) => (
+          <TooltipProvider key={sector.sector}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ scale: 1.02 }}
+                  className={cn(
+                    "relative p-4 rounded-xl cursor-pointer transition-all overflow-hidden",
+                    sector.colors.bg,
+                    "border border-transparent hover:border-white/20"
+                  )}
+                  style={{
+                    opacity: 0.5 + (sector.intensity / 200),
+                  }}
+                >
+                  {/* Intensity Gradient Overlay */}
+                  <div 
+                    className={cn("absolute inset-0 opacity-20 bg-gradient-to-br", sector.colors.gradient)}
+                    style={{ opacity: sector.intensity / 200 }}
+                  />
+                  
+                  <div className="relative z-10">
+                    <p className={cn("text-sm font-semibold mb-1 line-clamp-1", sector.colors.text)}>
+                      {sector.sector}
+                    </p>
+                    <p className="text-2xl font-bold text-foreground">
+                      ${(sector.funding / 1000).toFixed(1)}B
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      {sector.change !== 0 && (
+                        <div className={cn(
+                          "flex items-center gap-0.5 text-xs font-medium",
+                          sector.change > 0 ? "text-emerald-600" : "text-red-500"
+                        )}>
+                          {sector.change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                          {sector.change > 0 ? "+" : ""}{sector.change.toFixed(1)}%
+                        </div>
+                      )}
+                      {sector.jobs > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {sector.jobs.toLocaleString()} jobs
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="space-y-1">
+                  <p className="font-semibold">{sector.sector}</p>
+                  <p className="text-xs">Funding: ${(sector.funding / 1000).toFixed(2)}B</p>
+                  {sector.jobs > 0 && <p className="text-xs">Jobs: {sector.jobs.toLocaleString()}</p>}
+                  {sector.change !== 0 && <p className="text-xs">YoY Change: {sector.change > 0 ? "+" : ""}{sector.change.toFixed(1)}%</p>}
                 </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">{sector.displayName}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {sector.count.toLocaleString()} indexed segments
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-foreground">{sector.percentage}%</p>
-                <p className="text-xs text-muted-foreground">of total</p>
-              </div>
-            </div>
-            
-            {/* Progress Bar */}
-            <div className="mt-3 h-2 w-full bg-background/50 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${sector.percentage}%` }}
-                transition={{ delay: index * 0.08 + 0.2, duration: 0.6, ease: "easeOut" }}
-                className={cn(
-                  "h-full rounded-full",
-                  sector.color.replace("text-", "bg-").replace("-600", "-500")
-                )}
-              />
-            </div>
-          </motion.div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ))}
       </div>
 
-      {/* Additional Sectors Summary */}
-      {sectors.length > 6 && (
-        <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border/50">
-          <p className="text-xs text-muted-foreground text-center">
-            +{sectors.length - 6} more sectors with {sectors.slice(6).reduce((sum, s) => sum + s.count, 0).toLocaleString()} segments
-          </p>
+      {/* Legend */}
+      <div className="mt-6 pt-4 border-t border-border/50">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-gradient-to-r from-blue-200 to-blue-300" />
+              <span>Lower Investment</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-gradient-to-r from-blue-500 to-purple-600" />
+              <span>Higher Investment</span>
+            </div>
+          </div>
+          <span>Total: ${(totalBudget / 1000).toFixed(1)}B</span>
         </div>
-      )}
+      </div>
     </div>
   );
 }
+
+export default SectorHeatmap;

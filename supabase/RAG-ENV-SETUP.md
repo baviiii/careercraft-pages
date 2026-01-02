@@ -68,6 +68,14 @@ Both are deployed in Australia East with GlobalStandard SKU.
 
 ---
 
+## Hybrid Architecture
+
+This system uses a hybrid architecture:
+- **Supabase Edge Functions**: Chat, conversational queries (`rag-query`, `rag-chat`)
+- **Azure Functions**: Dashboard intelligence, metadata (`rag-metadata`)
+
+See `docs/AZURE-FUNCTIONS-SETUP.md` for Azure Functions configuration.
+
 ## Test the RAG System
 
 After deploying functions, test with:

@@ -335,6 +335,17 @@
   66% { transform: translateY(-5px) rotate(-1deg); }
 }
 
+@keyframes float-slower {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-8px) rotate(0.5deg); }
+  66% { transform: translateY(-4px) rotate(-0.5deg); }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -367,18 +378,82 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   }
 
-  /* Premium cards with depth */
+  /* Premium cards with depth - ULTRA ENHANCED */
   .card-intelligence {
-    background: hsl(var(--card));
-    box-shadow: var(--shadow-card);
-    border: 1px solid hsl(var(--border));
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    @apply rounded-2xl;
+    background: linear-gradient(to bottom right,
+      hsl(var(--card)) 0%,
+      hsl(var(--card) / 0.98) 100%);
+    box-shadow:
+      0 1px 3px rgba(0,0,0,0.02),
+      0 4px 12px rgba(0,0,0,0.03),
+      0 8px 24px rgba(0,0,0,0.04),
+      inset 0 1px 0 rgba(255,255,255,0.6);
+    border: 1px solid hsl(var(--border) / 0.5);
+    position: relative;
+    overflow: hidden;
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .card-intelligence::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg,
+      transparent,
+      rgba(255,255,255,0.8) 50%,
+      transparent);
+    opacity: 0.5;
   }
 
   .card-intelligence:hover {
-    box-shadow: var(--shadow-card-hover);
-    transform: translateY(-2px);
-    border-color: hsl(var(--border) / 0.8);
+    box-shadow:
+      0 4px 12px rgba(0,0,0,0.04),
+      0 12px 32px rgba(0,0,0,0.06),
+      0 20px 48px rgba(0,0,0,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.8);
+    transform: translateY(-4px) scale(1.01);
+    border-color: hsl(var(--border) / 0.7);
+  }
+
+  /* Vibrant gradient cards for intelligence */
+  .card-gradient-blue {
+    @apply card-intelligence;
+    background: linear-gradient(135deg,
+      hsl(217 91% 60% / 0.05) 0%,
+      hsl(200 95% 55% / 0.08) 50%,
+      hsl(217 91% 60% / 0.05) 100%);
+    border: 1px solid hsl(217 91% 60% / 0.15);
+  }
+
+  .card-gradient-purple {
+    @apply card-intelligence;
+    background: linear-gradient(135deg,
+      hsl(270 70% 60% / 0.05) 0%,
+      hsl(300 70% 55% / 0.08) 50%,
+      hsl(270 70% 60% / 0.05) 100%);
+    border: 1px solid hsl(270 70% 60% / 0.15);
+  }
+
+  .card-gradient-amber {
+    @apply card-intelligence;
+    background: linear-gradient(135deg,
+      hsl(45 93% 60% / 0.05) 0%,
+      hsl(35 90% 55% / 0.08) 50%,
+      hsl(45 93% 60% / 0.05) 100%);
+    border: 1px solid hsl(45 93% 60% / 0.15);
+  }
+
+  .card-gradient-emerald {
+    @apply card-intelligence;
+    background: linear-gradient(135deg,
+      hsl(162 78% 42% / 0.05) 0%,
+      hsl(150 70% 50% / 0.08) 50%,
+      hsl(162 78% 42% / 0.05) 100%);
+    border: 1px solid hsl(162 78% 42% / 0.15);
   }
 
   /* Elevated surface */
@@ -747,9 +822,9 @@
 /* Gradient text animation */
 .gradient-text-animated {
   background: linear-gradient(
-    90deg, 
-    hsl(217 91% 50%), 
-    hsl(200 95% 55%), 
+    90deg,
+    hsl(217 91% 50%),
+    hsl(200 95% 55%),
     hsl(217 91% 50%)
   );
   background-size: 200% auto;
@@ -757,4 +832,292 @@
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: gradient-shift 4s linear infinite;
+}
+
+/* ==================== ULTRA POWERHOUSE ENHANCEMENTS ==================== */
+
+/* Vibrant Metric Cards */
+.metric-card-vibrant {
+  @apply card-intelligence p-6 relative overflow-hidden;
+  background: linear-gradient(135deg,
+    hsl(var(--card)) 0%,
+    hsl(var(--card) / 0.95) 100%);
+}
+
+.metric-card-vibrant::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, currentColor 0%, transparent 70%);
+  opacity: 0.05;
+  pointer-events: none;
+}
+
+.metric-card-blue { @apply metric-card-vibrant; color: hsl(217 91% 60%); }
+.metric-card-purple { @apply metric-card-vibrant; color: hsl(270 70% 60%); }
+.metric-card-emerald { @apply metric-card-vibrant; color: hsl(162 78% 42%); }
+.metric-card-amber { @apply metric-card-vibrant; color: hsl(45 93% 58%); }
+
+/* Vibrant Gradient Backgrounds */
+.bg-gradient-blue-vivid {
+  background: linear-gradient(135deg,
+    hsl(217 91% 55%) 0%,
+    hsl(200 95% 60%) 50%,
+    hsl(187 72% 50%) 100%);
+}
+
+.bg-gradient-purple-vivid {
+  background: linear-gradient(135deg,
+    hsl(270 70% 55%) 0%,
+    hsl(300 70% 60%) 50%,
+    hsl(320 65% 55%) 100%);
+}
+
+.bg-gradient-emerald-vivid {
+  background: linear-gradient(135deg,
+    hsl(162 78% 42%) 0%,
+    hsl(150 70% 50%) 50%,
+    hsl(140 65% 45%) 100%);
+}
+
+.bg-gradient-amber-vivid {
+  background: linear-gradient(135deg,
+    hsl(45 93% 58%) 0%,
+    hsl(35 90% 60%) 50%,
+    hsl(25 85% 55%) 100%);
+}
+
+/* Glassmorphism Cards - Ultra Premium */
+.glass-card {
+  @apply rounded-2xl border;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 8px 32px rgba(31, 38, 135, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 48px rgba(31, 38, 135, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Data Visualization Bars */
+.data-bar {
+  @apply h-2 rounded-full overflow-hidden transition-all duration-700;
+  background: hsl(var(--muted));
+}
+
+.data-bar-fill {
+  @apply h-full rounded-full transition-all duration-1000;
+  background: linear-gradient(90deg,
+    currentColor 0%,
+    currentColor 100%);
+}
+
+.data-bar-animated {
+  position: relative;
+  overflow: hidden;
+}
+
+.data-bar-animated::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.3) 50%,
+    transparent 100%);
+  animation: shimmer 2s infinite;
+}
+
+/* Icon Containers with Gradient Backgrounds */
+.icon-container {
+  @apply w-12 h-12 rounded-xl flex items-center justify-center shadow-lg;
+  position: relative;
+  overflow: hidden;
+}
+
+.icon-container::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, currentColor, transparent);
+  opacity: 0.1;
+  border-radius: inherit;
+}
+
+.icon-blue {
+  @apply icon-container;
+  background: linear-gradient(135deg, hsl(217 91% 55%), hsl(200 95% 60%));
+  color: white;
+}
+
+.icon-purple {
+  @apply icon-container;
+  background: linear-gradient(135deg, hsl(270 70% 55%), hsl(300 70% 60%));
+  color: white;
+}
+
+.icon-emerald {
+  @apply icon-container;
+  background: linear-gradient(135deg, hsl(162 78% 42%), hsl(150 70% 50%));
+  color: white;
+}
+
+.icon-amber {
+  @apply icon-container;
+  background: linear-gradient(135deg, hsl(45 93% 58%), hsl(35 90% 60%));
+  color: white;
+}
+
+/* Story Cards - Enhanced */
+.story-card {
+  @apply card-intelligence p-6 relative;
+  background: linear-gradient(135deg,
+    hsl(var(--card)) 0%,
+    hsl(var(--card) / 0.96) 100%);
+  border-width: 1px;
+  border-style: solid;
+}
+
+.story-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, currentColor, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.3;
+}
+
+.story-card-blue { border-color: hsl(217 91% 60% / 0.2); color: hsl(217 91% 60%); }
+.story-card-purple { border-color: hsl(270 70% 60% / 0.2); color: hsl(270 70% 60%); }
+.story-card-emerald { border-color: hsl(162 78% 42% / 0.2); color: hsl(162 78% 42%); }
+.story-card-amber { border-color: hsl(45 93% 58% / 0.2); color: hsl(45 93% 58%); }
+
+/* Badge Enhancements */
+.badge-glow {
+  @apply relative;
+  box-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
+  opacity: 0.7;
+}
+
+.badge-pulse {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+/* Interactive Hover States */
+.hover-lift {
+  @apply transition-all duration-300;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+.hover-glow {
+  @apply transition-all duration-300;
+  position: relative;
+}
+
+.hover-glow:hover {
+  filter: brightness(1.1);
+}
+
+.hover-glow:hover::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  background: currentColor;
+  opacity: 0.1;
+  border-radius: inherit;
+  filter: blur(12px);
+}
+
+/* Stat Number Animations */
+.stat-number {
+  @apply text-4xl font-bold tabular-nums;
+  background: linear-gradient(135deg, currentColor, currentColor);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Progress Ring */
+@keyframes progress-ring {
+  0% {
+    stroke-dashoffset: 251.2;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.35s;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Tooltip Enhancements */
+.tooltip-premium {
+  @apply glass-card px-3 py-2 text-sm;
+  animation: tooltip-appear 0.2s ease-out;
+}
+
+@keyframes tooltip-appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark Mode Enhancements */
+.dark .card-intelligence {
+  background: linear-gradient(to bottom right,
+    hsl(var(--card)) 0%,
+    hsl(var(--card) / 0.95) 100%);
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.3),
+    0 4px 12px rgba(0,0,0,0.25),
+    0 8px 24px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.dark .glass-card {
+  background: rgba(30, 41, 75, 0.7);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0,0,0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
