@@ -132,7 +132,7 @@ export function SectorHeatmap() {
                       )}
                       {sector.jobs > 0 && (
                         <span className="text-xs text-muted-foreground">
-                          {sector.jobs.toLocaleString()} jobs
+                          {(sector.jobs ?? 0).toLocaleString()} jobs
                         </span>
                       )}
                     </div>
@@ -142,9 +142,9 @@ export function SectorHeatmap() {
               <TooltipContent>
                 <div className="space-y-1">
                   <p className="font-semibold">{sector.sector}</p>
-                  <p className="text-xs">Funding: ${(sector.funding / 1000).toFixed(2)}B</p>
-                  {sector.jobs > 0 && <p className="text-xs">Jobs: {sector.jobs.toLocaleString()}</p>}
-                  {sector.change !== 0 && <p className="text-xs">YoY Change: {sector.change > 0 ? "+" : ""}{sector.change.toFixed(1)}%</p>}
+                  <p className="text-xs">Funding: ${((sector.funding ?? 0) / 1000).toFixed(2)}B</p>
+                  {sector.jobs > 0 && <p className="text-xs">Jobs: {(sector.jobs ?? 0).toLocaleString()}</p>}
+                  {sector.change !== 0 && <p className="text-xs">YoY Change: {sector.change > 0 ? "+" : ""}{(sector.change ?? 0).toFixed(1)}%</p>}
                 </div>
               </TooltipContent>
             </Tooltip>
