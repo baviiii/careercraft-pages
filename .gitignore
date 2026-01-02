@@ -34,3 +34,17 @@ infrastructure/.azure/
 .env.local
 .env.*.local
 *.env
+
+# RAG Training Data (Large files - don't commit)
+RAG-training/
+**/RAG-training/**
+*.pdf
+*.docx
+*.ods
+# Keep specific PDFs if needed in other locations
+!public/**/*.pdf
+!docs/**/*.pdf
+
+# Executable files
+*.exe
+claude.exe
