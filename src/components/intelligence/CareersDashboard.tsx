@@ -236,53 +236,53 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header - ULTRA ENHANCED */}
+      {/* Header - PINK GLASSMORPHISM */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="icon-blue shadow-xl shadow-blue-500/30 relative">
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 shadow-xl shadow-pink-500/30 relative">
             <Briefcase className="w-6 h-6 text-white relative z-10" />
-            <div className="absolute inset-0 bg-white/20 rounded-xl blur-sm"></div>
+            <div className="absolute inset-0 bg-white/20 rounded-2xl blur-sm"></div>
           </div>
           <div>
-            <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
+            <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 bg-clip-text text-transparent">
               Career Opportunities
             </h2>
             <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <span className="font-semibold text-blue-600">{filteredCareers.length}</span> careers •
-              <span className="font-semibold text-cyan-600">{totalJobs.toLocaleString()}</span> jobs
+              <span className="font-semibold text-pink-500">{filteredCareers.length}</span> careers •
+              <span className="font-semibold text-rose-500">{totalJobs.toLocaleString()}</span> jobs
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 text-blue-600 border-blue-500/20 gap-1 px-3 py-1.5 hover-lift">
+          <Badge className="bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-400 border-pink-400/30 gap-1 px-3 py-1.5 backdrop-blur-sm">
             <Sparkles className="w-3.5 h-3.5" />
             <span className="font-semibold">AI-Powered</span>
           </Badge>
-          <Button variant="outline" size="sm" className="gap-2 hover-lift shadow-sm">
+          <Button variant="outline" size="sm" className="gap-2 border-pink-400/30 hover:bg-pink-500/10 hover:border-pink-400/50">
             <Download className="w-4 h-4" />Export
           </Button>
         </div>
       </div>
 
-      {/* NEXT-GEN: Career Opportunity Stories - ULTRA VIBRANT */}
-      <div className="card-gradient-blue p-8 relative overflow-hidden shadow-xl">
+      {/* NEXT-GEN: Career Opportunity Stories - PINK GLASSMORPHISM */}
+      <div className="p-8 relative overflow-hidden rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-rose-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20">
         {/* Decorative Elements */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-400/10 to-cyan-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-cyan-400/10 to-blue-400/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-pink-400/20 to-rose-400/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-rose-400/20 to-pink-400/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg shadow-blue-500/30">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-pink-500 to-rose-600 shadow-lg shadow-pink-500/30">
                 <Lightbulb className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-pink-400 to-rose-400 bg-clip-text text-transparent">
                   Career Intelligence
                 </h3>
-                <p className="text-xs text-muted-foreground font-medium">Real-time AI Analysis</p>
+                <p className="text-xs text-pink-200/70 font-medium">Real-time AI Analysis</p>
               </div>
-              <Badge className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-700 border-blue-500/30 text-xs font-semibold">
+              <Badge className="bg-gradient-to-r from-pink-500/30 to-rose-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
                 <Sparkles className="w-3 h-3 mr-1" />
                 AI-Powered
               </Badge>
@@ -294,7 +294,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                 onClick={() => { setActiveStory(idx); setIsAutoPlay(false); }}
                 className={cn(
                   "w-2 h-2 rounded-full transition-all",
-                  idx === activeStory ? "bg-blue-500 w-6" : "bg-muted-foreground/30"
+                  idx === activeStory ? "bg-pink-400 w-6" : "bg-pink-300/30"
                 )}
               />
             ))}
@@ -310,7 +310,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             transition={{ duration: 0.3 }}
           >
             <div className="mb-5">
-              <h4 className="text-2xl font-bold text-foreground mb-3">{careerStories[activeStory].title}</h4>
+              <h4 className="text-2xl font-bold text-white mb-3">{careerStories[activeStory].title}</h4>
+              <p className="text-pink-100/80 leading-relaxed">{careerStories[activeStory].narrative}</p>
               <p className="text-muted-foreground leading-relaxed">{careerStories[activeStory].narrative}</p>
             </div>
 
@@ -319,23 +320,23 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
               {careerStories[activeStory].metrics.map((metric, idx) => {
                 const Icon = metric.icon;
                 return (
-                  <motion.div
-                    key={metric.label}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="group p-5 rounded-xl bg-gradient-to-br from-white to-blue-50/50 dark:from-slate-900 dark:to-slate-800 border border-blue-500/20 hover:border-blue-500/40 transition-all duration-300 hover-lift shadow-sm hover:shadow-lg"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-600 shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all">
-                        <Icon className="w-4 h-4 text-white" />
+                    <motion.div
+                      key={metric.label}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="group p-5 rounded-xl bg-gradient-to-br from-pink-500/20 to-rose-500/20 backdrop-blur-sm border border-pink-400/30 hover:border-pink-400/50 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-pink-500/20"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all">
+                          <Icon className="w-4 h-4 text-white" />
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-3xl font-bold bg-gradient-to-br from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-1 stat-number">
-                      {metric.value}
-                    </p>
-                    <p className="text-xs text-muted-foreground font-medium">{metric.label}</p>
-                  </motion.div>
+                      <p className="text-3xl font-bold text-white mb-1">
+                        {metric.value}
+                      </p>
+                      <p className="text-xs text-pink-200/70 font-medium">{metric.label}</p>
+                    </motion.div>
                 );
               })}
             </div>
@@ -343,8 +344,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             {/* Conversation Starters */}
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-3">
-                <MessageSquare className="w-4 h-4 text-blue-500" />
-                <span className="text-sm font-semibold text-foreground">Ask Career Coach:</span>
+                <MessageSquare className="w-4 h-4 text-pink-400" />
+                <span className="text-sm font-semibold text-pink-100">Ask Career Coach:</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {careerStories[activeStory].conversationStarters.map((question, idx) => (
