@@ -159,7 +159,7 @@ export function CrossTabConnections() {
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>${(item.funding.amount / 1000).toFixed(1)}B allocated</p>
+                        <p>${item.funding.amount && typeof item.funding.amount === 'number' ? (item.funding.amount / 1000).toFixed(1) : '0.0'}B allocated</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -229,13 +229,13 @@ export function CrossTabConnections() {
                       <DollarSign className="w-8 h-8 text-white" />
                     </div>
                     <p className="text-lg font-bold text-foreground">
-                      {selectedData.funding 
+                      {selectedData.funding && selectedData.funding.amount && typeof selectedData.funding.amount === 'number'
                         ? `$${(selectedData.funding.amount / 1000).toFixed(1)}B`
                         : "N/A"
                       }
                     </p>
                     <p className="text-xs text-muted-foreground">Budget</p>
-                    {selectedData.funding && selectedData.funding.change > 0 && (
+                    {selectedData.funding && selectedData.funding.change !== undefined && typeof selectedData.funding.change === 'number' && selectedData.funding.change > 0 && (
                       <Badge className="mt-1 text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
                         +{selectedData.funding.change.toFixed(1)}% YoY
                       </Badge>
@@ -259,7 +259,7 @@ export function CrossTabConnections() {
                     </div>
                     <p className="text-lg font-bold text-foreground">
                       {selectedData.careers.length > 0
-                        ? selectedData.careers.reduce((sum, c) => sum + c.jobs, 0).toLocaleString()
+                        ? selectedData.careers.reduce((sum, c) => sum + (c.jobs && typeof c.jobs === 'number' ? c.jobs : 0), 0).toLocaleString()
                         : "N/A"
                       }
                     </p>
@@ -309,12 +309,14 @@ export function CrossTabConnections() {
                       <p className="text-sm font-semibold text-foreground">
                         {selectedData.careers[0].occupation}
                       </p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <TrendingUp className="w-3 h-3 text-emerald-500" />
-                        <span className="text-xs text-emerald-600">
-                          +{selectedData.careers[0].growth.toFixed(1)}% growth
-                        </span>
-                      </div>
+                      {selectedData.careers[0].growth !== undefined && typeof selectedData.careers[0].growth === 'number' && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <TrendingUp className="w-3 h-3 text-emerald-500" />
+                          <span className="text-xs text-emerald-600">
+                            {selectedData.careers[0].growth > 0 ? '+' : ''}{selectedData.careers[0].growth.toFixed(1)}% growth
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -327,9 +329,11 @@ export function CrossTabConnections() {
                       <p className="text-sm font-semibold text-foreground">
                         {selectedData.skills[0].name}
                       </p>
-                      <Badge variant="outline" className="text-[10px] mt-1">
-                        {selectedData.skills[0].demand}% demand
-                      </Badge>
+                      {selectedData.skills[0].demand !== undefined && (
+                        <Badge variant="outline" className="text-[10px] mt-1">
+                          {typeof selectedData.skills[0].demand === 'number' ? selectedData.skills[0].demand : selectedData.skills[0].demand}% demand
+                        </Badge>
+                      )}
                     </div>
                   )}
 

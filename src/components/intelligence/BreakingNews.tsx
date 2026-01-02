@@ -59,15 +59,19 @@ export function BreakingNews() {
     });
 
     // Top funding changes as news
-    const topFunding = fundingAllocations.filter(f => Math.abs(f.change) > 5).slice(0, 2);
+    const topFunding = fundingAllocations
+      .filter(f => f.change !== undefined && typeof f.change === 'number' && Math.abs(f.change) > 5)
+      .slice(0, 2);
     topFunding.forEach((funding, idx) => {
+      const changeValue = funding.change || 0;
+      const amountValue = funding.amount || 0;
       items.push({
         id: `funding-${idx}`,
-        title: `${funding.sector} Budget ${funding.change > 0 ? "Increase" : "Adjustment"}`,
-        summary: `${funding.sector} sees ${funding.change > 0 ? "+" : ""}${funding.change.toFixed(1)}% change with $${(funding.amount / 1000).toFixed(1)}B allocated`,
+        title: `${funding.sector} Budget ${changeValue > 0 ? "Increase" : "Adjustment"}`,
+        summary: `${funding.sector} sees ${changeValue > 0 ? "+" : ""}${changeValue.toFixed(1)}% change${amountValue > 0 ? ` with $${(amountValue / 1000).toFixed(1)}B allocated` : ''}`,
         category: "Budget",
         timestamp: "Today",
-        type: funding.change > 10 ? "alert" : "update",
+        type: Math.abs(changeValue) > 10 ? "alert" : "update",
         source: "Budget Analysis",
       });
     });
@@ -75,10 +79,17 @@ export function BreakingNews() {
     // Trending careers as news
     const trendingCareers = careerOpportunities.filter(c => c.trending).slice(0, 2);
     trendingCareers.forEach((career, idx) => {
+      const growthText = career.growth !== undefined && typeof career.growth === 'number'
+        ? `+${career.growth.toFixed(1)}% growth`
+        : 'growth data available';
+      const jobsText = career.jobs !== undefined && typeof career.jobs === 'number' && career.jobs > 0
+        ? `${career.jobs.toLocaleString()} opportunities`
+        : 'opportunities available';
+      
       items.push({
         id: `career-${idx}`,
         title: `${career.occupation} Demand Surge`,
-        summary: `${career.occupation} in ${career.sector} showing +${career.growth.toFixed(1)}% growth with ${career.jobs.toLocaleString()} opportunities`,
+        summary: `${career.occupation} in ${career.sector} showing ${growthText} with ${jobsText}`,
         category: "Workforce",
         timestamp: "This week",
         type: "trend",
@@ -89,10 +100,11 @@ export function BreakingNews() {
     // Emerging skills as news
     const emergingSkills = skillsDemand.filter(s => s.category === "emerging").slice(0, 2);
     emergingSkills.forEach((skill, idx) => {
+      const demandValue = skill.demand !== undefined && typeof skill.demand === 'number' ? skill.demand : 0;
       items.push({
         id: `skill-${idx}`,
         title: `${skill.name} Skills Emerging`,
-        summary: `${skill.name} identified as emerging skill with ${skill.demand}% demand in ${skill.sector}`,
+        summary: `${skill.name} identified as emerging skill${demandValue > 0 ? ` with ${demandValue}% demand` : ''} in ${skill.sector || 'various sectors'}`,
         category: "Skills",
         timestamp: "This week",
         type: "update",
