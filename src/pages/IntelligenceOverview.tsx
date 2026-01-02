@@ -154,54 +154,54 @@ function IntelligenceDashboardContent() {
         {/* Enhanced Dashboard Tabs */}
         <motion.div variants={item}>
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800/50 p-1.5 h-auto shadow-sm rounded-xl">
+            <TabsList className="grid w-full grid-cols-4 p-2 h-auto rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-pink-500/10 backdrop-blur-xl border border-pink-400/30 shadow-lg shadow-pink-500/10">
               <TabsTrigger 
                 value="overview" 
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200",
-                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-600",
-                  "data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/25",
-                  "data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-800/50"
+                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:via-purple-500 data-[state=active]:to-pink-500",
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/40",
+                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
                 )}
               >
                 <LayoutDashboard className="w-4 h-4" />
-                <span className="hidden sm:inline font-medium">Overview</span>
+                <span className="hidden sm:inline">Overview</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="careers"
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200",
-                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-600",
-                  "data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-emerald-500/25",
-                  "data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-800/50"
+                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:via-rose-500 data-[state=active]:to-pink-500",
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/40",
+                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
                 )}
               >
                 <Briefcase className="w-4 h-4" />
-                <span className="hidden sm:inline font-medium">Careers</span>
+                <span className="hidden sm:inline">Careers</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="skills"
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200",
-                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-600",
-                  "data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/25",
-                  "data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-800/50"
+                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:via-pink-500 data-[state=active]:to-purple-500",
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-purple-500/40",
+                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
                 )}
               >
                 <Brain className="w-4 h-4" />
-                <span className="hidden sm:inline font-medium">Skills</span>
+                <span className="hidden sm:inline">Skills</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="funding"
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3 rounded-lg transition-all duration-200",
-                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-600",
-                  "data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-amber-500/25",
-                  "data-[state=inactive]:text-slate-400 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-slate-800/50"
+                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:via-fuchsia-500 data-[state=active]:to-pink-500",
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/40",
+                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
                 )}
               >
                 <DollarSign className="w-4 h-4" />
-                <span className="hidden sm:inline font-medium">Funding</span>
+                <span className="hidden sm:inline">Funding</span>
               </TabsTrigger>
             </TabsList>
 

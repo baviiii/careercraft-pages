@@ -270,32 +270,32 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
       {/* Executive Summary */}
       <ExecutiveSummary tab="funding" />
 
-      {/* Header - ULTRA ENHANCED */}
+      {/* Header - PINK GLASSMORPHISM */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="icon-amber shadow-xl shadow-amber-500/30 relative">
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-fuchsia-500 to-pink-600 shadow-xl shadow-fuchsia-500/30 relative">
             <DollarSign className="w-6 h-6 text-white relative z-10" />
-            <div className="absolute inset-0 bg-white/20 rounded-xl blur-sm"></div>
+            <div className="absolute inset-0 bg-white/20 rounded-2xl blur-sm"></div>
           </div>
           <div>
-            <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-amber-600 via-orange-500 to-amber-600 bg-clip-text text-transparent">
+            <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-fuchsia-500 via-pink-500 to-fuchsia-600 bg-clip-text text-transparent">
               Funding & Budgets
             </h2>
             <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <span className="font-semibold text-amber-600">{filteredPrograms.length}</span> programs •
-              <span className="font-semibold text-orange-600">${(totalBudget / 1000).toFixed(1)}B</span> total
+              <span className="font-semibold text-fuchsia-400">{filteredPrograms.length}</span> programs •
+              <span className="font-semibold text-pink-400">${(totalBudget / 1000).toFixed(1)}B</span> total
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-600 border-amber-500/20 gap-1 px-3 py-1.5 hover-lift">
+          <Badge className="bg-gradient-to-r from-fuchsia-500/20 to-pink-500/20 text-fuchsia-300 border-fuchsia-400/30 gap-1 px-3 py-1.5 backdrop-blur-sm">
             <Sparkles className="w-3.5 h-3.5" />
             <span className="font-semibold">Budget Intelligence</span>
           </Badge>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 hover-lift shadow-sm">
+                <Button variant="outline" size="sm" className="gap-2 border-pink-400/30 hover:bg-pink-500/10 hover:border-pink-400/50">
                   <Download className="w-4 h-4" />Export
                 </Button>
               </TooltipTrigger>
@@ -305,25 +305,25 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
         </div>
       </div>
 
-      {/* NEXT-GEN: Funding Investment Stories - ULTRA VIBRANT */}
-      <div className="card-gradient-amber p-8 relative overflow-hidden shadow-xl">
+      {/* NEXT-GEN: Funding Investment Stories - PINK GLASSMORPHISM */}
+      <div className="p-8 relative overflow-hidden rounded-2xl bg-gradient-to-br from-fuchsia-500/15 via-pink-500/10 to-fuchsia-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-fuchsia-500/20">
         {/* Decorative Elements */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-400/10 to-orange-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-orange-400/10 to-amber-400/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-fuchsia-400/20 to-pink-400/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-fuchsia-400/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-fuchsia-500 to-pink-600 shadow-lg shadow-fuchsia-500/30">
                 <Lightbulb className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+                <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
                   Investment Intelligence
                 </h3>
-                <p className="text-xs text-muted-foreground font-medium">Real-time budget analysis</p>
+                <p className="text-xs text-pink-200/70 font-medium">Real-time budget analysis</p>
               </div>
-              <Badge className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-700 border-amber-500/30 text-xs font-semibold">
+              <Badge className="bg-gradient-to-r from-fuchsia-500/30 to-pink-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
                 <Sparkles className="w-3 h-3 mr-1" />
                 AI-Powered
               </Badge>
@@ -335,7 +335,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                 onClick={() => { setActiveStory(idx); setIsAutoPlay(false); }}
                 className={cn(
                   "w-2 h-2 rounded-full transition-all",
-                  idx === activeStory ? "bg-amber-500 w-6" : "bg-muted-foreground/30"
+                  idx === activeStory ? "bg-pink-400 w-6" : "bg-pink-300/30"
                 )}
               />
             ))}
@@ -351,8 +351,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
             transition={{ duration: 0.3 }}
           >
             <div className="mb-5">
-              <h4 className="text-2xl font-bold text-foreground mb-3">{fundingStories[activeStory].title}</h4>
-              <p className="text-muted-foreground leading-relaxed">{fundingStories[activeStory].narrative}</p>
+              <h4 className="text-2xl font-bold text-white mb-3">{fundingStories[activeStory].title}</h4>
+              <p className="text-pink-100/80 leading-relaxed">{fundingStories[activeStory].narrative}</p>
             </div>
 
             {/* Metrics Grid - ENHANCED */}
@@ -365,17 +365,17 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: idx * 0.1 }}
-                    className="group p-5 rounded-xl bg-gradient-to-br from-white to-amber-50/50 dark:from-slate-900 dark:to-slate-800 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300 hover-lift shadow-sm hover:shadow-lg"
+                    className="group p-5 rounded-xl bg-gradient-to-br from-fuchsia-500/20 to-pink-500/20 backdrop-blur-sm border border-pink-400/30 hover:border-pink-400/50 transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl hover:shadow-fuchsia-500/20"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-fuchsia-500 to-pink-600 shadow-md group-hover:shadow-lg group-hover:scale-110 transition-all">
                         <Icon className="w-4 h-4 text-white" />
                       </div>
                     </div>
-                    <p className="text-3xl font-bold bg-gradient-to-br from-amber-600 to-orange-600 bg-clip-text text-transparent mb-1 stat-number">
+                    <p className="text-3xl font-bold text-white mb-1">
                       {metric.value}
                     </p>
-                    <p className="text-xs text-muted-foreground font-medium">{metric.label}</p>
+                    <p className="text-xs text-pink-200/70 font-medium">{metric.label}</p>
                   </motion.div>
                 );
               })}
@@ -386,11 +386,11 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="p-5 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-5"
+              className="p-5 rounded-xl bg-gradient-to-br from-fuchsia-500/20 to-pink-500/20 backdrop-blur-sm border border-pink-400/30 mb-5"
             >
               <div className="flex items-center gap-2 mb-4">
-                <Target className="w-4 h-4 text-amber-500" />
-                <span className="text-sm font-semibold text-foreground">Funding → Jobs Multiplier:</span>
+                <Target className="w-4 h-4 text-pink-400" />
+                <span className="text-sm font-semibold text-pink-100">Funding → Jobs Multiplier:</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
