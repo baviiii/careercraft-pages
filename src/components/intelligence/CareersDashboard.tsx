@@ -170,7 +170,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
         title: `💼 ${topGrowthSector?.sector || "Healthcare"}: The High-Demand Career Wave`,
         narrative: `With ${topGrowthSector?.jobs?.toLocaleString() || "12,000+"} open positions and ${(topGrowthSector?.growth ?? 42).toFixed(1)}% growth, this sector is creating unprecedented opportunity. Entry requirements are dropping while salaries climb.`,
         metrics: [
-          { label: "Open Positions", value: `${topGrowthSector?.jobs.toLocaleString() || "12,000+"}`, icon: Briefcase },
+          { label: "Open Positions", value: `${topGrowthSector?.jobs?.toLocaleString() || "12,000+"}`, icon: Briefcase },
           { label: "Growth Rate", value: `+${(topGrowthSector?.growth ?? 42).toFixed(1)}%`, icon: TrendingUp },
           { label: "Avg Timeline", value: "6-12 months", icon: Clock },
           { label: "Success Rate", value: "87%", icon: Target },
@@ -249,7 +249,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             </h2>
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               <span className="font-semibold text-pink-500">{filteredCareers.length}</span> careers •
-              <span className="font-semibold text-rose-500">{totalJobs.toLocaleString()}</span> jobs
+              <span className="font-semibold text-rose-500">{(totalJobs ?? 0).toLocaleString()}</span> jobs
             </p>
           </div>
         </div>
@@ -403,12 +403,12 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                 </span>
               </div>
               <p className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent mb-1">
-                {sector.jobs.toLocaleString()}
+                {(sector.jobs ?? 0).toLocaleString()}
               </p>
               <p className="text-xs text-muted-foreground font-medium mb-3">open positions</p>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 w-fit">
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-sm font-bold text-emerald-600">+{sector.growth.toFixed(1)}%</span>
+                <span className="text-sm font-bold text-emerald-600">+{(sector.growth ?? 0).toFixed(1)}%</span>
               </div>
             </motion.div>
           ))}
@@ -457,7 +457,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             </div>
           </div>
           <p className="text-4xl font-bold bg-gradient-to-br from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
-            {totalJobs.toLocaleString()}
+            {(totalJobs ?? 0).toLocaleString()}
           </p>
           <p className="text-sm font-semibold text-foreground/80">Total Opportunities</p>
           <p className="text-xs text-muted-foreground mt-1">Active job postings across all sectors</p>
@@ -503,7 +503,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           </p>
           <p className="text-sm font-semibold text-foreground/80">Top Growth Sector</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {sectorGrowth[0]?.jobs.toLocaleString()} jobs • +{sectorGrowth[0]?.growth.toFixed(1)}% growth
+            {(sectorGrowth[0]?.jobs ?? 0).toLocaleString()} jobs • +{(sectorGrowth[0]?.growth ?? 0).toFixed(1)}% growth
           </p>
         </motion.div>
       </div>
@@ -570,7 +570,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                         <span className="font-semibold text-emerald-500">+{(career.growth ?? 0).toFixed(1)}%</span>
                       </div>
                     </td>
-                    <td className="py-4 px-4 text-right font-medium text-foreground">{career.jobs.toLocaleString()}</td>
+                    <td className="py-4 px-4 text-right font-medium text-foreground">{(career.jobs ?? 0).toLocaleString()}</td>
                     <td className="py-4 px-4 text-right text-sm text-muted-foreground">{career.salary || "See details"}</td>
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
