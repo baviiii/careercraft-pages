@@ -168,10 +168,10 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       {
         id: "high-demand-boom",
         title: `💼 ${topGrowthSector?.sector || "Healthcare"}: The High-Demand Career Wave`,
-        narrative: `With ${topGrowthSector?.jobs.toLocaleString() || "12,000+"} open positions and ${topGrowthSector?.growth.toFixed(1) || "42"}% growth, this sector is creating unprecedented opportunity. Entry requirements are dropping while salaries climb.`,
+        narrative: `With ${topGrowthSector?.jobs?.toLocaleString() || "12,000+"} open positions and ${(topGrowthSector?.growth ?? 42).toFixed(1)}% growth, this sector is creating unprecedented opportunity. Entry requirements are dropping while salaries climb.`,
         metrics: [
           { label: "Open Positions", value: `${topGrowthSector?.jobs.toLocaleString() || "12,000+"}`, icon: Briefcase },
-          { label: "Growth Rate", value: `+${topGrowthSector?.growth.toFixed(1) || "42"}%`, icon: TrendingUp },
+          { label: "Growth Rate", value: `+${(topGrowthSector?.growth ?? 42).toFixed(1)}%`, icon: TrendingUp },
           { label: "Avg Timeline", value: "6-12 months", icon: Clock },
           { label: "Success Rate", value: "87%", icon: Target },
         ],
@@ -566,7 +566,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <TrendingUp className="w-4 h-4 text-emerald-500" />
-                        <span className="font-semibold text-emerald-500">+{career.growth.toFixed(1)}%</span>
+                        <span className="font-semibold text-emerald-500">+{(career.growth ?? 0).toFixed(1)}%</span>
                       </div>
                     </td>
                     <td className="py-4 px-4 text-right font-medium text-foreground">{career.jobs.toLocaleString()}</td>
