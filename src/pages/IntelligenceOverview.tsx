@@ -151,56 +151,60 @@ function IntelligenceDashboardContent() {
         animate="show"
         className="space-y-6"
       >
-        {/* Enhanced Dashboard Tabs */}
+        {/* Enhanced Dashboard Tabs - HIGHLY VISIBLE */}
         <motion.div variants={item}>
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-4 p-2 h-auto rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-pink-500/10 backdrop-blur-xl border border-pink-400/30 shadow-lg shadow-pink-500/10">
+            <TabsList className="grid w-full grid-cols-4 p-2.5 h-auto rounded-2xl bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-pink-500/20 backdrop-blur-xl border-2 border-pink-400/50 shadow-2xl shadow-pink-500/20">
               <TabsTrigger 
                 value="overview" 
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "flex items-center gap-2 px-5 py-4 rounded-xl transition-all duration-300 font-semibold text-base",
                   "data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:via-purple-500 data-[state=active]:to-pink-500",
-                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/40",
-                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/50 data-[state=active]:scale-105",
+                  "data-[state=inactive]:text-white/90 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/30 data-[state=inactive]:hover:scale-102",
+                  "drop-shadow-lg"
                 )}
               >
-                <LayoutDashboard className="w-4 h-4" />
+                <LayoutDashboard className="w-5 h-5" />
                 <span className="hidden sm:inline">Overview</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="careers"
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "flex items-center gap-2 px-5 py-4 rounded-xl transition-all duration-300 font-semibold text-base",
                   "data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:via-rose-500 data-[state=active]:to-pink-500",
-                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/40",
-                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/50 data-[state=active]:scale-105",
+                  "data-[state=inactive]:text-white/90 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/30 data-[state=inactive]:hover:scale-102",
+                  "drop-shadow-lg"
                 )}
               >
-                <Briefcase className="w-4 h-4" />
+                <Briefcase className="w-5 h-5" />
                 <span className="hidden sm:inline">Careers</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="skills"
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "flex items-center gap-2 px-5 py-4 rounded-xl transition-all duration-300 font-semibold text-base",
                   "data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:via-pink-500 data-[state=active]:to-purple-500",
-                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-purple-500/40",
-                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-purple-500/50 data-[state=active]:scale-105",
+                  "data-[state=inactive]:text-white/90 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-purple-500/30 data-[state=inactive]:hover:scale-102",
+                  "drop-shadow-lg"
                 )}
               >
-                <Brain className="w-4 h-4" />
+                <Brain className="w-5 h-5" />
                 <span className="hidden sm:inline">Skills</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="funding"
                 className={cn(
-                  "flex items-center gap-2 px-4 py-3.5 rounded-xl transition-all duration-300 font-medium",
+                  "flex items-center gap-2 px-5 py-4 rounded-xl transition-all duration-300 font-semibold text-base",
                   "data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-500 data-[state=active]:via-fuchsia-500 data-[state=active]:to-pink-500",
-                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/40",
-                  "data-[state=inactive]:text-pink-200/70 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-pink-500/20"
+                  "data-[state=active]:text-white data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/50 data-[state=active]:scale-105",
+                  "data-[state=inactive]:text-white/90 data-[state=inactive]:hover:text-white data-[state=inactive]:hover:bg-fuchsia-500/30 data-[state=inactive]:hover:scale-102",
+                  "drop-shadow-lg"
                 )}
               >
-                <DollarSign className="w-4 h-4" />
+                <DollarSign className="w-5 h-5" />
                 <span className="hidden sm:inline">Funding</span>
               </TabsTrigger>
             </TabsList>

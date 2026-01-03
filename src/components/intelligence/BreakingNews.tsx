@@ -126,36 +126,36 @@ export function BreakingNews() {
 
   const getTypeStyle = (type: string) => {
     switch (type) {
-      case "insight": return "bg-purple-500/10 border-purple-500/20";
-      case "alert": return "bg-amber-500/10 border-amber-500/20";
-      case "trend": return "bg-emerald-500/10 border-emerald-500/20";
-      default: return "bg-blue-500/10 border-blue-500/20";
+      case "insight": return "border-purple-400/50";
+      case "alert": return "border-amber-400/50";
+      case "trend": return "border-emerald-400/50";
+      default: return "border-blue-400/50";
     }
   };
 
   if (globalLoading) {
     return (
-      <div className="card-intelligence p-6">
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-center h-48">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-pink-400" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="card-intelligence p-6">
+    <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
             <Newspaper className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-lg font-bold text-foreground">Intelligence Updates</h2>
-            <p className="text-sm text-muted-foreground">Latest insights from {metrics?.totalDocuments || 0} documents</p>
+            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Intelligence Updates</h2>
+            <p className="text-sm text-pink-200/80">Latest insights from {metrics?.totalDocuments || 0} documents</p>
           </div>
         </div>
-        <Badge variant="secondary" className="gap-1">
+        <Badge className="gap-1 bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-pink-200 border-pink-400/40 backdrop-blur-sm">
           <Clock className="w-3 h-3" />
           Live
         </Badge>
@@ -170,27 +170,29 @@ export function BreakingNews() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             className={cn(
-              "group p-4 rounded-xl border transition-all hover:shadow-md cursor-pointer",
+              "group p-4 rounded-xl border backdrop-blur-sm transition-all hover:shadow-lg cursor-pointer hover:scale-102",
+              "bg-gradient-to-br from-pink-500/20 via-purple-500/15 to-pink-500/20",
+              "border-pink-400/40 hover:border-pink-400/60",
               getTypeStyle(item.type)
             )}
           >
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-background/80 flex items-center justify-center flex-shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-pink-500/30 to-purple-500/30 flex items-center justify-center flex-shrink-0 shadow-md">
                 {getTypeIcon(item.type)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <Badge variant="outline" className="text-[10px]">{item.category}</Badge>
-                  <span className="text-[10px] text-muted-foreground">{item.timestamp}</span>
+                  <Badge className="text-[10px] bg-pink-500/30 text-pink-200 border-pink-400/40 backdrop-blur-sm">{item.category}</Badge>
+                  <span className="text-[10px] text-pink-200/70">{item.timestamp}</span>
                 </div>
-                <h4 className="font-semibold text-foreground text-sm mb-1 line-clamp-2">
+                <h4 className="font-semibold text-white text-sm mb-1 line-clamp-2 drop-shadow">
                   {item.title}
                 </h4>
-                <p className="text-xs text-muted-foreground line-clamp-2">
+                <p className="text-xs text-pink-200/80 line-clamp-2">
                   {item.summary}
                 </p>
                 {item.source && (
-                  <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
+                  <p className="text-[10px] text-pink-200/60 mt-2 flex items-center gap-1">
                     <Sparkles className="w-3 h-3" />
                     {item.source}
                   </p>
@@ -203,16 +205,16 @@ export function BreakingNews() {
 
       {newsItems.length === 0 && (
         <div className="text-center py-12">
-          <Newspaper className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-          <p className="text-muted-foreground">No updates available</p>
-          <p className="text-xs text-muted-foreground mt-1">Check back soon for new insights</p>
+          <Newspaper className="w-12 h-12 text-pink-200/50 mx-auto mb-4 opacity-50" />
+          <p className="text-pink-200/80">No updates available</p>
+          <p className="text-xs text-pink-200/60 mt-1">Check back soon for new insights</p>
         </div>
       )}
 
       {/* View All Button */}
       {newsItems.length > 0 && (
         <div className="mt-6 text-center">
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2 border-pink-400/40 hover:bg-pink-500/20 hover:border-pink-400/60 text-pink-200">
             View All Updates
             <ExternalLink className="w-4 h-4" />
           </Button>

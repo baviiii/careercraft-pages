@@ -213,9 +213,12 @@ The goal is MAXIMUM REAL DATA, not perfect completeness.
 
 1. DO NOT invent, infer, estimate, or assume any data.
 2. DO NOT fabricate missing fields.
-3. DO NOT use placeholders or filler text.
-4. Only include data that is explicitly stated in the source documents.
-5. It is expected that many occupations will have partial data.
+3. DO NOT use placeholders or filler text - use "Not specified" ONLY if truly not found.
+4. Extract data from BOTH structured formats (tables) AND natural language text.
+5. If you see phrases like "projected to grow at 8.1%" or "employment of X is expected to increase by Y%", extract that data even if not in a table.
+6. Include ALL occupations mentioned in the sources, even if only one field (growth, jobs, or demand) is available.
+7. For growth percentages: Extract from natural language like "grow at X%", "increase by X%", "projected X% growth", "rate of X%".
+8. It is expected that many occupations will have partial data - include them anyway.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔄 EXTRACTION STRATEGY (IMPORTANT)
@@ -267,8 +270,10 @@ Pass 5: Any additional occupations with at least ONE quantitative signal
 🎯 TARGET
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Aim for 20–30 occupations IF supported by data.
-- Fewer is acceptable if source data is limited.
+- Aim for 30+ occupations to maximize coverage.
+- Include every occupation mentioned in sources, even with partial data.
+- Prioritize occupations with growth percentages, job counts, or explicit demand levels.
+- Fewer is acceptable ONLY if source data is truly limited - be thorough in extraction.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📤 OUTPUT FORMAT (STRICT)

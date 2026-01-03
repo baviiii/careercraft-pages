@@ -79,24 +79,24 @@ export function InvestmentHighlights() {
 
   if (globalLoading) {
     return (
-      <div className="card-intelligence p-6">
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-center h-48">
-          <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-pink-400" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="card-intelligence p-6 h-full">
+    <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6 h-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <Target className="w-5 h-5 text-white" />
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
+            <Target className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-lg font-bold text-foreground">Investment Highlights</h2>
-            <p className="text-sm text-muted-foreground">Key funding signals</p>
+            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Investment Highlights</h2>
+            <p className="text-sm text-pink-200/80">Key funding signals</p>
           </div>
         </div>
       </div>
@@ -110,30 +110,30 @@ export function InvestmentHighlights() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: index * 0.1 }}
             className={cn(
-              "p-4 rounded-xl border transition-all hover:shadow-sm cursor-pointer",
-              highlight.type === "growth" && "bg-emerald-500/10 border-emerald-500/20",
-              highlight.type === "decline" && "bg-red-500/10 border-red-500/20",
-              highlight.type === "priority" && "bg-amber-500/10 border-amber-500/20",
-              highlight.type === "new" && "bg-blue-500/10 border-blue-500/20"
+              "p-4 rounded-xl border backdrop-blur-sm transition-all hover:shadow-lg cursor-pointer hover:scale-102",
+              highlight.type === "growth" && "bg-gradient-to-br from-emerald-500/20 to-green-500/15 border-emerald-400/40 hover:border-emerald-400/60",
+              highlight.type === "decline" && "bg-gradient-to-br from-red-500/20 to-rose-500/15 border-red-400/40 hover:border-red-400/60",
+              highlight.type === "priority" && "bg-gradient-to-br from-pink-500/20 to-rose-500/15 border-pink-400/40 hover:border-pink-400/60",
+              highlight.type === "new" && "bg-gradient-to-br from-blue-500/20 to-cyan-500/15 border-blue-400/40 hover:border-blue-400/60"
             )}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  {highlight.type === "growth" && <TrendingUp className="w-4 h-4 text-emerald-500" />}
-                  {highlight.type === "decline" && <TrendingDown className="w-4 h-4 text-red-500" />}
-                  {highlight.type === "priority" && <Zap className="w-4 h-4 text-amber-500" />}
-                  {highlight.type === "new" && <Sparkles className="w-4 h-4 text-blue-500" />}
-                  <span className="font-semibold text-foreground text-sm">{highlight.title}</span>
+                  {highlight.type === "growth" && <TrendingUp className="w-5 h-5 text-emerald-300" />}
+                  {highlight.type === "decline" && <TrendingDown className="w-5 h-5 text-red-300" />}
+                  {highlight.type === "priority" && <Zap className="w-5 h-5 text-pink-300" />}
+                  {highlight.type === "new" && <Sparkles className="w-5 h-5 text-blue-300" />}
+                  <span className="font-semibold text-white text-sm drop-shadow">{highlight.title}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">{highlight.description}</p>
+                <p className="text-xs text-pink-200/70">{highlight.description}</p>
               </div>
               <div className="text-right">
-                <p className="font-bold text-foreground">{highlight.value}</p>
+                <p className="font-bold text-white drop-shadow-lg">{highlight.value}</p>
                 {highlight.change !== 0 && (
                   <span className={cn(
                     "text-xs font-medium",
-                    highlight.change > 0 ? "text-emerald-600" : "text-red-500"
+                    highlight.change > 0 ? "text-emerald-300" : "text-red-300"
                   )}>
                     {highlight.change > 0 ? "+" : ""}{highlight.change.toFixed(1)}%
                   </span>
@@ -150,28 +150,28 @@ export function InvestmentHighlights() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="mt-4 p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20"
+          className="mt-4 p-4 rounded-xl bg-gradient-to-r from-pink-500/20 via-purple-500/15 to-pink-500/20 backdrop-blur-sm border border-pink-400/40 hover:border-pink-400/60 transition-all"
         >
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-4 h-4 text-purple-500" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-1">AI Insight</p>
-              <p className="text-sm text-foreground">{crossTabInsights[0].title}</p>
-              <p className="text-xs text-muted-foreground mt-1">{crossTabInsights[0].connection}</p>
+              <p className="text-xs font-semibold text-pink-300 uppercase tracking-wide mb-1">AI Insight</p>
+              <p className="text-sm text-white drop-shadow">{crossTabInsights[0].title}</p>
+              <p className="text-xs text-pink-200/70 mt-1">{crossTabInsights[0].connection}</p>
             </div>
           </div>
         </motion.div>
       )}
 
       {/* Total Summary */}
-      <div className="mt-4 pt-4 border-t border-border/50">
+      <div className="mt-4 pt-4 border-t border-pink-400/30">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Total Budget Tracked</span>
+          <span className="text-sm text-pink-200/80">Total Budget Tracked</span>
           <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-amber-500" />
-            <span className="font-bold text-foreground">${(totalBudget / 1000).toFixed(1)}B</span>
+            <DollarSign className="w-4 h-4 text-pink-300" />
+            <span className="font-bold text-white drop-shadow-lg">${(totalBudget / 1000).toFixed(1)}B</span>
           </div>
         </div>
       </div>

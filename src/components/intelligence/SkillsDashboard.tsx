@@ -65,12 +65,15 @@ const trainingPrograms = [
 export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
   const { skillsDemand, getTabData, globalLoading } = useIntelligence();
   const tabData = getTabData("skills");
+  const navigate = useNavigate();
   
   const [localSearch, setLocalSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<FilterCategory>("all");
   const [filterSector, setFilterSector] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"demand" | "growth" | "name">("demand");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [activeStory, setActiveStory] = useState(0);
+  const [isAutoPlay, setIsAutoPlay] = useState(true);
 
   const effectiveSearch = searchQuery || localSearch;
 
@@ -108,17 +111,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
     ? filteredSkills.filter(s => s.category === selectedCategory)
     : filteredSkills;
 
-  if (globalLoading || tabData.loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-      </div>
-    );
-  }
-
-  const navigate = useNavigate();
-
-  // Skills Arbitrage Stories
+  // Skills Arbitrage Stories - MUST be before conditional return
   const skillsStories = useMemo(() => {
     const topEmergingSkill = emergingSkills[0];
     const topTechnicalSkill = technicalSkills[0];
@@ -199,9 +192,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
     ];
   }, [emergingSkills, technicalSkills]);
 
-  const [activeStory, setActiveStory] = useState(0);
-  const [isAutoPlay, setIsAutoPlay] = useState(true);
-
+  // Auto-play effect for stories
   useEffect(() => {
     if (!isAutoPlay) return;
     const timer = setInterval(() => {
@@ -213,6 +204,18 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
   const handleConversationStarter = (question: string) => {
     navigate("/sa-career-hub", { state: { initialQuestion: question } });
   };
+
+  // Loading state - now AFTER all hooks
+  if (globalLoading || tabData.loading) {
+    return (
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-pink-400" />
+          <span className="ml-3 text-pink-200">Loading skills intelligence...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -384,25 +387,25 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
         </div>
       </div>
 
-      {/* Category Cards */}
+      {/* Category Cards - PINK GLASSMORPHISM */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className={cn(
-            "card-intelligence p-6 cursor-pointer transition-all hover:shadow-lg",
-            selectedCategory === "technical" && "ring-2 ring-blue-500"
+            "rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 p-6 cursor-pointer transition-all hover:shadow-lg hover:shadow-pink-500/20",
+            selectedCategory === "technical" && "ring-2 ring-blue-400 shadow-lg shadow-blue-500/20"
           )}
           onClick={() => setSelectedCategory(selectedCategory === "technical" ? null : "technical")}
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
               <Zap className="w-6 h-6 text-white" />
             </div>
-            <Badge variant="secondary">{categoryStats.technical}</Badge>
+            <Badge className="bg-blue-500/20 text-blue-300 border-blue-400/40">{categoryStats.technical}</Badge>
           </div>
-          <h3 className="font-semibold text-foreground mb-1">Technical Skills</h3>
-          <p className="text-xs text-muted-foreground">Hard skills and technical competencies</p>
+          <h3 className="font-semibold text-white mb-1 drop-shadow">Technical Skills</h3>
+          <p className="text-xs text-pink-200/80">Hard skills and technical competencies</p>
         </motion.div>
 
         <motion.div
@@ -410,19 +413,19 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className={cn(
-            "card-intelligence p-6 cursor-pointer transition-all hover:shadow-lg",
-            selectedCategory === "soft" && "ring-2 ring-purple-500"
+            "rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 p-6 cursor-pointer transition-all hover:shadow-lg hover:shadow-pink-500/20",
+            selectedCategory === "soft" && "ring-2 ring-purple-400 shadow-lg shadow-purple-500/20"
           )}
           onClick={() => setSelectedCategory(selectedCategory === "soft" ? null : "soft")}
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
               <Target className="w-6 h-6 text-white" />
             </div>
-            <Badge variant="secondary">{categoryStats.soft}</Badge>
+            <Badge className="bg-purple-500/20 text-purple-300 border-purple-400/40">{categoryStats.soft}</Badge>
           </div>
-          <h3 className="font-semibold text-foreground mb-1">Soft Skills</h3>
-          <p className="text-xs text-muted-foreground">Interpersonal and transferable skills</p>
+          <h3 className="font-semibold text-white mb-1 drop-shadow">Soft Skills</h3>
+          <p className="text-xs text-pink-200/80">Interpersonal and transferable skills</p>
         </motion.div>
 
         <motion.div
@@ -430,24 +433,24 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className={cn(
-            "card-intelligence p-6 cursor-pointer transition-all hover:shadow-lg",
-            selectedCategory === "emerging" && "ring-2 ring-green-500"
+            "rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 p-6 cursor-pointer transition-all hover:shadow-lg hover:shadow-pink-500/20",
+            selectedCategory === "emerging" && "ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/20"
           )}
           onClick={() => setSelectedCategory(selectedCategory === "emerging" ? null : "emerging")}
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
-            <Badge variant="secondary">{categoryStats.emerging}</Badge>
+            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40">{categoryStats.emerging}</Badge>
           </div>
-          <h3 className="font-semibold text-foreground mb-1">Emerging Skills</h3>
-          <p className="text-xs text-muted-foreground">Future-focused and growing skills</p>
+          <h3 className="font-semibold text-white mb-1 drop-shadow">Emerging Skills</h3>
+          <p className="text-xs text-pink-200/80">Future-focused and growing skills</p>
         </motion.div>
       </div>
 
       {/* Filters */}
-      <div className="card-intelligence p-4">
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-lg p-4">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -480,68 +483,68 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
         </div>
       </div>
 
-      {/* Skills Grid */}
+      {/* Skills Grid - PINK GLASSMORPHISM */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Technical */}
-        <div className="card-intelligence p-6">
+        <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-blue-500" />
-              <h3 className="font-display text-lg font-semibold text-foreground">Technical</h3>
+              <Zap className="w-5 h-5 text-blue-300" />
+              <h3 className="font-display text-lg font-semibold text-white drop-shadow">Technical</h3>
             </div>
-            <Badge variant="secondary">{technicalSkills.length}</Badge>
+            <Badge className="bg-blue-500/20 text-blue-300 border-blue-400/40">{technicalSkills.length}</Badge>
           </div>
           <div className="space-y-3">
             {technicalSkills.slice(0, 6).map((skill, index) => (
               <SkillCard key={skill.name} skill={skill} index={index} color="blue" />
             ))}
-            {technicalSkills.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No skills found</p>}
+            {technicalSkills.length === 0 && <p className="text-sm text-pink-200/70 text-center py-4">No skills found</p>}
           </div>
         </div>
 
         {/* Soft */}
-        <div className="card-intelligence p-6">
+        <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-purple-500" />
-              <h3 className="font-display text-lg font-semibold text-foreground">Soft Skills</h3>
+              <Target className="w-5 h-5 text-purple-300" />
+              <h3 className="font-display text-lg font-semibold text-white drop-shadow">Soft Skills</h3>
             </div>
-            <Badge variant="secondary">{softSkills.length}</Badge>
+            <Badge className="bg-purple-500/20 text-purple-300 border-purple-400/40">{softSkills.length}</Badge>
           </div>
           <div className="space-y-3">
             {softSkills.slice(0, 6).map((skill, index) => (
               <SkillCard key={skill.name} skill={skill} index={index} color="purple" />
             ))}
-            {softSkills.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No skills found</p>}
+            {softSkills.length === 0 && <p className="text-sm text-pink-200/70 text-center py-4">No skills found</p>}
           </div>
         </div>
 
         {/* Emerging */}
-        <div className="card-intelligence p-6">
+        <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-green-500" />
-              <h3 className="font-display text-lg font-semibold text-foreground">Emerging</h3>
+              <TrendingUp className="w-5 h-5 text-emerald-300" />
+              <h3 className="font-display text-lg font-semibold text-white drop-shadow">Emerging</h3>
             </div>
-            <Badge variant="secondary">{emergingSkills.length}</Badge>
+            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40">{emergingSkills.length}</Badge>
           </div>
           <div className="space-y-3">
             {emergingSkills.slice(0, 6).map((skill, index) => (
               <SkillCard key={skill.name} skill={skill} index={index} color="green" isEmerging />
             ))}
-            {emergingSkills.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No skills found</p>}
+            {emergingSkills.length === 0 && <p className="text-sm text-pink-200/70 text-center py-4">No skills found</p>}
           </div>
         </div>
       </div>
 
-      {/* Training Programs */}
-      <div className="card-intelligence p-6">
+      {/* Training Programs - PINK GLASSMORPHISM */}
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-emerald-500" />
-            <h3 className="font-display text-lg font-semibold text-foreground">Training Programs</h3>
+            <BookOpen className="w-5 h-5 text-emerald-300" />
+            <h3 className="font-display text-lg font-semibold text-white drop-shadow">Training Programs</h3>
           </div>
-          <Badge variant="secondary">{trainingPrograms.length} programs</Badge>
+          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40">{trainingPrograms.length} programs</Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {trainingPrograms.map((program, index) => (
@@ -550,36 +553,36 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="group p-5 rounded-xl bg-muted/50 border border-border/50 hover:border-emerald-500/30 hover:shadow-md transition-all"
+              className="group p-5 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/15 backdrop-blur-sm border border-pink-400/40 hover:border-pink-400/60 hover:shadow-lg hover:shadow-pink-500/20 transition-all"
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-semibold text-foreground">{program.name}</h4>
+                    <h4 className="font-semibold text-white drop-shadow">{program.name}</h4>
                     {program.rating && (
                       <div className="flex items-center gap-1">
-                        <Award className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                        <span className="text-xs font-semibold">{program.rating}</span>
+                        <Award className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                        <span className="text-xs font-semibold text-amber-300">{program.rating}</span>
                       </div>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">{program.provider}</p>
+                  <p className="text-sm text-pink-200/80">{program.provider}</p>
                 </div>
-                <Badge variant="outline" className="text-[10px] capitalize">{program.level}</Badge>
+                <Badge className="text-[10px] capitalize bg-purple-500/20 text-purple-300 border-purple-400/40">{program.level}</Badge>
               </div>
               <div className="flex flex-wrap gap-2 mb-3">
                 {program.skills.map((skill) => (
-                  <Badge key={skill} variant="secondary" className="text-[10px]">{skill}</Badge>
+                  <Badge key={skill} className="text-[10px] bg-pink-500/20 text-pink-200 border-pink-400/40">{skill}</Badge>
                 ))}
               </div>
-              <div className="flex items-center justify-between pt-3 border-t border-border/50">
+              <div className="flex items-center justify-between pt-3 border-t border-pink-400/30">
                 <div className="flex items-center gap-4 text-xs">
-                  <span className="text-muted-foreground">{program.duration}</span>
+                  <span className="text-pink-200/80">{program.duration}</span>
                   {program.funding && (
-                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">{program.funding}</Badge>
+                    <Badge className="text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-400/40">{program.funding}</Badge>
                   )}
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-pink-200 hover:text-white hover:bg-pink-500/20">
                   <ExternalLink className="w-4 h-4" />
                 </Button>
               </div>
@@ -597,32 +600,32 @@ function SkillCard({ skill, index, color, isEmerging }: { skill: any; index: num
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.03 }}
-      className="group p-3 rounded-lg hover:bg-muted/50 transition-colors"
+      className="group p-3 rounded-lg bg-gradient-to-br from-pink-500/10 to-purple-500/5 hover:from-pink-500/20 hover:to-purple-500/10 border border-pink-400/20 hover:border-pink-400/40 transition-all"
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
-            <h4 className="text-sm font-semibold text-foreground">{skill.name}</h4>
-            {isEmerging && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Hot</Badge>}
-            {skill.trainingAvailable && <GraduationCap className="w-3.5 h-3.5 text-emerald-500" />}
+            <h4 className="text-sm font-semibold text-white drop-shadow">{skill.name}</h4>
+            {isEmerging && <Badge className="text-[10px] px-1.5 py-0 bg-pink-500/30 text-pink-200 border-pink-400/50">Hot</Badge>}
+            {skill.trainingAvailable && <GraduationCap className="w-3.5 h-3.5 text-emerald-300" />}
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-[10px]">{skill.sector}</Badge>
-            <span className={cn("text-xs font-semibold", `text-${color}-500`)}>+{skill.growth.toFixed(1)}%</span>
+            <Badge className="text-[10px] bg-purple-500/20 text-purple-300 border-purple-400/40">{skill.sector}</Badge>
+            <span className="text-xs font-semibold text-emerald-300">+{skill.growth.toFixed(1)}%</span>
           </div>
         </div>
       </div>
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Demand</span>
-          <span className="font-semibold text-foreground">{skill.demand}%</span>
+          <span className="text-pink-200/70">Demand</span>
+          <span className="font-semibold text-white">{skill.demand}%</span>
         </div>
-        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+        <div className="h-2 w-full bg-pink-500/20 rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${skill.demand}%` }}
             transition={{ delay: index * 0.03 + 0.2, duration: 0.5 }}
-            className={cn("h-full rounded-full", `bg-gradient-to-r from-${color}-500 to-${color}-600`)}
+            className="h-full rounded-full bg-gradient-to-r from-pink-500 to-purple-600"
           />
         </div>
       </div>

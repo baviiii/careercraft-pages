@@ -33,6 +33,11 @@ import {
   DollarSign,
   Clock,
   Award,
+  Grid3x3,
+  BarChart2,
+  Table as TableIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -71,30 +76,37 @@ const sectorColors: Record<string, string> = {
 export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
   const { careerOpportunities, getTabData, globalLoading, totalJobs } = useIntelligence();
   const tabData = getTabData("careers");
+  const navigate = useNavigate();
   
   const [localSearch, setLocalSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("growth");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [filterSector, setFilterSector] = useState<string>("all");
   const [filterDemand, setFilterDemand] = useState<string>("all");
+  const [activeStory, setActiveStory] = useState(0);
+  const [isAutoPlay, setIsAutoPlay] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [viewMode, setViewMode] = useState<"table" | "chart" | "cards">("cards");
+  const itemsPerPage = 5;
 
   const effectiveSearch = searchQuery || localSearch;
 
   // Derive sector stats from data
   const sectorGrowth = useMemo(() => {
-    const sectorMap = new Map<string, { jobs: number; growth: number; count: number }>();
+    const sectorMap = new Map<string, { jobs: number; growth: number; count: number; growthCount: number }>();
     careerOpportunities.forEach(c => {
-      const existing = sectorMap.get(c.sector) || { jobs: 0, growth: 0, count: 0 };
+      const existing = sectorMap.get(c.sector) || { jobs: 0, growth: 0, count: 0, growthCount: 0 };
       sectorMap.set(c.sector, {
-        jobs: existing.jobs + c.jobs,
-        growth: existing.growth + c.growth,
+        jobs: existing.jobs + (c.jobs ?? 0),
+        growth: existing.growth + (c.growth ?? 0),
         count: existing.count + 1,
+        growthCount: existing.growthCount + (c.growth !== undefined ? 1 : 0),
       });
     });
     return Array.from(sectorMap.entries()).map(([sector, data]) => ({
       sector,
       jobs: data.jobs,
-      growth: data.count > 0 ? data.growth / data.count : 0,
+      growth: data.growthCount > 0 ? data.growth / data.growthCount : 0,
       color: sectorColors[sector] || "bg-blue-500",
     })).sort((a, b) => b.growth - a.growth).slice(0, 5);
   }, [careerOpportunities]);
@@ -136,23 +148,26 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     return sortDirection === "asc" ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />;
   };
 
-  const avgGrowth = filteredCareers.length > 0 
-    ? filteredCareers.reduce((sum, c) => sum + c.growth, 0) / filteredCareers.length 
+  const careersWithGrowth = filteredCareers.filter(c => c.growth !== undefined);
+  const avgGrowth = careersWithGrowth.length > 0
+    ? careersWithGrowth.reduce((sum, c) => sum + (c.growth ?? 0), 0) / careersWithGrowth.length
     : 0;
 
   const uniqueSectors = Array.from(new Set(careerOpportunities.map(c => c.sector)));
 
-  if (globalLoading || tabData.loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-      </div>
-    );
-  }
+  // Pagination
+  const totalPages = Math.ceil(filteredCareers.length / itemsPerPage);
+  const paginatedCareers = filteredCareers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
-  const navigate = useNavigate();
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [effectiveSearch, filterSector, filterDemand, sortField, sortDirection]);
 
-  // Career Opportunity Stories
+  // Career Opportunity Stories - MUST be before conditional return
   const careerStories = useMemo(() => {
     const topGrowthSector = sectorGrowth[0];
     const highestPayingCareers = [...careerOpportunities]
@@ -219,9 +234,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     ];
   }, [sectorGrowth, careerOpportunities]);
 
-  const [activeStory, setActiveStory] = useState(0);
-  const [isAutoPlay, setIsAutoPlay] = useState(true);
-
+  // Auto-play effect for stories
   useEffect(() => {
     if (!isAutoPlay) return;
     const timer = setInterval(() => {
@@ -233,6 +246,18 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
   const handleConversationStarter = (question: string) => {
     navigate("/sa-career-hub", { state: { initialQuestion: question } });
   };
+
+  // Loading state - now AFTER all hooks
+  if (globalLoading || tabData.loading) {
+    return (
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-pink-400" />
+          <span className="ml-3 text-pink-200">Loading career intelligence...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -370,14 +395,14 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
         </div>
       </div>
 
-      {/* Sector Growth Cards - ULTRA VIBRANT */}
-      <div className="card-intelligence p-6 shadow-lg">
+      {/* Sector Growth Cards - PINK GLASSMORPHISM */}
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="font-display text-2xl font-bold text-foreground">Sector Growth Rates</h3>
-            <p className="text-sm text-muted-foreground">Click to filter careers by sector</p>
+            <h3 className="font-display text-2xl font-bold text-white drop-shadow-lg">Sector Growth Rates</h3>
+            <p className="text-sm text-pink-200/80">Click to filter careers by sector</p>
           </div>
-          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40 backdrop-blur-sm">
             <TrendingUp className="w-3 h-3 mr-1" />
             High Growth
           </Badge>
@@ -390,25 +415,25 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
               className={cn(
-                "group p-5 rounded-2xl bg-gradient-to-br from-white to-slate-50/80 dark:from-slate-900 dark:to-slate-800",
-                "border border-border/50 hover:border-emerald-500/50 hover:shadow-xl transition-all duration-300 cursor-pointer hover-lift",
-                filterSector === sector.sector && "ring-2 ring-emerald-500 shadow-lg shadow-emerald-500/20"
+                "group p-5 rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-500/15 backdrop-blur-sm",
+                "border border-pink-400/40 hover:border-pink-400/70 hover:shadow-xl hover:shadow-pink-500/20 transition-all duration-300 cursor-pointer",
+                filterSector === sector.sector && "ring-2 ring-pink-400 shadow-lg shadow-pink-500/30"
               )}
               onClick={() => setFilterSector(filterSector === sector.sector ? "all" : sector.sector)}
             >
               <div className="flex items-center gap-2 mb-3">
                 <div className={cn("w-3 h-3 rounded-full shadow-md", sector.color)} />
-                <span className="text-sm font-semibold text-foreground truncate group-hover:text-emerald-600 transition-colors">
+                <span className="text-sm font-semibold text-white truncate group-hover:text-pink-200 transition-colors drop-shadow">
                   {sector.sector}
                 </span>
               </div>
-              <p className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent mb-1">
+              <p className="text-3xl font-bold text-white drop-shadow-lg mb-1">
                 {(sector.jobs ?? 0).toLocaleString()}
               </p>
-              <p className="text-xs text-muted-foreground font-medium mb-3">open positions</p>
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 w-fit">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-sm font-bold text-emerald-600">+{(sector.growth ?? 0).toFixed(1)}%</span>
+              <p className="text-xs text-pink-200/80 font-medium mb-3">open positions</p>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 w-fit">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-300" />
+                <span className="text-sm font-bold text-emerald-300">+{(sector.growth ?? 0).toFixed(1)}%</span>
               </div>
             </motion.div>
           ))}
@@ -416,7 +441,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       </div>
 
       {/* Filters */}
-      <div className="card-intelligence p-4">
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-lg p-4">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -508,91 +533,392 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
         </motion.div>
       </div>
 
-      {/* Careers Table */}
-      <div className="card-intelligence p-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* Careers Display - PINK GLASSMORPHISM */}
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Briefcase className="w-5 h-5 text-emerald-500" />
-            <h3 className="font-display text-lg font-semibold text-foreground">Top Growth Careers</h3>
+            <Briefcase className="w-5 h-5 text-pink-300" />
+            <h3 className="font-display text-lg font-semibold text-white drop-shadow-lg">
+              Career Opportunities
+              <span className="ml-2 text-sm font-normal text-pink-200/70">
+                ({filteredCareers.length} total)
+              </span>
+            </h3>
           </div>
-            <div className="flex gap-1">
-              {(["growth", "jobs", "occupation"] as SortField[]).map(field => (
-                <Button
-                  key={field}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleSort(field)}
-                className={cn("h-7 px-2 text-xs", sortField === field && "bg-blue-500/10 text-blue-600")}
-                >
-                {field.charAt(0).toUpperCase() + field.slice(1)} <SortIcon field={field} />
-                </Button>
-              ))}
+
+          {/* View Mode Switcher */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-pink-500/10 border border-pink-400/30">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode("cards")}
+                className={cn(
+                  "h-8 px-3 gap-2",
+                  viewMode === "cards"
+                    ? "bg-pink-500/30 text-white"
+                    : "text-pink-200 hover:bg-pink-500/20 hover:text-white"
+                )}
+              >
+                <Grid3x3 className="w-4 h-4" />
+                Cards
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode("chart")}
+                className={cn(
+                  "h-8 px-3 gap-2",
+                  viewMode === "chart"
+                    ? "bg-pink-500/30 text-white"
+                    : "text-pink-200 hover:bg-pink-500/20 hover:text-white"
+                )}
+              >
+                <BarChart2 className="w-4 h-4" />
+                Chart
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode("table")}
+                className={cn(
+                  "h-8 px-3 gap-2",
+                  viewMode === "table"
+                    ? "bg-pink-500/30 text-white"
+                    : "text-pink-200 hover:bg-pink-500/20 hover:text-white"
+                )}
+              >
+                <TableIcon className="w-4 h-4" />
+                Table
+              </Button>
+            </div>
+
+            {viewMode === "table" && (
+              <div className="flex gap-1">
+                {(["growth", "jobs", "occupation"] as SortField[]).map(field => (
+                  <Button
+                    key={field}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSort(field)}
+                    className={cn("h-7 px-2 text-xs text-pink-200 hover:bg-pink-500/20 hover:text-white", sortField === field && "bg-pink-500/30 text-white")}
+                  >
+                    {field.charAt(0).toUpperCase() + field.slice(1)} <SortIcon field={field} />
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Occupation</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-muted-foreground">Sector</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Growth</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Jobs</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-muted-foreground">Salary</th>
-                <th className="text-center py-3 px-4 text-sm font-semibold text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filteredCareers.slice(0, 15).map((career, index) => (
+        {/* Cards View */}
+        {viewMode === "cards" && (
+          <div className="space-y-4">
+            <AnimatePresence mode="popLayout">
+              {paginatedCareers.map((career, index) => (
+                <motion.div
+                  key={career.occupation}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="group relative rounded-xl bg-gradient-to-br from-pink-500/10 to-purple-500/10 backdrop-blur-sm border border-pink-400/30 hover:border-pink-400/50 p-5 hover:shadow-xl hover:shadow-pink-500/20 transition-all duration-300"
+                >
+                  {/* Left accent bar */}
+                  <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl",
+                    career.demand === "high" ? "bg-emerald-500" :
+                    career.demand === "medium" ? "bg-amber-500" : "bg-blue-500"
+                  )} />
+
+                  <div className="pl-4">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          {career.trending && <Star className="w-4 h-4 text-amber-400 fill-amber-400" />}
+                          <h4 className="font-semibold text-lg text-white">{career.occupation}</h4>
+                          {career.demand && (
+                            <Badge className={cn(
+                              "text-[10px] px-2 py-0.5",
+                              career.demand === "high" ? "bg-emerald-500/30 text-emerald-200 border-emerald-400/50" :
+                              career.demand === "medium" ? "bg-amber-500/30 text-amber-200 border-amber-400/50" :
+                              "bg-blue-500/30 text-blue-200 border-blue-400/50"
+                            )}>
+                              {career.demand.toUpperCase()}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-pink-200/70">
+                          <Badge className="bg-purple-500/30 text-purple-200 border-purple-400/40">
+                            {career.sector}
+                          </Badge>
+                          {career.location && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              <span>{career.location}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-400/30">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-xs font-medium text-emerald-200/70">Growth</span>
+                        </div>
+                        {career.growth !== undefined ? (
+                          <p className="text-lg font-bold text-emerald-300">+{career.growth.toFixed(1)}%</p>
+                        ) : (
+                          <p className="text-xs text-emerald-200/50 italic">Not specified</p>
+                        )}
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-400/30">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Briefcase className="w-3.5 h-3.5 text-blue-400" />
+                          <span className="text-xs font-medium text-blue-200/70">Positions</span>
+                        </div>
+                        {career.jobs !== undefined ? (
+                          <p className="text-lg font-bold text-blue-300">{career.jobs.toLocaleString()}</p>
+                        ) : (
+                          <p className="text-xs text-blue-200/50 italic">Not specified</p>
+                        )}
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-400/30">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="text-xs font-medium text-amber-200/70">Salary</span>
+                        </div>
+                        <p className="text-sm font-semibold text-amber-300 truncate">
+                          {career.salary || "See details"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Chart View */}
+        {viewMode === "chart" && (
+          <div className="space-y-4">
+            {paginatedCareers.map((career, index) => {
+              const maxGrowth = Math.max(...filteredCareers.filter(c => c.growth !== undefined).map(c => c.growth!), 30);
+              const growthPercent = career.growth !== undefined ? (career.growth / maxGrowth) * 100 : 0;
+              const maxJobs = Math.max(...filteredCareers.filter(c => c.jobs !== undefined).map(c => c.jobs!), 1000);
+              const jobsPercent = career.jobs !== undefined ? (career.jobs / maxJobs) * 100 : 0;
+
+              return (
+                <motion.div
+                  key={career.occupation}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {career.trending && <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />}
+                      <span className="font-medium text-white text-sm">{career.occupation}</span>
+                      <Badge className="text-[9px] bg-purple-500/30 text-purple-200 border-purple-400/40">
+                        {career.sector}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-pink-200/70">
+                      {career.growth !== undefined && (
+                        <span className="text-emerald-300 font-semibold">+{career.growth.toFixed(1)}%</span>
+                      )}
+                      {career.jobs !== undefined && (
+                        <span className="text-blue-300 font-semibold">{career.jobs.toLocaleString()} jobs</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {/* Growth Bar */}
+                    {career.growth !== undefined && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-pink-200/60">
+                          <span>Growth Rate</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-pink-500/10 overflow-hidden">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(growthPercent, 100)}%` }}
+                            transition={{ delay: index * 0.05 + 0.2, duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Jobs Bar */}
+                    {career.jobs !== undefined && (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-pink-200/60">
+                          <span>Open Positions</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-pink-500/10 overflow-hidden">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(jobsPercent, 100)}%` }}
+                            transition={{ delay: index * 0.05 + 0.3, duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Table View */}
+        {viewMode === "table" && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-pink-400/30">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-pink-200">Occupation</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-pink-200">Sector</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-pink-200">Growth</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-pink-200">Jobs</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-pink-200">Salary</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-pink-200">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {paginatedCareers.map((career, index) => (
                   <motion.tr
                     key={career.occupation}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.02 }}
-                    className="border-b border-border/50 hover:bg-muted/30 transition-colors group"
+                    className="border-b border-pink-400/20 hover:bg-pink-500/10 transition-colors group"
                   >
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
-                        {career.trending && <Star className="w-4 h-4 text-amber-500 fill-amber-500" />}
-                        <span className="font-medium text-foreground">{career.occupation}</span>
-                        {career.demand === "high" && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Hot</Badge>}
+                        {career.trending && <Star className="w-4 h-4 text-amber-400 fill-amber-400" />}
+                        <span className="font-medium text-white drop-shadow">{career.occupation}</span>
+                        {career.demand === "high" && <Badge className="text-[10px] px-1.5 py-0 bg-pink-500/30 text-pink-200 border-pink-400/50">Hot</Badge>}
                       </div>
                       {career.location && (
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <p className="text-xs text-pink-200/70 mt-1 flex items-center gap-1">
                           <MapPin className="w-3 h-3" />{career.location}
                         </p>
                       )}
                     </td>
-                    <td className="py-4 px-4"><Badge variant="secondary" className="text-xs">{career.sector}</Badge></td>
+                    <td className="py-4 px-4"><Badge className="text-xs bg-purple-500/30 text-purple-200 border-purple-400/40">{career.sector}</Badge></td>
                     <td className="py-4 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <TrendingUp className="w-4 h-4 text-emerald-500" />
-                        <span className="font-semibold text-emerald-500">+{(career.growth ?? 0).toFixed(1)}%</span>
-                      </div>
+                      {career.growth !== undefined ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <TrendingUp className="w-4 h-4 text-emerald-300" />
+                          <span className="font-semibold text-emerald-300">+{career.growth.toFixed(1)}%</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-pink-200/50 italic">Not specified</span>
+                      )}
                     </td>
-                    <td className="py-4 px-4 text-right font-medium text-foreground">{(career.jobs ?? 0).toLocaleString()}</td>
-                    <td className="py-4 px-4 text-right text-sm text-muted-foreground">{career.salary || "See details"}</td>
+                    <td className="py-4 px-4 text-right">
+                      {career.jobs !== undefined ? (
+                        <span className="font-medium text-white">{career.jobs.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-xs text-pink-200/50 italic">Not specified</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-4 text-right text-sm text-pink-200/80">{career.salary || "See details"}</td>
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Bookmark className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-pink-200 hover:text-white hover:bg-pink-500/20"><Eye className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-pink-200 hover:text-white hover:bg-pink-500/20"><Bookmark className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-pink-200 hover:text-white hover:bg-pink-500/20"><ExternalLink className="w-4 h-4" /></Button>
                       </div>
                     </td>
                   </motion.tr>
-                ))}
-              </AnimatePresence>
-            </tbody>
-          </table>
-          {filteredCareers.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No careers found matching your filters.</p>
-              <Button variant="outline" size="sm" onClick={() => { setFilterSector("all"); setFilterDemand("all"); setLocalSearch(""); }} className="mt-4">
-                Clear filters
-              </Button>
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+              </table>
             </div>
           )}
-        </div>
+
+        {/* Empty State */}
+        {filteredCareers.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-pink-200/80">No careers found matching your filters.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setFilterSector("all");
+                setFilterDemand("all");
+                setLocalSearch("");
+              }}
+              className="mt-4 border-pink-400/40 text-pink-200 hover:bg-pink-500/20"
+            >
+              Clear filters
+            </Button>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {filteredCareers.length > 0 && totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-between">
+            <p className="text-sm text-pink-200/70">
+              Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredCareers.length)} of {filteredCareers.length} careers
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="border-pink-400/30 text-pink-200 hover:bg-pink-500/20 hover:border-pink-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Previous
+              </Button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className={cn(
+                      "w-8 h-8 p-0",
+                      currentPage === page
+                        ? "bg-pink-500/30 text-white border-pink-400/50"
+                        : "text-pink-200 hover:bg-pink-500/20"
+                    )}
+                  >
+                    {page}
+                  </Button>
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="border-pink-400/30 text-pink-200 hover:bg-pink-500/20 hover:border-pink-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

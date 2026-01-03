@@ -16,6 +16,17 @@ import {
 } from "@/components/ui/tooltip";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
 
+// Helper function to format amounts (billions or millions with one decimal)
+const formatAmount = (amount: number): string => {
+  if (amount >= 1000000000) {
+    return `$${(amount / 1000000000).toFixed(1)}B`;
+  } else if (amount >= 1000000) {
+    return `$${(amount / 1000000).toFixed(1)}M`;
+  } else {
+    return `$${amount.toLocaleString()}`;
+  }
+};
+
 const sectorColors: Record<string, { bg: string; text: string; gradient: string }> = {
   "Healthcare": { bg: "bg-red-500/20", text: "text-red-600", gradient: "from-red-500 to-rose-600" },
   "Technology": { bg: "bg-blue-500/20", text: "text-blue-600", gradient: "from-blue-500 to-cyan-600" },
@@ -64,27 +75,27 @@ export function SectorHeatmap() {
 
   if (globalLoading) {
     return (
-      <div className="card-intelligence p-6">
+      <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-pink-400" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="card-intelligence p-6">
+    <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <BarChart3 className="w-5 h-5 text-white" />
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
+            <BarChart3 className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-lg font-bold text-foreground">Sector Heatmap</h2>
-            <p className="text-sm text-muted-foreground">Investment intensity by sector</p>
+            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Sector Heatmap</h2>
+            <p className="text-sm text-pink-200/80">Investment intensity by sector</p>
           </div>
         </div>
-        <Badge variant="secondary" className="text-xs">{heatmapData.length} sectors</Badge>
+        <Badge className="text-xs bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-pink-200 border-pink-400/40 backdrop-blur-sm">{heatmapData.length} sectors</Badge>
       </div>
 
       {/* Heatmap Grid */}
@@ -99,9 +110,9 @@ export function SectorHeatmap() {
                   transition={{ delay: index * 0.05 }}
                   whileHover={{ scale: 1.02 }}
                   className={cn(
-                    "relative p-4 rounded-xl cursor-pointer transition-all overflow-hidden",
-                    sector.colors.bg,
-                    "border border-transparent hover:border-white/20"
+                    "relative p-4 rounded-xl cursor-pointer transition-all overflow-hidden backdrop-blur-sm",
+                    "bg-gradient-to-br from-pink-500/25 to-purple-500/20",
+                    "border border-pink-400/40 hover:border-pink-400/60 hover:scale-105 shadow-lg"
                   )}
                   style={{
                     opacity: 0.5 + (sector.intensity / 200),
@@ -114,24 +125,24 @@ export function SectorHeatmap() {
                   />
                   
                   <div className="relative z-10">
-                    <p className={cn("text-sm font-semibold mb-1 line-clamp-1", sector.colors.text)}>
+                    <p className="text-sm font-semibold mb-1 line-clamp-1 text-white drop-shadow">
                       {sector.sector}
                     </p>
-                    <p className="text-2xl font-bold text-foreground">
-                      ${(sector.funding / 1000).toFixed(1)}B
+                    <p className="text-2xl font-bold text-white drop-shadow-lg">
+                      {formatAmount(sector.funding)}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       {sector.change !== 0 && (
                         <div className={cn(
                           "flex items-center gap-0.5 text-xs font-medium",
-                          sector.change > 0 ? "text-emerald-600" : "text-red-500"
+                          sector.change > 0 ? "text-emerald-300" : "text-red-300"
                         )}>
                           {sector.change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                           {sector.change > 0 ? "+" : ""}{sector.change.toFixed(1)}%
                         </div>
                       )}
                       {sector.jobs > 0 && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-pink-200/80">
                           {(sector.jobs ?? 0).toLocaleString()} jobs
                         </span>
                       )}
@@ -142,7 +153,7 @@ export function SectorHeatmap() {
               <TooltipContent>
                 <div className="space-y-1">
                   <p className="font-semibold">{sector.sector}</p>
-                  <p className="text-xs">Funding: ${((sector.funding ?? 0) / 1000).toFixed(2)}B</p>
+                  <p className="text-xs">Funding: {formatAmount(sector.funding ?? 0)}</p>
                   {sector.jobs > 0 && <p className="text-xs">Jobs: {(sector.jobs ?? 0).toLocaleString()}</p>}
                   {sector.change !== 0 && <p className="text-xs">YoY Change: {sector.change > 0 ? "+" : ""}{(sector.change ?? 0).toFixed(1)}%</p>}
                 </div>
@@ -153,19 +164,19 @@ export function SectorHeatmap() {
       </div>
 
       {/* Legend */}
-      <div className="mt-6 pt-4 border-t border-border/50">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="mt-6 pt-4 border-t border-pink-400/30">
+        <div className="flex items-center justify-between text-xs text-pink-200/80">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-gradient-to-r from-blue-200 to-blue-300" />
+              <div className="w-3 h-3 rounded bg-gradient-to-r from-pink-300 to-purple-300" />
               <span>Lower Investment</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-gradient-to-r from-blue-500 to-purple-600" />
+              <div className="w-3 h-3 rounded bg-gradient-to-r from-pink-500 to-purple-600" />
               <span>Higher Investment</span>
             </div>
           </div>
-          <span>Total: ${(totalBudget / 1000).toFixed(1)}B</span>
+          <span className="text-white font-semibold">Total: {formatAmount(totalBudget)}</span>
         </div>
       </div>
     </div>

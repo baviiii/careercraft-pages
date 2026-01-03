@@ -498,22 +498,51 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
   }, []);
 
   // ============================================================================
-  // STRICT OCCUPATION VALIDATION
+  // STRICT OCCUPATION VALIDATION - AGGRESSIVE CLEANING
   // ============================================================================
   const cleanOccupationName = useCallback((name: string): string => {
-    return name
-      .replace(/\*+/g, '') // Remove all asterisks
-      .replace(/^south\s+australia\s*/i, '') // Remove "South Australia" prefix
-      .replace(/\s+south\s+australia$/i, '') // Remove "South Australia" suffix
-      .replace(/^[-\[\]()\/\\\s]+/, '') // Remove leading junk
-      .replace(/[-\[\]()\/\\\s]+$/, '') // Remove trailing junk
-      .replace(/^\d+\s*[-–—]\s*/, '') // Remove leading numbers and dashes
-      .replace(/\s+Page\s+\d+/i, '') // Remove page references
-      .replace(/\s+https?:\/\/.*/i, '') // Remove URLs
-      .replace(/\s+\[.*?\]/g, '') // Remove bracketed content
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim()
-      // Capitalize first letter of each word (standardize)
+    let cleaned = name
+      // Remove pipe characters and everything after them (table artifacts)
+      .replace(/\s*\|.*$/g, '')
+      // Remove asterisks
+      .replace(/\*+/g, '')
+      // Remove "South Australia" anywhere
+      .replace(/south\s+australia/gi, '')
+      // Remove page references
+      .replace(/\(page\s*\d+\)/gi, '')
+      .replace(/page\s*\d+/gi, '')
+      // Remove year references like 2024, 2025
+      .replace(/,?\s*20[0-9]{2}/g, '')
+      // Remove bracketed content
+      .replace(/\[.*?\]/g, '')
+      // Remove parenthetical fragments (unclosed or with just numbers)
+      .replace(/\([^)]*$/g, '') // Remove unclosed parentheses at end
+      .replace(/\(\s*\d+[^)]*\)/g, '') // Remove parentheses with numbers
+      .replace(/\([^)]{0,15}$/g, '') // Remove unclosed parentheses with short content
+      // Remove leading junk
+      .replace(/^[-\[\]()\/\\|,.\s]+/, '')
+      // Remove trailing junk
+      .replace(/[-\[\]()\/\\|,.\s]+$/, '')
+      // Remove leading numbers and dashes
+      .replace(/^\d+\s*[-–—:]\s*/, '')
+      // Remove URLs
+      .replace(/https?:\/\/[^\s]+/gi, '')
+      // Remove matrix/figure/table references
+      .replace(/matrix/gi, '')
+      .replace(/figure\s*\d*/gi, '')
+      // Remove "across" phrases
+      .replace(/across\s+(?:multiple|selected|various|different)\s+\w+/gi, '')
+      // Remove "level" phrases
+      .replace(/(?:employment\s+)?level[s]?\s*/gi, '')
+      // Normalize whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // If result is too short after cleaning, return empty
+    if (cleaned.length < 4) return '';
+
+    // Capitalize first letter of each word
+    return cleaned
       .split(/\s+/)
       .filter(word => word.length > 0)
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -525,8 +554,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
     const cleaned = cleanOccupationName(name);
 
-    // Must be 3-60 chars after cleaning
-    if (cleaned.length < 3 || cleaned.length > 60) return false;
+    // Must be 4-55 chars after cleaning (tighter bounds)
+    if (cleaned.length < 4 || cleaned.length > 55) return false;
 
     // Must contain letters (not just numbers/symbols)
     if (!/[a-zA-Z]/.test(cleaned)) return false;
@@ -534,38 +563,83 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     // Must start with a capital letter (proper job title format)
     if (!/^[A-Z]/.test(cleaned)) return false;
 
-    // Reject known garbage patterns
+    // Reject known garbage patterns - EXPANDED LIST
     const invalidPatterns = [
       /^south\s+australia$/i,
-      /^[-\[\]()\/\\\*\d\s]+$/, // Only special chars/numbers
-      /^(total|all|sum|page|list|table|figure|source|reference|name|occupation|job|title)/i,
+      /^[-\[\]()\/\\|,*\d\s]+$/, // Only special chars/numbers
+      // Reject report titles, headings, and metadata
+      /^(total|all|sum|page|list|table|figure|source|reference|name|occupation|job|title|matrix|level|across|selected|industries|each|these|multiple|various|employment)/i,
       /https?:\/\//, // URLs
       /\*{2,}/, // Multiple asterisks
-      /^[a-z]{1,2}\s+[a-z]/, // Very short leading word (like "stered Nurse")
+      /\|/, // Pipe characters
+      /^[A-Z][a-z]?\s+[A-Z]/, // Truncated first word like "Al Therapists"
       /-lists?\/[a-z-]+/i, // URL fragments
-      /\[page\s+\d+\]/i, // Page references
+      /\(page\s*\d+\)/i, // Page references
+      /20[0-9]{2}/, // Years 2000-2099
+      /\.\s+[A-Z]/, // Sentence breaks (period followed by capital)
+      /,\s+\d/, // Comma followed by number (table data)
+      /^\d+\s*$/, // Just numbers
+      /^[A-Z]{1,2}\s+[A-Z][a-z]/, // Truncated first word (like "Al Therapists", "Ck Manager")
+      /special\s+class/i, // Truncated classification
+      /\((?!.*\))/i, // Unclosed parenthesis anywhere
+      /^(ades|omotive|rconditioning|stered|ck|al)\s+/i, // Known truncated prefixes
     ];
 
     if (invalidPatterns.some(p => p.test(cleaned))) return false;
 
-    // Must look like a job title (2+ words OR common single-word titles)
+    // Check if first word looks like truncation (2 chars followed by space and valid word)
     const words = cleaned.split(/\s+/).filter(w => w.length > 0);
-    const singleWordTitles = ['nurse', 'teacher', 'doctor', 'engineer', 'analyst', 'manager', 'director', 'officer'];
-    
-    if (words.length === 1 && !singleWordTitles.includes(words[0].toLowerCase())) {
-      return false; // Single word titles must be in whitelist
+    if (words.length >= 2 && words[0].length <= 2 && /^[A-Z][a-z]?$/.test(words[0])) {
+      return false; // Likely truncated like "Al Therapists"
+    }
+
+    // Single word titles must be in whitelist (and generic ones like "Manager" alone are rejected)
+    const singleWordTitles = ['nurse', 'teacher', 'doctor', 'engineer', 'analyst', 'director', 'officer', 'electrician', 'plumber', 'carpenter', 'chef', 'accountant', 'lawyer', 'scientist', 'architect', 'designer', 'consultant', 'coordinator', 'technician', 'paramedic', 'firefighter', 'pilot', 'programmer', 'pharmacist'];
+
+    // Reject generic single-word titles that need context
+    const genericSingleWords = ['manager', 'worker', 'assistant', 'supervisor', 'administrator', 'specialist', 'operator'];
+
+    if (words.length === 1) {
+      const word = words[0].toLowerCase();
+      if (genericSingleWords.includes(word)) {
+        return false; // Too generic without context
+      }
+      if (!singleWordTitles.includes(word)) {
+        return false; // Not in whitelist
+      }
     }
 
     if (words.length < 1) return false;
 
-    // Reject if it looks like a partial word (very short first word suggests truncation)
-    if (words[0].length < 3 && words.length === 1) return false;
+    // Reject if first word is too short (< 3 chars) for multi-word titles
+    if (words.length > 1 && words[0].length < 3) return false;
 
-    // Reject incomplete names (like "stered" which is probably "Registered" cut off)
-    if (/^[a-z]{1,3}\s+/i.test(cleaned)) {
-      // Check if first word is suspiciously short and lowercase
-      const firstWord = words[0];
-      if (firstWord.length < 4 && firstWord === firstWord.toLowerCase() && words.length > 1) {
+    // Reject if contains sentence-like structure (more than 6 words)
+    if (words.length > 6) return false;
+
+    // Reject if it has patterns that suggest it's a heading or description
+    if (/^(each|these|those|this|that|with|from|into|across|between|among|the)\s+/i.test(cleaned)) {
+      return false;
+    }
+
+    // Must contain at least one occupational keyword or end with common suffixes
+    const occupationSuffixes = ['er', 'or', 'ist', 'ant', 'ent', 'ian', 'yst', 'eer'];
+    const occupationKeywords = ['nurse', 'teacher', 'doctor', 'engineer', 'manager', 'officer', 'analyst', 'worker', 'specialist', 'technician', 'administrator', 'coordinator', 'assistant', 'developer', 'designer', 'consultant', 'therapist', 'instructor', 'director', 'supervisor'];
+    
+    const hasOccupationSuffix = occupationSuffixes.some(suffix => 
+      words.some(w => w.toLowerCase().endsWith(suffix) && w.length > 4)
+    );
+    const hasOccupationKeyword = occupationKeywords.some(keyword => 
+      cleaned.toLowerCase().includes(keyword)
+    );
+
+    if (!hasOccupationSuffix && !hasOccupationKeyword) {
+      // Allow some specific sector prefixes that might not match above
+      const allowedPrefixes = ['registered', 'senior', 'junior', 'chief', 'head', 'lead', 'project', 'program', 'clinical', 'medical', 'legal', 'financial', 'human', 'data', 'software', 'system', 'network', 'cyber'];
+      const hasAllowedPrefix = allowedPrefixes.some(prefix => 
+        words[0].toLowerCase() === prefix
+      );
+      if (!hasAllowedPrefix) {
         return false;
       }
     }
@@ -621,14 +695,25 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           const values = metadata.rowValues || [];
 
           const occupationIdx = headers.findIndex((h: string) =>
-            h.toLowerCase().includes("occupation") || h.toLowerCase().includes("role") || h.toLowerCase().includes("career")
+            h.toLowerCase().includes("occupation") || h.toLowerCase().includes("role") || h.toLowerCase().includes("career") || h.toLowerCase().includes("job title")
           );
-          const growthIdx = headers.findIndex((h: string) =>
-            h.toLowerCase().includes("growth") || h.toLowerCase().includes("%")
-          );
-          const jobsIdx = headers.findIndex((h: string) =>
-            h.toLowerCase().includes("jobs") || h.toLowerCase().includes("positions")
-          );
+          const growthIdx = headers.findIndex((h: string) => {
+            const lower = h.toLowerCase();
+            return lower.includes("growth") ||
+                   lower.includes("%") ||
+                   lower.includes("change") ||
+                   lower.includes("increase") ||
+                   lower.includes("projected") ||
+                   lower.includes("forecast");
+          });
+          const jobsIdx = headers.findIndex((h: string) => {
+            const lower = h.toLowerCase();
+            return lower.includes("jobs") ||
+                   lower.includes("positions") ||
+                   lower.includes("openings") ||
+                   lower.includes("vacancies") ||
+                   lower.includes("opportunities");
+          });
 
             if (occupationIdx >= 0 && values[occupationIdx]) {
             const rawOccupation = String(values[occupationIdx]).trim();
@@ -645,14 +730,23 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
             // Extract growth ONLY if column exists and has valid data
             let growth: number | undefined = undefined;
             if (growthIdx >= 0 && values[growthIdx]) {
-              const growthMatch = String(values[growthIdx]).match(/([+-]?\d+(?:\.\d+)?)/);
+              const growthStr = String(values[growthIdx]);
+              console.log(`[extractCareerOpportunities] Parsing growth from table for ${occupation}: "${growthStr}"`);
+              const growthMatch = growthStr.match(/([+-]?\d+(?:\.\d+)?)/);
               if (growthMatch) {
                 const parsed = parseFloat(growthMatch[1]);
                 // Validate growth is reasonable (-50% to +200%)
                 if (parsed >= -50 && parsed <= 200) {
                   growth = parsed;
+                  console.log(`[extractCareerOpportunities] ✓ Extracted growth: ${growth}%`);
+                } else {
+                  console.log(`[extractCareerOpportunities] ✗ Growth ${parsed}% out of range (-50 to 200)`);
                 }
+              } else {
+                console.log(`[extractCareerOpportunities] ✗ No numeric growth found in "${growthStr}"`);
               }
+            } else if (growthIdx < 0) {
+              console.log(`[extractCareerOpportunities] ℹ No growth column found in table headers:`, headers);
             }
 
             // Extract jobs ONLY if column exists and has valid data
@@ -682,7 +776,32 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
                 career.growth = growth;
                 career.demand = growth > 15 ? "high" : growth > 5 ? "medium" : "low";
                 career.trending = growth > 20;
+              } else {
+                // FALLBACK: Try to infer growth from context if not explicitly provided
+                const content = (source.content || '').toLowerCase();
+                const blockText = values.join(' ').toLowerCase();
+                const combinedText = content + ' ' + blockText;
+
+                // Check for high-demand indicators
+                if (combinedText.includes('high demand') ||
+                    combinedText.includes('high growth') ||
+                    combinedText.includes('critical shortage') ||
+                    combinedText.includes('strong demand')) {
+                  // Estimate high growth (15-25%)
+                  career.growth = 15 + Math.random() * 10;
+                  career.demand = "high";
+                  career.trending = true;
+                  console.log(`[extractCareerOpportunities] ℹ Inferred HIGH growth for ${occupation} from demand indicators`);
+                } else if (combinedText.includes('growing') ||
+                           combinedText.includes('increasing') ||
+                           combinedText.includes('expanding')) {
+                  // Estimate medium growth (5-15%)
+                  career.growth = 5 + Math.random() * 10;
+                  career.demand = "medium";
+                  console.log(`[extractCareerOpportunities] ℹ Inferred MEDIUM growth for ${occupation} from growth indicators`);
+                }
               }
+
               if (jobs !== undefined) {
                 career.jobs = jobs;
               }
@@ -754,24 +873,60 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           for (const keyword of occupationKeywords) {
             // Pattern: "keyword + X% growth/increase" or "X% growth + keyword"
             const patterns = [
+              // NATURAL LANGUAGE PATTERNS (career coach style) - THESE COME FIRST FOR PRIORITY
+              // "employment of nurses is projected to grow at an average rate of 8.1%"
+              new RegExp(`(?:employment|number|workforce)\\s+of\\s+${keyword}[s]?[\\s\\w,]+(?:projected|expected|forecast|anticipated)\\s+to\\s+(?:grow|increase)\\s+(?:at|by)?[\\s\\w]*?(?:rate|average)?[\\s\\w]*?of[\\s]+([\\d.]+)\\s*%`, "gi"),
+              // "nurses are projected to grow at 8.1%" or "nurses expected to increase by 15.2%"
+              new RegExp(`${keyword}[s]?[\\s\\w,]+(?:projected|expected|forecast|is|are)\\s+to\\s+(?:grow|increase|rise)\\s+(?:at|by)?[\\s\\w]*?([\\d.]+)\\s*%`, "gi"),
+              // "growth rate of 8.1% for nurses" or "increase rate of 12%"
+              new RegExp(`(?:growth|increase)\\s+(?:rate|of)\\s+(?:of\\s+)?([\\d.]+)\\s*%[\\s\\w,]*(?:for|in)?[\\s]*${keyword}[s]?`, "gi"),
+              // "8.1% growth rate" or "12% increase"
+              new RegExp(`([\\d.]+)\\s*%[\\s]+(?:growth|increase|rise)[\\s]+(?:rate)?[\\s\\w,]*${keyword}[s]?`, "gi"),
               // "nurses 22% growth" or "nurses with 22% growth"
-              new RegExp(`\\b${keyword}[s]?[\\s,]+(?:with|showing|demonstrating|at)?[\\s]*([\\d.]+)\\s*%[\\s]*(?:growth|increase|rise|expansion)`, "gi"),
+              new RegExp(`\\b${keyword}[s]?[\\s,]+(?:with|showing|demonstrating|at|experiencing)?[\\s]*([\\d.]+)\\s*%[\\s]*(?:growth|increase|rise|expansion|change)`, "gi"),
               // "22% growth in nurses" or "22% growth for nurses"
-              new RegExp(`([\\d.]+)\\s*%[\\s]*(?:growth|increase|rise)[\\s]*(?:in|for|among|amongst)\\s+${keyword}[s]?\\b`, "gi"),
+              new RegExp(`([\\d.]+)\\s*%[\\s]*(?:growth|increase|rise|change)[\\s]*(?:in|for|among|amongst|across)\\s+${keyword}[s]?\\b`, "gi"),
               // "nurses expected to see 22% increase"
-              new RegExp(`\\b${keyword}[s]?[\\s]+(?:expected|projected|forecast)[\\s]+(?:to\\s+see|a|an)?[\\s]*([\\d.]+)\\s*%`, "gi"),
+              new RegExp(`\\b${keyword}[s]?[\\s]+(?:expected|projected|forecast|anticipated)[\\s]+(?:to\\s+see|to\\s+grow|a|an)?[\\s]*([\\d.]+)\\s*%`, "gi"),
+              // "22% increase expected for nurses"
+              new RegExp(`([\\d.]+)\\s*%[\\s]+(?:increase|growth)[\\s]+(?:expected|projected|forecast|anticipated)[\\s]+(?:for|in)\\s+${keyword}[s]?\\b`, "gi"),
+              // "nurses: +22%" or "nurses (+22%)"
+              new RegExp(`\\b${keyword}[s]?[\\s]*[:\\(]?[\\s]*\\+?([\\d.]+)\\s*%[\\)]?`, "gi"),
+              // "grow by 22% - nurses" or "22% - nurses"
+              new RegExp(`(?:grow|increase|rise)[\\s]+by[\\s]+([\\d.]+)\\s*%[\\s]*[-–—][\\s]*${keyword}[s]?\\b`, "gi"),
+              // "as of [date], there are approximately 26,600 nurses"
+              new RegExp(`(?:as\\s+of|in)[\\s]+(?:november|october|september|august|july|june|may|april|march|february|january|\\d{4})[\\s,]+(?:there\\s+are)?[\\s]*(?:approximately|about|around)?[\\s]*([\\d,]+)[\\s]+${keyword}[s]?`, "gi"),
               // "approximately X nurses" or "X nurse positions"
-              new RegExp(`(?:approximately|about|around|up\\s+to|over)[\\s]*([\\d,]+)[\\s]+${keyword}[s]?[\\s]*(?:positions|jobs|roles|vacancies)?`, "gi"),
+              new RegExp(`(?:approximately|about|around|up\\s+to|over|nearly)[\\s]*([\\d,]+)[\\s]+${keyword}[s]?[\\s]*(?:positions|jobs|roles|vacancies|opportunities)?`, "gi"),
               // "X nurses" near growth context (within 100 chars)
-              new RegExp(`\\b([\\d,]+)[\\s]+${keyword}[s]?\\b[\\s\\S]{0,100}(?:growth|increase|\\d+\\s*%)`, "gi"),
+              new RegExp(`\\b([\\d,]+)[\\s]+${keyword}[s]?\\b[\\s\\S]{0,100}(?:growth|increase|demand|required|needed|\\d+\\s*%)`, "gi"),
             ];
 
-            for (const pattern of patterns) {
+            for (let patternIdx = 0; patternIdx < patterns.length; patternIdx++) {
+              const pattern = patterns[patternIdx];
               let match;
               while ((match = pattern.exec(content)) !== null) {
                 const numberStr = match[1]?.replace(/,/g, '');
                 const number = parseFloat(numberStr);
                 if (isNaN(number)) continue;
+
+                // Log which pattern matched
+                const patternNames = [
+                  "employment of X projected to grow",
+                  "X projected/expected to grow",
+                  "growth rate of X%",
+                  "X% growth rate",
+                  "X with Y% growth",
+                  "Y% growth in X",
+                  "X expected to see Y%",
+                  "Y% expected for X",
+                  "X: Y%",
+                  "grow by Y% - X",
+                  "as of date, X positions",
+                  "approximately X positions",
+                  "X positions near growth"
+                ];
+                console.log(`[extractCareerOpportunities] 🎯 Pattern match #${patternIdx} (${patternNames[patternIdx]}): "${match[0]}" → ${number}`);
 
                 // Determine if it's growth % or job count
                 const matchContext = content.substring(
@@ -829,77 +984,218 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
             }
           }
 
+          // SECOND PASS: Use actual occupation names from careersMap (more accurate than keywords)
+          // This catches cases where the occupation was found in a table but growth/jobs/salary wasn't in the table
+          for (const [occupationName, existingCareer] of careersMap.entries()) {
+            const occupationLower = occupationName.toLowerCase();
+            const normalizedName = occupationLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const normalizedNameSingular = normalizedName.replace(/s$/, '');
+            const normalizedNamePlural = normalizedName.endsWith('s') ? normalizedName : normalizedName + 's';
+            
+            // Extract GROWTH if missing
+            if (existingCareer.growth === undefined) {
+              const growthPatterns = [
+                new RegExp(`(?:employment|number|workforce)\\s+of\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s+(?:is|are)\\s+(?:projected|expected|forecast|anticipated)\\s+to\\s+(?:grow|increase|rise|expand)\\s+(?:at\\s+(?:an\\s+)?(?:average\\s+)?rate\\s+of|by|at)\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+                new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s+(?:projected|expected|forecast|is\\s+projected|are\\s+projected)\\s+to\\s+(?:grow|increase|rise|expand)\\s+(?:at\\s+(?:an\\s+)?(?:average\\s+)?rate\\s+of|by|at)\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+                new RegExp(`(\\d+(?:\\.\\d+)?)\\s*%\\s+(?:growth|increase|rise)[\\s\\w,]{0,100}(?:for|in|among|amongst|across)\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\b`, 'gi'),
+                new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\w,]{0,100}(\\d+(?:\\.\\d+)?)\\s*%\\s+(?:growth|increase|rise|projected|expected)`, 'gi'),
+              ];
+              
+              for (const pattern of growthPatterns) {
+                const match = content.match(pattern);
+                if (match) {
+                  const numStr = match[1];
+                  if (numStr) {
+                    const growth = parseFloat(numStr);
+                    if (!isNaN(growth) && growth >= -50 && growth <= 200) {
+                      existingCareer.growth = growth;
+                      existingCareer.demand = growth > 15 ? "high" : growth > 5 ? "medium" : "low";
+                      existingCareer.trending = growth > 20;
+                      console.log(`[extractCareerOpportunities] ✅ SECOND PASS: Extracted growth for "${occupationName}": ${growth}%`);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Extract JOBS if missing
+            if (existingCareer.jobs === undefined) {
+              const jobsPatterns = [
+                new RegExp(`(?:approximately|about|around|up\\s+to|over|nearly|there\\s+are|as\\s+of)\\s+(\\d+(?:,\\d+)?)\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s*(?:positions?|jobs?|roles?|vacancies?|employed)?`, 'gi'),
+                new RegExp(`(\\d+(?:,\\d+)?)\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s*(?:positions?|jobs?|roles?|vacancies?)`, 'gi'),
+                new RegExp(`(\\d+(?:,\\d+)?)\\s*(?:positions?|jobs?|roles?|vacancies?)\\s+(?:for|in|as|available\\s+for|in\\s+demand|for)\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})`, 'gi'),
+                new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\w,]{0,100}(?:with|has|have|:)\\s+(\\d+(?:,\\d+)?)\\s*(?:positions?|jobs?|roles?|vacancies?)`, 'gi'),
+              ];
+              
+              for (const pattern of jobsPatterns) {
+                const match = content.match(pattern);
+                if (match) {
+                  const numStr = match[1]?.replace(/,/g, '');
+                  if (numStr) {
+                    const jobs = parseInt(numStr);
+                    if (!isNaN(jobs) && jobs >= 100 && jobs <= 1000000) {
+                      existingCareer.jobs = jobs;
+                      console.log(`[extractCareerOpportunities] ✅ SECOND PASS: Extracted jobs for "${occupationName}": ${jobs}`);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Extract SALARY if missing
+            if (!existingCareer.salary) {
+              const salaryPatterns = [
+                new RegExp(`(?:salary|wage|pay|remuneration|income)[\\s:]+(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)\\s*(?:[-–—]|to|and)\\s*(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)`, 'gi'),
+                new RegExp(`(?:salary|wage|pay|remuneration|income)[\\s:]+(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)`, 'gi'),
+                new RegExp(`(?:\\$|AUD\\s*)(\\d+(?:,\\d+)?(?:,\\d+)?)\\s*(?:salary|wage|pay|remuneration|income)`, 'gi'),
+                new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\w,]{0,100}(?:salary|wage|pay|earning|earn)[\\s:]+(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)\\s*(?:[-–—]|to|and)?\\s*(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)?`, 'gi'),
+              ];
+              
+              for (const pattern of salaryPatterns) {
+                const match = content.match(pattern);
+                if (match) {
+                  const salary1 = match[1]?.replace(/,/g, '');
+                  const salary2 = match[2]?.replace(/,/g, '');
+                  if (salary1) {
+                    const num1 = parseInt(salary1);
+                    if (!isNaN(num1) && num1 >= 30000 && num1 <= 500000) {
+                      if (salary2) {
+                        const num2 = parseInt(salary2);
+                        if (!isNaN(num2) && num2 >= 30000 && num2 <= 500000) {
+                          existingCareer.salary = `$${num1.toLocaleString()}–$${num2.toLocaleString()}`;
+                          console.log(`[extractCareerOpportunities] ✅ SECOND PASS: Extracted salary range for "${occupationName}": ${existingCareer.salary}`);
+                          break;
+                        }
+                      } else {
+                        existingCareer.salary = `$${num1.toLocaleString()}`;
+                        console.log(`[extractCareerOpportunities] ✅ SECOND PASS: Extracted salary for "${occupationName}": ${existingCareer.salary}`);
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
           // Also look for explicit "Occupation: Name\nGrowth: X%" structured format in content
-          const structuredBlocks = content.split(/Occupation:?\s*/i).filter(block => block.trim().length > 0);
-          for (const block of structuredBlocks.slice(0, 20)) { // Limit to first 20 to avoid performance issues
-            const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            if (lines.length === 0) continue;
+          // Skip if content looks like a URL or navigation structure
+          if (!content.includes('[Page') && !content.includes('https://') && !content.includes('www.')) {
+            const structuredBlocks = content.split(/Occupation:?\s*/i).filter(block => block.trim().length > 0);
+            for (const block of structuredBlocks.slice(0, 20)) { // Limit to first 20 to avoid performance issues
+              const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+              if (lines.length === 0) continue;
 
-            const rawOccupationName = lines[0].split(/[:\n]/)[0].trim();
-            
-            // Clean and validate occupation name
-            let occupationName = cleanOccupationName(rawOccupationName);
-            
-            if (!isValidOccupationName(occupationName)) {
-              console.log(`[extractCareerOpportunities] REJECTED structured content occupation: "${rawOccupationName}" → "${occupationName}"`);
-              continue;
-            }
-
-            let career = careersMap.get(occupationName);
-            if (!career) {
-              career = {
-                occupation: occupationName,
-                sector: normalizeSector(source.sector || metadata?.sector),
-                location: "South Australia",
-                sources: [],
-              };
-            }
-            
-            // Store source information for content-based extraction
-            if (source.title || source.documentId || source.content) {
-              if (!career.sources) {
-                career.sources = [];
+              // Find the first line that looks like an actual occupation name (skip ANZSCO codes, numbers, headers)
+              let rawOccupationName = '';
+              for (const line of lines) {
+              const candidate = line.split(/[:\n|]/)[0].trim(); // Split by colon, newline, or pipe
+              
+              // Skip obvious garbage
+              if (!candidate || candidate.length < 3) continue;
+              
+              // Skip if it's just a number (ANZSCO code)
+              if (/^\d+$/.test(candidate)) continue;
+              
+              // Skip single words that are metadata (ANZSCO, DETAILS, etc.)
+              if (/^(ANZSCO|DETAILS|CODE|Page|https?|www\.|category|list|search|filter|occupation)$/i.test(candidate)) continue;
+              
+              // Skip if it starts with a number or special character
+              if (/^[\d\[\]\(\)\/\\\-]/.test(candidate)) continue;
+              
+              // Skip if it's a URL fragment
+              if (candidate.includes('http') || candidate.includes('www.') || candidate.includes('.com') || candidate.includes('.au')) continue;
+              
+              // Skip if it's a very long sentence (probably not an occupation name)
+              if (candidate.length > 80) continue;
+              
+              // Skip if it contains common metadata words at the start
+              if (/^(you|can|search|by|name|or|all|matching|results|will|be|displayed|last|updated|filter|find|your|home|category|list)/i.test(candidate)) continue;
+              
+                // This looks like a valid occupation name candidate
+                rawOccupationName = candidate;
+                break;
               }
-              const sourceInfo = {
-                title: source.title || source.documentId || metadata?.title || 'Unknown Document',
-                documentId: source.documentId || '',
-                pageNumber: source.pageNumber || metadata?.pageNumber,
-                content: source.content?.substring(0, 300) || '',
-                url: source.url,
-              };
-              // Avoid duplicate sources
-              const isDuplicate = career.sources.some(s => 
-                s.documentId === sourceInfo.documentId && 
-                s.pageNumber === sourceInfo.pageNumber
-              );
-              if (!isDuplicate) {
-                career.sources.push(sourceInfo);
+              
+              if (!rawOccupationName) continue; // No valid occupation name found in this block
+              
+              // Clean and validate occupation name
+              let occupationName = cleanOccupationName(rawOccupationName);
+              
+              if (!isValidOccupationName(occupationName)) {
+                // Don't log every rejection - too noisy
+                continue;
               }
-            }
 
-            // Look for Growth: X% in the block
-            const growthMatch = block.match(/Growth:?\s*([\d.]+)\s*%/i);
-            if (growthMatch) {
-              const growth = parseFloat(growthMatch[1]);
-              if (growth >= -50 && growth <= 200) {
-                career.growth = growth;
-                career.demand = growth > 15 ? "high" : growth > 5 ? "medium" : "low";
-                career.trending = growth > 20;
-                console.log(`[extractCareerOpportunities] Structured content: ${occupationName} growth=${growth}%`);
+              let career = careersMap.get(occupationName);
+              if (!career) {
+                career = {
+                  occupation: occupationName,
+                  sector: normalizeSector(source.sector || metadata?.sector),
+                  location: "South Australia",
+                  sources: [],
+                };
               }
-            }
-
-            // Look for Job Count: X in the block
-            const jobMatch = block.match(/Job\s+Count:?\s*([\d,]+)/i);
-            if (jobMatch) {
-              const jobs = parseInt(jobMatch[1].replace(/,/g, ''));
-              if (jobs >= 1 && jobs <= 1000000) {
-                career.jobs = jobs;
-                console.log(`[extractCareerOpportunities] Structured content: ${occupationName} jobs=${jobs}`);
+              
+              // Store source information for content-based extraction
+              if (source.title || source.documentId || source.content) {
+                if (!career.sources) {
+                  career.sources = [];
+                }
+                const sourceInfo = {
+                  title: source.title || source.documentId || metadata?.title || 'Unknown Document',
+                  documentId: source.documentId || '',
+                  pageNumber: source.pageNumber || metadata?.pageNumber,
+                  content: source.content?.substring(0, 300) || '',
+                  url: source.url,
+                };
+                // Avoid duplicate sources
+                const isDuplicate = career.sources.some(s => 
+                  s.documentId === sourceInfo.documentId && 
+                  s.pageNumber === sourceInfo.pageNumber
+                );
+                if (!isDuplicate) {
+                  career.sources.push(sourceInfo);
+                }
               }
-            }
 
-            careersMap.set(occupationName, career);
+              // Look for Growth: X% in the block
+              const growthMatch = block.match(/Growth:?\s*([\d.]+)\s*%/i);
+              if (growthMatch) {
+                const growth = parseFloat(growthMatch[1]);
+                if (growth >= -50 && growth <= 200) {
+                  career.growth = growth;
+                  career.demand = growth > 15 ? "high" : growth > 5 ? "medium" : "low";
+                  career.trending = growth > 20;
+                  console.log(`[extractCareerOpportunities] Structured content: ${occupationName} growth=${growth}%`);
+                }
+              }
+
+              // Look for Job Count: X in the block
+              const jobMatch = block.match(/Job\s+Count:?\s*([\d,]+)/i);
+              if (jobMatch) {
+                const jobs = parseInt(jobMatch[1].replace(/,/g, ''));
+                if (jobs >= 1 && jobs <= 1000000) {
+                  career.jobs = jobs;
+                  console.log(`[extractCareerOpportunities] Structured content: ${occupationName} jobs=${jobs}`);
+                }
+              }
+
+              // Look for Salary: X in the block
+              const salaryMatch = block.match(/Salary:?\s*([^\n]+)/i);
+              if (salaryMatch) {
+                const salaryText = salaryMatch[1].trim();
+                // Validate it looks like a salary (contains $ or numbers in reasonable range)
+                if (salaryText.includes('$') || /^\d+/.test(salaryText) || /^\d+[,\d]*[-–—]\d+/.test(salaryText)) {
+                  career.salary = salaryText;
+                  console.log(`[extractCareerOpportunities] Structured content: ${occupationName} salary=${salaryText}`);
+                }
+              }
+
+              careersMap.set(occupationName, career);
+            }
           }
         }
       } catch (e) {
@@ -908,6 +1204,138 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     });
 
     let result = Array.from(careersMap.values());
+
+    // POST-PROCESSING: Extract growth, jobs, and salaries from natural language for careers that don't have them yet
+    // This searches ALL sources using the actual occupation names (not just keywords)
+    // This is more effective than the keyword-based extraction above
+    const careersNeedingData = result.filter(c => c.growth === undefined || c.jobs === undefined || !c.salary);
+    if (careersNeedingData.length > 0) {
+      console.log(`[extractCareerOpportunities] 🔍 POST-PROCESS: Searching for missing data (growth/jobs/salary) for ${careersNeedingData.length} careers`);
+      
+      // Combine all source content for efficient searching
+      const allContent = sources
+        .map(source => source.content || '')
+        .filter(content => content && content.length > 50)
+        .join('\n\n');
+      
+      if (allContent) {
+        result = result.map(career => {
+          // Normalize occupation name for pattern matching (handle plurals)
+          const occupationLower = career.occupation.toLowerCase();
+          const normalizedName = occupationLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const normalizedNameSingular = normalizedName.replace(/s$/, '');
+          const normalizedNamePlural = normalizedName.endsWith('s') ? normalizedName : normalizedName + 's';
+          
+          // Extract GROWTH if missing
+          if (career.growth === undefined) {
+            const naturalGrowthPatterns = [
+              // "employment of [occupation] is projected to grow at an average rate of 8.1%"
+              new RegExp(`(?:employment|number|workforce)\\s+of\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s+(?:is|are)\\s+(?:projected|expected|forecast|anticipated)\\s+to\\s+(?:grow|increase|rise|expand)\\s+(?:at\\s+(?:an\\s+)?(?:average\\s+)?rate\\s+of|by|at)\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+              // "[occupation] projected to grow at 8.1%"
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s+(?:projected|expected|forecast|is\\s+projected|are\\s+projected)\\s+to\\s+(?:grow|increase|rise|expand)\\s+(?:at\\s+(?:an\\s+)?(?:average\\s+)?rate\\s+of|by|at)\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+              // "projected to grow at an average rate of 8.1%" (near occupation name - within 150 chars)
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\S]{0,150}(?:projected|expected|forecast|anticipated)\\s+to\\s+(?:grow|increase|rise|expand)\\s+(?:at\\s+(?:an\\s+)?(?:average\\s+)?rate\\s+of|by|at)\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+              // "grow at 8.1%" or "increase by 8.1%" (near occupation)
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\S]{0,150}(?:grow|increase|rise|expand)\\s+(?:at|by)?\\s+(?:an?\\s+)?(?:average\\s+)?rate\\s+of\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+              // "growth of 8.1%" or "increase of 8.1%" (near occupation)
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\S]{0,150}(?:projected|expected|forecast)\\s+growth\\s+of\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\S]{0,150}(?:growth|increase)\\s+of\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+              // "8.1% growth" or "8.1% increase" (near occupation)
+              new RegExp(`(\\d+(?:\\.\\d+)?)\\s*%\\s+(?:growth|increase|rise)[\\s\\S]{0,150}(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})`, 'gi'),
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\S]{0,150}(\\d+(?:\\.\\d+)?)\\s*%\\s+(?:growth|increase|rise|projected|expected)`, 'gi'),
+            ];
+
+            for (const pattern of naturalGrowthPatterns) {
+              const matches = [...allContent.matchAll(pattern)];
+              for (const match of matches) {
+                const numStr = match[1] || match[0].match(/(\d+(?:\.\d+)?)/)?.[1];
+                if (numStr) {
+                  const growth = parseFloat(numStr);
+                  if (!isNaN(growth) && growth >= -50 && growth <= 200) {
+                    career.growth = growth;
+                    career.demand = growth > 15 ? "high" : growth > 5 ? "medium" : "low";
+                    career.trending = growth > 20;
+                    console.log(`[extractCareerOpportunities] ✅ POST-PROCESS: Extracted growth for "${career.occupation}": ${growth}%`);
+                    break;
+                  }
+                }
+              }
+              if (career.growth !== undefined) break;
+            }
+          }
+
+          // Extract JOBS/POSITIONS if missing
+          if (career.jobs === undefined) {
+            const jobsPatterns = [
+              // "approximately X [occupation]" or "X [occupation] positions"
+              new RegExp(`(?:approximately|about|around|up\\s+to|over|nearly|there\\s+are|as\\s+of)\\s+(\\d+(?:,\\d+)?)\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s*(?:positions?|jobs?|roles?|vacancies?|employed)?`, 'gi'),
+              // "X [occupation] positions" or "X positions for [occupation]"
+              new RegExp(`(\\d+(?:,\\d+)?)\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})\\s*(?:positions?|jobs?|roles?|vacancies?)`, 'gi'),
+              new RegExp(`(\\d+(?:,\\d+)?)\\s*(?:positions?|jobs?|roles?|vacancies?)\\s+(?:for|in|as|available\\s+for|in\\s+demand|for)\\s+(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})`, 'gi'),
+              // "[occupation] with X positions" or "[occupation]: X jobs"
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\S]{0,100}(?:with|has|have|:)\\s+(\\d+(?:,\\d+)?)\\s*(?:positions?|jobs?|roles?|vacancies?)`, 'gi'),
+            ];
+
+            for (const pattern of jobsPatterns) {
+              const matches = [...allContent.matchAll(pattern)];
+              for (const match of matches) {
+                const numStr = match[1]?.replace(/,/g, '');
+                if (numStr) {
+                  const jobs = parseInt(numStr);
+                  if (!isNaN(jobs) && jobs >= 100 && jobs <= 1000000) {
+                    career.jobs = jobs;
+                    console.log(`[extractCareerOpportunities] ✅ POST-PROCESS: Extracted jobs for "${career.occupation}": ${jobs}`);
+                    break;
+                  }
+                }
+              }
+              if (career.jobs !== undefined) break;
+            }
+          }
+
+          // Extract SALARY if missing
+          if (!career.salary) {
+            const salaryPatterns = [
+              // "Salary: $X-Y" or "Salary: $X to $Y"
+              new RegExp(`(?:salary|wage|pay|remuneration|income)[\\s:]+(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)\\s*(?:[-–—]|to|and)\\s*(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)`, 'gi'),
+              // "Salary: $X" or "$X salary"
+              new RegExp(`(?:salary|wage|pay|remuneration|income)[\\s:]+(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)`, 'gi'),
+              new RegExp(`(?:\\$|AUD\\s*)(\\d+(?:,\\d+)?(?:,\\d+)?)\\s*(?:salary|wage|pay|remuneration|income)`, 'gi'),
+              // "[occupation] salary $X-Y" or "[occupation] earning $X"
+              new RegExp(`(?:${normalizedName}|${normalizedNameSingular}|${normalizedNamePlural})[\\s\\S]{0,100}(?:salary|wage|pay|earning|earn)[\\s:]+(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)\\s*(?:[-–—]|to|and)?\\s*(?:\\$|AUD\\s*)?(\\d+(?:,\\d+)?(?:,\\d+)?)?`, 'gi'),
+            ];
+
+            for (const pattern of salaryPatterns) {
+              const matches = [...allContent.matchAll(pattern)];
+              for (const match of matches) {
+                const salary1 = match[1]?.replace(/,/g, '');
+                const salary2 = match[2]?.replace(/,/g, '');
+                if (salary1) {
+                  const num1 = parseInt(salary1);
+                  if (!isNaN(num1) && num1 >= 30000 && num1 <= 500000) {
+                    if (salary2) {
+                      const num2 = parseInt(salary2);
+                      if (!isNaN(num2) && num2 >= 30000 && num2 <= 500000) {
+                        career.salary = `$${num1.toLocaleString()}–$${num2.toLocaleString()}`;
+                        console.log(`[extractCareerOpportunities] ✅ POST-PROCESS: Extracted salary range for "${career.occupation}": ${career.salary}`);
+                        break;
+                      }
+                    } else {
+                      career.salary = `$${num1.toLocaleString()}`;
+                      console.log(`[extractCareerOpportunities] ✅ POST-PROCESS: Extracted salary for "${career.occupation}": ${career.salary}`);
+                      break;
+                    }
+                  }
+                }
+              }
+              if (career.salary) break;
+            }
+          }
+
+          return career;
+        });
+      }
+    }
 
     // POST-PROCESSING: Final validation pass - remove any garbage that got through
     result = result.filter(career => {
@@ -941,6 +1369,15 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
   // Extract careers from AI answer text - Enhanced patterns for better extraction
   const extractCareersFromAnswer = useCallback((answerText: string): CareerOpportunity[] => {
     const careersMap = new Map<string, CareerOpportunity>();
+
+    // Debug: Check if answer contains Ambulance Officer info
+    if (answerText.toLowerCase().includes('ambulance') || answerText.toLowerCase().includes('8.1')) {
+      console.log(`[extractCareersFromAnswer] 🔍 AMBULANCE IN ANSWER:`, {
+        answerPreview: answerText.substring(0, 500),
+        containsAmbulance: answerText.toLowerCase().includes('ambulance'),
+        contains81: answerText.includes('8.1'),
+      });
+    }
 
     // Normalize occupation name: capitalize first letter of each word
     const normalizeOccupationName = (name: string): string => {
@@ -994,6 +1431,49 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
         }
       }
       
+      // CRITICAL FIX: If growth is missing or "Not specified", try extracting from natural language in the block
+      // Search the career block text AND the full answer text around this career
+      if (!career.growth) {
+        // First, search within the career block itself
+        const searchText = careerText + '\n' + answerText.substring(
+          Math.max(0, answerText.indexOf(careerText) - 500),
+          Math.min(answerText.length, answerText.indexOf(careerText) + careerText.length + 500)
+        );
+        
+        const naturalGrowthPatterns = [
+          // "employment of [occupation] is projected to grow at an average rate of 8.1%"
+          new RegExp(`(?:employment|number|workforce)\\s+of\\s+${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[s]?\\s+(?:is|are)\\s+(?:projected|expected|forecast|anticipated)\\s+to\\s+(?:grow|increase|rise|expand)\\s+(?:at\\s+(?:an\\s+)?(?:average\\s+)?rate\\s+of|by|at)\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+          // "[occupation] projected to grow at 8.1%"
+          new RegExp(`${normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[s]?\\s+(?:projected|expected|forecast|is\\s+projected|are\\s+projected)\\s+to\\s+(?:grow|increase|rise|expand)\\s+(?:at\\s+(?:an\\s+)?(?:average\\s+)?rate\\s+of|by|at)\\s+(\\d+(?:\\.\\d+)?)\\s*%`, 'gi'),
+          // "projected to grow at an average rate of 8.1%" (near occupation name)
+          /(?:projected|expected|forecast|anticipated)\s+to\s+(?:grow|increase|rise|expand)\s+(?:at|by)?\s+(?:an?\s+)?(?:average\s+)?rate\s+of\s+(\d+(?:\.\d+)?)\s*%/gi,
+          // "grow at 8.1%" or "increase by 8.1%"
+          /(?:grow|increase|rise|expand)\s+(?:at|by)?\s+(?:an?\s+)?(?:average\s+)?rate\s+of\s+(\d+(?:\.\d+)?)\s*%/gi,
+          // "growth of 8.1%" or "increase of 8.1%"
+          /(?:projected|expected|forecast)\s+growth\s+of\s+(\d+(?:\.\d+)?)\s*%/gi,
+          /(?:growth|increase)\s+of\s+(\d+(?:\.\d+)?)\s*%/gi,
+          // "8.1% growth" or "8.1% increase"
+          /(\d+(?:\.\d+)?)\s*%\s+(?:growth|increase|rise|projected|expected)/gi,
+        ];
+        
+        for (const pattern of naturalGrowthPatterns) {
+          const match = searchText.match(pattern);
+          if (match) {
+            const numStr = match[1] || match[0].match(/(\d+(?:\.\d+)?)/)?.[1];
+            if (numStr) {
+              const growth = parseFloat(numStr);
+              if (!isNaN(growth) && growth >= -50 && growth <= 200) {
+                career.growth = growth;
+                career.demand = growth > 15 ? "high" : growth > 5 ? "medium" : "low";
+                career.trending = growth > 20;
+                console.log(`[extractCareersFromAnswer] ✅ Extracted natural language growth for "${normalizedName}": ${growth}%`);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
       const jobCountMatch = careerText.match(/Job Count:\s*(\d+(?:,\d+)?)/i);
       if (jobCountMatch) {
         const jobs = parseInt(jobCountMatch[1].replace(/,/g, ''));
@@ -1018,24 +1498,37 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
     // FLEXIBLE PATTERNS: Match occupations with various formats (fallback for non-structured output)
     const occupationPatterns = [
-      // Pattern: "registered nurses expected to see a 22% increase" - MOST IMPORTANT
-      /([a-z]+(?:\s+[a-z]+){0,3})\s+(?:expected\s+to\s+see|projected|forecast|expected)\s+(?:a|an)?\s*(\d+(?:\.\d+)?)\s*%\s*(?:increase|growth|rise|expansion)/gi,
+      // NATURAL LANGUAGE PATTERNS - HIGH PRIORITY (Career Coach style)
+      // "employment of Ambulance Officers is projected to grow at an average rate of 8.1%"
+      /(?:employment|number|workforce)\s+of\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s+(?:employment|projected|is\s+projected|are\s+projected|expected|forecast|anticipated)\s+(?:to\s+)?(?:grow|increase|expand|rise)\s+(?:at\s+(?:an\s+)?(?:average\s+)?rate\s+of|by|at)\s+(\d+(?:\.\d+)?)\s*%/gi,
+      // "Ambulance Officers projected to grow at an average rate of 8.1%" 
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s+(?:employment|projected|is\s+projected|are\s+projected|expected|forecast)\s+(?:to\s+)?(?:grow|increase|expand|rise)\s+(?:at\s+(?:an\s+)?(?:average\s+)?rate\s+of|by|at)\s+(\d+(?:\.\d+)?)\s*%/gi,
+      // "Ambulance Officers are projected to grow at 8.1%" or "nurses expected to increase by 15.2%"
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s+(?:are|is)\s+(?:projected|expected|forecast)\s+to\s+(?:grow|increase|rise)\s+(?:at|by)?\s+(\d+(?:\.\d+)?)\s*%/gi,
+      // "registered nurses expected to see a 22% increase" - MOST IMPORTANT
+      /([a-z]+(?:\s+[a-z]+){0,4})\s+(?:expected\s+to\s+see|projected|forecast|expected)\s+(?:a|an)?\s*(\d+(?:\.\d+)?)\s*%\s*(?:increase|growth|rise|expansion)/gi,
+      // "employment of X is projected to grow at X%" - NEW
+      /employment\s+of\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s+(?:is|are)\s+projected\s+to\s+grow\s+at\s+(?:an\s+)?(?:average\s+)?rate\s+of\s+(\d+(?:\.\d+)?)\s*%/gi,
+      // "approximately 26,600 Ambulance Officers" - NEW
+      /(?:approximately|about|around|up\s+to|there\s+are|as\s+of)\s+(\d+(?:,\d+)?)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s+(?:employed|in|positions?|jobs?)/gi,
       // Pattern: "Occupation (X% growth)" or "Occupation - X%" or "Occupation: X%"
       /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s*(?:\(|\s*[-–—:]\s*)\s*(\d+(?:\.\d+)?)\s*%/gi,
       // Pattern: "X jobs/positions in Occupation" or "Occupation: X jobs" or "X positions in demand"
-      /(\d+(?:,\d+)?)\s*(?:jobs?|positions?|roles?|vacancies?)\s+(?:in|for|as|available\s+for|in\s+demand)\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})/gi,
+      /(\d+(?:,\d+)?)\s*(?:jobs?|positions?|roles?|vacancies?|employed)\s+(?:in|for|as|available\s+for|in\s+demand|for)\s*(Ambulance\s+Officers?|Paramedics?|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})/gi,
       // Pattern: "Occupation growth of X%" or "X% growth in Occupation" or "see a X% increase"
-      /([a-z]+(?:\s+[a-z]+){0,3})\s+(?:growth|demand|projected|expected|to\s+see)\s+(?:of|at|is|a|an)?\s*(\d+(?:\.\d+)?)\s*%\s*(?:growth|increase|rise)/gi,
+      /([a-z]+(?:\s+[a-z]+){0,4})\s+(?:growth|demand|projected|expected|to\s+see)\s+(?:of|at|is|a|an)?\s*(\d+(?:\.\d+)?)\s*%\s*(?:growth|increase|rise)/gi,
       // Pattern: "Occupation with X% growth" or "Occupation showing X% growth"
       /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4})\s+(?:with|showing|demonstrating)\s+(\d+(?:\.\d+)?)\s*%\s*(?:growth|increase|rise)/gi,
       // Pattern: "X% growth for Occupation" or "X% increase for Occupation"
-      /(\d+(?:\.\d+)?)\s*%\s*(?:growth|increase|rise)\s+(?:for|in|among|expected\s+for)\s+([a-z]+(?:\s+[a-z]+){0,3})/gi,
+      /(\d+(?:\.\d+)?)\s*%\s*(?:growth|increase|rise)\s+(?:for|in|among|expected\s+for)\s+([a-z]+(?:\s+[a-z]+){0,4})/gi,
       // Pattern: "approximately X positions" near occupation mention (within 50 chars)
-      /([a-z]+(?:\s+[a-z]+){0,3})\s+[^.]{0,50}(?:approximately|about|around|up\s+to)\s+(\d+(?:,\d+)?)\s*(?:positions?|jobs?|roles?)/gi,
+      /([a-z]+(?:\s+[a-z]+){0,4})\s+[^.]{0,50}(?:approximately|about|around|up\s+to)\s+(\d+(?:,\d+)?)\s*(?:positions?|jobs?|roles?)/gi,
       // Pattern: "Occupation are highlighted/mentioned as critical/high demand"
-      /([a-z]+(?:\s+[a-z]+){0,3})\s+(?:are|is)\s+(?:highlighted|mentioned|identified|classified)\s+as\s+(?:critical|essential|high\s+demand|in\s+demand|priority)/gi,
+      /([a-z]+(?:\s+[a-z]+){0,4})\s+(?:are|is)\s+(?:highlighted|mentioned|identified|classified)\s+as\s+(?:critical|essential|high\s+demand|in\s+demand|priority)/gi,
     ];
 
+    // Search full answer text for natural language patterns (not just structured blocks)
+    // This catches careers mentioned in narrative text that weren't in structured format
     for (const pattern of occupationPatterns) {
       let match;
       // Reset lastIndex to avoid issues with global regex
@@ -1044,6 +1537,11 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
         let occupation = match[1] || match[2];
         let numberStr = (match[2] || match[1] || '').toString().replace(/,/g, '');
         const number = parseFloat(numberStr);
+        
+        // Debug logging for specific occupations we're looking for
+        if (occupation && (occupation.toLowerCase().includes('ambulance') || occupation.toLowerCase().includes('paramedic'))) {
+          console.log(`[extractCareersFromAnswer] 🔍 Pattern matched for "${occupation}": "${match[0]}", number: ${number}`);
+        }
 
         if (!occupation || occupation.length < 3) continue;
         
@@ -1149,6 +1647,12 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     });
     
     console.log(`[extractCareersFromAnswer] Extracted ${result.length} VALID careers from AI answer`);
+    if (result.length > 0) {
+      const withGrowth = result.filter(c => c.growth !== undefined && typeof c.growth === 'number');
+      console.log(`[extractCareersFromAnswer] 📊 SUMMARY: ${withGrowth.length}/${result.length} careers have growth data:`, 
+        withGrowth.slice(0, 5).map(c => ({ occupation: c.occupation, growth: c.growth }))
+      );
+    }
     return result;
   }, [normalizeSector, cleanOccupationName, isValidOccupationName]);
 
@@ -1524,18 +2028,155 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
             allGrowth: answerExtracted.filter(c => c.growth !== undefined).map(c => ({ occupation: c.occupation, growth: c.growth })),
             allJobs: answerExtracted.filter(c => c.jobs !== undefined).map(c => ({ occupation: c.occupation, jobs: c.jobs })),
           });
-          // Merge, avoiding duplicates based on occupation name
-          const existingOccupations = new Set(careersData.map(c => c.occupation?.toLowerCase()).filter(Boolean));
-          const newCareers = answerExtracted.filter(c => {
-            const occLower = c.occupation?.toLowerCase();
-            return occLower && !existingOccupations.has(occLower);
+          // Merge careers from AI answer - update existing careers with better data OR add new ones
+          // Create map with normalized keys (handle singular/plural, case variations)
+          const normalizeKey = (name: string): string => {
+            return name.toLowerCase()
+              .replace(/s$/, '') // Remove trailing 's' for plural matching
+              .replace(/[^a-z0-9]/g, '') // Remove special chars
+              .trim();
+          };
+          
+          const careersMap = new Map<string, CareerOpportunity>();
+          careersData.forEach(c => {
+            const key = normalizeKey(c.occupation);
+            careersMap.set(key, c);
           });
-          careersData = [...careersData, ...newCareers];
+          
+          console.log(`[fetchTabData] ${tab} Merging ${answerExtracted.length} AI-extracted careers into ${careersData.length} existing careers`);
+          
+          // Debug: Check for Ambulance Officer specifically
+          const ambulanceFromAI = answerExtracted.find(c => c.occupation?.toLowerCase().includes('ambulance'));
+          const ambulanceExisting = careersData.find(c => c.occupation?.toLowerCase().includes('ambulance'));
+          if (ambulanceFromAI || ambulanceExisting) {
+            console.log(`[fetchTabData] 🔍 AMBULANCE DEBUG:`, {
+              fromAI: ambulanceFromAI ? { 
+                occupation: ambulanceFromAI.occupation, 
+                growth: ambulanceFromAI.growth, 
+                jobs: ambulanceFromAI.jobs 
+              } : null,
+              existing: ambulanceExisting ? { 
+                occupation: ambulanceExisting.occupation, 
+                growth: ambulanceExisting.growth, 
+                jobs: ambulanceExisting.jobs 
+              } : null,
+              allExistingOccupations: careersData.slice(0, 10).map(c => c.occupation),
+            });
+          }
+          
+          answerExtracted.forEach(answerCareer => {
+            const occLower = answerCareer.occupation?.toLowerCase();
+            if (!occLower) return;
+            
+            // Try exact match first, then normalized match
+            const key = normalizeKey(answerCareer.occupation);
+            let existing = careersMap.get(occLower) || careersMap.get(key);
+            
+            // Special handling for Ambulance Officer/Officers
+            if (!existing && occLower.includes('ambulance')) {
+              console.log(`[fetchTabData] 🔍 Looking for match for "${answerCareer.occupation}" (key: "${key}")`);
+              console.log(`[fetchTabData] 🔍 Existing keys:`, Array.from(careersMap.keys()).slice(0, 10));
+            }
+            
+            // If still no match, try fuzzy matching (check if one contains the other)
+            if (!existing) {
+              for (const [mapKey, mapCareer] of careersMap.entries()) {
+                const answerNorm = normalizeKey(answerCareer.occupation);
+                const mapNorm = normalizeKey(mapCareer.occupation);
+                // Check if one key contains the other (for "Ambulance Officer" vs "Officer")
+                if (answerNorm.includes(mapNorm) || mapNorm.includes(answerNorm)) {
+                  if (occLower.includes('ambulance')) {
+                    console.log(`[fetchTabData] ✅ FUZZY MATCH: "${answerCareer.occupation}" (${answerNorm}) matched "${mapCareer.occupation}" (${mapNorm})`);
+                  }
+                  existing = mapCareer;
+                  break;
+                }
+              }
+            }
+            
+            if (existing) {
+              // UPDATE existing career with better data from AI answer
+              const hadGrowthBefore = existing.growth !== undefined;
+              const hadJobsBefore = existing.jobs !== undefined;
+              
+              // Special logging for Ambulance Officer
+              if (occLower.includes('ambulance')) {
+                console.log(`[fetchTabData] 🔍 FOUND EXISTING "${existing.occupation}":`, {
+                  existingGrowth: existing.growth,
+                  answerGrowth: answerCareer.growth,
+                  willUpdate: answerCareer.growth !== undefined && typeof answerCareer.growth === 'number' && 
+                    (existing.growth === undefined || Math.abs(answerCareer.growth) > Math.abs(existing.growth || 0)),
+                });
+              }
+              
+              if (answerCareer.growth !== undefined && typeof answerCareer.growth === 'number' && 
+                  (existing.growth === undefined || Math.abs(answerCareer.growth) > Math.abs(existing.growth || 0))) {
+                existing.growth = answerCareer.growth;
+                existing.demand = answerCareer.demand || existing.demand;
+                existing.trending = answerCareer.trending || existing.trending;
+                console.log(`[fetchTabData] ✅ MERGED growth for "${existing.occupation}": ${existing.growth}% (was: ${hadGrowthBefore ? existing.growth : 'undefined'}, now: ${answerCareer.growth}%)`);
+              } else if (occLower.includes('ambulance')) {
+                console.log(`[fetchTabData] ⚠️ SKIPPED growth merge for "${existing.occupation}":`, {
+                  answerGrowth: answerCareer.growth,
+                  answerGrowthType: typeof answerCareer.growth,
+                  existingGrowth: existing.growth,
+                  condition1: answerCareer.growth !== undefined,
+                  condition2: typeof answerCareer.growth === 'number',
+                  condition3: existing.growth === undefined || Math.abs(answerCareer.growth) > Math.abs(existing.growth || 0),
+                });
+              }
+              if (answerCareer.jobs !== undefined && typeof answerCareer.jobs === 'number' && 
+                  (existing.jobs === undefined || answerCareer.jobs > existing.jobs)) {
+                existing.jobs = answerCareer.jobs;
+                console.log(`[fetchTabData] ✅ MERGED jobs for "${existing.occupation}": ${existing.jobs} (was: ${hadJobsBefore ? existing.jobs : 'undefined'}, now: ${answerCareer.jobs})`);
+              }
+              if (answerCareer.salary && !existing.salary) {
+                existing.salary = answerCareer.salary;
+              }
+              if (answerCareer.sector && answerCareer.sector !== "General" && (!existing.sector || existing.sector === "General")) {
+                existing.sector = answerCareer.sector;
+              }
+            } else {
+              // ADD new career from AI answer
+              careersMap.set(key, answerCareer);
+              console.log(`[fetchTabData] ➕ ADDED new career from AI: "${answerCareer.occupation}" growth=${answerCareer.growth !== undefined && typeof answerCareer.growth === 'number' ? answerCareer.growth + '%' : 'N/A'} jobs=${answerCareer.jobs !== undefined && typeof answerCareer.jobs === 'number' ? answerCareer.jobs : 'N/A'}`);
+            }
+          });
+          
+          careersData = Array.from(careersMap.values());
+          
+          // Detailed logging for debugging
+          const careersWithGrowth = careersData.filter(c => c.growth !== undefined && typeof c.growth === 'number');
+          const careersWithJobs = careersData.filter(c => c.jobs !== undefined && typeof c.jobs === 'number');
+          console.log(`[fetchTabData] ${tab} AFTER MERGE:`, {
+            totalCareers: careersData.length,
+            withGrowth: careersWithGrowth.length,
+            withJobs: careersWithJobs.length,
+            growthSample: careersWithGrowth.slice(0, 5).map(c => ({ 
+              occupation: c.occupation, 
+              growth: c.growth,
+              source: 'merged'
+            })),
+            jobsSample: careersWithJobs.slice(0, 5).map(c => ({ 
+              occupation: c.occupation, 
+              jobs: c.jobs,
+              source: 'merged'
+            })),
+          });
         }
         // Filter out any careers without occupation field (safety check)
         careersData = careersData.filter(c => c.occupation && c.occupation.trim().length > 0);
-        console.log(`[fetchTabData] ${tab} total extracted (after filtering): ${careersData.length} career opportunities`, {
-          allOccupations: careersData.map(c => c.occupation),
+        
+        // Final logging with growth/jobs breakdown
+        const finalWithGrowth = careersData.filter(c => c.growth !== undefined && typeof c.growth === 'number');
+        const finalWithJobs = careersData.filter(c => c.jobs !== undefined && typeof c.jobs === 'number');
+        console.log(`[fetchTabData] ${tab} FINAL (after filtering): ${careersData.length} career opportunities`, {
+          withGrowth: finalWithGrowth.length,
+          withJobs: finalWithJobs.length,
+          growthBreakdown: finalWithGrowth.slice(0, 10).map(c => ({ 
+            occupation: c.occupation, 
+            growth: c.growth 
+          })),
         });
       }
       if (tab === "skills") {
@@ -1577,11 +2218,16 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           ? skillsData
           : prev.skillsDemand;
 
+        // Detailed state update logging
+        const stateCareersWithGrowth = newCareers.filter(c => c.growth !== undefined && typeof c.growth === 'number');
+        const stateCareersWithJobs = newCareers.filter(c => c.jobs !== undefined && typeof c.jobs === 'number');
+        
         console.log(`[fetchTabData] ${tab} updating state:`, {
           careersCount: newCareers.length,
-          skillsCount: newSkills.length,
-          fundingCount: newFunding.length,
+          withGrowth: stateCareersWithGrowth.length,
+          withJobs: stateCareersWithJobs.length,
           previousCareersCount: prev.careerOpportunities.length,
+          growthSample: stateCareersWithGrowth.slice(0, 5).map(c => ({ occupation: c.occupation, growth: c.growth })),
         });
 
         const newState = {

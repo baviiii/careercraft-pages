@@ -540,7 +540,7 @@ function CareerCard({
                 {career.jobs.toLocaleString()} positions
               </span>
             )}
-            {career.growth !== undefined && career.growth !== null && (
+            {career.growth !== undefined && career.growth !== null && typeof career.growth === 'number' && (
               <span className={cn(
                 "flex items-center gap-1 text-xs",
                 career.growth > 0 ? "text-emerald-300" : career.growth < 0 ? "text-red-300" : "text-slate-300"
@@ -548,16 +548,16 @@ function CareerCard({
                 {career.growth > 0 ? (
                   <>
                     <TrendingUp className="w-3 h-3" />
-                    +{career.growth}% growth
+                    +{career.growth.toFixed(1)}% growth
                   </>
                 ) : career.growth < 0 ? (
                   <>
                     <TrendingDown className="w-3 h-3" />
-                    {career.growth}% decline
+                    {career.growth.toFixed(1)}% decline
                   </>
                 ) : (
                   <>
-                    {career.growth}% growth
+                    {career.growth.toFixed(1)}% growth
                   </>
                 )}
               </span>
@@ -831,15 +831,18 @@ function CareerExplorerContent() {
       sector.careers.push(career);
     });
 
-    // Calculate average growth per sector
+    // Calculate average growth per sector - Only include careers with actual growth data
     return Array.from(sectorMap.values())
       .map(sector => {
-        const avgGrowth = sector.careers.length > 0 
-          ? sector.careers.reduce((sum, c) => sum + (c.growth || 0), 0) / sector.careers.length
+        const careersWithGrowth = sector.careers.filter(c => 
+          c.growth !== undefined && typeof c.growth === 'number'
+        );
+        const avgGrowth = careersWithGrowth.length > 0 
+          ? careersWithGrowth.reduce((sum, c) => sum + (c.growth || 0), 0) / careersWithGrowth.length
           : 0;
         return {
           ...sector,
-          growth: avgGrowth >= 0 ? `+${Math.round(avgGrowth)}%` : `${Math.round(avgGrowth)}%`,
+          growth: avgGrowth !== 0 ? (avgGrowth >= 0 ? `+${avgGrowth.toFixed(1)}%` : `${avgGrowth.toFixed(1)}%`) : "+0%",
         };
       })
       .sort((a, b) => b.jobs - a.jobs);
@@ -950,7 +953,7 @@ function CareerExplorerContent() {
               <div className="text-center mb-6">
                 <div className="inline-flex p-4 rounded-full bg-gradient-to-br from-pink-500/30 via-purple-500/30 to-blue-500/30 border border-pink-400/50 backdrop-blur-sm mb-4 shadow-lg shadow-pink-500/20">
                   <AlertCircle className="w-8 h-8 text-white" />
-                </div>
+        </div>
                 <h2 className="text-2xl font-bold text-white mb-2 drop-shadow-lg">No Career Data Available</h2>
                 <p className="text-pink-100 leading-relaxed max-w-md mx-auto">
                   The RAG intelligence system hasn't extracted structured career data from the knowledge base.
@@ -1325,11 +1328,11 @@ function CareerExplorerContent() {
                           <Badge className="ml-auto text-xs bg-pink-500/30 text-pink-100 border-pink-400/50">
                             {currentSector.careers.length} found
                                     </Badge>
-                        </h4>
+                      </h4>
                         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                           {currentSector.careers.map((career, i) => (
                             <CareerCard 
-                              key={i} 
+                            key={i}
                               career={career}
                               onClick={(career) => {
                                 setSelectedCareer(career);
@@ -1344,8 +1347,8 @@ function CareerExplorerContent() {
                         <p className="text-sm text-pink-100">
                           No careers found for the current filters. Try adjusting your search.
                         </p>
-                      </div>
-                    )}
+                    </div>
+                  )}
 
                     {/* Skills in demand */}
                   <div>
