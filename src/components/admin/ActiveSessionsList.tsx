@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Monitor, Smartphone, Globe, LogOut } from 'lucide-react';
+import { Monitor, Smartphone, Globe, LogOut, MapPin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { getCountryFlag, formatShortLocation } from '@/lib/geoLocation';
 
 interface UserSession {
   id: string;
@@ -12,6 +13,10 @@ interface UserSession {
   last_activity: string;
   created_at: string;
   is_active: boolean;
+  country: string | null;
+  country_code: string | null;
+  city: string | null;
+  region: string | null;
 }
 
 interface ActiveSessionsListProps {
@@ -32,12 +37,24 @@ export function ActiveSessionsList({ sessions, onForceLogout }: ActiveSessionsLi
   const getDeviceInfo = (userAgent: string | null) => {
     if (!userAgent) return 'Unknown Device';
     
-    if (userAgent.includes('Chrome')) return 'Chrome Browser';
-    if (userAgent.includes('Firefox')) return 'Firefox Browser';
-    if (userAgent.includes('Safari')) return 'Safari Browser';
-    if (userAgent.includes('Edge')) return 'Edge Browser';
+    if (userAgent.includes('Chrome')) return 'Chrome';
+    if (userAgent.includes('Firefox')) return 'Firefox';
+    if (userAgent.includes('Safari')) return 'Safari';
+    if (userAgent.includes('Edge')) return 'Edge';
     
     return 'Unknown Browser';
+  };
+
+  const getOSInfo = (userAgent: string | null) => {
+    if (!userAgent) return 'Unknown OS';
+    
+    if (userAgent.includes('Windows')) return 'Windows';
+    if (userAgent.includes('Mac')) return 'macOS';
+    if (userAgent.includes('Linux')) return 'Linux';
+    if (userAgent.includes('Android')) return 'Android';
+    if (userAgent.includes('iPhone') || userAgent.includes('iPad')) return 'iOS';
+    
+    return 'Unknown OS';
   };
 
   return (
@@ -49,9 +66,10 @@ export function ActiveSessionsList({ sessions, onForceLogout }: ActiveSessionsLi
         </Badge>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-3">
           {sessions.slice(0, 5).map((session) => {
             const DeviceIcon = getDeviceIcon(session.user_agent);
+            const hasLocation = session.country_code || session.city;
             
             return (
               <div 
@@ -62,12 +80,25 @@ export function ActiveSessionsList({ sessions, onForceLogout }: ActiveSessionsLi
                   <div className="p-2 rounded-lg bg-background">
                     <DeviceIcon className="w-4 h-4 text-muted-foreground" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">{getDeviceInfo(session.user_agent)}</p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{getDeviceInfo(session.user_agent)}</p>
+                      <span className="text-xs text-muted-foreground">on {getOSInfo(session.user_agent)}</span>
+                    </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Globe className="w-3 h-3" />
-                      <span>{session.ip_address || 'Unknown IP'}</span>
-                      <span>•</span>
+                      {hasLocation ? (
+                        <>
+                          <span className="text-base">{getCountryFlag(session.country_code)}</span>
+                          <span>{formatShortLocation(session.city, session.country)}</span>
+                          <span>•</span>
+                        </>
+                      ) : (
+                        <>
+                          <Globe className="w-3 h-3" />
+                          <span>{session.ip_address || 'Unknown IP'}</span>
+                          <span>•</span>
+                        </>
+                      )}
                       <span>
                         Active {formatDistanceToNow(new Date(session.last_activity), { addSuffix: true })}
                       </span>
@@ -79,7 +110,7 @@ export function ActiveSessionsList({ sessions, onForceLogout }: ActiveSessionsLi
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
                     onClick={() => onForceLogout(session.id)}
                   >
                     <LogOut className="w-4 h-4" />

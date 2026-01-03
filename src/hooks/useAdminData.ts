@@ -28,6 +28,13 @@ interface LoginAttempt {
   user_id: string | null;
   success: boolean;
   ip_address: string | null;
+  user_agent: string | null;
+  country: string | null;
+  country_code: string | null;
+  city: string | null;
+  region: string | null;
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
 }
 
@@ -40,6 +47,12 @@ interface UserSession {
   created_at: string;
   is_active: boolean;
   user_email?: string;
+  country: string | null;
+  country_code: string | null;
+  city: string | null;
+  region: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface SuspiciousActivity {
@@ -60,6 +73,9 @@ interface DashboardStats {
   newUsersThisWeek: number;
   totalSessions: number;
   suspiciousActivities: number;
+  totalLoginAttempts: number;
+  failedLogins24h: number;
+  successfulLogins24h: number;
 }
 
 export function useAdminData() {
@@ -75,6 +91,9 @@ export function useAdminData() {
     newUsersThisWeek: 0,
     totalSessions: 0,
     suspiciousActivities: 0,
+    totalLoginAttempts: 0,
+    failedLogins24h: 0,
+    successfulLogins24h: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -146,6 +165,21 @@ export function useAdminData() {
 
       if (error) throw error;
       setLoginAttempts(data || []);
+      
+      // Calculate login stats for last 24 hours
+      const last24h = new Date();
+      last24h.setHours(last24h.getHours() - 24);
+      
+      const recent = (data || []).filter(a => new Date(a.created_at) >= last24h);
+      const failed = recent.filter(a => !a.success).length;
+      const successful = recent.filter(a => a.success).length;
+      
+      setStats(prev => ({
+        ...prev,
+        totalLoginAttempts: data?.length || 0,
+        failedLogins24h: failed,
+        successfulLogins24h: successful,
+      }));
     } catch (error) {
       console.error('Error fetching login attempts:', error);
     }

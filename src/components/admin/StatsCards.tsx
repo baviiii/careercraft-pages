@@ -1,4 +1,4 @@
-import { Users, UserCheck, UserPlus, Monitor, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Monitor, AlertTriangle, TrendingUp, LogIn, XCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface StatsCardsProps {
@@ -9,6 +9,9 @@ interface StatsCardsProps {
     newUsersThisWeek: number;
     totalSessions: number;
     suspiciousActivities: number;
+    totalLoginAttempts?: number;
+    failedLogins24h?: number;
+    successfulLogins24h?: number;
   };
 }
 
@@ -18,8 +21,8 @@ export function StatsCards({ stats }: StatsCardsProps) {
       title: 'Total Users',
       value: stats.totalUsers,
       icon: Users,
-      change: '+12%',
-      changeType: 'positive' as const,
+      change: `${stats.newUsersThisWeek} new this week`,
+      changeType: stats.newUsersThisWeek > 0 ? 'positive' as const : 'neutral' as const,
       color: 'text-blue-500',
       bgColor: 'bg-blue-500/10',
     },
@@ -27,17 +30,17 @@ export function StatsCards({ stats }: StatsCardsProps) {
       title: 'Active Sessions',
       value: stats.totalSessions,
       icon: Monitor,
-      change: 'Live',
+      change: 'Live now',
       changeType: 'neutral' as const,
       color: 'text-green-500',
       bgColor: 'bg-green-500/10',
     },
     {
-      title: 'New Today',
-      value: stats.newUsersToday,
-      icon: UserPlus,
-      change: `${stats.newUsersThisWeek} this week`,
-      changeType: 'neutral' as const,
+      title: 'Logins Today',
+      value: (stats.successfulLogins24h || 0),
+      icon: LogIn,
+      change: `${stats.failedLogins24h || 0} failed attempts`,
+      changeType: (stats.failedLogins24h || 0) > 5 ? 'negative' as const : 'neutral' as const,
       color: 'text-purple-500',
       bgColor: 'bg-purple-500/10',
     },
@@ -64,6 +67,9 @@ export function StatsCards({ stats }: StatsCardsProps) {
                 <div className="flex items-center gap-1 mt-2">
                   {card.changeType === 'positive' && (
                     <TrendingUp className="w-3 h-3 text-green-500" />
+                  )}
+                  {card.changeType === 'negative' && (
+                    <XCircle className="w-3 h-3 text-red-500" />
                   )}
                   <span className={`text-xs ${
                     card.changeType === 'positive' ? 'text-green-500' :

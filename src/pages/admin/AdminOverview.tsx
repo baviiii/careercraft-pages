@@ -6,17 +6,21 @@ import { ActivityHeatmap } from '@/components/admin/ActivityHeatmap';
 import { RecentActivityTable } from '@/components/admin/RecentActivityTable';
 import { ActiveSessionsList } from '@/components/admin/ActiveSessionsList';
 import { SecurityAlertsCard } from '@/components/admin/SecurityAlertsCard';
+import { LoginHistoryTable } from '@/components/admin/LoginHistoryTable';
+import { SessionsMapCard } from '@/components/admin/SessionsMapCard';
 import { useAdminData } from '@/hooks/useAdminData';
 
 export default function AdminOverview() {
   const { 
     users, 
-    activityLogs, 
+    activityLogs,
+    loginAttempts,
     sessions, 
     suspiciousActivities, 
     stats, 
     loading,
-    refreshAll 
+    refreshAll,
+    fetchLoginAttempts,
   } = useAdminData();
 
   return (
@@ -41,6 +45,19 @@ export default function AdminOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UserGrowthChart users={users} />
         <ActivityHeatmap activityLogs={activityLogs} />
+      </div>
+
+      {/* Login History and Location Map */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <LoginHistoryTable 
+            loginAttempts={loginAttempts} 
+            onRefresh={fetchLoginAttempts}
+            loading={loading}
+            compact
+          />
+        </div>
+        <SessionsMapCard sessions={sessions} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
