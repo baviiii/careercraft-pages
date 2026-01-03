@@ -193,7 +193,7 @@ export function CareerPulse() {
             <Activity className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-lg font-bold text-foreground">SA Career Intelligence</h2>
+            <h2 className="font-display text-lg font-bold text-foreground">Career Intelligence</h2>
             <p className="text-sm text-muted-foreground">Initializing...</p>
           </div>
         </div>
@@ -208,7 +208,7 @@ export function CareerPulse() {
           <Activity className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1">
-          <h2 className="font-display text-lg font-bold text-foreground">SA Career Intelligence</h2>
+          <h2 className="font-display text-lg font-bold text-foreground">Career Intelligence</h2>
           <p className="text-sm text-muted-foreground">
             Powered by {totalDocs.toLocaleString()} documents • {totalChunks.toLocaleString()} indexed segments
           </p>

@@ -673,7 +673,7 @@ export default function CareerCoach() {
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about SA careers, jobs, training, budgets..."
+                    placeholder="Ask about careers, jobs, training, budgets..."
                     disabled={isStreaming}
                     className="pr-12 py-6 bg-slate-800/50 border-slate-700/50 focus:border-purple-500/50 rounded-xl text-white placeholder:text-slate-500"
                   />

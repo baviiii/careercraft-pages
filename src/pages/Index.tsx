@@ -471,15 +471,15 @@ const Index = memo(() => {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <motion.div 
-                className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30"
+              <motion.img 
+                src="/logo.png"
+                alt="Horus Intelligence"
+                className="w-11 h-11 rounded-xl shadow-lg shadow-blue-500/30 object-contain"
                 whileHover={{ scale: 1.05, rotate: 5 }}
                 whileTap={{ scale: 0.95 }}
-              >
-                <Globe className="w-6 h-6 text-white" />
-              </motion.div>
+              />
               <div>
-                <h1 className="font-bold text-lg text-slate-800">SA Intelligence</h1>
+                <h1 className="font-bold text-lg text-slate-800">Horus Intelligence</h1>
                 <p className="text-xs text-slate-600">Intelligence Platform</p>
               </div>
             </motion.div>
@@ -1049,11 +1049,13 @@ const Index = memo(() => {
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                <Globe className="w-5 h-5 text-white" />
-              </div>
+              <img 
+                src="/logo.png" 
+                alt="Horus Intelligence" 
+                className="w-10 h-10 rounded-xl shadow-lg shadow-blue-500/30 object-contain"
+              />
               <div>
-                <h3 className="font-bold text-white">SA Intelligence</h3>
+                <h3 className="font-bold text-white">Horus Intelligence</h3>
                 <p className="text-xs text-slate-400">Intelligence Platform</p>
               </div>
             </motion.div>

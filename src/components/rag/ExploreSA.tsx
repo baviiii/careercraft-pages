@@ -337,10 +337,10 @@ export default function ExploreSA() {
               <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                 <Globe className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-3xl md:text-5xl font-bold text-white">Explore SA Careers</h1>
+              <h1 className="text-3xl md:text-5xl font-bold text-white">Explore Careers</h1>
             </div>
             <p className="text-lg md:text-xl text-white/90 mb-8 text-center max-w-2xl mx-auto">
-              Discover opportunities across South Australian government sectors, training programs, and career resources powered by AI
+              Discover opportunities across government sectors, training programs, and career resources powered by AI
             </p>
             
             {/* Enhanced Search Bar */}

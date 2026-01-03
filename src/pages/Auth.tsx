@@ -266,15 +266,17 @@ const Auth = () => {
               transition={{ delay: 0.2 }}
               className="flex items-center justify-center gap-3 mb-2"
             >
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
+              <img 
+                src="/logo.png" 
+                alt="Horus Intelligence" 
+                className="w-12 h-12 rounded-xl shadow-lg shadow-blue-500/30 object-contain"
+              />
               <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent">
-                SA Intelligence
+                Horus Intelligence
               </CardTitle>
             </motion.div>
             <CardDescription className="text-center text-base text-slate-600">
-              Intelligence-powered platform for understanding SA policy, workforce, and opportunities
+              Intelligence-powered platform for understanding policy, workforce, and opportunities
             </CardDescription>
           </CardHeader>
           <CardContent>
