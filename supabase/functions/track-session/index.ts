@@ -14,12 +14,24 @@ interface GeoLocation {
   longitude: number | null;
 }
 
+type SessionEvent = 
+  | 'login_success' 
+  | 'login_failure' 
+  | 'signup_success'
+  | 'signup_failure'
+  | 'password_reset_request'
+  | 'password_reset_complete'
+  | 'password_reset_failure'
+  | 'session_heartbeat' 
+  | 'logout';
+
 interface TrackSessionRequest {
-  event: 'login_success' | 'login_failure' | 'session_heartbeat' | 'logout';
+  event: SessionEvent;
   email?: string;
   userId?: string;
   userAgent?: string;
   sessionToken?: string;
+  reason?: string;
 }
 
 async function getGeoLocation(ip: string): Promise<GeoLocation> {
@@ -75,6 +87,51 @@ function generateSessionToken(): string {
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function getEventSeverity(event: SessionEvent): string {
+  switch (event) {
+    case 'login_failure':
+    case 'signup_failure':
+    case 'password_reset_failure':
+      return 'warning';
+    case 'login_success':
+    case 'signup_success':
+    case 'password_reset_complete':
+      return 'info';
+    case 'password_reset_request':
+      return 'info';
+    case 'logout':
+    case 'session_heartbeat':
+      return 'info';
+    default:
+      return 'info';
+  }
+}
+
+function getEventAction(event: SessionEvent): string {
+  switch (event) {
+    case 'login_success':
+      return 'user.login.success';
+    case 'login_failure':
+      return 'user.login.failure';
+    case 'signup_success':
+      return 'user.signup.success';
+    case 'signup_failure':
+      return 'user.signup.failure';
+    case 'password_reset_request':
+      return 'user.password.reset_request';
+    case 'password_reset_complete':
+      return 'user.password.reset_complete';
+    case 'password_reset_failure':
+      return 'user.password.reset_failure';
+    case 'logout':
+      return 'user.logout';
+    case 'session_heartbeat':
+      return 'session.heartbeat';
+    default:
+      return 'unknown';
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -88,7 +145,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: TrackSessionRequest = await req.json();
-    const { event, email, userId, userAgent, sessionToken } = body;
+    const { event, email, userId, userAgent, sessionToken, reason } = body;
 
     // Get IP from headers (Supabase edge functions provide this)
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
@@ -103,6 +160,39 @@ Deno.serve(async (req) => {
 
     const now = new Date().toISOString();
 
+    // Log activity for all events
+    const activityLogData = {
+      action: getEventAction(event),
+      user_id: userId || null,
+      entity_type: 'auth',
+      entity_id: null,
+      severity: getEventSeverity(event),
+      details: {
+        email: email || null,
+        event_type: event,
+        reason: reason || null,
+        timestamp: now,
+      },
+      ip_address: ip !== 'unknown' ? ip : null,
+      user_agent: userAgent || null,
+      country: geo.country,
+      country_code: geo.country_code,
+      city: geo.city,
+    };
+
+    console.log('Logging activity:', activityLogData);
+
+    const { error: activityError } = await supabase
+      .from('activity_logs')
+      .insert(activityLogData);
+
+    if (activityError) {
+      console.error('Error logging activity:', activityError);
+    } else {
+      console.log('Activity logged successfully');
+    }
+
+    // Handle login events
     if (event === 'login_success' || event === 'login_failure') {
       // Record login attempt
       const loginAttemptData = {
@@ -188,7 +278,34 @@ Deno.serve(async (req) => {
           );
         }
       }
-    } else if (event === 'session_heartbeat' && sessionToken && userId) {
+    } 
+    // Handle signup events
+    else if (event === 'signup_success' || event === 'signup_failure') {
+      console.log(`Signup ${event === 'signup_success' ? 'success' : 'failure'} recorded for ${email}`);
+      
+      // For signup success, we could optionally create a session
+      // But typically the user needs to verify their email first
+    }
+    // Handle password reset events
+    else if (event === 'password_reset_request' || event === 'password_reset_complete' || event === 'password_reset_failure') {
+      console.log(`Password reset event ${event} recorded for ${email}`);
+      
+      // For password reset complete, if we have a userId, we should invalidate old sessions
+      if (event === 'password_reset_complete' && userId) {
+        const { error: invalidateError } = await supabase
+          .from('user_sessions')
+          .update({ is_active: false })
+          .eq('user_id', userId);
+
+        if (invalidateError) {
+          console.error('Error invalidating sessions after password reset:', invalidateError);
+        } else {
+          console.log('Old sessions invalidated after password reset');
+        }
+      }
+    }
+    // Handle session heartbeat
+    else if (event === 'session_heartbeat' && sessionToken && userId) {
       // Update session last_activity
       const { error: heartbeatError } = await supabase
         .from('user_sessions')
@@ -202,7 +319,9 @@ Deno.serve(async (req) => {
       } else {
         console.log('Session heartbeat updated');
       }
-    } else if (event === 'logout' && (sessionToken || userId)) {
+    } 
+    // Handle logout
+    else if (event === 'logout' && (sessionToken || userId)) {
       // Mark session as inactive
       let query = supabase
         .from('user_sessions')

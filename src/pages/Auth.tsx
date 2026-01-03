@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -9,8 +9,44 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Sparkles, ArrowRight, Shield, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, Lock, User, Sparkles, ArrowRight, Shield, CheckCircle2, ArrowLeft, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { useSessionTracking } from "@/hooks/useSessionTracking";
+import { z } from "zod";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
+import { sanitizeEmail, sanitize } from "@/lib/security/sanitizers";
+import { detectXSS } from "@/lib/security/xss";
+
+// Validation schemas
+const emailSchema = z.string()
+  .email('Please enter a valid email address')
+  .max(254, 'Email is too long')
+  .transform((val) => val.toLowerCase().trim());
+
+const passwordSchema = z.string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(128, 'Password is too long')
+  .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character');
+
+const signupSchema = z.object({
+  fullName: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name is too long')
+    .regex(/^[a-zA-Z\s\-']+$/, 'Name contains invalid characters'),
+  email: emailSchema,
+  password: passwordSchema,
+});
+
+const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, 'Password is required').max(128),
+});
+
+const resetEmailSchema = z.object({
+  email: emailSchema,
+});
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -42,6 +78,12 @@ const MicrosoftIcon = () => (
   </svg>
 );
 
+interface ValidationErrors {
+  email?: string;
+  password?: string;
+  fullName?: string;
+}
+
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -53,8 +95,67 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [passwordStrength, setPasswordStrength] = useState(0);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [rateLimitMessage, setRateLimitMessage] = useState("");
   
   const { trackEvent } = useSessionTracking(null);
+
+  // Calculate password strength
+  useEffect(() => {
+    if (!password) {
+      setPasswordStrength(0);
+      return;
+    }
+    let strength = 0;
+    if (password.length >= 8) strength += 20;
+    if (/[A-Z]/.test(password)) strength += 20;
+    if (/[a-z]/.test(password)) strength += 20;
+    if (/[0-9]/.test(password)) strength += 20;
+    if (/[^A-Za-z0-9]/.test(password)) strength += 20;
+    setPasswordStrength(strength);
+  }, [password]);
+
+  const getStrengthColor = () => {
+    if (passwordStrength <= 20) return "bg-red-500";
+    if (passwordStrength <= 40) return "bg-orange-500";
+    if (passwordStrength <= 60) return "bg-yellow-500";
+    if (passwordStrength <= 80) return "bg-lime-500";
+    return "bg-green-500";
+  };
+
+  const getStrengthText = () => {
+    if (passwordStrength <= 20) return "Very Weak";
+    if (passwordStrength <= 40) return "Weak";
+    if (passwordStrength <= 60) return "Fair";
+    if (passwordStrength <= 80) return "Good";
+    return "Strong";
+  };
+
+  // Security: Check for XSS in inputs
+  const checkInputSecurity = useCallback((value: string, fieldName: string): boolean => {
+    if (detectXSS(value)) {
+      toast.error(`Invalid characters detected in ${fieldName}`);
+      return false;
+    }
+    return true;
+  }, []);
+
+  // Security: Check rate limits
+  const checkAuthRateLimit = useCallback((): boolean => {
+    const result = checkRateLimit('auth-attempt', RATE_LIMITS.AUTH);
+    if (!result.allowed) {
+      setIsRateLimited(true);
+      const minutes = Math.ceil((result.retryAfter || 60) / 60);
+      setRateLimitMessage(`Too many attempts. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`);
+      return false;
+    }
+    setIsRateLimited(false);
+    setRateLimitMessage("");
+    return true;
+  }, []);
 
   // Helper function to check if user is admin and redirect accordingly
   const checkAdminAndRedirect = async (userId: string) => {
@@ -67,10 +168,8 @@ const Auth = () => {
         .maybeSingle();
       
       if (roleData) {
-        // User is admin, redirect to admin dashboard
         navigate("/admin");
       } else {
-        // Regular user, redirect to home
         navigate("/");
       }
     } catch (error) {
@@ -80,20 +179,16 @@ const Auth = () => {
   };
 
   useEffect(() => {
-    // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         checkAdminAndRedirect(session.user.id);
       }
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session && event === "SIGNED_IN") {
-        // Track successful login
         trackEvent('login_success', { email: session.user.email, userId: session.user.id });
         
-        // Use setTimeout to avoid Supabase deadlock
         setTimeout(() => {
           checkAdminAndRedirect(session.user.id);
         }, 0);
@@ -104,6 +199,8 @@ const Auth = () => {
   }, [navigate]);
 
   const handleGoogleAuth = async () => {
+    if (!checkAuthRateLimit()) return;
+    
     setIsGoogleLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -125,6 +222,8 @@ const Auth = () => {
   };
 
   const handleMicrosoftAuth = async () => {
+    if (!checkAuthRateLimit()) return;
+    
     setIsMicrosoftLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -144,28 +243,64 @@ const Auth = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    // Security checks
+    if (!checkAuthRateLimit()) return;
+    if (!checkInputSecurity(fullName, 'name')) return;
+    if (!checkInputSecurity(email, 'email')) return;
+
+    // Validate inputs
+    const validationResult = signupSchema.safeParse({ fullName, email, password });
+    if (!validationResult.success) {
+      const fieldErrors: ValidationErrors = {};
+      validationResult.error.errors.forEach((err) => {
+        const path = err.path[0] as keyof ValidationErrors;
+        if (!fieldErrors[path]) {
+          fieldErrors[path] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
     setIsLoading(true);
 
+    // Sanitize inputs
+    const sanitizedEmail = sanitizeEmail(email);
+    const sanitizedName = sanitize(fullName);
+
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: sanitizedEmail,
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: fullName,
+            full_name: sanitizedName,
           },
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        await trackEvent('signup_failure', { email: sanitizedEmail, reason: error.message });
+        throw error;
+      }
+
+      // Track successful signup
+      await trackEvent('signup_success', { email: sanitizedEmail, userId: data.user?.id });
 
       toast.success("Account created! Please check your email to verify your account.");
       setEmail("");
       setPassword("");
       setFullName("");
+      setErrors({});
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign up");
+      if (error.message?.includes('already registered')) {
+        toast.error("An account with this email already exists. Please sign in instead.");
+      } else {
+        toast.error(error.message || "Failed to sign up");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -173,26 +308,53 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    // Security checks
+    if (!checkAuthRateLimit()) return;
+    if (!checkInputSecurity(email, 'email')) return;
+
+    // Validate inputs
+    const validationResult = loginSchema.safeParse({ email, password });
+    if (!validationResult.success) {
+      const fieldErrors: ValidationErrors = {};
+      validationResult.error.errors.forEach((err) => {
+        const path = err.path[0] as keyof ValidationErrors;
+        if (!fieldErrors[path]) {
+          fieldErrors[path] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
     setIsLoading(true);
+
+    // Sanitize email
+    const sanitizedEmail = sanitizeEmail(email);
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: sanitizedEmail,
         password,
       });
 
       if (error) {
-        // Track failed login
-        await trackEvent('login_failure', { email });
+        await trackEvent('login_failure', { email: sanitizedEmail, reason: error.message });
         throw error;
       }
 
-      // Track successful login (also handled by onAuthStateChange, but this provides email context)
-      await trackEvent('login_success', { email, userId: data.user?.id });
+      await trackEvent('login_success', { email: sanitizedEmail, userId: data.user?.id });
       
       toast.success("Signed in successfully!");
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign in");
+      if (error.message?.includes('Invalid login credentials')) {
+        toast.error("Invalid email or password. Please try again.");
+      } else if (error.message?.includes('Email not confirmed')) {
+        toast.error("Please verify your email address before signing in.");
+      } else {
+        toast.error(error.message || "Failed to sign in");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -200,19 +362,32 @@ const Auth = () => {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetEmail) {
-      toast.error("Please enter your email address");
+    
+    // Security checks
+    if (!checkAuthRateLimit()) return;
+    if (!checkInputSecurity(resetEmail, 'email')) return;
+
+    // Validate email
+    const validationResult = resetEmailSchema.safeParse({ email: resetEmail });
+    if (!validationResult.success) {
+      toast.error("Please enter a valid email address");
       return;
     }
     
     setIsResetLoading(true);
     
+    // Sanitize email
+    const sanitizedEmail = sanitizeEmail(resetEmail);
+    
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      const { error } = await supabase.auth.resetPasswordForEmail(sanitizedEmail, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) throw error;
+
+      // Track password reset request
+      await trackEvent('password_reset_request', { email: sanitizedEmail });
 
       toast.success("Password reset link sent! Check your email inbox.");
       setShowForgotPassword(false);
@@ -271,6 +446,21 @@ const Auth = () => {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md relative z-10"
       >
+        {/* Rate Limit Warning */}
+        {isRateLimited && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">Security Alert</p>
+              <p className="text-sm text-red-600">{rateLimitMessage}</p>
+            </div>
+          </motion.div>
+        )}
+
         <Card className="w-full border-2 border-blue-100/50 shadow-2xl shadow-blue-500/10 bg-white/95 backdrop-blur-xl">
           <CardHeader className="space-y-4 pb-6">
             <motion.div
@@ -291,6 +481,12 @@ const Auth = () => {
             <CardDescription className="text-center text-base text-slate-600">
               Intelligence-powered platform for understanding policy, workforce, and opportunities
             </CardDescription>
+            
+            {/* Security Badge */}
+            <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+              <Shield className="w-3 h-3 text-green-500" />
+              <span>Enterprise-grade security</span>
+            </div>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="signin" className="w-full">
@@ -321,7 +517,7 @@ const Auth = () => {
                     type="button"
                     variant="outline"
                     onClick={handleGoogleAuth}
-                    disabled={isGoogleLoading || isMicrosoftLoading}
+                    disabled={isGoogleLoading || isMicrosoftLoading || isRateLimited}
                     className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
                   >
                     {isGoogleLoading ? (
@@ -335,7 +531,7 @@ const Auth = () => {
                     type="button"
                     variant="outline"
                     onClick={handleMicrosoftAuth}
-                    disabled={isGoogleLoading || isMicrosoftLoading}
+                    disabled={isGoogleLoading || isMicrosoftLoading || isRateLimited}
                     className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
                   >
                     {isMicrosoftLoading ? (
@@ -367,8 +563,15 @@ const Auth = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="h-12 border-2 border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
+                      autoComplete="email"
+                      className={`h-12 border-2 ${errors.email ? 'border-red-300' : 'border-blue-100'} focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all`}
                     />
+                    {errors.email && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {errors.email}
+                      </p>
+                    )}
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -380,14 +583,31 @@ const Auth = () => {
                       <Lock className="w-4 h-4 text-blue-500" />
                       Password
                     </Label>
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="h-12 border-2 border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="signin-password"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        autoComplete="current-password"
+                        className={`h-12 pr-12 border-2 ${errors.password ? 'border-red-300' : 'border-blue-100'} focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {errors.password}
+                      </p>
+                    )}
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -398,7 +618,7 @@ const Auth = () => {
                     <Button 
                       type="submit" 
                       className="w-full h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold shadow-lg shadow-blue-500/25 transition-all duration-300" 
-                      disabled={isLoading}
+                      disabled={isLoading || isRateLimited}
                     >
                       {isLoading ? (
                         <>
@@ -416,6 +636,7 @@ const Auth = () => {
                       type="button"
                       onClick={() => setShowForgotPassword(true)}
                       className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                      disabled={isRateLimited}
                     >
                       Forgot your password?
                     </button>
@@ -435,7 +656,7 @@ const Auth = () => {
                     type="button"
                     variant="outline"
                     onClick={handleGoogleAuth}
-                    disabled={isGoogleLoading || isMicrosoftLoading}
+                    disabled={isGoogleLoading || isMicrosoftLoading || isRateLimited}
                     className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
                   >
                     {isGoogleLoading ? (
@@ -449,7 +670,7 @@ const Auth = () => {
                     type="button"
                     variant="outline"
                     onClick={handleMicrosoftAuth}
-                    disabled={isGoogleLoading || isMicrosoftLoading}
+                    disabled={isGoogleLoading || isMicrosoftLoading || isRateLimited}
                     className="w-full h-12 border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 font-semibold transition-all duration-300 group"
                   >
                     {isMicrosoftLoading ? (
@@ -481,8 +702,15 @@ const Auth = () => {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
-                      className="h-12 border-2 border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
+                      autoComplete="name"
+                      className={`h-12 border-2 ${errors.fullName ? 'border-red-300' : 'border-blue-100'} focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all`}
                     />
+                    {errors.fullName && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {errors.fullName}
+                      </p>
+                    )}
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -501,8 +729,15 @@ const Auth = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="h-12 border-2 border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
+                      autoComplete="email"
+                      className={`h-12 border-2 ${errors.email ? 'border-red-300' : 'border-blue-100'} focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all`}
                     />
+                    {errors.email && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {errors.email}
+                      </p>
+                    )}
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -514,19 +749,68 @@ const Auth = () => {
                       <Lock className="w-4 h-4 text-blue-500" />
                       Password
                     </Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      className="h-12 border-2 border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
-                    />
-                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                      <Shield className="w-3 h-3" />
-                      Minimum 6 characters
-                    </p>
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        autoComplete="new-password"
+                        className={`h-12 pr-12 border-2 ${errors.password ? 'border-red-300' : 'border-blue-100'} focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="text-sm text-red-500 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        {errors.password}
+                      </p>
+                    )}
+                    
+                    {/* Password Strength Indicator */}
+                    {password && (
+                      <div className="space-y-2 mt-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-slate-500">Password strength</span>
+                          <span className={`text-xs font-medium ${passwordStrength === 100 ? 'text-green-600' : 'text-slate-500'}`}>
+                            {getStrengthText()}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div
+                            className={`h-full ${getStrengthColor()}`}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${passwordStrength}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className={`flex items-center gap-1 ${password.length >= 8 ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle2 className="w-3 h-3" /> 8+ characters
+                          </div>
+                          <div className={`flex items-center gap-1 ${/[A-Z]/.test(password) ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle2 className="w-3 h-3" /> Uppercase
+                          </div>
+                          <div className={`flex items-center gap-1 ${/[a-z]/.test(password) ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle2 className="w-3 h-3" /> Lowercase
+                          </div>
+                          <div className={`flex items-center gap-1 ${/[0-9]/.test(password) ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle2 className="w-3 h-3" /> Number
+                          </div>
+                          <div className={`flex items-center gap-1 ${/[^A-Za-z0-9]/.test(password) ? 'text-green-600' : 'text-slate-400'}`}>
+                            <CheckCircle2 className="w-3 h-3" /> Special char
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -537,7 +821,7 @@ const Auth = () => {
                     <Button 
                       type="submit" 
                       className="w-full h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold shadow-lg shadow-blue-500/25 transition-all duration-300" 
-                      disabled={isLoading}
+                      disabled={isLoading || isRateLimited || passwordStrength < 100}
                     >
                       {isLoading ? (
                         <>
@@ -573,7 +857,7 @@ const Auth = () => {
               Reset Password
             </DialogTitle>
             <DialogDescription className="text-slate-600">
-              Enter your email address and we'll send you a link to reset your password.
+              Enter your email address and we'll send you a secure link to reset your password.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleForgotPassword} className="space-y-4 mt-4">
@@ -588,8 +872,13 @@ const Auth = () => {
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="h-12 border-2 border-blue-100 focus:border-blue-400 focus:ring-2 focus:ring-blue-200"
               />
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+              <Shield className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span>A secure reset link will be sent to your email. The link expires in 1 hour.</span>
             </div>
             <div className="flex gap-3">
               <Button
@@ -603,7 +892,7 @@ const Auth = () => {
               </Button>
               <Button
                 type="submit"
-                disabled={isResetLoading}
+                disabled={isResetLoading || isRateLimited}
                 className="flex-1 h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold"
               >
                 {isResetLoading ? (

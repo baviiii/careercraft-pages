@@ -5,6 +5,24 @@ import { Session } from '@supabase/supabase-js';
 const HEARTBEAT_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const SESSION_TOKEN_KEY = 'horus_session_token';
 
+// All supported session tracking events
+export type SessionTrackingEvent = 
+  | 'login_success' 
+  | 'login_failure' 
+  | 'signup_success'
+  | 'signup_failure'
+  | 'password_reset_request'
+  | 'password_reset_complete'
+  | 'password_reset_failure'
+  | 'session_heartbeat' 
+  | 'logout';
+
+export interface TrackEventOptions {
+  email?: string;
+  userId?: string;
+  reason?: string;
+}
+
 export function useSessionTracking(session: Session | null) {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const sessionTokenRef = useRef<string | null>(null);
@@ -18,8 +36,8 @@ export function useSessionTracking(session: Session | null) {
   }, []);
 
   const trackEvent = useCallback(async (
-    event: 'login_success' | 'login_failure' | 'session_heartbeat' | 'logout',
-    options?: { email?: string; userId?: string }
+    event: SessionTrackingEvent,
+    options?: TrackEventOptions
   ) => {
     try {
       const response = await supabase.functions.invoke('track-session', {
@@ -29,6 +47,7 @@ export function useSessionTracking(session: Session | null) {
           userId: options?.userId || session?.user?.id,
           userAgent: navigator.userAgent,
           sessionToken: sessionTokenRef.current,
+          reason: options?.reason,
         },
       });
 
