@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.job-news]
 verify_jwt = false
+
+[functions.track-session]
+verify_jwt = false

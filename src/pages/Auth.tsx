@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, Sparkles, ArrowRight, Shield, CheckCircle2, ArrowLeft } from "lucide-react";
+import { useSessionTracking } from "@/hooks/useSessionTracking";
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -52,6 +53,8 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  
+  const { trackEvent } = useSessionTracking(null);
 
   // Helper function to check if user is admin and redirect accordingly
   const checkAdminAndRedirect = async (userId: string) => {
@@ -87,6 +90,9 @@ const Auth = () => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session && event === "SIGNED_IN") {
+        // Track successful login
+        trackEvent('login_success', { email: session.user.email, userId: session.user.id });
+        
         // Use setTimeout to avoid Supabase deadlock
         setTimeout(() => {
           checkAdminAndRedirect(session.user.id);
@@ -170,13 +176,20 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Track failed login
+        await trackEvent('login_failure', { email });
+        throw error;
+      }
 
+      // Track successful login (also handled by onAuthStateChange, but this provides email context)
+      await trackEvent('login_success', { email, userId: data.user?.id });
+      
       toast.success("Signed in successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to sign in");

@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { gsap } from "gsap";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
+import { useSessionTracking } from "@/hooks/useSessionTracking";
 import {
   Globe,
   Brain,
@@ -151,6 +152,9 @@ export function UnifiedLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const mainContentRef = useRef<HTMLDivElement>(null);
+  
+  // Session tracking for heartbeat and activity monitoring
+  const { trackEvent } = useSessionTracking(session);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -190,6 +194,8 @@ export function UnifiedLayout({
   }, [loading, location.pathname]);
 
   const handleSignOut = async () => {
+    // Track logout event
+    await trackEvent('logout');
     await supabase.auth.signOut();
     navigate("/");
   };
