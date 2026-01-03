@@ -351,16 +351,16 @@ export default function CareerCoach() {
       )}
 
       {/* Chat Container */}
-      <Card className="flex-1 flex flex-col bg-slate-900/50 border-slate-800/50 overflow-hidden">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col">
-          <TabsList className="mx-4 mt-4 bg-slate-800/50 border-slate-700/50">
+      <Card className="flex-1 flex flex-col bg-slate-900/50 border-slate-800/50 overflow-hidden min-h-0">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="mx-4 mt-4 bg-slate-800/50 border-slate-700/50 shrink-0">
             <TabsTrigger value="chat" className="flex-1">Chat</TabsTrigger>
             <TabsTrigger value="insights" className="flex-1">Insights</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="chat" className="flex-1 flex flex-col mt-0 overflow-hidden">
+          <TabsContent value="chat" className="flex-1 flex flex-col mt-0 overflow-hidden min-h-0">
             {/* Messages Area */}
-            <ScrollArea className="flex-1 px-4 py-2">
+            <div className="flex-1 overflow-y-auto px-4 py-2 min-h-0">
               {messages.length === 0 ? (
                 /* Enhanced Welcome State */
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
@@ -663,7 +663,7 @@ export default function CareerCoach() {
                   <div ref={messagesEndRef} />
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             {/* Enhanced Input Area */}
             <div className="p-4 border-t border-slate-800/50">
