@@ -53,18 +53,44 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
 
+  // Helper function to check if user is admin and redirect accordingly
+  const checkAdminAndRedirect = async (userId: string) => {
+    try {
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      if (roleData) {
+        // User is admin, redirect to admin dashboard
+        navigate("/admin");
+      } else {
+        // Regular user, redirect to home
+        navigate("/");
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      navigate("/");
+    }
+  };
+
   useEffect(() => {
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/");
+        checkAdminAndRedirect(session.user.id);
       }
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session && event === "SIGNED_IN") {
-        navigate("/");
+        // Use setTimeout to avoid Supabase deadlock
+        setTimeout(() => {
+          checkAdminAndRedirect(session.user.id);
+        }, 0);
       }
     });
 
