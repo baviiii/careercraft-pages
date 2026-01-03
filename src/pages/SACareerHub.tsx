@@ -10,8 +10,8 @@ export default function SACareerHub() {
 
   return (
     <UnifiedLayout
-      title="🇦🇺 SA Career Hub"
-      subtitle="Your gateway to South Australian careers"
+      title="Career Hub"
+      subtitle="Your gateway to career opportunities"
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full max-w-md mx-auto mb-6 bg-slate-900/50 border border-slate-800/50 p-1 rounded-2xl">

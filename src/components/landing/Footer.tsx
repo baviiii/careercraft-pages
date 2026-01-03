@@ -141,10 +141,12 @@ export const Footer = () => {
               className="mb-6"
             >
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-slate-800">SA Intelligence</span>
+                <img 
+                  src="/logo.png" 
+                  alt="Horus Intelligence" 
+                  className="w-10 h-10 rounded-xl object-contain"
+                />
+                <span className="text-xl font-bold text-slate-800">Horus Intelligence</span>
               </div>
               <p className="text-slate-600 leading-relaxed max-w-sm">
                 AI-powered resume optimization that helps you beat ATS systems and land more interviews. 
@@ -184,7 +186,7 @@ export const Footer = () => {
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-              <span>© {currentYear} SA Intelligence. Intelligence-Powered South Australia.</span>
+              <span>© {currentYear} Horus Intelligence. Intelligence-Powered Insights.</span>
               <span className="hidden md:inline">•</span>
               <div className="flex gap-4">
                 {footerLinks.legal.map((link) => (

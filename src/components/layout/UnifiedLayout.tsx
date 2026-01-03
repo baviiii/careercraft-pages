@@ -73,7 +73,7 @@ const navigationLinks: NavLink[] = [
   },
   {
     icon: Globe,
-    label: "SA Career Hub",
+    label: "Career Hub",
     path: "/sa-career-hub",
     section: "career",
     description: "Career coaching & exploration",

@@ -96,13 +96,13 @@ export default function AboutUs() {
                 <h2 className="text-3xl font-bold text-slate-800">Our Mission</h2>
               </div>
               <p className="text-lg text-slate-600 leading-relaxed">
-                SA Intelligence is dedicated to making South Australia's policy, workforce, and investment intelligence accessible to everyone. 
+                Horus Intelligence is dedicated to making policy, workforce, and investment intelligence accessible to everyone. 
                 We combine cutting-edge AI technology with verified government data to provide real-time insights into policy decisions, 
                 workforce trends, budget allocations, and career opportunities.
               </p>
               <p className="text-lg text-slate-600 leading-relaxed mt-4">
                 Our platform transforms complex government documents, budgets, workforce strategies, and policy data into 
-                actionable intelligence, helping users understand where South Australia is investing, which sectors are 
+                actionable intelligence, helping users understand where investments are flowing, which sectors are 
                 growing, and how policy shapes opportunities. Plus personalized career tools to help you succeed.
               </p>
             </div>

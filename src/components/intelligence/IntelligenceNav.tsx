@@ -95,12 +95,14 @@ export function IntelligenceNav() {
         {/* Logo & Brand */}
         <div className="p-6 border-b border-border">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-authority flex items-center justify-center shadow-lg">
-              <Building2 className="w-5 h-5 text-white" />
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="Horus Intelligence" 
+              className="w-10 h-10 rounded-xl shadow-lg object-contain"
+            />
             <div className="flex flex-col">
               <span className="font-display font-bold text-lg text-foreground leading-tight">
-                SA Intelligence
+                Horus Intelligence
               </span>
               <span className="text-xs text-muted-foreground">
                 Intelligence Platform
@@ -219,10 +221,12 @@ export function IntelligenceNav() {
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between px-4 h-16">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-authority flex items-center justify-center">
-              <Building2 className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-display font-bold text-foreground">SA Career Hub</span>
+            <img 
+              src="/logo.png" 
+              alt="Horus Intelligence" 
+              className="w-8 h-8 rounded-lg object-contain"
+            />
+            <span className="font-display font-bold text-foreground">Horus Intelligence</span>
           </Link>
           <Button
             variant="ghost"

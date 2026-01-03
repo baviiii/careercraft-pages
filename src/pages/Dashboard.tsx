@@ -267,8 +267,8 @@ export default function Dashboard() {
     },
     {
       icon: Brain,
-      title: "🇦🇺 SA Career Hub",
-      description: "AI coach & SA Government career resources",
+      title: "Career Hub",
+      description: "AI coach & career resources",
       path: "/sa-career-hub",
       gradient: "from-purple-500 to-pink-500",
       featured: true,
@@ -288,7 +288,7 @@ export default function Dashboard() {
   const sidebarLinks = [
     { icon: Home, label: "Dashboard", path: "/dashboard", active: location.pathname === "/dashboard" },
     { icon: BarChart3, label: "Intelligence", path: "/intelligence", active: location.pathname === "/intelligence" },
-    { icon: Brain, label: "🇦🇺 SA Career Hub", path: "/sa-career-hub", active: location.pathname === "/sa-career-hub" },
+    { icon: Brain, label: "Career Hub", path: "/sa-career-hub", active: location.pathname === "/sa-career-hub" },
     { icon: FileText, label: "My Resumes", path: "/my-resumes", active: location.pathname === "/my-resumes" },
     { icon: Mail, label: "Cover Letters", path: "/cover-letter", active: location.pathname === "/cover-letter" },
     { icon: Briefcase, label: "Job Tracker", path: "/tracker", active: location.pathname === "/tracker" },
@@ -339,17 +339,13 @@ export default function Dashboard() {
           {/* Logo */}
           <div className="flex items-center justify-between mb-8">
             <button onClick={() => navigate("/")} className="flex items-center gap-3 group">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-teal-400 rounded-2xl blur-lg opacity-50 group-hover:opacity-80 transition-opacity" />
-                <div className="relative w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-teal-400 flex items-center justify-center shadow-lg group-hover:scale-110 transition-all duration-300">
-                  <FileText className="w-6 h-6 text-white" />
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full border-2 border-slate-900 flex items-center justify-center animate-bounce-subtle">
-                  <Crown className="w-2.5 h-2.5 text-white" />
-                </div>
-              </div>
+              <img 
+                src="/logo.png" 
+                alt="Horus Intelligence" 
+                className="w-12 h-12 rounded-xl shadow-lg shadow-blue-500/30 object-contain"
+              />
               <div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">SA Intelligence</span>
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Horus Intelligence</span>
                 <p className="text-xs text-slate-600">Intelligence Platform</p>
               </div>
             </button>
