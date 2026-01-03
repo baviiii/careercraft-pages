@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Monitor, RefreshCw, LogOut, Globe, Clock } from 'lucide-react';
+import { Search, Monitor, RefreshCw, LogOut, Globe, Clock, MapPin, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,14 +9,19 @@ import { useAdminData } from '@/hooks/useAdminData';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { toast } from 'sonner';
+import { getCountryFlag, formatShortLocation, getCountryName } from '@/lib/geoLocation';
+import { SessionsMapCard } from '@/components/admin/SessionsMapCard';
 
 export default function SessionsManagement() {
   const { sessions, fetchSessions, stats, loading } = useAdminData();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredSessions = sessions.filter(session => {
+    const searchLower = searchQuery.toLowerCase();
     return session.ip_address?.includes(searchQuery) ||
-      session.user_agent?.toLowerCase().includes(searchQuery.toLowerCase());
+      session.user_agent?.toLowerCase().includes(searchLower) ||
+      session.city?.toLowerCase().includes(searchLower) ||
+      session.country?.toLowerCase().includes(searchLower);
   });
 
   const handleForceLogout = async (sessionId: string) => {
@@ -54,10 +59,11 @@ export default function SessionsManagement() {
   };
 
   const getDeviceInfo = (userAgent: string | null) => {
-    if (!userAgent) return { browser: 'Unknown', os: 'Unknown' };
+    if (!userAgent) return { browser: 'Unknown', os: 'Unknown', isMobile: false };
     
     let browser = 'Unknown';
     let os = 'Unknown';
+    let isMobile = false;
     
     if (userAgent.includes('Chrome')) browser = 'Chrome';
     else if (userAgent.includes('Firefox')) browser = 'Firefox';
@@ -67,11 +73,14 @@ export default function SessionsManagement() {
     if (userAgent.includes('Windows')) os = 'Windows';
     else if (userAgent.includes('Mac')) os = 'macOS';
     else if (userAgent.includes('Linux')) os = 'Linux';
-    else if (userAgent.includes('Android')) os = 'Android';
-    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+    else if (userAgent.includes('Android')) { os = 'Android'; isMobile = true; }
+    else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) { os = 'iOS'; isMobile = true; }
     
-    return { browser, os };
+    return { browser, os, isMobile };
   };
+
+  // Calculate unique countries
+  const uniqueCountries = new Set(sessions.map(s => s.country_code).filter(Boolean)).size;
 
   return (
     <div className="space-y-6">
@@ -97,7 +106,7 @@ export default function SessionsManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-border/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -129,6 +138,19 @@ export default function SessionsManagement() {
         <Card className="border-border/50">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-amber-500/10">
+                <MapPin className="w-5 h-5 text-amber-500" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Countries</p>
+                <p className="text-2xl font-bold">{uniqueCountries || '—'}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-border/50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
               <div className="p-3 rounded-lg bg-purple-500/10">
                 <Clock className="w-5 h-5 text-purple-500" />
               </div>
@@ -141,13 +163,16 @@ export default function SessionsManagement() {
         </Card>
       </div>
 
+      {/* Sessions Map */}
+      <SessionsMapCard sessions={sessions} />
+
       <Card className="border-border/50">
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by IP or device..."
+                placeholder="Search by IP, device, or location..."
                 className="pl-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -161,6 +186,7 @@ export default function SessionsManagement() {
               <TableRow className="border-border/50">
                 <TableHead>User ID</TableHead>
                 <TableHead>Device</TableHead>
+                <TableHead>Location</TableHead>
                 <TableHead>IP Address</TableHead>
                 <TableHead>Started</TableHead>
                 <TableHead>Last Activity</TableHead>
@@ -171,6 +197,8 @@ export default function SessionsManagement() {
             <TableBody>
               {filteredSessions.map((session) => {
                 const device = getDeviceInfo(session.user_agent);
+                const DeviceIcon = device.isMobile ? Smartphone : Monitor;
+                const hasLocation = session.country_code || session.city;
                 
                 return (
                   <TableRow key={session.id} className="border-border/50">
@@ -179,12 +207,27 @@ export default function SessionsManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Monitor className="w-4 h-4 text-muted-foreground" />
+                        <DeviceIcon className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm font-medium">{device.browser}</p>
                           <p className="text-xs text-muted-foreground">{device.os}</p>
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {hasLocation ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{getCountryFlag(session.country_code)}</span>
+                          <div>
+                            <p className="text-sm">{formatShortLocation(session.city, session.country)}</p>
+                            {session.region && (
+                              <p className="text-xs text-muted-foreground">{session.region}</p>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {session.ip_address || 'Unknown'}
@@ -218,7 +261,7 @@ export default function SessionsManagement() {
               })}
               {filteredSessions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {loading ? 'Loading sessions...' : 'No active sessions'}
                   </TableCell>
                 </TableRow>

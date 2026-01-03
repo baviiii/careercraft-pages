@@ -17,6 +17,9 @@ export type Database = {
       activity_logs: {
         Row: {
           action: string
+          city: string | null
+          country: string | null
+          country_code: string | null
           created_at: string | null
           details: Json | null
           entity_id: string | null
@@ -29,6 +32,9 @@ export type Database = {
         }
         Insert: {
           action: string
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
           created_at?: string | null
           details?: Json | null
           entity_id?: string | null
@@ -41,6 +47,9 @@ export type Database = {
         }
         Update: {
           action?: string
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
           created_at?: string | null
           details?: Json | null
           entity_id?: string | null
@@ -678,28 +687,46 @@ export type Database = {
       }
       login_attempts: {
         Row: {
+          city: string | null
+          country: string | null
+          country_code: string | null
           created_at: string | null
           email: string
           id: string
           ip_address: string | null
+          latitude: number | null
+          longitude: number | null
+          region: string | null
           success: boolean
           user_agent: string | null
           user_id: string | null
         }
         Insert: {
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
           created_at?: string | null
           email: string
           id?: string
           ip_address?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          region?: string | null
           success: boolean
           user_agent?: string | null
           user_id?: string | null
         }
         Update: {
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
           created_at?: string | null
           email?: string
           id?: string
           ip_address?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          region?: string | null
           success?: boolean
           user_agent?: string | null
           user_id?: string | null
@@ -1454,31 +1481,49 @@ export type Database = {
       }
       user_sessions: {
         Row: {
+          city: string | null
+          country: string | null
+          country_code: string | null
           created_at: string | null
           id: string
           ip_address: string | null
           is_active: boolean | null
           last_activity: string | null
+          latitude: number | null
+          longitude: number | null
+          region: string | null
           session_token: string
           user_agent: string | null
           user_id: string
         }
         Insert: {
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
           created_at?: string | null
           id?: string
           ip_address?: string | null
           is_active?: boolean | null
           last_activity?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          region?: string | null
           session_token: string
           user_agent?: string | null
           user_id: string
         }
         Update: {
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
           created_at?: string | null
           id?: string
           ip_address?: string | null
           is_active?: boolean | null
           last_activity?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          region?: string | null
           session_token?: string
           user_agent?: string | null
           user_id?: string
