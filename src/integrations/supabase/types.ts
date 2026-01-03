@@ -1634,6 +1634,7 @@ export type Database = {
         }
         Returns: string
       }
+      promote_to_admin: { Args: { _email: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"
