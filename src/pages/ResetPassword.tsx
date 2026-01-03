@@ -7,16 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Lock, Shield, CheckCircle2, Sparkles, Eye, EyeOff } from "lucide-react";
+import { Loader2, Lock, Shield, CheckCircle2, Sparkles, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { z } from "zod";
+import { useSessionTracking } from "@/hooks/useSessionTracking";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
 
 const passwordSchema = z.object({
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
+    .max(128, "Password is too long")
     .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number"),
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
@@ -34,6 +38,11 @@ const ResetPassword = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<{ password?: string; confirmPassword?: string }>({});
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [rateLimitMessage, setRateLimitMessage] = useState("");
+  
+  const { trackEvent } = useSessionTracking(null);
 
   useEffect(() => {
     // Check if user has a valid recovery session
@@ -51,6 +60,7 @@ const ResetPassword = () => {
         // Check if this is a recovery session
         if (session) {
           setIsValidSession(true);
+          setUserEmail(session.user.email || null);
         } else {
           setIsValidSession(false);
           toast.error("Invalid or expired reset link. Please request a new one.");
@@ -68,6 +78,7 @@ const ResetPassword = () => {
       if (event === "PASSWORD_RECOVERY") {
         setIsValidSession(true);
         setIsCheckingSession(false);
+        setUserEmail(session?.user.email || null);
       } else if (event === "SIGNED_IN" && !isCheckingSession) {
         // User successfully updated password and is now signed in
         navigate("/");
@@ -82,30 +93,49 @@ const ResetPassword = () => {
   useEffect(() => {
     // Calculate password strength
     let strength = 0;
-    if (password.length >= 8) strength += 25;
-    if (/[A-Z]/.test(password)) strength += 25;
-    if (/[a-z]/.test(password)) strength += 25;
-    if (/[0-9]/.test(password)) strength += 25;
+    if (password.length >= 8) strength += 20;
+    if (/[A-Z]/.test(password)) strength += 20;
+    if (/[a-z]/.test(password)) strength += 20;
+    if (/[0-9]/.test(password)) strength += 20;
+    if (/[^A-Za-z0-9]/.test(password)) strength += 20;
     setPasswordStrength(strength);
   }, [password]);
 
   const getStrengthColor = () => {
-    if (passwordStrength <= 25) return "bg-red-500";
-    if (passwordStrength <= 50) return "bg-orange-500";
-    if (passwordStrength <= 75) return "bg-yellow-500";
+    if (passwordStrength <= 20) return "bg-red-500";
+    if (passwordStrength <= 40) return "bg-orange-500";
+    if (passwordStrength <= 60) return "bg-yellow-500";
+    if (passwordStrength <= 80) return "bg-lime-500";
     return "bg-green-500";
   };
 
   const getStrengthText = () => {
-    if (passwordStrength <= 25) return "Weak";
-    if (passwordStrength <= 50) return "Fair";
-    if (passwordStrength <= 75) return "Good";
+    if (passwordStrength <= 20) return "Very Weak";
+    if (passwordStrength <= 40) return "Weak";
+    if (passwordStrength <= 60) return "Fair";
+    if (passwordStrength <= 80) return "Good";
     return "Strong";
+  };
+
+  const checkAuthRateLimit = (): boolean => {
+    const result = checkRateLimit('password-reset', RATE_LIMITS.AUTH);
+    if (!result.allowed) {
+      setIsRateLimited(true);
+      const minutes = Math.ceil((result.retryAfter || 60) / 60);
+      setRateLimitMessage(`Too many attempts. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} before trying again.`);
+      return false;
+    }
+    setIsRateLimited(false);
+    setRateLimitMessage("");
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+
+    // Check rate limit
+    if (!checkAuthRateLimit()) return;
 
     // Validate password
     const result = passwordSchema.safeParse({ password, confirmPassword });
@@ -126,7 +156,19 @@ const ResetPassword = () => {
         password: password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Track failed password reset
+        await trackEvent('password_reset_failure', { 
+          email: userEmail, 
+          reason: error.message 
+        });
+        throw error;
+      }
+
+      // Track successful password reset
+      await trackEvent('password_reset_complete', { 
+        email: userEmail 
+      });
 
       toast.success("Password updated successfully! Signing you in...");
       
@@ -138,6 +180,8 @@ const ResetPassword = () => {
       console.error("Password update error:", error);
       if (error.message?.includes("same as")) {
         toast.error("New password must be different from your old password");
+      } else if (error.message?.includes("weak")) {
+        toast.error("Password is too weak. Please choose a stronger password.");
       } else {
         toast.error(error.message || "Failed to update password. Please try again.");
       }
@@ -178,7 +222,15 @@ const ResetPassword = () => {
                 This password reset link is invalid or has expired.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-slate-500 bg-slate-50 rounded-lg p-4">
+                <p className="mb-2">This could happen because:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>The link has expired (links are valid for 1 hour)</li>
+                  <li>The link has already been used</li>
+                  <li>The link was copied incorrectly</li>
+                </ul>
+              </div>
               <Button 
                 onClick={() => navigate("/auth")} 
                 className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
@@ -214,6 +266,21 @@ const ResetPassword = () => {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md relative z-10"
       >
+        {/* Rate Limit Warning */}
+        {isRateLimited && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-800">Security Alert</p>
+              <p className="text-sm text-red-600">{rateLimitMessage}</p>
+            </div>
+          </motion.div>
+        )}
+
         <Card className="w-full border-2 border-blue-100/50 shadow-2xl shadow-blue-500/10 bg-white/95 backdrop-blur-xl">
           <CardHeader className="space-y-4 pb-6">
             <motion.div
@@ -230,8 +297,19 @@ const ResetPassword = () => {
               Set New Password
             </CardTitle>
             <CardDescription className="text-center text-slate-600">
-              Create a strong password for your account
+              Create a strong, secure password for your account
             </CardDescription>
+            {userEmail && (
+              <p className="text-center text-sm text-slate-500">
+                Resetting password for: <span className="font-medium">{userEmail}</span>
+              </p>
+            )}
+            
+            {/* Security Badge */}
+            <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+              <Shield className="w-3 h-3 text-green-500" />
+              <span>Your password is encrypted end-to-end</span>
+            </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -252,6 +330,7 @@ const ResetPassword = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete="new-password"
                     className={`h-12 pr-12 border-2 ${errors.password ? 'border-red-300' : 'border-blue-100'} focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all`}
                     placeholder="Enter new password"
                   />
@@ -259,12 +338,16 @@ const ResetPassword = () => {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="text-sm text-red-500">{errors.password}</p>
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {errors.password}
+                  </p>
                 )}
                 
                 {/* Password Strength Indicator */}
@@ -297,6 +380,9 @@ const ResetPassword = () => {
                       <div className={`flex items-center gap-1 ${/[0-9]/.test(password) ? 'text-green-600' : 'text-slate-400'}`}>
                         <CheckCircle2 className="w-3 h-3" /> Number
                       </div>
+                      <div className={`flex items-center gap-1 ${/[^A-Za-z0-9]/.test(password) ? 'text-green-600' : 'text-slate-400'}`}>
+                        <CheckCircle2 className="w-3 h-3" /> Special char
+                      </div>
                     </div>
                   </div>
                 )}
@@ -319,6 +405,7 @@ const ResetPassword = () => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
+                    autoComplete="new-password"
                     className={`h-12 pr-12 border-2 ${errors.confirmPassword ? 'border-red-300' : 'border-blue-100'} focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all`}
                     placeholder="Confirm new password"
                   />
@@ -326,12 +413,16 @@ const ResetPassword = () => {
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
                   >
                     {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
                 {errors.confirmPassword && (
-                  <p className="text-sm text-red-500">{errors.confirmPassword}</p>
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {errors.confirmPassword}
+                  </p>
                 )}
                 {confirmPassword && password === confirmPassword && (
                   <p className="text-sm text-green-600 flex items-center gap-1">
@@ -348,7 +439,7 @@ const ResetPassword = () => {
                 <Button 
                   type="submit" 
                   className="w-full h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold shadow-lg shadow-blue-500/25 transition-all duration-300" 
-                  disabled={isLoading || passwordStrength < 100}
+                  disabled={isLoading || passwordStrength < 100 || isRateLimited}
                 >
                   {isLoading ? (
                     <>
@@ -363,6 +454,11 @@ const ResetPassword = () => {
                   )}
                 </Button>
               </motion.div>
+              
+              <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+                <Shield className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <span>After setting your password, you'll be automatically signed in.</span>
+              </div>
             </form>
           </CardContent>
         </Card>
