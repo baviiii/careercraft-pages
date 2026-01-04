@@ -405,7 +405,7 @@ export default function SmartResumeUploader({ onParsed, onCancel }: SmartResumeU
 
       {/* Features */}
       <div className="grid grid-cols-3 gap-4 mt-6">
-        {parsingMode === 'quick' ? [
+        {(parsingMode === 'quick' ? [
           { icon: Zap, label: 'Lightning Fast', desc: '3-5 seconds', color: 'text-green-500' },
           { icon: FileText, label: 'Browser Based', desc: 'No server wait', color: 'text-blue-500' },
           { icon: DollarSign, label: 'Cost Effective', desc: '50% cheaper', color: 'text-emerald-500' },
@@ -413,7 +413,7 @@ export default function SmartResumeUploader({ onParsed, onCancel }: SmartResumeU
           { icon: Brain, label: 'Azure AI', desc: 'Max accuracy', color: 'text-purple-500' },
           { icon: Image, label: 'OCR Powered', desc: 'Scans & images', color: 'text-orange-500' },
           { icon: Sparkles, label: 'Complex Layouts', desc: 'Tables & graphs', color: 'text-pink-500' },
-        ].map((feature) => (
+        ]).map((feature) => (
           <div key={feature.label} className="flex flex-col items-center text-center p-3">
             <feature.icon className={`w-5 h-5 ${feature.color} mb-2`} />
             <p className="text-xs font-medium text-slate-300">{feature.label}</p>
