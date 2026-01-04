@@ -11,11 +11,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Loader2, Mail, Lock, User, Sparkles, ArrowRight, Shield, CheckCircle2, ArrowLeft, AlertTriangle, Eye, EyeOff } from "lucide-react";
-import { useSessionTracking } from "@/hooks/useSessionTracking";
 import { z } from "zod";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { sanitizeEmail, sanitize } from "@/lib/security/sanitizers";
 import { detectXSS } from "@/lib/security/xss";
+
+const SESSION_TOKEN_KEY = 'horus_session_token';
 
 // Validation schemas
 const emailSchema = z.string()
@@ -102,8 +103,6 @@ const Auth = () => {
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitMessage, setRateLimitMessage] = useState("");
   const [session, setSession] = useState<Session | null>(null);
-  
-  const { trackEvent } = useSessionTracking(session);
 
   // Calculate password strength
   useEffect(() => {
@@ -180,27 +179,87 @@ const Auth = () => {
     }
   };
 
+  // Track OAuth and all auth events reliably
+  const trackAuthEvent = useCallback(async (
+    eventType: 'login_success' | 'login_failure' | 'signup_success' | 'signup_failure' | 'password_reset_request',
+    userEmail?: string | null,
+    userId?: string | null,
+    reason?: string
+  ) => {
+    try {
+      console.log('[Auth] Tracking auth event:', eventType, { email: userEmail, userId });
+      
+      const response = await supabase.functions.invoke('track-session', {
+        body: {
+          event: eventType,
+          email: userEmail || undefined,
+          userId: userId || undefined,
+          userAgent: navigator.userAgent,
+          reason: reason || undefined,
+        },
+      });
+
+      if (response.error) {
+        console.error('[Auth] Error tracking event:', response.error);
+      } else {
+        console.log('[Auth] Event tracked successfully:', response.data);
+        
+        // Store session token if provided
+        if (eventType === 'login_success' && response.data?.sessionToken) {
+          localStorage.setItem(SESSION_TOKEN_KEY, response.data.sessionToken);
+        }
+      }
+    } catch (error) {
+      console.error('[Auth] Error tracking auth event:', error);
+    }
+  }, []);
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        checkAdminAndRedirect(session.user.id);
+    let hasTrackedInitialSession = false;
+    
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      if (currentSession) {
+        // Check if this is a fresh OAuth redirect (URL contains access_token or code)
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const isOAuthRedirect = urlParams.has('code') || hashParams.has('access_token');
+        
+        if (isOAuthRedirect && !hasTrackedInitialSession) {
+          hasTrackedInitialSession = true;
+          // Determine if this is a new signup or returning user
+          const isNewUser = currentSession.user.created_at && 
+            (new Date().getTime() - new Date(currentSession.user.created_at).getTime()) < 60000; // Within 1 minute
+          
+          const eventType = isNewUser ? 'signup_success' : 'login_success';
+          trackAuthEvent(eventType, currentSession.user.email, currentSession.user.id);
+        }
+        
+        checkAdminAndRedirect(currentSession.user.id);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      if (session && event === "SIGNED_IN") {
-        trackEvent('login_success', { email: session.user.email, userId: session.user.id });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
+      setSession(currentSession);
+      
+      if (currentSession && event === "SIGNED_IN" && !hasTrackedInitialSession) {
+        hasTrackedInitialSession = true;
+        
+        // Determine if new user (created within last minute)
+        const isNewUser = currentSession.user.created_at && 
+          (new Date().getTime() - new Date(currentSession.user.created_at).getTime()) < 60000;
+        
+        const eventType = isNewUser ? 'signup_success' : 'login_success';
+        trackAuthEvent(eventType, currentSession.user.email, currentSession.user.id);
         
         setTimeout(() => {
-          checkAdminAndRedirect(session.user.id);
+          checkAdminAndRedirect(currentSession.user.id);
         }, 0);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, trackEvent]);
+  }, [navigate, trackAuthEvent]);
 
   const handleGoogleAuth = async () => {
     if (!checkAuthRateLimit()) return;
@@ -287,12 +346,12 @@ const Auth = () => {
       });
 
       if (error) {
-        await trackEvent('signup_failure', { email: sanitizedEmail, reason: error.message });
+        await trackAuthEvent('signup_failure', sanitizedEmail, null, error.message);
         throw error;
       }
 
       // Track successful signup
-      await trackEvent('signup_success', { email: sanitizedEmail, userId: data.user?.id });
+      await trackAuthEvent('signup_success', sanitizedEmail, data.user?.id);
 
       toast.success("Account created! Please check your email to verify your account.");
       setEmail("");
@@ -344,11 +403,11 @@ const Auth = () => {
       });
 
       if (error) {
-        await trackEvent('login_failure', { email: sanitizedEmail, reason: error.message });
+        await trackAuthEvent('login_failure', sanitizedEmail, null, error.message);
         throw error;
       }
 
-      await trackEvent('login_success', { email: sanitizedEmail, userId: data.user?.id });
+      await trackAuthEvent('login_success', sanitizedEmail, data.user?.id);
       
       toast.success("Signed in successfully!");
     } catch (error: any) {
@@ -391,7 +450,7 @@ const Auth = () => {
       if (error) throw error;
 
       // Track password reset request
-      await trackEvent('password_reset_request', { email: sanitizedEmail });
+      await trackAuthEvent('password_reset_request', sanitizedEmail);
 
       toast.success("Password reset link sent! Check your email inbox.");
       setShowForgotPassword(false);
