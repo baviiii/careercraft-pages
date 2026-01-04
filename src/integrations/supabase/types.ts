@@ -195,6 +195,42 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_prompts: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          focus_area: string
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          system_prompt: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          focus_area: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          system_prompt: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          focus_area?: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          system_prompt?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       chat_sessions: {
         Row: {
           context: Json | null
@@ -1659,6 +1695,14 @@ export type Database = {
         Returns: number
       }
       clean_old_news_articles: { Args: never; Returns: undefined }
+      get_chat_prompt: {
+        Args: { _focus_area?: string }
+        Returns: {
+          id: string
+          name: string
+          system_prompt: string
+        }[]
+      }
       get_user_profile_complete: { Args: { p_user_id: string }; Returns: Json }
       has_role: {
         Args: {

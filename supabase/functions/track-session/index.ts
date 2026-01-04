@@ -328,12 +328,80 @@ Deno.serve(async (req) => {
         }
       }
     } 
-    // Handle signup events
+    // Handle signup events - also log to login_attempts for unified admin view
     else if (event === 'signup_success' || event === 'signup_failure') {
       console.log(`Signup ${event === 'signup_success' ? 'success' : 'failure'} recorded for ${email}`);
       
-      // For signup success, we could optionally create a session
-      // But typically the user needs to verify their email first
+      // Record signup attempt to login_attempts for admin visibility
+      const signupAttemptData = {
+        email: email || 'unknown',
+        user_id: userId || null,
+        success: event === 'signup_success',
+        ip_address: ip !== 'unknown' ? ip : null,
+        user_agent: userAgent || null,
+        country: geo.country,
+        country_code: geo.country_code,
+        region: geo.region,
+        city: geo.city,
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+      };
+
+      console.log('Inserting signup attempt to login_attempts:', signupAttemptData);
+
+      const { error: signupError } = await supabase
+        .from('login_attempts')
+        .insert(signupAttemptData);
+
+      if (signupError) {
+        console.error('Error recording signup attempt:', signupError);
+      } else {
+        console.log('Signup attempt recorded successfully');
+      }
+
+      // For signup success, create a session if we have a userId
+      if (event === 'signup_success' && userId) {
+        const newSessionToken = generateSessionToken();
+        
+        const sessionData = {
+          user_id: userId,
+          session_token: newSessionToken,
+          ip_address: ip !== 'unknown' ? ip : null,
+          user_agent: userAgent || null,
+          is_active: true,
+          last_activity: now,
+          country: geo.country,
+          country_code: geo.country_code,
+          region: geo.region,
+          city: geo.city,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+        };
+
+        console.log('Creating session for new signup:', sessionData);
+
+        const { error: sessionError } = await supabase
+          .from('user_sessions')
+          .insert(sessionData);
+
+        if (sessionError) {
+          console.error('Error creating session for signup:', sessionError);
+        } else {
+          console.log('Session created for new signup');
+          
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              sessionToken: newSessionToken,
+              geo 
+            }),
+            { 
+              status: 200, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+      }
     }
     // Handle password reset events
     else if (event === 'password_reset_request' || event === 'password_reset_complete' || event === 'password_reset_failure') {
