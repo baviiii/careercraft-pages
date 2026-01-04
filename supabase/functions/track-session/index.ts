@@ -223,52 +223,101 @@ Deno.serve(async (req) => {
 
       // If login was successful, create or update session
       if (event === 'login_success' && userId) {
-        const newSessionToken = generateSessionToken();
+        let currentSessionToken = sessionToken || generateSessionToken();
+        let sessionResult;
 
-        // First, mark any existing active sessions for this user as inactive
-        const { error: deactivateError } = await supabase
-          .from('user_sessions')
-          .update({ is_active: false })
-          .eq('user_id', userId)
-          .eq('is_active', true);
+        // If a session token was provided, try to find and update existing session
+        if (currentSessionToken && sessionToken) {
+          const { data: existingSession, error: findError } = await supabase
+            .from('user_sessions')
+            .select('*')
+            .eq('session_token', sessionToken)
+            .eq('user_id', userId)
+            .maybeSingle();
 
-        if (deactivateError) {
-          console.error('Error deactivating old sessions:', deactivateError);
+          if (!findError && existingSession) {
+            // Update existing session
+            console.log('Updating existing session:', currentSessionToken);
+            const { data: updated, error: updateError } = await supabase
+              .from('user_sessions')
+              .update({
+                is_active: true,
+                last_activity: now,
+                ip_address: ip !== 'unknown' ? ip : null,
+                user_agent: userAgent || null,
+                country: geo.country,
+                country_code: geo.country_code,
+                region: geo.region,
+                city: geo.city,
+                latitude: geo.latitude,
+                longitude: geo.longitude,
+              })
+              .eq('id', existingSession.id)
+              .select('session_token')
+              .single();
+
+            if (!updateError && updated) {
+              sessionResult = updated;
+            }
+          }
         }
 
-        // Create new session
-        const sessionData = {
-          user_id: userId,
-          session_token: newSessionToken,
-          ip_address: ip !== 'unknown' ? ip : null,
-          user_agent: userAgent || null,
-          is_active: true,
-          last_activity: now,
-          country: geo.country,
-          country_code: geo.country_code,
-          region: geo.region,
-          city: geo.city,
-          latitude: geo.latitude,
-          longitude: geo.longitude,
-        };
-
-        console.log('Creating new session:', sessionData);
-
-        const { data: sessionResult, error: sessionError } = await supabase
-          .from('user_sessions')
-          .insert(sessionData)
-          .select('session_token')
-          .single();
-
-        if (sessionError) {
-          console.error('Error creating session:', sessionError);
-        } else {
-          console.log('Session created successfully');
+        // If no existing session found, create a new one
+        if (!sessionResult) {
+          currentSessionToken = generateSessionToken();
           
+          // Only deactivate very old sessions (older than 24 hours) to allow multiple concurrent sessions
+          const oneDayAgo = new Date();
+          oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+          
+          const { error: deactivateError } = await supabase
+            .from('user_sessions')
+            .update({ is_active: false })
+            .eq('user_id', userId)
+            .eq('is_active', true)
+            .lt('last_activity', oneDayAgo.toISOString());
+
+          if (deactivateError) {
+            console.error('Error deactivating old sessions:', deactivateError);
+          }
+
+          // Create new session
+          const sessionData = {
+            user_id: userId,
+            session_token: currentSessionToken,
+            ip_address: ip !== 'unknown' ? ip : null,
+            user_agent: userAgent || null,
+            is_active: true,
+            last_activity: now,
+            country: geo.country,
+            country_code: geo.country_code,
+            region: geo.region,
+            city: geo.city,
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+          };
+
+          console.log('Creating new session:', sessionData);
+
+          const { data: newSession, error: sessionError } = await supabase
+            .from('user_sessions')
+            .insert(sessionData)
+            .select('session_token')
+            .single();
+
+          if (sessionError) {
+            console.error('Error creating session:', sessionError);
+          } else {
+            sessionResult = newSession;
+            console.log('Session created successfully');
+          }
+        }
+
+        if (sessionResult) {
           return new Response(
             JSON.stringify({ 
               success: true, 
-              sessionToken: sessionResult.session_token,
+              sessionToken: currentSessionToken,
               geo 
             }),
             { 

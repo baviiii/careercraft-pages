@@ -1,4 +1,4 @@
-import { RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle2, Bug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { SecurityAlertsCard } from '@/components/admin/SecurityAlertsCard';
 import { LoginHistoryTable } from '@/components/admin/LoginHistoryTable';
 import { SessionsMapCard } from '@/components/admin/SessionsMapCard';
 import { useAdminData } from '@/hooks/useAdminData';
+import { testSessionTracking } from '@/lib/testSessionTracking';
 
 export default function AdminOverview() {
   const { 
@@ -32,14 +33,24 @@ export default function AdminOverview() {
           <h1 className="text-2xl font-bold">Dashboard Overview</h1>
           <p className="text-muted-foreground">Monitor your platform's health and activity</p>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={refreshAll}
-          disabled={loading}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={refreshAll}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => testSessionTracking()}
+            title="Test session tracking (opens in console)"
+          >
+            <Bug className="w-4 h-4 mr-2" />
+            Test Tracking
+          </Button>
+        </div>
       </div>
 
       {/* System Status Alert */}
