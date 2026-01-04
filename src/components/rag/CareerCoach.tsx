@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useEnterpriseRAG } from "@/hooks/useEnterpriseRAG";
 import {
@@ -49,6 +50,7 @@ import {
   Minimize2,
   Search,
   Filter,
+  ChevronsUpDown,
 } from "lucide-react";
 import {
   Tooltip,
@@ -93,14 +95,78 @@ interface ConversationStats {
   helpfulCount: number;
 }
 
+interface FocusArea {
+  focus_area: string;
+  name: string;
+  is_active: boolean;
+  is_default: boolean;
+}
+
 export default function CareerCoach() {
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSources, setShowSources] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "insights">("chat");
+  const [focusArea, setFocusArea] = useState<string>("careers");
+  const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
+  const [loadingFocusAreas, setLoadingFocusAreas] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load available focus areas from database
+  useEffect(() => {
+    const loadFocusAreas = async () => {
+      try {
+        setLoadingFocusAreas(true);
+        const { data, error } = await (supabase
+          .from('chat_prompts' as any)
+          .select('focus_area, name, is_active, is_default')
+          .eq('is_active', true)
+          .order('focus_area'));
+
+        if (error) throw error;
+
+        // Get unique focus areas with their default names
+        const uniqueAreas = new Map<string, FocusArea>();
+        data?.forEach((prompt: any) => {
+          if (!uniqueAreas.has(prompt.focus_area)) {
+            uniqueAreas.set(prompt.focus_area, {
+              focus_area: prompt.focus_area,
+              name: prompt.name || prompt.focus_area,
+              is_active: prompt.is_active,
+              is_default: prompt.is_default,
+            });
+          } else if (prompt.is_default) {
+            // Prefer default prompt's name
+            uniqueAreas.set(prompt.focus_area, {
+              focus_area: prompt.focus_area,
+              name: prompt.name || prompt.focus_area,
+              is_active: prompt.is_active,
+              is_default: prompt.is_default,
+            });
+          }
+        });
+
+        const areasArray = Array.from(uniqueAreas.values());
+        setFocusAreas(areasArray);
+
+        // Set initial focus area to default or first available
+        if (areasArray.length > 0) {
+          const defaultArea = areasArray.find(a => a.is_default) || areasArray[0];
+          setFocusArea(defaultArea.focus_area);
+        }
+      } catch (error) {
+        console.error('Error loading focus areas:', error);
+        // Fallback to default
+        setFocusAreas([{ focus_area: 'careers', name: 'Careers', is_active: true, is_default: true }]);
+      } finally {
+        setLoadingFocusAreas(false);
+      }
+    };
+
+    loadFocusAreas();
+  }, []);
 
   // FERRARI ENGINE: Enterprise RAG with all features
   const {
@@ -111,7 +177,7 @@ export default function CareerCoach() {
     context,
     analytics,
     isStreaming,
-  } = useEnterpriseRAG();
+  } = useEnterpriseRAG(focusArea);
 
   const suggestedQuestions: SuggestedQuestion[] = [
     { 
@@ -167,6 +233,14 @@ export default function CareerCoach() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Clear chat when focus area changes (to avoid confusion with different prompts)
+  useEffect(() => {
+    if (messages.length > 0 && !loadingFocusAreas) {
+      clearChat();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusArea]);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -228,9 +302,9 @@ export default function CareerCoach() {
               <Zap className="w-3 h-3 text-white" />
             </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-white">Career Coach AI</h2>
-            <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <h2 className="text-xl font-bold text-white">Horus Chat</h2>
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="text-sm text-slate-400">Azure-powered • 20+ sources • Real-time streaming</p>
               {isStreaming && (
                 <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] animate-pulse">
@@ -243,6 +317,34 @@ export default function CareerCoach() {
                 </Badge>
               )}
             </div>
+            {/* Focus Area Selector */}
+            {focusAreas.length > 1 && (
+              <div className="mt-2">
+                <Select
+                  value={focusArea}
+                  onValueChange={setFocusArea}
+                  disabled={loadingFocusAreas || isStreaming}
+                >
+                  <SelectTrigger className="w-[180px] h-8 bg-slate-800/50 border-slate-700/50 text-white text-sm">
+                    <SelectValue placeholder="Select focus..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {focusAreas.map((area) => (
+                      <SelectItem key={area.focus_area} value={area.focus_area}>
+                        <div className="flex items-center gap-2">
+                          <span className="capitalize">{area.focus_area}</span>
+                          {area.is_default && (
+                            <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
         
@@ -372,10 +474,10 @@ export default function CareerCoach() {
                   >
                     <MessageSquare className="w-10 h-10 text-purple-400" />
                   </motion.div>
-                  <h3 className="text-2xl font-bold text-white mb-2">Hi! I'm your Career Coach</h3>
+                  <h3 className="text-2xl font-bold text-white mb-2">Hi! I'm Horus Chat</h3>
                   <p className="text-slate-400 max-w-md mb-8">
                     I have access to 54+ SA Government documents, job listings, and career resources. 
-                    Ask me anything about careers in South Australia!
+                    Ask me anything about careers, policies, funding, and more in South Australia!
                   </p>
                   
                   {/* Enhanced Suggested Questions */}

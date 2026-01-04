@@ -73,7 +73,7 @@ export interface ParsedResume {
 }
 
 interface UseResumeParserResult {
-  parseResume: (file: File) => Promise<ParsedResume | null>
+  parseResume: (file: File, mode?: 'quick' | 'advanced') => Promise<ParsedResume | null>
   isLoading: boolean
   error: string | null
   progress: string
@@ -86,7 +86,7 @@ export function useResumeParser(): UseResumeParserResult {
   const [progress, setProgress] = useState('')
   const [parsedData, setParsedData] = useState<ParsedResume | null>(null)
 
-  const parseResume = async (file: File): Promise<ParsedResume | null> => {
+  const parseResume = async (file: File, mode: 'quick' | 'advanced' = 'advanced'): Promise<ParsedResume | null> => {
     setIsLoading(true)
     setError(null)
     setParsedData(null)
@@ -113,32 +113,105 @@ export function useResumeParser(): UseResumeParserResult {
         throw new Error('File too large. Maximum size is 20MB.')
       }
 
-      setProgress('Uploading document...')
+      let parsedResult: ParsedResume | null = null
 
-      // Create form data
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('fileName', file.name)
+      if (mode === 'quick') {
+        // Quick mode: Use client-side extraction
+        setProgress('Extracting text from document...')
 
-      setProgress('Analyzing document with AI...')
+        // Import the parseResumeWithAI function
+        const { parseResumeWithAI } = await import('@/lib/resumeParser')
 
-      // Call the Edge Function
-      const { data, error: fnError } = await supabase.functions.invoke('parse-resume', {
-        body: formData,
-      })
+        const aiData = await parseResumeWithAI(file, (prog) => {
+          setProgress(`Processing: ${prog}%`)
+        })
 
-      if (fnError) {
-        throw new Error(fnError.message || 'Failed to parse document')
-      }
+        setProgress('Transforming to resume format...')
 
-      if (!data.success) {
-        throw new Error(data.error || 'Parsing failed')
+        // Transform AIResumeData to ParsedResume format
+        parsedResult = {
+          personalInfo: {
+            fullName: aiData.contact.name || null,
+            email: aiData.contact.email || null,
+            phone: aiData.contact.phone || null,
+            location: aiData.contact.location || null,
+            linkedin: aiData.contact.linkedin || null,
+            website: aiData.contact.website || null,
+            summary: aiData.summary || null,
+          },
+          workExperience: aiData.experience.map(exp => ({
+            company: exp.company,
+            title: exp.title,
+            location: exp.location || null,
+            startDate: exp.startDate || null,
+            endDate: exp.endDate || null,
+            current: exp.current,
+            bullets: exp.bullets,
+          })),
+          education: aiData.education.map(edu => ({
+            institution: edu.school,
+            degree: edu.degree,
+            field: edu.location || null, // Note: AIResumeData uses location for field
+            startDate: null,
+            endDate: edu.graduationDate || null,
+            gpa: edu.gpa || null,
+            achievements: [],
+          })),
+          skills: aiData.skills.length > 0
+            ? [{ category: 'Skills', items: aiData.skills }]
+            : [],
+          certifications: (aiData.certifications || []).map(cert => ({
+            name: typeof cert === 'string' ? cert : cert,
+            issuer: null,
+            date: null,
+            expiryDate: null,
+          })),
+          languages: [],
+          projects: (aiData.projects || []).map(proj => ({
+            name: proj.name,
+            description: proj.description || null,
+            technologies: proj.technologies || [],
+            url: null,
+          })),
+          rawText: '',
+          confidence: 0.85,
+          sourceFile: {
+            name: file.name,
+            type: file.type,
+            pages: 1,
+          },
+        }
+      } else {
+        // Advanced mode: Use Azure Document Intelligence
+        setProgress('Uploading document...')
+
+        // Create form data
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('fileName', file.name)
+
+        setProgress('Analyzing document with Azure AI...')
+
+        // Call the Edge Function
+        const { data, error: fnError } = await supabase.functions.invoke('parse-resume', {
+          body: formData,
+        })
+
+        if (fnError) {
+          throw new Error(fnError.message || 'Failed to parse document')
+        }
+
+        if (!data.success) {
+          throw new Error(data.error || 'Parsing failed')
+        }
+
+        parsedResult = data.parsed
       }
 
       setProgress('Processing complete!')
-      setParsedData(data.parsed)
-      
-      return data.parsed
+      setParsedData(parsedResult)
+
+      return parsedResult
 
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to parse document'

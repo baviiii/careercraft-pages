@@ -362,7 +362,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-3">
                 <MessageSquare className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-semibold text-foreground">Ask Career Coach:</span>
+                <span className="text-sm font-semibold text-foreground">Ask Horus Chat:</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {skillsStories[activeStory].conversationStarters.map((question, idx) => (

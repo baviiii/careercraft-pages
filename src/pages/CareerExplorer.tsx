@@ -1017,7 +1017,7 @@ function CareerExplorerContent() {
                   className="gap-2 border-purple-400/50 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 text-white backdrop-blur-sm shadow-md shadow-purple-500/20"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  Ask AI Career Coach
+                  Ask Horus Chat
                 </Button>
               </div>
 
@@ -1083,7 +1083,7 @@ function CareerExplorerContent() {
                 onClick={() => window.open('/career-coach', '_blank')}
               >
                 <MessageSquare className="w-4 h-4 text-purple-400" />
-                <span className="text-white">AI Career Coach</span>
+                <span className="text-white">Horus Chat</span>
               </Button>
             </div>
           </div>

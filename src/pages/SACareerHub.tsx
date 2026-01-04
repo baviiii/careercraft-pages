@@ -27,7 +27,7 @@ export default function SACareerHub() {
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white"
           >
             <Brain className="w-4 h-4" />
-            Career Coach
+            Horus Chat
           </TabsTrigger>
         </TabsList>
 

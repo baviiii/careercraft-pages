@@ -361,7 +361,7 @@ export function CareerDetailModal({ career, isOpen, onClose }: CareerDetailModal
                           <p className="text-sm mb-1">No source documents available for this career.</p>
                           <p className="text-xs text-slate-500">
                             This career data may have been extracted from general document analysis. 
-                            Try using the AI Career Coach for more detailed information.
+                            Try using Horus Chat for more detailed information.
                           </p>
                         </div>
                       </div>

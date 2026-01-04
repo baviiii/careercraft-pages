@@ -162,9 +162,27 @@ export async function parseResumeWithAI(
   
   // Use AI to parse the extracted text
   try {
-    console.log('🤖 Calling AI parse-resume edge function...');
+    console.log('🤖 Calling AI parse-resume edge function with pre-extracted text...');
+
+    // Count pages for PDFs
+    let pageCount = 1;
+    if (fileType === 'application/pdf') {
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        pageCount = pdf.numPages;
+      } catch {
+        pageCount = 1;
+      }
+    }
+
     const { data, error } = await supabase.functions.invoke('parse-resume', {
-      body: { rawText }
+      body: {
+        rawText,
+        fileName: file.name,
+        fileType: file.type,
+        pageCount
+      }
     });
     
     if (onProgress) onProgress(90);
@@ -173,29 +191,64 @@ export async function parseResumeWithAI(
       console.error('❌ AI parsing error:', error);
       throw new Error('AI parsing failed, falling back to basic parsing');
     }
-    
-    if (data?.error) {
+
+    if (!data.success) {
       console.error('❌ AI returned error:', data.error);
-      throw new Error(data.error);
+      throw new Error(data.error || 'AI parsing failed');
     }
-    
-    if (data?.data) {
+
+    if (data?.parsed) {
+      const parsed = data.parsed;
       console.log('✅ AI parsing successful! Extracted:', {
-        name: data.data.contact?.name,
-        experienceCount: data.data.experience?.length,
-        skillsCount: data.data.skills?.length
+        name: parsed.personalInfo?.fullName,
+        experienceCount: parsed.workExperience?.length,
+        skillsCount: parsed.skills?.reduce((acc: number, s: any) => acc + s.items.length, 0)
       });
-      if (data?.usage) {
-        console.log('📊 TOKENS USED:', {
-          prompt: data.usage.prompt_tokens,
-          completion: data.usage.completion_tokens,
-          total: data.usage.total_tokens
-        });
-      }
+
       if (onProgress) onProgress(100);
-      return data.data as AIResumeData;
+
+      // Transform ParsedResume to AIResumeData format
+      const transformedData: AIResumeData = {
+        contact: {
+          name: parsed.personalInfo.fullName || '',
+          email: parsed.personalInfo.email || '',
+          phone: parsed.personalInfo.phone || '',
+          location: parsed.personalInfo.location || '',
+          linkedin: parsed.personalInfo.linkedin,
+          website: parsed.personalInfo.website,
+        },
+        summary: parsed.personalInfo.summary || '',
+        experience: parsed.workExperience.map((exp: any, index: number) => ({
+          id: `exp-${index}`,
+          title: exp.title,
+          company: exp.company,
+          location: exp.location || '',
+          startDate: exp.startDate || '',
+          endDate: exp.current ? 'Present' : (exp.endDate || ''),
+          current: exp.current,
+          bullets: exp.bullets,
+        })),
+        education: parsed.education.map((edu: any, index: number) => ({
+          id: `edu-${index}`,
+          degree: edu.degree,
+          school: edu.institution,
+          location: edu.field || '',
+          graduationDate: edu.endDate || '',
+          gpa: edu.gpa,
+        })),
+        skills: parsed.skills.flatMap((s: any) => s.items),
+        certifications: parsed.certifications?.map((cert: any) => cert.name) || [],
+        projects: parsed.projects?.map((proj: any, index: number) => ({
+          id: `proj-${index}`,
+          name: proj.name,
+          description: proj.description || '',
+          technologies: proj.technologies,
+        })) || [],
+      };
+
+      return transformedData;
     }
-    
+
     throw new Error('No data returned from AI parser');
   } catch (err) {
     console.warn('⚠️ AI parsing failed, using FALLBACK regex parsing:', err);
@@ -226,35 +279,83 @@ export async function parseResumeWithAI(
 
 // Parse raw text directly with AI (for when we already have text)
 export async function parseResumeTextWithAI(
-  rawText: string
+  rawText: string,
+  fileName: string = 'document.txt',
+  fileType: string = 'text/plain'
 ): Promise<AIResumeData> {
   try {
     console.log('🤖 Calling AI parse-resume edge function with text...');
     const { data, error } = await supabase.functions.invoke('parse-resume', {
-      body: { rawText }
+      body: {
+        rawText,
+        fileName,
+        fileType,
+        pageCount: 1
+      }
     });
-    
+
     if (error) {
       console.error('❌ AI parsing error:', error);
       throw new Error('AI parsing failed');
     }
-    
-    if (data?.error) {
+
+    if (!data.success) {
       console.error('❌ AI returned error:', data.error);
-      throw new Error(data.error);
+      throw new Error(data.error || 'AI parsing failed');
     }
-    
-    if (data?.data) {
+
+    if (data?.parsed) {
+      const parsed = data.parsed;
       console.log('✅ AI text parsing successful!');
-      return data.data as AIResumeData;
+
+      // Transform ParsedResume to AIResumeData format
+      const transformedData: AIResumeData = {
+        contact: {
+          name: parsed.personalInfo.fullName || '',
+          email: parsed.personalInfo.email || '',
+          phone: parsed.personalInfo.phone || '',
+          location: parsed.personalInfo.location || '',
+          linkedin: parsed.personalInfo.linkedin,
+          website: parsed.personalInfo.website,
+        },
+        summary: parsed.personalInfo.summary || '',
+        experience: parsed.workExperience.map((exp: any, index: number) => ({
+          id: `exp-${index}`,
+          title: exp.title,
+          company: exp.company,
+          location: exp.location || '',
+          startDate: exp.startDate || '',
+          endDate: exp.current ? 'Present' : (exp.endDate || ''),
+          current: exp.current,
+          bullets: exp.bullets,
+        })),
+        education: parsed.education.map((edu: any, index: number) => ({
+          id: `edu-${index}`,
+          degree: edu.degree,
+          school: edu.institution,
+          location: edu.field || '',
+          graduationDate: edu.endDate || '',
+          gpa: edu.gpa,
+        })),
+        skills: parsed.skills.flatMap((s: any) => s.items),
+        certifications: parsed.certifications?.map((cert: any) => cert.name) || [],
+        projects: parsed.projects?.map((proj: any, index: number) => ({
+          id: `proj-${index}`,
+          name: proj.name,
+          description: proj.description || '',
+          technologies: proj.technologies,
+        })) || [],
+      };
+
+      return transformedData;
     }
-    
+
     throw new Error('No data returned from AI parser');
   } catch (err) {
     console.warn('⚠️ AI text parsing failed, using FALLBACK regex parsing:', err);
     // Fallback to basic parsing
     const parsed = enhancedParseResume(rawText);
-    
+
     return {
       contact: {
         name: parsed.contact.name || '',

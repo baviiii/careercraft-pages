@@ -279,7 +279,7 @@ export function DataStoriesPanel() {
           <div>
             <div className="flex items-center gap-2 mb-3">
               <MessageCircle className="w-4 h-4 text-blue-400" />
-              <p className="text-sm font-semibold text-blue-400">Ask Career Coach AI:</p>
+              <p className="text-sm font-semibold text-blue-400">Ask Horus Chat:</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {currentStory.conversationStarters.map((starter, idx) => (
@@ -289,7 +289,7 @@ export function DataStoriesPanel() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 + idx * 0.1 }}
                   onClick={() => {
-                    // Navigate to Career Coach with pre-filled question
+                    // Navigate to Horus Chat with pre-filled question
                     window.location.href = `/sa-career-hub?q=${encodeURIComponent(starter)}`;
                   }}
                   className="group flex items-center gap-2 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/30 text-left transition-all"

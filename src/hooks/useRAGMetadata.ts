@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { callRAGMetadata, isAzureFunctionsConfigured } from "@/lib/azureFunctions";
+import { getChatPrompt } from "@/lib/promptLoader";
 
 const queryCache = new Map<string, {
   data: unknown;
@@ -44,9 +45,25 @@ const executeSemanticSearch = async (
   }
 
   try {
-    // Use Azure Functions if configured, otherwise fallback to Supabase
+    /**
+     * RAG ARCHITECTURE:
+     * 
+     * PRIMARY: Azure Functions (rag-metadata)
+     *   - Used when VITE_AZURE_FUNCTIONS_URL is set
+     *   - Accepts systemPrompt parameter (database-driven prompts)
+     *   - Better performance and scalability
+     * 
+     * FALLBACK: Supabase Edge Functions (rag-query)
+     *   - Used if Azure Functions not configured
+     *   - See supabase/functions/rag-query/index.ts
+     *   - Uses hardcoded prompts (not database-driven)
+     * 
+     * Prompt System:
+     *   - Database prompts work with Azure Functions (primary)
+     *   - Fallback uses hardcoded prompts
+     */
     if (isAzureFunctionsConfigured()) {
-      console.log("[semanticSearch] Using Azure Functions");
+      console.log("[semanticSearch] Using Azure Functions (primary)");
       const result = await callRAGMetadata<{
         answer: string;
         sources: Array<{
@@ -86,8 +103,9 @@ const executeSemanticSearch = async (
       return result.data;
     }
 
-    // Fallback to Supabase Edge Functions
-    console.log("[semanticSearch] Using Supabase Edge Functions");
+    // FALLBACK: Use Supabase Edge Functions if Azure not configured
+    // Note: Fallback uses hardcoded prompts (not database-driven)
+    console.log("[semanticSearch] Using Supabase Edge Functions (fallback)");
     const { data, error: fetchError } = await supabase.functions.invoke("rag-query", {
       body: {
         query,
@@ -567,7 +585,8 @@ export function useRAGMetadata() {
   // Uses conversational system prompt instead of analytical HORUS prompts
   const chatQuery = useCallback(async (
     message: string,
-    sessionId?: string | null
+    sessionId?: string | null,
+    focusArea: string = 'careers'
   ): Promise<{
     response: string;
     sources: Array<{
@@ -586,6 +605,10 @@ export function useRAGMetadata() {
     setError(null);
 
     try {
+      // Load prompt from database (admin-configurable)
+      // Falls back to hardcoded prompt if database unavailable
+      const systemPrompt = await getChatPrompt(focusArea);
+
       // Use semantic search with chat-optimized settings
       const result = await semanticSearch(
         message,
@@ -596,33 +619,8 @@ export function useRAGMetadata() {
         {
           topK: 20, // More sources for better chat context
           timeAwareRanking: true,
-          systemPrompt: `You are a helpful career advisor for South Australia.
+          systemPrompt: systemPrompt
 
-ROLE: You provide accurate, actionable career guidance based on official SA Government documents, job listings, budget papers, and training programs.
-
-CONVERSATION STYLE:
-- Be warm, encouraging, and conversational
-- Use "you" and "I" to create connection
-- Break complex information into digestible points
-- Include specific examples and actionable steps
-
-SOURCING:
-- Always cite sources using [Source X] format
-- Include specific details: budget amounts, page numbers, program names, deadlines
-- When data comes from tables, mention "according to Table X.X"
-- Be precise: "The healthcare sector received $5.2B (Table 2.1, Budget Paper 3, p.12)"
-
-STRUCTURE YOUR RESPONSE:
-1. Direct answer to their question
-2. Relevant details with source citations
-3. Actionable next steps or follow-up suggestions
-
-ACCURACY:
-- Only state facts you can cite from sources
-- If uncertain, say "Based on the available documents..." or "I don't have specific information on..."
-- Never invent statistics or program details
-
-Remember: You're helping people make important career decisions. Be helpful, accurate, and empowering.`
         }
       );
 

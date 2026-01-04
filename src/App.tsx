@@ -40,6 +40,7 @@ const SecurityAlerts = lazy(() => import("./pages/admin/SecurityAlerts"));
 const AccessControl = lazy(() => import("./pages/admin/AccessControl"));
 const AuditTrail = lazy(() => import("./pages/admin/AuditTrail"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const ChatPrompts = lazy(() => import("./pages/admin/ChatPrompts"));
 
 // Optimized QueryClient with better caching
 const queryClient = new QueryClient({
@@ -105,6 +106,7 @@ const App = () => (
               <Route path="access" element={<AccessControl />} />
               <Route path="audit" element={<AuditTrail />} />
               <Route path="settings" element={<AdminSettings />} />
+              <Route path="prompts" element={<ChatPrompts />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />

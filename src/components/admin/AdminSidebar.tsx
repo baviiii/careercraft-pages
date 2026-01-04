@@ -7,7 +7,8 @@ import {
   Settings,
   LogOut,
   FileText,
-  Monitor
+  Monitor,
+  MessageSquare
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -31,6 +32,7 @@ const mainNavItems = [
   { title: 'User Management', url: '/admin/users', icon: Users },
   { title: 'Activity Logs', url: '/admin/activity', icon: Activity },
   { title: 'Sessions', url: '/admin/sessions', icon: Monitor },
+  { title: 'AI Prompts', url: '/admin/prompts', icon: MessageSquare },
 ];
 
 const securityNavItems = [

@@ -81,7 +81,7 @@ export interface QueryAnalytics {
 // HOOKS
 // ============================================================================
 
-export function useEnterpriseRAG() {
+export function useEnterpriseRAG(focusArea: string = 'careers') {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [context, setContext] = useState<ConversationContext>({
     messages: [],
@@ -387,8 +387,8 @@ export function useEnterpriseRAG() {
         ? `Recent conversation:\n${conversationContext}\n\nCurrent question: ${content}`
         : content;
 
-      // Call Azure RAG
-      const result = await chatQuery(enhancedQuery, null);
+      // Call Azure RAG with focus area
+      const result = await chatQuery(enhancedQuery, null, focusArea);
 
       if (!result) throw new Error("No response");
 
@@ -478,6 +478,7 @@ export function useEnterpriseRAG() {
     setCachedResponse,
     streamResponse,
     messages,
+    focusArea,
   ]);
 
   // ========================================================================

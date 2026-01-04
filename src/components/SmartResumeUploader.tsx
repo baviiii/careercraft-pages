@@ -20,6 +20,10 @@ import {
   Code,
   Award,
   User,
+  Zap,
+  Brain,
+  DollarSign,
+  Clock,
 } from 'lucide-react'
 import { useResumeParser, ParsedResume, convertToTemplateFormat } from '@/hooks/useResumeParser'
 
@@ -28,23 +32,26 @@ interface SmartResumeUploaderProps {
   onCancel?: () => void
 }
 
+type ParsingMode = 'quick' | 'advanced'
+
 export default function SmartResumeUploader({ onParsed, onCancel }: SmartResumeUploaderProps) {
   const { parseResume, isLoading, error, progress, parsedData } = useResumeParser()
   const [file, setFile] = useState<File | null>(null)
+  const [parsingMode, setParsingMode] = useState<ParsingMode>('quick')
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const uploadedFile = acceptedFiles[0]
       setFile(uploadedFile)
-      
-      const result = await parseResume(uploadedFile)
-      
+
+      const result = await parseResume(uploadedFile, parsingMode)
+
       if (result && onParsed) {
         const templateData = convertToTemplateFormat(result)
         onParsed(result, templateData)
       }
     }
-  }, [parseResume, onParsed])
+  }, [parseResume, onParsed, parsingMode])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -87,7 +94,22 @@ export default function SmartResumeUploader({ onParsed, onCancel }: SmartResumeU
             <CheckCircle2 className="w-6 h-6 text-green-400" />
           </div>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-white">Resume Parsed Successfully!</h3>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-lg font-semibold text-white">Resume Parsed Successfully!</h3>
+              <Badge className={`${parsingMode === 'quick' ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'} text-xs`}>
+                {parsingMode === 'quick' ? (
+                  <>
+                    <Zap className="w-3 h-3 mr-1" />
+                    Quick
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-3 h-3 mr-1" />
+                    Advanced
+                  </>
+                )}
+              </Badge>
+            </div>
             <p className="text-sm text-slate-400">
               {parsedData.sourceFile.pages} page{parsedData.sourceFile.pages > 1 ? 's' : ''} analyzed
             </p>
@@ -220,6 +242,94 @@ export default function SmartResumeUploader({ onParsed, onCancel }: SmartResumeU
         )}
       </div>
 
+      {/* Parsing Mode Selector */}
+      <div className="mb-6">
+        <p className="text-sm font-medium text-slate-300 mb-3">Choose Parsing Method:</p>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Quick Mode */}
+          <button
+            onClick={() => setParsingMode('quick')}
+            disabled={isLoading}
+            className={`
+              relative p-4 rounded-xl border-2 transition-all text-left
+              ${parsingMode === 'quick'
+                ? 'border-green-500 bg-green-500/10'
+                : 'border-slate-700 bg-slate-800/30 hover:border-slate-600'
+              }
+              ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            `}
+          >
+            {parsingMode === 'quick' && (
+              <div className="absolute top-2 right-2">
+                <CheckCircle2 className="w-5 h-5 text-green-400" />
+              </div>
+            )}
+            <div className="flex items-start gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <Zap className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-white mb-1">Quick Parse</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Fast browser-based extraction. Best for standard PDFs and Word docs.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Badge className="bg-green-500/20 text-green-400 text-xs border-0">
+                <Clock className="w-3 h-3 mr-1" />
+                3-5 sec
+              </Badge>
+              <Badge className="bg-blue-500/20 text-blue-400 text-xs border-0">
+                <DollarSign className="w-3 h-3 mr-1" />
+                Cheaper
+              </Badge>
+            </div>
+          </button>
+
+          {/* Advanced Mode */}
+          <button
+            onClick={() => setParsingMode('advanced')}
+            disabled={isLoading}
+            className={`
+              relative p-4 rounded-xl border-2 transition-all text-left
+              ${parsingMode === 'advanced'
+                ? 'border-purple-500 bg-purple-500/10'
+                : 'border-slate-700 bg-slate-800/30 hover:border-slate-600'
+              }
+              ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            `}
+          >
+            {parsingMode === 'advanced' && (
+              <div className="absolute top-2 right-2">
+                <CheckCircle2 className="w-5 h-5 text-purple-400" />
+              </div>
+            )}
+            <div className="flex items-start gap-3 mb-2">
+              <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                <Brain className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-white mb-1">Advanced Parse</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Azure AI processing. Best for scanned documents and complex layouts.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Badge className="bg-orange-500/20 text-orange-400 text-xs border-0">
+                <Clock className="w-3 h-3 mr-1" />
+                10-30 sec
+              </Badge>
+              <Badge className="bg-purple-500/20 text-purple-400 text-xs border-0">
+                <Sparkles className="w-3 h-3 mr-1" />
+                Max Quality
+              </Badge>
+            </div>
+          </button>
+        </div>
+      </div>
+
       {/* Dropzone */}
       <div
         {...getRootProps()}
@@ -239,6 +349,19 @@ export default function SmartResumeUploader({ onParsed, onCancel }: SmartResumeU
             <>
               <Loader2 className="w-12 h-12 text-blue-400 animate-spin mb-4" />
               <p className="text-white font-medium mb-2">{progress}</p>
+              <Badge className={`mb-3 ${parsingMode === 'quick' ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                {parsingMode === 'quick' ? (
+                  <>
+                    <Zap className="w-3 h-3 mr-1" />
+                    Quick Mode
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-3 h-3 mr-1" />
+                    Advanced Mode
+                  </>
+                )}
+              </Badge>
               <Progress value={50} className="w-48 h-2" />
             </>
           ) : error ? (
@@ -282,13 +405,17 @@ export default function SmartResumeUploader({ onParsed, onCancel }: SmartResumeU
 
       {/* Features */}
       <div className="grid grid-cols-3 gap-4 mt-6">
-        {[
-          { icon: FileText, label: 'PDF & Documents', desc: 'Any format' },
-          { icon: Image, label: 'Images & Scans', desc: 'OCR powered' },
-          { icon: Sparkles, label: 'AI Extraction', desc: 'Smart parsing' },
+        {parsingMode === 'quick' ? [
+          { icon: Zap, label: 'Lightning Fast', desc: '3-5 seconds', color: 'text-green-500' },
+          { icon: FileText, label: 'Browser Based', desc: 'No server wait', color: 'text-blue-500' },
+          { icon: DollarSign, label: 'Cost Effective', desc: '50% cheaper', color: 'text-emerald-500' },
+        ] : [
+          { icon: Brain, label: 'Azure AI', desc: 'Max accuracy', color: 'text-purple-500' },
+          { icon: Image, label: 'OCR Powered', desc: 'Scans & images', color: 'text-orange-500' },
+          { icon: Sparkles, label: 'Complex Layouts', desc: 'Tables & graphs', color: 'text-pink-500' },
         ].map((feature) => (
           <div key={feature.label} className="flex flex-col items-center text-center p-3">
-            <feature.icon className="w-5 h-5 text-slate-500 mb-2" />
+            <feature.icon className={`w-5 h-5 ${feature.color} mb-2`} />
             <p className="text-xs font-medium text-slate-300">{feature.label}</p>
             <p className="text-xs text-slate-500">{feature.desc}</p>
           </div>

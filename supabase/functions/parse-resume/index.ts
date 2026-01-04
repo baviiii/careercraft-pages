@@ -79,36 +79,65 @@ serve(async (req) => {
   }
 
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File
-    const fileName = formData.get('fileName') as string || file?.name || 'document'
+    // Detect if request contains file (FormData) or text (JSON)
+    const contentType = req.headers.get('content-type') || ''
+    let rawText = ''
+    let fileName = 'document'
+    let fileType = 'text/plain'
+    let pageCount = 1
 
-    if (!file) {
-      return new Response(
-        JSON.stringify({ error: 'No file provided' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Method 1: JSON with pre-extracted text (from client-side PDF.js/Mammoth)
+    if (contentType.includes('application/json')) {
+      const body = await req.json()
+
+      if (!body.rawText) {
+        return new Response(
+          JSON.stringify({ error: 'No rawText provided in JSON body' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      rawText = body.rawText
+      fileName = body.fileName || 'document.txt'
+      fileType = body.fileType || 'text/plain'
+      pageCount = body.pageCount || 1
+
+      console.log(`📝 Received pre-extracted text (${rawText.length} chars) from client`)
     }
+    // Method 2: FormData with file (full Azure Document Intelligence processing)
+    else {
+      const formData = await req.formData()
+      const file = formData.get('file') as File
+      fileName = formData.get('fileName') as string || file?.name || 'document'
 
-    // Get Azure Document Intelligence credentials
-    const docIntelEndpoint = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT')
-    const docIntelKey = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_KEY')
+      if (!file) {
+        return new Response(
+          JSON.stringify({ error: 'No file provided in FormData' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
-    if (!docIntelEndpoint || !docIntelKey) {
-      return new Response(
-        JSON.stringify({ error: 'Azure Document Intelligence not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+      console.log(`📄 Received file upload: ${fileName}`)
 
-    // Convert file to base64
-    const arrayBuffer = await file.arrayBuffer()
-    const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      // Get Azure Document Intelligence credentials
+      const docIntelEndpoint = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT')
+      const docIntelKey = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_KEY')
 
-    // Determine content type
-    const contentType = file.type || 'application/pdf'
-    
-    console.log(`Processing file: ${fileName}, type: ${contentType}, size: ${file.size} bytes`)
+      if (!docIntelEndpoint || !docIntelKey) {
+        return new Response(
+          JSON.stringify({ error: 'Azure Document Intelligence not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Convert file to base64
+      const arrayBuffer = await file.arrayBuffer()
+      const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+
+      // Determine content type
+      fileType = file.type || 'application/pdf'
+
+      console.log(`📄 Processing file: ${fileName}, type: ${fileType}, size: ${file.size} bytes`)
 
     // Step 1: Use prebuilt-document model for general document extraction
     // This handles PDFs, images, and Office documents
@@ -167,13 +196,14 @@ serve(async (req) => {
       throw new Error('Document analysis timed out')
     }
 
-    // Extract raw text from all pages
-    const rawText = result.content || ''
-    const pageCount = result.pages?.length || 1
+      // Extract raw text from all pages
+      rawText = result.content || ''
+      pageCount = result.pages?.length || 1
 
-    console.log(`Extracted ${rawText.length} characters from ${pageCount} pages`)
+      console.log(`✅ Extracted ${rawText.length} characters from ${pageCount} pages via Azure`)
+    }
 
-    // Step 2: Use GPT to intelligently parse the resume content
+    // Step 2: Use GPT to intelligently parse the resume content (shared for both methods)
     const openAIEndpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT')
     const openAIKey = Deno.env.get('AZURE_OPENAI_KEY')
     const chatDeployment = Deno.env.get('AZURE_OPENAI_CHAT_DEPLOYMENT') || 'gpt-4o-mini'
@@ -193,7 +223,7 @@ serve(async (req) => {
             projects: [],
             rawText,
             confidence: 0.5,
-            sourceFile: { name: fileName, type: contentType, pages: pageCount }
+            sourceFile: { name: fileName, type: fileType, pages: pageCount }
           },
           message: 'Basic extraction only - AI parsing not available'
         }),
@@ -315,7 +345,7 @@ Return ONLY valid JSON, no explanations.`
       rawText,
       sourceFile: {
         name: fileName,
-        type: contentType,
+        type: fileType,
         pages: pageCount
       }
     }

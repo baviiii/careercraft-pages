@@ -47,7 +47,7 @@ function generatePDFHTML(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Career Coach AI Conversation</title>
+  <title>Horus Chat Conversation</title>
   <style>
     @media print {
       @page { margin: 2cm; }
@@ -270,7 +270,7 @@ function generatePDFHTML(
 <body>
   <div class="container">
     <div class="header">
-      <h1>🎓 Career Coach AI Conversation</h1>
+      <h1>🎓 Horus Chat Conversation</h1>
       <p class="subtitle">Azure-Powered RAG System • Enterprise-Grade Intelligence</p>
       ${options.includeMetadata ? `
         <div class="metadata">
@@ -285,7 +285,7 @@ function generatePDFHTML(
       <div class="message ${message.role}">
         <div class="message-header">
           <span class="message-role ${message.role}">
-            ${message.role === 'user' ? '👤 You' : '🤖 Career Coach'}
+            ${message.role === 'user' ? '👤 You' : '🤖 Horus Chat'}
           </span>
           <span class="message-timestamp">${message.timestamp.toLocaleString('en-AU')}</span>
           ${message.confidence ? `

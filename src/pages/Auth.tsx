@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { Session } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,8 +101,9 @@ const Auth = () => {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitMessage, setRateLimitMessage] = useState("");
+  const [session, setSession] = useState<Session | null>(null);
   
-  const { trackEvent } = useSessionTracking(null);
+  const { trackEvent } = useSessionTracking(session);
 
   // Calculate password strength
   useEffect(() => {
@@ -180,12 +182,14 @@ const Auth = () => {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
       if (session) {
         checkAdminAndRedirect(session.user.id);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
       if (session && event === "SIGNED_IN") {
         trackEvent('login_success', { email: session.user.email, userId: session.user.id });
         
@@ -196,7 +200,7 @@ const Auth = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, trackEvent]);
 
   const handleGoogleAuth = async () => {
     if (!checkAuthRateLimit()) return;

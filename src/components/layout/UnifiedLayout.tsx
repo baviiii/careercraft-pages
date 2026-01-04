@@ -77,7 +77,7 @@ const navigationLinks: NavLink[] = [
     label: "Career Hub",
     path: "/sa-career-hub",
     section: "career",
-    description: "Career coaching & exploration",
+    description: "AI-powered chat & exploration",
     badge: "New",
   },
   {

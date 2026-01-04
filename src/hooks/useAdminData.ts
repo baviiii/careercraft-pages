@@ -142,28 +142,40 @@ export function useAdminData() {
 
   const fetchActivityLogs = async () => {
     try {
+      console.log('[AdminData] Fetching activity logs...');
       const { data, error } = await supabase
         .from('activity_logs')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[AdminData] Error fetching activity logs:', error);
+        throw error;
+      }
+      
+      console.log('[AdminData] Activity logs fetched:', data?.length || 0);
       setActivityLogs(data || []);
     } catch (error) {
-      console.error('Error fetching activity logs:', error);
+      console.error('[AdminData] Error fetching activity logs:', error);
     }
   };
 
   const fetchLoginAttempts = async () => {
     try {
+      console.log('[AdminData] Fetching login attempts...');
       const { data, error } = await supabase
         .from('login_attempts')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[AdminData] Error fetching login attempts:', error);
+        throw error;
+      }
+      
+      console.log('[AdminData] Login attempts fetched:', data?.length || 0);
       setLoginAttempts(data || []);
       
       // Calculate login stats for last 24 hours
@@ -181,27 +193,55 @@ export function useAdminData() {
         successfulLogins24h: successful,
       }));
     } catch (error) {
-      console.error('Error fetching login attempts:', error);
+      console.error('[AdminData] Error fetching login attempts:', error);
     }
   };
 
   const fetchSessions = async () => {
     try {
+      // Get all sessions and filter for active ones
+      // A session is considered active if:
+      // 1. is_active = true AND last_activity is within last 30 minutes, OR
+      // 2. last_activity is within last 5 minutes (even if is_active is false, might be stale)
+      const thirtyMinutesAgo = new Date();
+      thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+      const fiveMinutesAgo = new Date();
+      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+
+      console.log('[AdminData] Fetching sessions...');
       const { data, error } = await supabase
         .from('user_sessions')
         .select('*')
-        .eq('is_active', true)
+        .gte('last_activity', thirtyMinutesAgo.toISOString())
         .order('last_activity', { ascending: false });
 
-      if (error) throw error;
-      setSessions(data || []);
+      if (error) {
+        console.error('[AdminData] Error fetching sessions:', error);
+        throw error;
+      }
+      
+      console.log('[AdminData] Raw sessions data:', data?.length || 0, 'sessions found');
+      
+      // Filter to only truly active sessions
+      const activeSessions = (data || []).filter(session => {
+        const lastActivity = new Date(session.last_activity);
+        // Active if: (is_active AND recent) OR very recent (within 5 min)
+        const isActive = (session.is_active === true && lastActivity >= thirtyMinutesAgo) ||
+               lastActivity >= fiveMinutesAgo;
+        return isActive;
+      });
+      
+      console.log('[AdminData] Active sessions:', activeSessions.length);
+      
+      setSessions(activeSessions);
       setStats(prev => ({
         ...prev,
-        totalSessions: data?.length || 0,
-        activeUsers: data?.length || 0,
+        totalSessions: activeSessions.length,
+        activeUsers: activeSessions.length,
       }));
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      console.error('[AdminData] Error fetching sessions:', error);
+      // Don't set sessions to empty on error, keep previous data
     }
   };
 
@@ -238,19 +278,56 @@ export function useAdminData() {
   useEffect(() => {
     refreshAll();
 
-    // Set up realtime subscription for sessions
-    const channel = supabase
+    // Set up realtime subscriptions for live updates
+    const sessionsChannel = supabase
       .channel('admin-sessions')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_sessions' },
-        () => fetchSessions()
+        () => {
+          console.log('[AdminData] Session change detected, refreshing...');
+          fetchSessions();
+        }
       )
       .subscribe();
 
+    const activityChannel = supabase
+      .channel('admin-activity')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activity_logs' },
+        () => {
+          console.log('[AdminData] New activity detected, refreshing...');
+          fetchActivityLogs();
+        }
+      )
+      .subscribe();
+
+    const loginChannel = supabase
+      .channel('admin-logins')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'login_attempts' },
+        () => {
+          console.log('[AdminData] New login attempt detected, refreshing...');
+          fetchLoginAttempts();
+        }
+      )
+      .subscribe();
+
+    // Auto-refresh every 30 seconds to catch any missed updates
+    const autoRefreshInterval = setInterval(() => {
+      console.log('[AdminData] Auto-refreshing data...');
+      refreshAll();
+    }, 30000);
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(sessionsChannel);
+      supabase.removeChannel(activityChannel);
+      supabase.removeChannel(loginChannel);
+      clearInterval(autoRefreshInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

@@ -40,6 +40,11 @@ export function useSessionTracking(session: Session | null) {
     options?: TrackEventOptions
   ) => {
     try {
+      console.log('[SessionTracking] Tracking event:', event, {
+        email: options?.email || session?.user?.email,
+        userId: options?.userId || session?.user?.id,
+      });
+
       const response = await supabase.functions.invoke('track-session', {
         body: {
           event,
@@ -52,9 +57,11 @@ export function useSessionTracking(session: Session | null) {
       });
 
       if (response.error) {
-        console.error('Error tracking session event:', response.error);
+        console.error('[SessionTracking] Error tracking session event:', response.error);
         return null;
       }
+
+      console.log('[SessionTracking] Event tracked successfully:', response.data);
 
       // If login success, store the session token
       if (event === 'login_success' && response.data?.sessionToken) {

@@ -296,7 +296,7 @@ export function isValidFilename(filename: string): boolean {
   return true;
 }
 
-export function isValidFileSize(size: number, maxSizeMB: number = 10): boolean {
+export function isValidFileSize(size: number, maxSizeMB: number = 20): boolean {
   return isPositiveNumber(size) && size <= maxSizeMB * 1024 * 1024;
 }
 

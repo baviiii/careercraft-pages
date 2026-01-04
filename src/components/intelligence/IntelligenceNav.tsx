@@ -49,7 +49,7 @@ const primaryNav: NavItem[] = [
     description: "Real-time job & skills trends",
   },
   {
-    label: "AI Career Coach",
+    label: "Horus Chat",
     href: "/sa-career-hub",
     icon: <MessageSquareText className="w-5 h-5" />,
     description: "RAG-powered career guidance",

@@ -1,6 +1,15 @@
 // Enterprise RAG Query Function
 // Hybrid Search + GPT-4 Response Generation with Full Citations
 // Zero Hallucination Guarantee - Every answer cites sources
+//
+// FALLBACK FUNCTION - This is an emergency backup if Azure Functions are unavailable.
+//
+// ARCHITECTURE:
+// - PRIMARY: Azure Functions (rag-metadata) - Used when VITE_AZURE_FUNCTIONS_URL is set
+// - FALLBACK: This function (rag-query) - Used if Azure not configured
+//
+// Usage: Only called if VITE_AZURE_FUNCTIONS_URL is not set in frontend
+// Prompt system: This function uses hardcoded prompts (not database-driven)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
