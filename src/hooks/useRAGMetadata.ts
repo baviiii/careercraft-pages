@@ -608,6 +608,7 @@ export function useRAGMetadata() {
       // Load prompt from database (admin-configurable)
       // Falls back to hardcoded prompt if database unavailable
       const systemPrompt = await getChatPrompt(focusArea);
+      console.log(`[chatQuery] 📝 Using prompt for "${focusArea}" (first 100 chars):`, systemPrompt.substring(0, 100));
 
       // Use semantic search with chat-optimized settings
       const result = await semanticSearch(

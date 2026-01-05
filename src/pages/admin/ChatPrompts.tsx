@@ -323,6 +323,8 @@ export default function ChatPrompts() {
                       <SelectItem value="careers">Careers</SelectItem>
                       <SelectItem value="policies">Policies</SelectItem>
                       <SelectItem value="funding">Funding</SelectItem>
+                      <SelectItem value="entrepreneurship">Entrepreneurship</SelectItem>
+                      <SelectItem value="basic">Basic / General</SelectItem>
                       <SelectItem value="general">General</SelectItem>
                     </SelectContent>
                   </Select>

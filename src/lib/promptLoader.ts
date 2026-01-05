@@ -57,6 +57,7 @@ export async function getChatPrompt(focusArea: string = 'careers'): Promise<stri
     }
 
     if (data && data.length > 0 && data[0].system_prompt) {
+      console.log(`[promptLoader] ✅ Loaded prompt for "${focusArea}":`, data[0].name || 'unnamed');
       return data[0].system_prompt;
     }
 

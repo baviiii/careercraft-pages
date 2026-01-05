@@ -1,56 +1,32 @@
-# Welcome to your Lovable project
+# Horus Intelligence - AI-Powered Career & Policy Platform
 
-## Project info
+## Project Overview
 
-**URL**: https://lovable.dev/projects/72beb156-ba89-48b8-b7cf-f1322e63eafd
+Horus Intelligence is an AI-powered platform for understanding policy, workforce trends, and career opportunities. Transform complex data into actionable insights.
 
-## How can I edit this code?
+## Getting Started
 
-There are several ways of editing your application.
+### Prerequisites
 
-**Use Lovable**
+- Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/72beb156-ba89-48b8-b7cf-f1322e63eafd) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Step 1: Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Step 2: Navigate to the project directory
+cd careercraft-pages
 
-# Step 3: Install the necessary dependencies.
+# Step 3: Install the necessary dependencies
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
+## Technologies
 
 This project is built with:
 
@@ -59,15 +35,34 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase
+- Azure AI Services
 
-## How can I deploy this project?
+## Deployment
 
-Simply open [Lovable](https://lovable.dev/projects/72beb156-ba89-48b8-b7cf-f1322e63eafd) and click on Share -> Publish.
+Build the project for production:
 
-## Can I connect a custom domain to my Lovable project?
+```sh
+npm run build
+```
 
-Yes, you can!
+The built files will be in the `dist` directory, ready to be deployed to your hosting provider.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Features
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- **Horus Chat**: AI-powered chat assistant with RAG (Retrieval-Augmented Generation) capabilities
+- **Policy Analysis**: Deep insights into government policies and strategic direction
+- **Career Intelligence**: Job market trends, training programs, and career guidance
+- **Admin Dashboard**: Comprehensive admin panel for managing prompts, sessions, and analytics
+
+## Environment Variables
+
+Make sure to configure the following environment variables:
+
+- `VITE_SUPABASE_URL`: Your Supabase project URL
+- `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+- `GEMINI_API_KEY`: Google Gemini API key (for AI-assisted features)
+
+## License
+
+Copyright © 2024 Horus Intelligence. All rights reserved.

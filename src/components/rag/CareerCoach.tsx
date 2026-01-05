@@ -95,7 +95,8 @@ interface ConversationStats {
   helpfulCount: number;
 }
 
-interface FocusArea {
+interface PromptOption {
+  id: string;
   focus_area: string;
   name: string;
   is_active: boolean;
@@ -109,63 +110,51 @@ export default function CareerCoach() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "insights">("chat");
   const [focusArea, setFocusArea] = useState<string>("careers");
-  const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
-  const [loadingFocusAreas, setLoadingFocusAreas] = useState(true);
+  const [promptOptions, setPromptOptions] = useState<PromptOption[]>([]);
+  const [loadingPrompts, setLoadingPrompts] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load available focus areas from database
+  // Load all available prompts from database
   useEffect(() => {
-    const loadFocusAreas = async () => {
+    const loadPrompts = async () => {
       try {
-        setLoadingFocusAreas(true);
+        setLoadingPrompts(true);
         const { data, error } = await (supabase
           .from('chat_prompts' as any)
-          .select('focus_area, name, is_active, is_default')
+          .select('id, focus_area, name, is_active, is_default')
           .eq('is_active', true)
-          .order('focus_area'));
+          .order('is_default', { ascending: false })
+          .order('focus_area')
+          .order('name'));
 
         if (error) throw error;
 
-        // Get unique focus areas with their default names
-        const uniqueAreas = new Map<string, FocusArea>();
-        data?.forEach((prompt: any) => {
-          if (!uniqueAreas.has(prompt.focus_area)) {
-            uniqueAreas.set(prompt.focus_area, {
-              focus_area: prompt.focus_area,
-              name: prompt.name || prompt.focus_area,
-              is_active: prompt.is_active,
-              is_default: prompt.is_default,
-            });
-          } else if (prompt.is_default) {
-            // Prefer default prompt's name
-            uniqueAreas.set(prompt.focus_area, {
-              focus_area: prompt.focus_area,
-              name: prompt.name || prompt.focus_area,
-              is_active: prompt.is_active,
-              is_default: prompt.is_default,
-            });
-          }
-        });
+        const prompts: PromptOption[] = (data || []).map((prompt: any) => ({
+          id: prompt.id,
+          focus_area: prompt.focus_area,
+          name: prompt.name || prompt.focus_area,
+          is_active: prompt.is_active,
+          is_default: prompt.is_default,
+        }));
 
-        const areasArray = Array.from(uniqueAreas.values());
-        setFocusAreas(areasArray);
+        setPromptOptions(prompts);
 
         // Set initial focus area to default or first available
-        if (areasArray.length > 0) {
-          const defaultArea = areasArray.find(a => a.is_default) || areasArray[0];
-          setFocusArea(defaultArea.focus_area);
+        if (prompts.length > 0) {
+          const defaultPrompt = prompts.find(p => p.is_default) || prompts[0];
+          setFocusArea(defaultPrompt.focus_area);
         }
       } catch (error) {
-        console.error('Error loading focus areas:', error);
+        console.error('Error loading prompts:', error);
         // Fallback to default
-        setFocusAreas([{ focus_area: 'careers', name: 'Careers', is_active: true, is_default: true }]);
+        setPromptOptions([{ id: 'default', focus_area: 'careers', name: 'Career Coach', is_active: true, is_default: true }]);
       } finally {
-        setLoadingFocusAreas(false);
+        setLoadingPrompts(false);
       }
     };
 
-    loadFocusAreas();
+    loadPrompts();
   }, []);
 
   // FERRARI ENGINE: Enterprise RAG with all features
@@ -236,7 +225,8 @@ export default function CareerCoach() {
 
   // Clear chat when focus area changes (to avoid confusion with different prompts)
   useEffect(() => {
-    if (messages.length > 0 && !loadingFocusAreas) {
+    console.log(`[CareerCoach] 🔄 Focus area changed to: "${focusArea}"`);
+    if (messages.length > 0 && !loadingPrompts) {
       clearChat();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -317,25 +307,34 @@ export default function CareerCoach() {
                 </Badge>
               )}
             </div>
-            {/* Focus Area Selector */}
-            {focusAreas.length > 1 && (
-              <div className="mt-2">
+            {/* Focus Area Selector - Glassmorphism Pink Theme */}
+            {promptOptions.length > 0 && (
+              <div className="mt-3">
                 <Select
                   value={focusArea}
                   onValueChange={setFocusArea}
-                  disabled={loadingFocusAreas || isStreaming}
+                  disabled={loadingPrompts || isStreaming}
                 >
-                  <SelectTrigger className="w-[180px] h-8 bg-slate-800/50 border-slate-700/50 text-white text-sm">
-                    <SelectValue placeholder="Select focus..." />
+                  <SelectTrigger className="w-[220px] h-9 bg-pink-500/10 backdrop-blur-xl border border-pink-400/30 text-white text-sm rounded-xl shadow-lg shadow-pink-500/10 hover:bg-pink-500/20 hover:border-pink-400/50 transition-all">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+                      <SelectValue>
+                        {promptOptions.find(p => p.focus_area === focusArea)?.name || 'Select focus area...'}
+                      </SelectValue>
+                    </div>
                   </SelectTrigger>
-                  <SelectContent>
-                    {focusAreas.map((area) => (
-                      <SelectItem key={area.focus_area} value={area.focus_area}>
+                  <SelectContent className="bg-slate-900/90 backdrop-blur-xl border border-pink-400/30 rounded-xl shadow-2xl shadow-pink-500/20">
+                    {promptOptions.map((prompt) => (
+                      <SelectItem 
+                        key={prompt.id} 
+                        value={prompt.focus_area}
+                        className="text-white hover:bg-pink-500/20 focus:bg-pink-500/20 rounded-lg mx-1 my-0.5 cursor-pointer"
+                      >
                         <div className="flex items-center gap-2">
-                          <span className="capitalize">{area.focus_area}</span>
-                          {area.is_default && (
-                            <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                              Default
+                          <span className="font-medium">{prompt.name}</span>
+                          {prompt.is_default && (
+                            <Badge className="bg-pink-500/30 text-pink-300 border-pink-400/30 text-[10px] px-1.5 py-0">
+                              ★ Default
                             </Badge>
                           )}
                         </div>

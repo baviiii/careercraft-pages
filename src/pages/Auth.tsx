@@ -136,8 +136,22 @@ const Auth = () => {
   };
 
   // Security: Check for XSS in inputs
+  // Note: For email and password fields, we use a more lenient check since these
+  // values are not rendered as HTML and are validated by Supabase
   const checkInputSecurity = useCallback((value: string, fieldName: string): boolean => {
-    if (detectXSS(value)) {
+    // For email and password, only check for obvious script tags and null bytes
+    if (fieldName === 'email' || fieldName === 'password') {
+      // Only check for the most dangerous patterns that could cause issues
+      if (/<script|javascript:|on\w+\s*=\s*["']/i.test(value)) {
+        toast.error(`Invalid characters detected in ${fieldName}`);
+        return false;
+      }
+      return true;
+    }
+    
+    // For other fields (like name), use full XSS detection
+    const xssResult = detectXSS(value);
+    if (xssResult.detected) {
       toast.error(`Invalid characters detected in ${fieldName}`);
       return false;
     }
@@ -171,11 +185,11 @@ const Auth = () => {
       if (roleData) {
         navigate("/admin");
       } else {
-        navigate("/");
+        navigate("/dashboard");
       }
     } catch (error) {
       console.error('Error checking admin status:', error);
-      navigate("/");
+      navigate("/dashboard");
     }
   };
 

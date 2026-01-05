@@ -90,6 +90,8 @@ const PREDEFINED_FOCUS_AREAS = [
   { value: 'careers', label: 'Careers & Jobs', description: 'Career guidance, job advice, training' },
   { value: 'policies', label: 'Policies', description: 'Policy analysis, regulations' },
   { value: 'funding', label: 'Funding', description: 'Budget analysis, financial info' },
+  { value: 'entrepreneurship', label: 'Entrepreneurship', description: 'Business startup, grants, small business' },
+  { value: 'basic', label: 'Basic / General', description: 'Overall SA experience & information' },
   { value: 'general', label: 'General', description: 'Multi-domain assistance' },
   { value: 'custom', label: 'Custom', description: 'Define your own focus' },
 ];

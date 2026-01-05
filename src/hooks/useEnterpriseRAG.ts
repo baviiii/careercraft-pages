@@ -254,12 +254,14 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
   // ========================================================================
 
   const getCachedResponse = useCallback((query: string) => {
-    const cacheKey = query.toLowerCase().trim();
+    // Include focusArea in cache key so different prompts don't share cache
+    const cacheKey = `${focusArea}:${query.toLowerCase().trim()}`;
     return queryCache.current.get(cacheKey);
-  }, []);
+  }, [focusArea]);
 
   const setCachedResponse = useCallback((query: string, response: any) => {
-    const cacheKey = query.toLowerCase().trim();
+    // Include focusArea in cache key so different prompts don't share cache
+    const cacheKey = `${focusArea}:${query.toLowerCase().trim()}`;
     queryCache.current.set(cacheKey, {
       ...response,
       cachedAt: Date.now(),
@@ -388,6 +390,7 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
         : content;
 
       // Call Azure RAG with focus area
+      console.log(`[EnterpriseRAG] 🎯 Sending query with focusArea: "${focusArea}"`);
       const result = await chatQuery(enhancedQuery, null, focusArea);
 
       if (!result) throw new Error("No response");

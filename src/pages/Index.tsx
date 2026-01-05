@@ -393,11 +393,23 @@ const Index = memo(() => {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_, session) => setSession(session)
+      (_, session) => {
+        setSession(session);
+        // Redirect to dashboard if user is signed in
+        if (session) {
+          navigate("/dashboard");
+        }
+      }
     );
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      // Redirect to dashboard if user is already signed in
+      if (session) {
+        navigate("/dashboard");
+      }
+    });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const features = [
     {
