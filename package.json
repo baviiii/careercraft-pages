@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "security:check": "node scripts/security-check.js",
     "security:http-check": "grep -r \"http://\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.jsx\" src/ supabase/functions/ --exclude-dir=node_modules | grep -v \"http://127.0.0.1\" | grep -v \"http://localhost\" | grep -v \"// http\" | grep -v \"http-equiv\" || echo \"✅ No insecure HTTP URLs found\"",
+    "security:test": "echo \"🔒 Test your deployed site at: https://securityheaders.com\" && echo \"📋 Also check browser console for mixed content errors\"",
     "prebuild": "npm run security:http-check"
   },
   "dependencies": {
