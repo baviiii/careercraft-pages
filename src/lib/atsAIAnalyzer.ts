@@ -1,3 +1,22 @@
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+
+// Helper function to safely parse error responses
+async function parseErrorResponse(response: Response): Promise<{ error?: string }> {
+  try {
+    const text = await response.text();
+    if (!text.trim()) {
+      return { error: `Request failed with status ${response.status}` };
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text || `Request failed with status ${response.status}` };
+    }
+  } catch {
+    return { error: `Request failed with status ${response.status}` };
+  }
+}
+
 export interface ATSAIAnalysis {
   overallScore: number;
   subScores: {
@@ -61,12 +80,12 @@ export async function runATSAIAnalysis(
   jobDescription: string
 ): Promise<ATSAIAnalysis> {
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ats-analyze`,
+    `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({
         resumeText,
@@ -77,7 +96,7 @@ export async function runATSAIAnalysis(
   );
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to analyze resume");
   }
 
@@ -90,12 +109,12 @@ export async function autoRewriteResume(
   jobDescription: string
 ): Promise<string> {
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ats-analyze`,
+    `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({
         resumeText,
@@ -106,7 +125,7 @@ export async function autoRewriteResume(
   );
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to rewrite resume");
   }
 
@@ -119,12 +138,12 @@ export async function rewriteExperienceSection(
   jobDescription: string
 ): Promise<string> {
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ats-analyze`,
+    `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({
         resumeText,
@@ -135,7 +154,7 @@ export async function rewriteExperienceSection(
   );
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to rewrite experience");
   }
 
@@ -148,12 +167,12 @@ export async function generateAchievements(
   jobDescription: string
 ): Promise<string> {
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ats-analyze`,
+    `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({
         resumeText,
@@ -164,7 +183,7 @@ export async function generateAchievements(
   );
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to generate achievements");
   }
 
@@ -177,12 +196,12 @@ export async function generateSummaries(
   jobDescription: string
 ): Promise<string> {
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ats-analyze`,
+    `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({
         resumeText,
@@ -193,7 +212,7 @@ export async function generateSummaries(
   );
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to generate summaries");
   }
 
@@ -207,12 +226,12 @@ export async function rewriteResumeStructured(
   jobDescription: string
 ): Promise<any> {
   const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ats-analyze`,
+    `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({
         resumeData: JSON.stringify(resumeData),
@@ -223,7 +242,7 @@ export async function rewriteResumeStructured(
   );
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to rewrite resume");
   }
 

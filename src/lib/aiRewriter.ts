@@ -1,15 +1,34 @@
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+
+// Helper function to safely parse error responses
+async function parseErrorResponse(response: Response): Promise<{ error?: string }> {
+  try {
+    const text = await response.text();
+    if (!text.trim()) {
+      return { error: `Request failed with status ${response.status}` };
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text || `Request failed with status ${response.status}` };
+    }
+  } catch {
+    return { error: `Request failed with status ${response.status}` };
+  }
+}
+
 export async function rewriteBullet(
   originalText: string,
   jobDescription: string
 ): Promise<string> {
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rewrite-resume`,
+      `${SUPABASE_URL}/functions/v1/rewrite-resume`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           text: originalText,
@@ -20,7 +39,7 @@ export async function rewriteBullet(
     );
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await parseErrorResponse(response);
       throw new Error(error.error || "Failed to rewrite text");
     }
 
@@ -35,12 +54,12 @@ export async function rewriteBullet(
 export async function autoFixFormatting(resumeText: string): Promise<string> {
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rewrite-resume`,
+      `${SUPABASE_URL}/functions/v1/rewrite-resume`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           text: resumeText,
@@ -51,7 +70,7 @@ export async function autoFixFormatting(resumeText: string): Promise<string> {
     );
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await parseErrorResponse(response);
       throw new Error(error.error || "Failed to fix formatting");
     }
 
@@ -70,12 +89,12 @@ export async function getRecruiterReview(
 ): Promise<string> {
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rewrite-resume`,
+      `${SUPABASE_URL}/functions/v1/rewrite-resume`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           text: resumeText,
@@ -87,7 +106,7 @@ export async function getRecruiterReview(
     );
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await parseErrorResponse(response);
       throw new Error(error.error || "Failed to get review");
     }
 
@@ -106,12 +125,12 @@ export async function generateCoverLetter(
 ): Promise<string> {
   try {
     const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rewrite-resume`,
+      `${SUPABASE_URL}/functions/v1/rewrite-resume`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           text: resumeText,
@@ -123,7 +142,7 @@ export async function generateCoverLetter(
     );
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await parseErrorResponse(response);
       throw new Error(error.error || "Failed to generate cover letter");
     }
 

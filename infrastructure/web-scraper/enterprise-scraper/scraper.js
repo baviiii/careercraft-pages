@@ -423,6 +423,15 @@ async function scrapeWebsite(browser, target, options = {}) {
   }
 }
 
+// ============================================================
+// LABELING FUNCTIONS - Document Metadata Extraction
+// ============================================================
+// NOTE: Labeling logic is intentionally duplicated in PDF parser (process-pdfs.ps1)
+//       See ../../docs/LABELING-RULES.md for complete reference
+//       When updating these functions, consider updating PDF parser too
+//       Web-specific enhancements (strategy hints, URL checks) are OK to keep separate
+// ============================================================
+
 // Enhanced metadata extraction functions (matching PDF processing)
 function extractCategory(title, content, strategy) {
   const lowerTitle = (title || '').toLowerCase();

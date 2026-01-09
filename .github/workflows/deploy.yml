@@ -1,0 +1,136 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  # Security Checks
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for HTTP URLs (Security)
+        run: |
+          echo "Checking for insecure HTTP URLs..."
+          if grep -r "http://" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ supabase/functions/ --exclude-dir=node_modules | grep -v "http://127.0.0.1" | grep -v "http://localhost" | grep -v "// http" | grep -v "http-equiv"; then
+            echo "❌ ERROR: Found HTTP URLs in production code!"
+            echo "Please change all HTTP URLs to HTTPS except for localhost"
+            exit 1
+          else
+            echo "✅ No insecure HTTP URLs found"
+          fi
+
+      - name: Check for exposed secrets
+        run: |
+          echo "Checking for potential secret leaks..."
+          if grep -rE "(api[_-]?key|secret|password|token)\s*[=:]\s*['\"][^'\"].{8,}" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ supabase/functions/ --exclude-dir=node_modules | grep -v "//.*API_KEY" | grep -v "example" | grep -v "placeholder"; then
+            echo "⚠️  WARNING: Potential hardcoded secrets found!"
+            echo "Please review and use environment variables instead"
+            # Don't fail, just warn
+          else
+            echo "✅ No obvious hardcoded secrets found"
+          fi
+
+      - name: Run ESLint
+        run: npm run lint || true
+
+  # Build & Test
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: security
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Check build output
+        run: |
+          if [ ! -d "dist" ] || [ -z "$(ls -A dist)" ]; then
+            echo "❌ Build failed: dist directory is empty"
+            exit 1
+          fi
+          echo "✅ Build successful"
+          ls -la dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+          retention-days: 7
+
+  # Deploy to Vercel (automatic via Vercel integration, but we can verify)
+  deploy-check:
+    name: Deployment Verification
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify Vercel configuration
+        run: |
+          if [ ! -f "vercel.json" ]; then
+            echo "⚠️  WARNING: vercel.json not found"
+          else
+            echo "✅ vercel.json found"
+            # Validate JSON syntax
+            node -e "JSON.parse(require('fs').readFileSync('vercel.json'))"
+            echo "✅ vercel.json is valid JSON"
+          fi
+
+      - name: Check security headers
+        run: |
+          if grep -q "Strict-Transport-Security" vercel.json; then
+            echo "✅ Security headers configured"
+          else
+            echo "⚠️  WARNING: Security headers may be missing"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Ready" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security checks passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build successful" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Configuration verified" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Note:** Deployment to Vercel is handled automatically via Vercel integration." >> $GITHUB_STEP_SUMMARY

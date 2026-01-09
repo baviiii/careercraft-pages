@@ -808,10 +808,10 @@ export default function Analysis() {
           </div>
           <h2 className="text-2xl font-bold mb-4">Analyzing Your Resume</h2>
           <div className="space-y-3 text-sm text-muted-foreground">
-            <p className="flex items-center justify-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Extracting job requirements</p>
-            <p className="flex items-center justify-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Parsing resume content</p>
-            <p className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /> Running AI analysis</p>
-            <p className="flex items-center justify-center gap-2 opacity-50"><CircleDot className="w-4 h-4" /> Generating recommendations</p>
+            <div className="flex items-center justify-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Extracting job requirements</div>
+            <div className="flex items-center justify-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Parsing resume content</div>
+            <div className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" /> Running AI analysis</div>
+            <div className="flex items-center justify-center gap-2 opacity-50"><CircleDot className="w-4 h-4" /> Generating recommendations</div>
           </div>
         </motion.div>
       </div>
@@ -1498,10 +1498,10 @@ export default function Analysis() {
                         </ScrollArea>
                       </div>
 
-                      <p className="text-sm text-muted-foreground mt-4 flex items-center gap-2">
+                      <div className="text-sm text-muted-foreground mt-4 flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                         Click "Apply to Builder" to edit this optimized version with your template
-                      </p>
+                      </div>
                     </Card>
                   )}
                 </div>
@@ -1630,10 +1630,10 @@ export default function Analysis() {
               <Input value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="Enter a name for this resume" />
             </div>
             <div className="p-3 bg-primary/10 rounded-lg text-sm border border-primary/20">
-              <p className="font-medium text-primary mb-2 flex items-center gap-2">
+              <div className="font-medium text-primary mb-2 flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
                 What happens next:
-              </p>
+              </div>
               <ol className="list-decimal list-inside text-muted-foreground space-y-1 text-xs">
                 <li>Your resume will be parsed into structured data</li>
                 <li>You'll choose a professional template</li>
@@ -1837,10 +1837,10 @@ export default function Analysis() {
 
             {analysis && analysis.overallScore < 70 && (
               <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-                <p className="text-sm text-yellow-700 flex items-center gap-2">
+                <div className="text-sm text-yellow-700 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
                   Your ATS score is {analysis.overallScore}/100. Consider using the AI enhancement tools before creating your final resume.
-                </p>
+                </div>
               </div>
             )}
           </div>

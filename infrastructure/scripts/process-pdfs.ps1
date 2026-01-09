@@ -22,7 +22,13 @@ param(
     [switch]$GenerateEmbeddings,  # Embeddings are critical for RAG - use this flag!
     
     [Parameter(Mandatory=$false)]
-    [switch]$ForceReprocess  # Force re-processing even if document exists
+    [switch]$ForceReprocess,  # Force re-processing even if document exists
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$UseAITagging,  # Use AI-powered chunk tagging (costs ~$0.001/chunk)
+    
+    [Parameter(Mandatory=$false)]
+    [string]$AITaggingModel = "gpt-4o-mini"  # Model for AI tagging
 )
 
 $ErrorActionPreference = "Continue"
@@ -251,7 +257,7 @@ function Invoke-DocumentIntelligence {
     }
     
     $body = @{ urlSource = $PdfUrl } | ConvertTo-Json
-    $analysisUrl = "$Endpoint/formrecognizer/documentModels/prebuilt-layout:analyze?api-version=2023-07-31"
+    $analysisUrl = "$Endpoint/formrecognizer/documentModels/prebuilt-layout:analyze?api-version=2024-11-30&features=keyValuePairs,formulas"
     
     try {
         $response = Invoke-WebRequest -Uri $analysisUrl -Method Post -Headers $headers -Body $body -UseBasicParsing
@@ -411,9 +417,116 @@ function Split-TextIntoChunks {
     return $chunks
 }
 
+# ============================================================
+# INTELLIGENT CHUNKING - Semantic Boundary Aware
+# ============================================================
+
+function Split-TextIntoIntelligentChunks {
+    param(
+        [string]$Text,
+        [object]$AnalysisResult,
+        [int]$TargetChunkSize = 800,
+        [int]$MinChunkSize = 200,
+        [int]$MaxChunkSize = 1600,
+        [int]$Overlap = 200
+    )
+    
+    $chunks = @()
+    $chunkIndex = 0
+    
+    # Try to use paragraph structure from Document Intelligence
+    if ($AnalysisResult -and $AnalysisResult.paragraphs) {
+        $paragraphs = $AnalysisResult.paragraphs
+        $currentChunk = ""
+        $currentHeading = ""
+        $chunkParagraphs = @()
+        
+        foreach ($para in $paragraphs) {
+            $paraText = $para.content
+            $paraRole = if ($para.role) { $para.role } else { "body" }
+            
+            # Track section headings
+            if ($paraRole -match "title|sectionHeading|heading") {
+                # If we have content, save current chunk before new section
+                if ($currentChunk.Length -ge $MinChunkSize) {
+                    $chunks += @{
+                        text = $currentChunk.Trim()
+                        index = $chunkIndex
+                        charCount = $currentChunk.Length
+                        heading = $currentHeading
+                        paragraphCount = $chunkParagraphs.Count
+                        semantic = $true
+                    }
+                    $chunkIndex++
+                    
+                    # Overlap: keep last portion
+                    $words = $currentChunk -split '\s+'
+                    $overlapWords = $words | Select-Object -Last ([math]::Min(30, $words.Count))
+                    $currentChunk = ($overlapWords -join ' ') + " "
+                    $chunkParagraphs = @()
+                }
+                $currentHeading = $paraText
+            }
+            
+            # Add paragraph to current chunk
+            $potentialLength = $currentChunk.Length + $paraText.Length + 2
+            
+            if ($potentialLength -gt $MaxChunkSize -and $currentChunk.Length -ge $MinChunkSize) {
+                # Save current chunk
+                $chunks += @{
+                    text = $currentChunk.Trim()
+                    index = $chunkIndex
+                    charCount = $currentChunk.Length
+                    heading = $currentHeading
+                    paragraphCount = $chunkParagraphs.Count
+                    semantic = $true
+                }
+                $chunkIndex++
+                
+                # Overlap
+                $words = $currentChunk -split '\s+'
+                $overlapWords = $words | Select-Object -Last ([math]::Min(30, $words.Count))
+                $currentChunk = ($overlapWords -join ' ') + " " + $paraText + "`n`n"
+                $chunkParagraphs = @($para)
+            }
+            else {
+                $currentChunk += $paraText + "`n`n"
+                $chunkParagraphs += $para
+            }
+        }
+        
+        # Final chunk
+        if ($currentChunk.Trim().Length -ge $MinChunkSize) {
+            $chunks += @{
+                text = $currentChunk.Trim()
+                index = $chunkIndex
+                charCount = $currentChunk.Length
+                heading = $currentHeading
+                paragraphCount = $chunkParagraphs.Count
+                semantic = $true
+            }
+        }
+        
+        if ($chunks.Count -gt 0) {
+            return $chunks
+        }
+    }
+    
+    # Fallback to sentence-based chunking if no paragraph structure
+    return Split-TextIntoChunks -Text $Text -ChunkSize $TargetChunkSize -Overlap $Overlap
+}
+
+# ============================================================
+# LABELING FUNCTIONS - Document Metadata Extraction
+# ============================================================
+# NOTE: Labeling logic is intentionally duplicated in web scraper (scraper.js)
+#       See docs/LABELING-RULES.md for complete reference
+#       When updating these functions, consider updating web scraper too
+# ============================================================
+
 function Get-DocumentCategory {
     param([string]$FileName, [string]$Content)
-    
+
     $lowerName = $FileName.ToLower()
     $lowerContent = $Content.ToLower().Substring(0, [Math]::Min(2000, $Content.Length))
     
@@ -469,14 +582,127 @@ function Get-DocumentSector {
     if ($lowerContent -match "construction|building|infrastructure") { return "construction" }
     if ($lowerContent -match "technology|it|digital|software|ict") { return "technology" }
     if ($lowerContent -match "agriculture|farming|rural") { return "agriculture" }
-    if ($lowerContent -match "mining|resources|energy") { return "resources" }
+    if ($lowerContent -match "mining|resources|energy|renewable|hydrogen") { return "resources" }
     if ($lowerContent -match "retail|hospitality|tourism") { return "services" }
     if ($lowerContent -match "finance|accounting|treasury") { return "finance" }
     if ($lowerContent -match "defense|security|police") { return "defense" }
     if ($lowerContent -match "transport|logistics") { return "transport" }
     if ($lowerContent -match "community|social services|welfare") { return "community-services" }
+    if ($lowerContent -match "manufacturing|industry|production") { return "manufacturing" }
+    if ($lowerContent -match "arts|culture|creative|music") { return "arts-culture" }
+    if ($lowerContent -match "environment|climate|sustainability") { return "environment" }
+    if ($lowerContent -match "legal|justice|court|attorney") { return "legal" }
     
     return "general"
+}
+
+# ============================================================
+# AI-POWERED CHUNK TAGGING - World-Class Intelligence
+# ============================================================
+
+function Get-ChunkTagsWithAI {
+    param(
+        [string]$Content,
+        [string]$OpenAIEndpoint,
+        [string]$OpenAIKey,
+        [string]$DocumentTitle = "",
+        [string]$Deployment = "gpt-4o-mini",
+        [int]$RetryCount = 0,
+        [int]$MaxRetries = 3
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($Content) -or $Content.Length -lt 50) {
+        return @{
+            category = "general"
+            sectors = @("general")
+            tags = @()
+            topics = @()
+            occupation = $null
+            confidence = 0.5
+        }
+    }
+    
+    $headers = @{
+        "Content-Type" = "application/json"
+        "api-key" = $OpenAIKey
+    }
+    
+    # Truncate content for API (keep first 2000 chars for efficiency)
+    $truncatedContent = $Content.Substring(0, [Math]::Min(2000, $Content.Length))
+    
+    $systemPrompt = @"
+You are an expert document analyst for South Australian Government documents. Analyze the given text chunk and extract structured metadata.
+
+RESPOND ONLY WITH VALID JSON - no markdown, no explanation.
+
+Categories (pick ONE most relevant):
+- budget: Financial reports, appropriations, expenditure, revenue
+- policy: Guidelines, procedures, regulations, compliance
+- strategy: Strategic plans, roadmaps, vision documents
+- workforce: Employment data, job market, labor statistics
+- education: Training, schools, learning, qualifications
+- health: Medical, healthcare, hospitals, nursing
+- career-guidance: Job applications, interviews, resumes, career advice
+- report: Annual reports, reviews, assessments
+- government-document: General government content
+
+Sectors (pick ALL that apply):
+- health, education, public-sector, construction, technology
+- agriculture, resources, services, finance, defense
+- transport, community-services, manufacturing, arts-culture
+- environment, legal, renewable-energy, hydrogen
+
+Topics: Extract 2-5 specific topics mentioned (e.g., "workforce development", "budget allocation", "skills training")
+
+Occupation: If the chunk discusses a specific occupation/role, identify it (e.g., "nurse", "teacher", "electrician")
+
+Confidence: Rate your tagging confidence 0.0-1.0
+"@
+
+    $userPrompt = "Document: $DocumentTitle`n`nContent:`n$truncatedContent"
+    
+    $body = @{
+        messages = @(
+            @{ role = "system"; content = $systemPrompt }
+            @{ role = "user"; content = $userPrompt }
+        )
+        temperature = 0.1
+        max_tokens = 500
+        response_format = @{ type = "json_object" }
+    } | ConvertTo-Json -Depth 5
+    
+    try {
+        $url = "$OpenAIEndpoint/openai/deployments/$Deployment/chat/completions?api-version=2024-02-15-preview"
+        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -ContentType "application/json; charset=utf-8"
+        
+        $jsonResponse = $response.choices[0].message.content | ConvertFrom-Json
+        
+        return @{
+            category = if ($jsonResponse.category) { $jsonResponse.category } else { "general" }
+            sectors = if ($jsonResponse.sectors -and $jsonResponse.sectors.Count -gt 0) { $jsonResponse.sectors } else { @("general") }
+            tags = if ($jsonResponse.tags) { $jsonResponse.tags } else { @() }
+            topics = if ($jsonResponse.topics) { $jsonResponse.topics } else { @() }
+            occupation = $jsonResponse.occupation
+            confidence = if ($jsonResponse.confidence) { [double]$jsonResponse.confidence } else { 0.8 }
+        }
+    }
+    catch {
+        if ($RetryCount -lt $MaxRetries -and $_.Exception.Message -match "429|503|timeout") {
+            Start-Sleep -Seconds ([Math]::Pow(2, $RetryCount + 1))
+            return Get-ChunkTagsWithAI -Content $Content -OpenAIEndpoint $OpenAIEndpoint -OpenAIKey $OpenAIKey `
+                -DocumentTitle $DocumentTitle -Deployment $Deployment -RetryCount ($RetryCount + 1)
+        }
+        
+        # Fallback to regex-based tagging
+        return @{
+            category = Get-DocumentCategory -FileName $DocumentTitle -Content $Content
+            sectors = @(Get-DocumentSector -Content $Content)
+            tags = @(Get-DocumentTags -FileName $DocumentTitle -Content $Content)
+            topics = @()
+            occupation = $null
+            confidence = 0.6
+        }
+    }
 }
 
 function Get-PublicationYear {
@@ -932,19 +1158,49 @@ foreach ($pdf in $pdfs) {
                 $tableRows = @()
                 $tableConfidence = if ($table.confidence) { $table.confidence } else { 1.0 }
                 
-                # Build structured rows
+                # WORLD-CLASS: Build structured rows with merged cell support
                 $rows = @{}
+                $mergedCells = @{}  # Track merged cells
+                
                 foreach ($cell in $table.cells) {
-                    if (-not $rows.ContainsKey($cell.rowIndex)) {
-                        $rows[$cell.rowIndex] = @{}
-                    }
-                    $rows[$cell.rowIndex][$cell.columnIndex] = @{
-                        content = $cell.content
-                        kind = if ($cell.kind) { $cell.kind } else { "content" }
+                    $rowIdx = $cell.rowIndex
+                    $colIdx = $cell.columnIndex
+                    $rowSpan = if ($cell.rowSpan) { $cell.rowSpan } else { 1 }
+                    $colSpan = if ($cell.columnSpan) { $cell.columnSpan } else { 1 }
+                    
+                    if (-not $rows.ContainsKey($rowIdx)) {
+                        $rows[$rowIdx] = @{}
                     }
                     
-                    # Capture headers (usually row 0)
-                    if ($cell.rowIndex -eq 0) {
+                    # Store cell with span info
+                    $rows[$rowIdx][$colIdx] = @{
+                        content = $cell.content
+                        kind = if ($cell.kind) { $cell.kind } else { "content" }
+                        rowSpan = $rowSpan
+                        colSpan = $colSpan
+                        isMerged = ($rowSpan -gt 1 -or $colSpan -gt 1)
+                    }
+                    
+                    # For merged cells, replicate content to spanned positions
+                    for ($r = 0; $r -lt $rowSpan; $r++) {
+                        for ($c = 0; $c -lt $colSpan; $c++) {
+                            if ($r -gt 0 -or $c -gt 0) {
+                                $targetRow = $rowIdx + $r
+                                $targetCol = $colIdx + $c
+                                if (-not $rows.ContainsKey($targetRow)) {
+                                    $rows[$targetRow] = @{}
+                                }
+                                $rows[$targetRow][$targetCol] = @{
+                                    content = ""  # Empty for spanned cells
+                                    kind = "spanned"
+                                    spanSource = "$rowIdx-$colIdx"
+                                }
+                            }
+                        }
+                    }
+                    
+                    # Capture headers (row 0 or cells marked as columnHeader)
+                    if ($rowIdx -eq 0 -or $cell.kind -eq "columnHeader") {
                         $headers += $cell.content
                     }
                 }
@@ -1002,7 +1258,10 @@ foreach ($pdf in $pdfs) {
         $textContent = $fullText
         # Remove table markers to chunk clean text separately
         $textContent = $textContent -replace "--- TABLE.*?--- END TABLE ---", ""
-        $textChunks = Split-TextIntoChunks -Text $textContent -ChunkSize $ChunkSize -Overlap $ChunkOverlap
+        
+        # WORLD-CLASS: Use intelligent chunking with paragraph structure
+        $textChunks = Split-TextIntoIntelligentChunks -Text $textContent -AnalysisResult $analysisResult `
+            -TargetChunkSize $ChunkSize -Overlap $ChunkOverlap
         
         # ELITE: Create separate table row chunks (critical for trend analysis)
         $tableChunks = @()
@@ -1028,28 +1287,36 @@ foreach ($pdf in $pdfs) {
         
         # Analyze document for metadata (Phase 1 - Data Foundation)
         Write-Host "   [3/4] Analyzing document metadata..." -ForegroundColor Gray
-        $category = Get-DocumentCategory -FileName $pdfName -Content $fullText
-        $tags = Get-DocumentTags -FileName $pdfName -Content $fullText
-        $sector = Get-DocumentSector -Content $fullText
+        
+        # WORLD-CLASS: Document-level metadata (fallback values)
+        $docCategory = Get-DocumentCategory -FileName $pdfName -Content $fullText
+        $docTags = Get-DocumentTags -FileName $pdfName -Content $fullText
+        $docSector = Get-DocumentSector -Content $fullText
         $publicationYear = Get-PublicationYear -FileName $pdfName -Content $fullText
         $title = ($pdfName -replace '\.pdf$', '' -replace '[-_]', ' ')
         
+        # WORLD-CLASS: AI-powered chunk-level tagging
+        $useChunkLevelAI = $UseAITagging -and $hasOpenAI
+        if ($useChunkLevelAI) {
+            Write-Host "   [AI] AI-powered chunk tagging enabled (model: $AITaggingModel)" -ForegroundColor Magenta
+        }
+        
         # Ensure we have at least some tags
-        if ($tags.Count -eq 0) {
-            $tags = @("sa-government", "general")
+        if ($docTags.Count -eq 0) {
+            $docTags = @("sa-government", "general")
         }
         
         # Ensure we have a category
-        if (-not $category -or $category -eq "") {
-            $category = "government-document"
+        if (-not $docCategory -or $docCategory -eq "") {
+            $docCategory = "government-document"
         }
         
         # Ensure we have a sector
-        if (-not $sector -or $sector -eq "") {
-            $sector = "general"
+        if (-not $docSector -or $docSector -eq "") {
+            $docSector = "general"
         }
         
-        Write-Host "   [OK] Category: $category, Sector: $sector, Tags: $($tags.Count), Year: $(if ($publicationYear) { $publicationYear } else { 'Not found' })" -ForegroundColor Green
+        Write-Host "   [OK] Doc Category: $docCategory, Sector: $docSector, Tags: $($docTags.Count), Year: $(if ($publicationYear) { $publicationYear } else { 'Not found' })" -ForegroundColor Green
         
         # Index chunks
         $totalChunksToIndex = $textChunks.Count + $tableChunks.Count
@@ -1104,6 +1371,33 @@ foreach ($pdf in $pdfs) {
             $sanitizedTitle = Sanitize-TextForIndexing -Text $title
             $sanitizedMetadata = Sanitize-TextForIndexing -Text ($documentMetadata | ConvertTo-Json -Compress)
             
+            # WORLD-CLASS: AI-powered chunk-level tagging
+            $chunkCategory = $docCategory
+            $chunkTags = $docTags
+            $chunkSector = $docSector
+            $chunkSectors = @($docSector)
+            $chunkTopics = @()
+            $chunkOccupation = $null
+            $tagConfidence = 0.7
+            
+            if ($useChunkLevelAI) {
+                try {
+                    $aiTags = Get-ChunkTagsWithAI -Content $chunk.text -OpenAIEndpoint $openAIEndpoint `
+                        -OpenAIKey $openAIKey -DocumentTitle $title -Deployment $AITaggingModel
+                    
+                    $chunkCategory = $aiTags.category
+                    $chunkSectors = $aiTags.sectors
+                    $chunkSector = $aiTags.sectors[0]
+                    $chunkTags = $aiTags.tags + $docTags | Select-Object -Unique
+                    $chunkTopics = $aiTags.topics
+                    $chunkOccupation = $aiTags.occupation
+                    $tagConfidence = $aiTags.confidence
+                } catch {
+                    # Fallback to document-level tags on error
+                    Write-Host "     [WARN] AI tagging failed for chunk $($chunk.index), using doc-level tags" -ForegroundColor Yellow
+                }
+            }
+            
             $document = @{
                 "@search.action" = if ($ForceReprocess) { "upload" } else { "mergeOrUpload" }
                 id = $docId
@@ -1115,14 +1409,18 @@ foreach ($pdf in $pdfs) {
                 title = $sanitizedTitle
                 pageNumber = $chunkPage
                 chunkIndex = $chunk.index
-                chunkType = "text"  # ELITE: Chunk type identification
-                confidence = $chunkConfidence  # ELITE: Confidence score (0-1)
+                chunkType = "text"
+                confidence = $chunkConfidence
                 indexedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-                category = $category
-                tags = $tags
-                sector = $sector
+                category = $chunkCategory
+                tags = $chunkTags
+                sector = $chunkSector
+                sectors = $chunkSectors
+                topics = $chunkTopics
+                occupation = $chunkOccupation
+                tagConfidence = $tagConfidence
                 metadata = $sanitizedMetadata
-                retrievalWeight = 1.0  # ELITE: Retrieval weight (text = 1.0, tables = 1.5)
+                retrievalWeight = 1.0
             }
             
             # ELITE: Generate embedding with retry logic (target: 98%+ coverage)

@@ -52,7 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useDropzone } from "react-dropzone";
 import { rewriteBullet, autoFixFormatting, generateCoverLetter } from "@/lib/aiRewriter";
 import { parseResumeWithAI, AIResumeData } from "@/lib/resumeParser";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 
 type RewriteMode = "bullet" | "full" | "summary" | "achievements" | "keywords";
@@ -306,12 +306,12 @@ export default function Rewrite() {
       
       // Use the rewrite-resume edge function with different types
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rewrite-resume`,
+        `${SUPABASE_URL}/functions/v1/rewrite-resume`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
             text: textToRewrite,
@@ -422,12 +422,12 @@ export default function Rewrite() {
     try {
       // Use AI to parse the optimized text into structured data
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-resume`,
+        `${SUPABASE_URL}/functions/v1/parse-resume`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({ rawText: optimizedText }),
         }

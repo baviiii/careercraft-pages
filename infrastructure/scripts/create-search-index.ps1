@@ -205,6 +205,29 @@ $indexDefinition = @{
             facetable = $true
         },
         @{
+            name = "sectors"
+            type = "Collection(Edm.String)"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            facetable = $true
+        },
+        @{
+            name = "tagConfidence"
+            type = "Edm.Double"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            sortable = $true
+        },
+        @{
+            name = "sectionHeading"
+            type = "Edm.String"
+            searchable = $true
+            filterable = $false
+            retrievable = $true
+        },
+        @{
             name = "programType"
             type = "Edm.String"
             searchable = $false

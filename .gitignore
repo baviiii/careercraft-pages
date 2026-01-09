@@ -1,5 +1,4 @@
 # Logs
-
 logs
 *.log
 npm-debug.log*
@@ -34,17 +33,25 @@ infrastructure/.azure/
 .env.local
 .env.*.local
 *.env
+.env.example
+!.env.example
 
 # RAG Training Data (Large files - don't commit)
 RAG-training/
-**/RAG-training/**
-*.pdf
-*.docx
-*.ods
-# Keep specific PDFs if needed in other locations
-!public/**/*.pdf
-!docs/**/*.pdf
 
-# Executable files
-*.exe
-claude.exe
+# Build outputs
+build/
+out/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# IDE
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp

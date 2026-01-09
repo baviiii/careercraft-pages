@@ -8,7 +8,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+/**
+ * Horus Chat Component
+ * 
+ * SEPARATION OF CONCERNS:
+ * - Hybrid RAG: Standard retrieval (useEnterpriseRAG)
+ * - Agentic + Graph RAG: Multi-step reasoning with relationship discovery (useAgenticRAG)
+ * - Users can toggle between modes via UI button
+ * - Each mode uses its own hook for clean separation
+ */
 import { useEnterpriseRAG } from "@/hooks/useEnterpriseRAG";
+import { useAgenticRAG } from "@/hooks/useAgenticRAG";
 import {
   FollowUpQuestions,
   ProactiveInsightCard,
@@ -70,6 +80,28 @@ interface Message {
   rating?: "helpful" | "not-helpful" | null;
   tokens?: number;
   responseTime?: number;
+  // Agentic-specific fields
+  agentPlan?: {
+    strategy: string;
+    steps: Array<{
+      step: number;
+      query: string;
+      method: string;
+    }>;
+  };
+  graphConnections?: Array<{
+    type: string;
+    source: string;
+    target: string;
+    strength: number;
+  }>;
+  contradictions?: Array<{
+    type: string;
+    source1: string;
+    source2: string;
+    description: string;
+    severity: "high" | "medium" | "low";
+  }>;
 }
 
 interface Source {
@@ -103,6 +135,8 @@ interface PromptOption {
   is_default: boolean;
 }
 
+type RAGMode = "hybrid" | "agentic" | "neo4j";
+
 export default function CareerCoach() {
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -110,6 +144,7 @@ export default function CareerCoach() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "insights">("chat");
   const [focusArea, setFocusArea] = useState<string>("careers");
+  const [ragMode, setRagMode] = useState<RAGMode>("hybrid");
   const [promptOptions, setPromptOptions] = useState<PromptOption[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -157,7 +192,20 @@ export default function CareerCoach() {
     loadPrompts();
   }, []);
 
-  // FERRARI ENGINE: Enterprise RAG with all features
+  // SEPARATION OF CONCERNS: Switch between Hybrid RAG, Agentic RAG (Cosmos), and Neo4j RAG
+  const hybridRAG = useEnterpriseRAG(focusArea);
+  const agenticRAG = useAgenticRAG(focusArea);
+  const neo4jRAG = useAgenticRAG(focusArea, { graphBackend: 'neo4j' }); // Neo4j backend
+  
+  // Select active RAG system based on mode
+  const getActiveRAG = () => {
+    switch (ragMode) {
+      case 'neo4j': return neo4jRAG;
+      case 'agentic': return agenticRAG;
+      default: return hybridRAG;
+    }
+  };
+  
   const {
     messages,
     sendMessage,
@@ -166,7 +214,7 @@ export default function CareerCoach() {
     context,
     analytics,
     isStreaming,
-  } = useEnterpriseRAG(focusArea);
+  } = getActiveRAG();
 
   const suggestedQuestions: SuggestedQuestion[] = [
     { 
@@ -231,6 +279,15 @@ export default function CareerCoach() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusArea]);
+
+  // Clear chat when RAG mode changes (different systems, different context)
+  useEffect(() => {
+    console.log(`[CareerCoach] 🔄 RAG mode changed to: "${ragMode}"`);
+    if (messages.length > 0) {
+      clearChat();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ragMode]);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -306,6 +363,25 @@ export default function CareerCoach() {
                   {Math.round(analytics.cacheHitRate * 100)}% cached
                 </Badge>
               )}
+              {/* RAG Mode Badge */}
+              <Badge className={cn(
+                "text-[10px] font-semibold",
+                ragMode === "agentic"
+                  ? "bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-purple-300 border-purple-400/50"
+                  : "bg-blue-500/20 text-blue-400 border-blue-500/30"
+              )}>
+                {ragMode === "agentic" ? (
+                  <>
+                    <Brain className="w-3 h-3 mr-1 inline" />
+                    Agentic + Graph
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-3 h-3 mr-1 inline" />
+                    Hybrid RAG
+                  </>
+                )}
+              </Badge>
             </div>
             {/* Focus Area Selector - Glassmorphism Pink Theme */}
             {promptOptions.length > 0 && (
@@ -348,6 +424,40 @@ export default function CareerCoach() {
         </div>
         
         <div className="flex items-center gap-2">
+          {/* RAG Mode Selector - Compare Cosmos vs Neo4j */}
+          <Select value={ragMode} onValueChange={(value: RAGMode) => setRagMode(value)} disabled={isStreaming || loadingPrompts}>
+            <SelectTrigger className={cn(
+              "w-[160px] h-9 text-xs font-medium transition-all",
+              ragMode === "neo4j"
+                ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-400/50 text-green-300"
+                : ragMode === "agentic"
+                  ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-400/50 text-purple-300"
+                  : "bg-blue-500/10 border-blue-400/30 text-blue-300"
+            )}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-900 border-slate-700">
+              <SelectItem value="hybrid" className="text-blue-300 focus:bg-blue-500/20">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3 h-3" />
+                  <span>Hybrid RAG</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="agentic" className="text-purple-300 focus:bg-purple-500/20">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-3 h-3" />
+                  <span>Agentic (Cosmos)</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="neo4j" className="text-green-300 focus:bg-green-500/20">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Neo4j Graph</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
           {messages.length > 0 && (
             <>
               <TooltipProvider>
@@ -474,10 +584,43 @@ export default function CareerCoach() {
                     <MessageSquare className="w-10 h-10 text-purple-400" />
                   </motion.div>
                   <h3 className="text-2xl font-bold text-white mb-2">Hi! I'm Horus Chat</h3>
-                  <p className="text-slate-400 max-w-md mb-8">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className={cn(
+                      "text-xs font-semibold",
+                      ragMode === "agentic"
+                        ? "bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-purple-300 border-purple-400/50"
+                        : "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                    )}>
+                      {ragMode === "agentic" ? (
+                        <>
+                          <Brain className="w-3 h-3 mr-1 inline" />
+                          Agentic + Graph RAG Mode
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3 h-3 mr-1 inline" />
+                          Hybrid RAG Mode
+                        </>
+                      )}
+                    </Badge>
+                  </div>
+                  <p className="text-slate-400 max-w-md mb-4">
                     I have access to 54+ SA Government documents, job listings, and career resources. 
                     Ask me anything about careers, policies, funding, and more in South Australia!
                   </p>
+                  {ragMode === "agentic" && (
+                    <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-400/30 rounded-xl p-4 mb-8 max-w-md">
+                      <div className="flex items-start gap-3">
+                        <Brain className="w-5 h-5 text-purple-400 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-semibold text-purple-300 mb-1">Agentic + Graph RAG Active</p>
+                          <p className="text-xs text-slate-400">
+                            I'll use multi-step reasoning, discover relationships between documents, and detect contradictions for deeper insights.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Enhanced Suggested Questions */}
                   <div className="w-full max-w-3xl">
@@ -628,6 +771,85 @@ export default function CareerCoach() {
                           {/* FERRARI FEATURES: Confidence, Charts, Insights, Follow-ups */}
                           {message.role === "assistant" && !message.isLoading && (
                             <>
+                              {/* AGENTIC MODE: Agent Plan Display */}
+                              {ragMode === "agentic" && (message as any).agentPlan && (
+                                <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-400/30">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Brain className="w-4 h-4 text-purple-400" />
+                                    <span className="text-xs font-semibold text-purple-300">Agent Plan</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    {(message as any).agentPlan.steps.map((step: any, idx: number) => (
+                                      <div key={idx} className="text-xs text-slate-400 flex items-center gap-2">
+                                        <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center text-[10px] font-semibold">
+                                          {step.step}
+                                        </span>
+                                        <span>{step.query}</span>
+                                        <Badge className="bg-purple-500/20 text-purple-300 border-0 text-[9px] ml-auto">
+                                          {step.method}
+                                        </Badge>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* AGENTIC MODE: Graph Connections */}
+                              {ragMode === "agentic" && (message as any).graphConnections && (message as any).graphConnections.length > 0 && (
+                                <div className="mt-3 p-3 rounded-xl bg-blue-500/10 border border-blue-400/30">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Zap className="w-4 h-4 text-blue-400" />
+                                    <span className="text-xs font-semibold text-blue-300">Graph Connections</span>
+                                    <Badge className="bg-blue-500/20 text-blue-300 border-0 text-[9px]">
+                                      {(message as any).graphConnections.length}
+                                    </Badge>
+                                  </div>
+                                  <div className="space-y-1">
+                                    {(message as any).graphConnections.slice(0, 3).map((conn: any, idx: number) => (
+                                      <div key={idx} className="text-xs text-slate-400">
+                                        <span className="text-blue-300">{conn.source}</span>
+                                        <span className="mx-2">→</span>
+                                        <span className="text-blue-300">{conn.target}</span>
+                                        <Badge className="bg-blue-500/20 text-blue-300 border-0 text-[9px] ml-2">
+                                          {conn.type}
+                                        </Badge>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* AGENTIC MODE: Contradictions */}
+                              {ragMode === "agentic" && (message as any).contradictions && (message as any).contradictions.length > 0 && (
+                                <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-400/30">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <AlertCircle className="w-4 h-4 text-red-400" />
+                                    <span className="text-xs font-semibold text-red-300">Contradictions Detected</span>
+                                    <Badge className="bg-red-500/20 text-red-300 border-0 text-[9px]">
+                                      {(message as any).contradictions.length}
+                                    </Badge>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {(message as any).contradictions.map((contra: any, idx: number) => (
+                                      <div key={idx} className="text-xs text-slate-400">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <Badge className={cn(
+                                            "text-[9px] border-0",
+                                            contra.severity === "high" ? "bg-red-500/30 text-red-300" :
+                                            contra.severity === "medium" ? "bg-yellow-500/30 text-yellow-300" :
+                                            "bg-orange-500/30 text-orange-300"
+                                          )}>
+                                            {contra.severity.toUpperCase()}
+                                          </Badge>
+                                          <span className="text-slate-500">{contra.type}</span>
+                                        </div>
+                                        <p className="text-slate-300">{contra.description}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Confidence Indicator */}
                               {message.confidence && (
                                 <div className="mt-3">

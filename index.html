@@ -16,6 +16,11 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@HorusIntel" />
     <meta name="twitter:image" content="/og-image.png" />
+
+    <!-- Security Headers (CSP relaxed for development) -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <!-- X-Frame-Options must be set as HTTP header, not meta tag -->
+    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   </head>
 
   <body>

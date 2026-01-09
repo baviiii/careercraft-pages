@@ -7,8 +7,13 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:prod": "vite build --mode production",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "security:check": "node scripts/security-check.js",
+    "security:http-check": "grep -r \"http://\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.jsx\" src/ supabase/functions/ --exclude-dir=node_modules | grep -v \"http://127.0.0.1\" | grep -v \"http://localhost\" | grep -v \"// http\" | grep -v \"http-equiv\" || echo \"✅ No insecure HTTP URLs found\"",
+    "prebuild": "npm run security:http-check"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

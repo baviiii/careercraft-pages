@@ -52,7 +52,8 @@ async function getGeoLocation(ip: string): Promise<GeoLocation> {
 
   try {
     // Using ip-api.com free tier (no API key required, 45 requests/minute limit)
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,regionName,city,lat,lon`);
+    // Note: Using HTTPS to avoid mixed content warnings in browsers
+    const response = await fetch(`https://ip-api.com/json/${ip}?fields=status,message,country,countryCode,regionName,city,lat,lon`);
     
     if (!response.ok) {
       console.error('Geo API response not OK:', response.status);

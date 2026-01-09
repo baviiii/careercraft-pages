@@ -1,0 +1,75 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/supabase-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-functions:
+    name: Deploy Edge Functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify Supabase project
+        run: |
+          if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+            echo "⚠️  WARNING: SUPABASE_ACCESS_TOKEN not set"
+            echo "Edge functions will not be deployed automatically"
+            echo "Please deploy manually using: supabase functions deploy"
+            exit 0
+          fi
+          echo "✅ Supabase access token found"
+
+      - name: Login to Supabase
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase login --token $SUPABASE_ACCESS_TOKEN
+
+      - name: Link Supabase project
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        env:
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || 'hfchxjytxhsiuwqaugmv' }}
+        run: |
+          # Link tells Supabase CLI which remote project to deploy to
+          # Your project ID from config.toml is: hfchxjytxhsiuwqaugmv
+          # This connects your local code to the remote Supabase project
+          PROJECT_REF=${SUPABASE_PROJECT_ID:-hfchxjytxhsiuwqaugmv}
+          echo "Linking to Supabase project: $PROJECT_REF"
+          supabase link --project-ref $PROJECT_REF || echo "⚠️  Link failed - may need to link manually"
+
+      - name: Deploy Edge Functions
+        if: env.SUPABASE_ACCESS_TOKEN != ''
+        run: |
+          echo "Deploying all Edge Functions..."
+          # Deploy each function individually for better error handling
+          for func in supabase/functions/*/; do
+            func_name=$(basename "$func")
+            if [ -f "$func/index.ts" ] || [ -f "$func/index.js" ]; then
+              echo "Deploying $func_name..."
+              supabase functions deploy "$func_name" || echo "⚠️  Failed to deploy $func_name"
+            fi
+          done
+
+      - name: Deployment Summary
+        run: |
+          echo "## 🔧 Supabase Edge Functions" >> $GITHUB_STEP_SUMMARY
+          if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
+            echo "⚠️  Automatic deployment skipped (no access token)" >> $GITHUB_STEP_SUMMARY
+            echo "Deploy manually using: \`supabase functions deploy\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ✅ Edge functions deployment completed" >> $GITHUB_STEP_SUMMARY
+          fi

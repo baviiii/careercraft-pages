@@ -38,7 +38,8 @@ export async function lookupIPLocation(ip: string): Promise<{
 } | null> {
   try {
     // Using ip-api.com for free geo-location (no API key required)
-    const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,countryCode,region,regionName,city,lat,lon`);
+    // Note: Using HTTPS to avoid mixed content warnings in browsers
+    const response = await fetch(`https://ip-api.com/json/${ip}?fields=status,country,countryCode,region,regionName,city,lat,lon`);
     const data = await response.json();
     
     if (data.status === 'success') {
