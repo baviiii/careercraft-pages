@@ -126,6 +126,32 @@ export default function MainDashboardLayout({
         {/* Deep Navy Base */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0a0f1a] via-[#0d1526] to-[#0f172a]" />
         
+        {/* Beautiful CSS Animated Gradient Background - Always Works */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            zIndex: 0,
+            background: `linear-gradient(135deg, rgba(59,130,246,0.25) 0%, rgba(99,102,241,0.3) 25%, rgba(139,92,246,0.28) 50%, rgba(20,184,166,0.3) 75%, rgba(14,165,233,0.25) 100%)`,
+            backgroundSize: '400% 400%',
+            animation: 'gradient-shift 12s ease infinite',
+            mixBlendMode: 'screen',
+            opacity: 0.6
+          }}
+        />
+        
+        {/* Radial gradient overlay for depth */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            zIndex: 0,
+            background: 'radial-gradient(circle at top right, rgba(59,130,246,0.2), transparent 50%), radial-gradient(circle at bottom left, rgba(20,184,166,0.15), transparent 50%)',
+            opacity: 0.8
+          }}
+        />
+        
+        {/* Dark overlay to maintain dark theme */}
+        <div className="absolute inset-0 bg-[#0a0f1a]/70" style={{ zIndex: 1 }} />
+        
         {/* Ambient Gradient Mesh */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.12),transparent_50%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(20,184,166,0.08),transparent_50%)]" />

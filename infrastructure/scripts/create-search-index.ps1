@@ -16,16 +16,41 @@ param(
 Write-Host "Creating Azure AI Search Index with Vector Fields..." -ForegroundColor Cyan
 Write-Host ""
 
-# Get search service name if not provided
+# CRITICAL: Get search service name if not provided (auto-discover)
 if ([string]::IsNullOrEmpty($SearchServiceName)) {
-    $SearchServiceName = "careercraft-search-dev"
-    $searchEndpoint = "https://$SearchServiceName.search.windows.net"
-} else {
-    $searchEndpoint = "https://$SearchServiceName.search.windows.net"
+    Write-Host "Search service name not provided, auto-discovering..." -ForegroundColor Yellow
+    try {
+        $searchServices = az search service list --resource-group $ResourceGroupName --output json 2>&1 | ConvertFrom-Json
+        if ($searchServices -and $searchServices.Count -gt 0) {
+            $SearchServiceName = $searchServices[0].name
+            Write-Host "  Found: $SearchServiceName" -ForegroundColor Green
+        } else {
+            Write-Host "[ERROR] No search services found in resource group: $ResourceGroupName" -ForegroundColor Red
+            exit 1
+        }
+    }
+    catch {
+        Write-Host "[ERROR] Failed to auto-discover search service: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "        Please provide -SearchServiceName parameter" -ForegroundColor Yellow
+        exit 1
+    }
 }
 
-# Get admin key
-$adminKey = (az search admin-key show --resource-group $ResourceGroupName --service-name $SearchServiceName --query "primaryKey" --output tsv)
+$searchEndpoint = "https://$SearchServiceName.search.windows.net"
+
+# CRITICAL: Get admin key with error handling
+try {
+    $adminKey = az search admin-key show --resource-group $ResourceGroupName --service-name $SearchServiceName --query "primaryKey" --output tsv 2>&1
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($adminKey)) {
+        throw "Failed to retrieve admin key"
+    }
+}
+catch {
+    Write-Host "[ERROR] Could not retrieve search service admin key" -ForegroundColor Red
+    Write-Host "        Service: $SearchServiceName" -ForegroundColor Yellow
+    Write-Host "        Resource Group: $ResourceGroupName" -ForegroundColor Yellow
+    exit 1
+}
 
 Write-Host "Search Service: $SearchServiceName" -ForegroundColor Green
 Write-Host "Index Name: $IndexName" -ForegroundColor Green
@@ -248,6 +273,53 @@ $indexDefinition = @{
             searchable = $false
             filterable = $false
             retrievable = $true
+        },
+        # Chart/Visual extraction fields
+        @{
+            name = "hasChart"
+            type = "Edm.Boolean"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            facetable = $true
+        },
+        @{
+            name = "chartType"
+            type = "Edm.String"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            facetable = $true
+        },
+        @{
+            name = "chartData"
+            type = "Edm.String"
+            searchable = $false
+            filterable = $false
+            retrievable = $true
+        },
+        @{
+            name = "chartImageUrl"
+            type = "Edm.String"
+            searchable = $false
+            filterable = $false
+            retrievable = $true
+        },
+        @{
+            name = "chartConfidence"
+            type = "Edm.Double"
+            searchable = $false
+            filterable = $true
+            retrievable = $true
+            sortable = $true
+        },
+        @{
+            name = "visualDescription"
+            type = "Edm.String"
+            searchable = $true
+            filterable = $false
+            retrievable = $true
+            analyzer = "en.microsoft"
         }
     )
     vectorSearch = @{
@@ -310,15 +382,38 @@ try {
     }
 }
 catch {
-    $errorDetails = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+    $statusCode = $null
+    try {
+        if ($_.Exception.Response) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+        }
+    } catch {}
     
-    if ($errorDetails.error.code -eq "IndexAlreadyExists") {
-        Write-Host "Index already exists!" -ForegroundColor Yellow
+    $errorDetails = $null
+    try {
+        if ($_.ErrorDetails.Message) {
+            $errorDetails = $_.ErrorDetails.Message | ConvertFrom-Json -ErrorAction SilentlyContinue
+        }
+    } catch {}
+    
+    if ($statusCode -eq 409 -or ($errorDetails -and $errorDetails.error.code -eq "IndexAlreadyExists")) {
+        Write-Host "[WARN] Index '$IndexName' already exists!" -ForegroundColor Yellow
+        Write-Host "       This script should delete the index first, but it still exists." -ForegroundColor Yellow
+        Write-Host "       You may need to delete it manually or use a different index name." -ForegroundColor Yellow
+        exit 1  # Exit with error to prevent processing with wrong index
     }
     else {
-        Write-Host "Failed to create index" -ForegroundColor Red
-        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host $_.ErrorDetails.Message -ForegroundColor Red
+        Write-Host "[ERROR] Failed to create index" -ForegroundColor Red
+        Write-Host "        Status Code: $statusCode" -ForegroundColor Yellow
+        Write-Host "        Error: $($_.Exception.Message)" -ForegroundColor Red
+        if ($_.ErrorDetails.Message) {
+            Write-Host "        Details: $($_.ErrorDetails.Message)" -ForegroundColor Red
+        }
+        if ($errorDetails -and $errorDetails.error) {
+            Write-Host "        Code: $($errorDetails.error.code)" -ForegroundColor Yellow
+            Write-Host "        Message: $($errorDetails.error.message)" -ForegroundColor Yellow
+        }
+        exit 1
     }
 }
 

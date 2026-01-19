@@ -107,14 +107,14 @@ output appInsightsKey string = azureFunctions.outputs.appInsightsKey
 output estimatedMonthlyCost string = enableOpenAI ? '''
 Estimated Monthly Costs (AUD) - WITH OpenAI:
 - Azure AI Search (Basic): ~$200/month
-- Document Intelligence (S0): ~$50-100/month
+- Document Intelligence (S0): ~$10 per 1,000 pages
 - Blob Storage (Standard LRS): ~$5-10/month
 - Azure OpenAI: ~$20-50/month
 Total: ~$275-360/month
 ''' : '''
 Estimated Monthly Costs (AUD) - WITHOUT OpenAI:
 - Azure AI Search (Basic): ~$200/month
-- Document Intelligence (S0): ~$50-100/month
+- Document Intelligence (S0): ~$10 per 1,000 pages
 - Blob Storage (Standard LRS): ~$5-10/month
 Total: ~$255-310/month
 '''

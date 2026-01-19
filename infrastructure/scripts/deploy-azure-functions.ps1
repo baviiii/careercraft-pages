@@ -52,6 +52,7 @@ if (-not $functionApp) {
     # Get existing resource information
     $searchService = az search service show --resource-group $ResourceGroupName --name "careercraft-search-$Environment" --output json 2>$null | ConvertFrom-Json
     $openAIService = az cognitiveservices account show --resource-group $ResourceGroupName --name "careercraft-openai-$Environment" --output json 2>$null | ConvertFrom-Json
+    $docIntelService = az cognitiveservices account show --resource-group $ResourceGroupName --name "careercraft-docintel-$Environment" --output json 2>$null | ConvertFrom-Json
     $storageAccount = az storage account show --resource-group $ResourceGroupName --name (az storage account list --resource-group $ResourceGroupName --query "[0].name" -o tsv) --output json 2>$null | ConvertFrom-Json
 
     if (-not $searchService -or -not $storageAccount) {
@@ -66,6 +67,9 @@ if (-not $functionApp) {
     $searchEndpoint = $searchService.properties.endpoint
     $openAIEndpoint = if ($openAIService) { $openAIService.properties.endpoint } else { "" }
     $openAIKey = if ($openAIService) { (az cognitiveservices account keys list --resource-group $ResourceGroupName --name $openAIService.name --query "key1" -o tsv) } else { "" }
+    # Document Intelligence for chart/figure extraction (S1 tier)
+    $docIntelEndpoint = if ($docIntelService) { $docIntelService.properties.endpoint } else { "" }
+    $docIntelKey = if ($docIntelService) { (az cognitiveservices account keys list --resource-group $ResourceGroupName --name $docIntelService.name --query "key1" -o tsv) } else { "" }
 
     # Create temporary Bicep file for Functions infrastructure
     # Use relative path - temp file is in infrastructure directory, module is in modules subdirectory
@@ -93,6 +97,8 @@ module azureFunctions 'modules/azure-functions.bicep' = {
     searchIndex: 'sa-gov-documents'
     openAIEndpoint: '$openAIEndpoint'
     openAIKey: '$openAIKey'
+    docIntelEndpoint: '$docIntelEndpoint'
+    docIntelKey: '$docIntelKey'
     storageAccountName: '$($storageAccount.name)'
     storageAccountKey: '$storageKey'
   }
@@ -147,7 +153,7 @@ Write-Host ""
 # Deploy function code via ZIP (Azure CLI method)
 Write-Host "Deploying function code..." -ForegroundColor Cyan
 
-$functionCodePath = Join-Path (Split-Path $PSScriptRoot -Parent) "azure-functions"
+$functionCodePath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "azure-functions"
 if (-not (Test-Path $functionCodePath)) {
     Write-Host "ERROR: Function code directory not found: $functionCodePath" -ForegroundColor Red
     exit 1
@@ -195,6 +201,59 @@ az functionapp config appsettings set `
     --settings "FUNCTIONS_EXTENSION_VERSION=~4" "FUNCTIONS_WORKER_RUNTIME=node" "WEBSITE_NODE_DEFAULT_VERSION=~20" | Out-Null
 Write-Host "Runtime configuration verified." -ForegroundColor Green
 
+# Add Document Intelligence settings for chart extraction (if available)
+Write-Host "Configuring chart extraction dependencies..." -ForegroundColor Cyan
+$docIntelService = az cognitiveservices account show --resource-group $ResourceGroupName --name "careercraft-docintel-$Environment" --output json 2>$null | ConvertFrom-Json
+if ($docIntelService) {
+    $docIntelEndpoint = $docIntelService.properties.endpoint
+    $docIntelKey = az cognitiveservices account keys list --resource-group $ResourceGroupName --name $docIntelService.name --query "key1" -o tsv 2>$null
+    
+    if ($docIntelEndpoint -and $docIntelKey) {
+        az functionapp config appsettings set `
+            --name $functionAppName `
+            --resource-group $ResourceGroupName `
+            --settings "AZURE_DOC_INTEL_ENDPOINT=$docIntelEndpoint" "AZURE_DOC_INTEL_KEY=$docIntelKey" | Out-Null
+        Write-Host "  [OK] Document Intelligence configured for chart extraction" -ForegroundColor Green
+    }
+} else {
+    Write-Host "  [INFO] Document Intelligence not found - chart extraction will work with images only" -ForegroundColor Yellow
+}
+
+# Add OpenAI Vision settings
+$openAIService = az cognitiveservices account show --resource-group $ResourceGroupName --name "careercraft-openai-$Environment" --output json 2>$null | ConvertFrom-Json
+if ($openAIService) {
+    $openAIEndpoint = $openAIService.properties.endpoint
+    $openAIKey = az cognitiveservices account keys list --resource-group $ResourceGroupName --name $openAIService.name --query "key1" -o tsv 2>$null
+    
+    if ($openAIEndpoint -and $openAIKey) {
+        # Use gpt-4o-mini for vision - it's deployed and supports vision capabilities
+        az functionapp config appsettings set `
+            --name $functionAppName `
+            --resource-group $ResourceGroupName `
+            --settings "AZURE_OPENAI_ENDPOINT=$openAIEndpoint" "AZURE_OPENAI_KEY=$openAIKey" "AZURE_OPENAI_VISION_DEPLOYMENT=gpt-4o-mini" | Out-Null
+        Write-Host "  [OK] OpenAI Vision configured (gpt-4o-mini)" -ForegroundColor Green
+    }
+} else {
+    Write-Host "  [WARN] OpenAI not found - chart extraction will NOT work!" -ForegroundColor Red
+}
+
+# PDF Rendering Configuration (Azure Container Instance)
+Write-Host ""
+Write-Host "PDF Rendering Configuration..." -ForegroundColor Cyan
+Write-Host "  Chart extraction uses Azure Container Instance (ACI) for PDF rendering" -ForegroundColor Gray
+Write-Host "  This uses your Azure credits - no external APIs needed!" -ForegroundColor Green
+Write-Host ""
+Write-Host "  To deploy the PDF renderer, run:" -ForegroundColor Yellow
+Write-Host "    .\deploy-pdf-renderer.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
+Write-Host ""
+Write-Host "  This will:" -ForegroundColor Gray
+Write-Host "    - Create Azure Container Registry (ACR)" -ForegroundColor Gray
+Write-Host "    - Build and deploy PDF renderer container" -ForegroundColor Gray
+Write-Host "    - Configure PDF_RENDERER_ENDPOINT automatically" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Cost: ~`$0.10-0.30/hour while running (billed per second)" -ForegroundColor Yellow
+Write-Host ""
+
 # Get function key for frontend (using REST API)
 Write-Host ""
 Write-Host "Retrieving function keys..." -ForegroundColor Cyan
@@ -228,6 +287,20 @@ Write-Host ("=" * 80) -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Function App URL: https://$functionAppUrl" -ForegroundColor Yellow
 Write-Host ""
+
+# Output all function endpoints
+Write-Host "Function Endpoints:" -ForegroundColor Cyan
+Write-Host "  RAG Metadata:       https://$functionAppUrl/api/rag-metadata" -ForegroundColor White
+Write-Host "  Agentic Planner:    https://$functionAppUrl/api/agentic-planner" -ForegroundColor White
+Write-Host "  Graph Query:        https://$functionAppUrl/api/graph-query" -ForegroundColor White
+Write-Host "  Chart Extraction:   https://$functionAppUrl/api/chart-extraction" -ForegroundColor Magenta
+Write-Host ""
+
+Write-Host "For Chart/Image Extraction (PDF Processing):" -ForegroundColor Magenta
+Write-Host "  Set this before running process-pdfs.ps1:" -ForegroundColor Yellow
+Write-Host "  `$env:CHART_EXTRACTION_ENDPOINT = 'https://$functionAppUrl/api/chart-extraction'" -ForegroundColor White
+Write-Host ""
+
 Write-Host "Add these to your frontend .env file:" -ForegroundColor Cyan
 Write-Host "VITE_AZURE_FUNCTIONS_URL=https://$functionAppUrl" -ForegroundColor White
 if ($masterKey) {

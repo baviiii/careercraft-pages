@@ -5,7 +5,7 @@ import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 import mammoth from 'mammoth';
 import { parseImageWithOCR, isImageFile } from './ocrParser';
 import { enhancedParseResume, cleanAndFormatResume, ParsedResume } from './enhancedResumeParser';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 
 // Configure PDF.js worker using bundled worker URL
 (pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorkerSrc as unknown as string;
@@ -140,58 +140,56 @@ export async function parseResumeWithAI(
 ): Promise<AIResumeData> {
   const fileType = file.type;
   
-  let rawText = '';
-  
-  // Extract raw text first
   if (onProgress) onProgress(10);
   
-  if (fileType === 'application/pdf') {
-    rawText = await parsePDF(file);
-  } else if (
-    fileType === 'application/msword' || 
-    fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ) {
-    rawText = await parseDOC(file);
-  } else if (isImageFile(file)) {
-    rawText = await parseImageWithOCR(file, onProgress);
-  } else {
+  // Validate file type
+  const supportedTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'image/png',
+    'image/jpeg',
+    'image/jpg'
+  ];
+  
+  if (!supportedTypes.includes(fileType) && !isImageFile(file)) {
     throw new Error('Unsupported file type. Please upload PDF, DOC, DOCX, or image files.');
   }
   
-  if (onProgress) onProgress(40);
+  if (onProgress) onProgress(20);
   
-  // Use AI to parse the extracted text
+  // Send file directly to edge function - use Document Intelligence for extraction
   try {
-    console.log('🤖 Calling AI parse-resume edge function with pre-extracted text...');
+    console.log('📄 Sending file to Document Intelligence for extraction...');
 
-    // Count pages for PDFs
-    let pageCount = 1;
-    if (fileType === 'application/pdf') {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        pageCount = pdf.numPages;
-      } catch {
-        pageCount = 1;
-      }
+    // Create FormData to send file directly
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('fileName', file.name);
+
+    // Use fetch directly since supabase.functions.invoke doesn't support FormData well
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (onProgress) onProgress(40);
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/parse-resume`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session?.access_token || SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Parse-resume error:', errorText);
+      throw new Error(`Failed to parse resume: ${response.status}`);
     }
 
-    const { data, error } = await supabase.functions.invoke('parse-resume', {
-      body: {
-        rawText,
-        fileName: file.name,
-        fileType: file.type,
-        pageCount
-      }
-    });
+    const data = await response.json();
     
     if (onProgress) onProgress(90);
     
-    if (error) {
-      console.error('❌ AI parsing error:', error);
-      throw new Error('AI parsing failed, falling back to basic parsing');
-    }
-
     if (!data.success) {
       console.error('❌ AI returned error:', data.error);
       throw new Error(data.error || 'AI parsing failed');
@@ -251,29 +249,8 @@ export async function parseResumeWithAI(
 
     throw new Error('No data returned from AI parser');
   } catch (err) {
-    console.warn('⚠️ AI parsing failed, using FALLBACK regex parsing:', err);
-    // Fallback to basic parsing
-    const parsed = enhancedParseResume(rawText);
-    if (onProgress) onProgress(100);
-    
-    return {
-      contact: {
-        name: parsed.contact.name || '',
-        email: parsed.contact.email || '',
-        phone: parsed.contact.phone || '',
-        location: parsed.contact.location || '',
-        linkedin: parsed.contact.linkedin || '',
-        website: '',
-      },
-      summary: parsed.sections.summary || '',
-      experience: [],
-      education: [],
-      skills: parsed.sections.skills
-        ? parsed.sections.skills.split(/[,•|·\n]/).map(s => s.trim()).filter(s => s.length > 1 && s.length < 50)
-        : [],
-      certifications: [],
-      projects: [],
-    };
+    console.error('⚠️ AI parsing failed:', err);
+    throw err; // Re-throw to let caller handle
   }
 }
 

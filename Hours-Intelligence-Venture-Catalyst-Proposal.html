@@ -2,516 +2,595 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Hours Intelligence - Venture Catalyst Business Plan</title>
+    <title>HORUS Intelligence - Business Proposal</title>
     <style>
+        /* ===== PAGE SETUP FOR PRINT/PDF ===== */
         @page {
-            margin: 2.5cm;
+            margin: 1.5cm 2cm;
             size: A4;
+            /* Remove browser header/footer (URL, date, page numbers) */
+            @top-left { content: none; }
+            @top-right { content: none; }
+            @bottom-left { content: none; }
+            @bottom-right { content: none; }
+            @top-center { content: none; }
+            @bottom-center { content: none; }
         }
+        
+        /* ===== BASE STYLES ===== */
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: 'Calibri', 'Arial', sans-serif;
+            font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
             font-size: 11pt;
             line-height: 1.5;
             color: #333;
             max-width: 21cm;
             margin: 0 auto;
-            padding: 2cm;
+            padding: 1cm;
         }
+        
         h1 {
-            font-size: 24pt;
+            font-size: 20pt;
             color: #1a365d;
             text-align: center;
-            margin-bottom: 0.5em;
+            margin-bottom: 0.3em;
+            margin-top: 0;
             border-bottom: 3px solid #2563eb;
-            padding-bottom: 0.5em;
-        }
-        h2 {
-            font-size: 14pt;
-            color: #1e40af;
-            margin-top: 1.5em;
-            margin-bottom: 0.5em;
-            border-bottom: 1px solid #ddd;
             padding-bottom: 0.3em;
         }
-        h3 {
+        
+        h2 {
             font-size: 12pt;
-            color: #1e3a5f;
+            color: #1e40af;
             margin-top: 1em;
-            margin-bottom: 0.5em;
+            margin-bottom: 0.3em;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 0.15em;
+            page-break-after: avoid;
         }
+        
         .subtitle {
             text-align: center;
-            font-size: 14pt;
-            color: #4a5568;
-            margin-bottom: 2em;
+            font-size: 10pt;
+            color: #64748b;
+            margin-bottom: 1em;
         }
-        .cover-info {
-            text-align: center;
-            margin: 3em 0;
-            padding: 2em;
-            background: #f8fafc;
-            border-radius: 8px;
-        }
+        
+        /* ===== TABLES ===== */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 1em 0;
-            font-size: 10pt;
-        }
-        th {
-            background: #1e40af;
-            color: white;
-            padding: 10px;
-            text-align: left;
-            font-weight: bold;
-        }
-        td {
-            padding: 8px 10px;
-            border: 1px solid #ddd;
-        }
-        tr:nth-child(even) {
-            background: #f8fafc;
-        }
-        ul {
             margin: 0.5em 0;
-            padding-left: 1.5em;
+            font-size: 9pt;
+            page-break-inside: avoid;
         }
+        
+        th {
+            background: #1e40af !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            color: white;
+            padding: 6px 8px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 5px 8px;
+            border: 1px solid #cbd5e1;
+            vertical-align: top;
+        }
+        
+        tr:nth-child(even) {
+            background: #f1f5f9 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        
+        /* ===== LISTS ===== */
+        ul, ol {
+            margin: 0.3em 0;
+            padding-left: 1.2em;
+        }
+        
         li {
-            margin-bottom: 0.3em;
+            margin-bottom: 0.15em;
         }
-        .highlight {
-            background: #fef3c7;
-            padding: 1em;
-            border-left: 4px solid #f59e0b;
-            margin: 1em 0;
+        
+        /* ===== HIGHLIGHT BOXES ===== */
+        .highlight-box {
+            background: #eff6ff !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            padding: 0.8em;
+            border-left: 4px solid #2563eb;
+            margin: 0.8em 0;
+            border-radius: 0 4px 4px 0;
+            page-break-inside: avoid;
         }
-        .section-box {
-            background: #f0f9ff;
-            padding: 1em;
-            border-radius: 6px;
-            margin: 1em 0;
+        
+        .metric-box {
+            background: #1e40af !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            color: white;
+            padding: 0.6em 0.8em;
+            border-radius: 4px;
+            text-align: center;
+            margin: 0.8em 0;
+            page-break-inside: avoid;
         }
+        
+        .metric-box strong {
+            color: #fbbf24;
+        }
+        
         strong {
             color: #1e3a5f;
         }
-        .page-break {
-            page-break-before: always;
+        
+        .section-intro {
+            font-style: italic;
+            color: #475569;
+            margin-bottom: 0.4em;
+            font-size: 10pt;
         }
+        
+        /* ===== PARAGRAPHS ===== */
+        p {
+            margin: 0.4em 0;
+            orphans: 3;
+            widows: 3;
+        }
+        
+        /* ===== CUSTOM FOOTER ===== */
         .footer {
-            text-align: center;
-            font-size: 9pt;
-            color: #718096;
-            margin-top: 3em;
-            padding-top: 1em;
-            border-top: 1px solid #ddd;
+            display: none;
+        }
+        
+        /* ===== PRINT-SPECIFIC STYLES ===== */
+        @media print {
+            html, body {
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                padding: 0;
+            }
+            
+            body {
+                padding: 0;
+                font-size: 10pt;
+                line-height: 1.4;
+            }
+            
+            h1 {
+                font-size: 18pt;
+            }
+            
+            h2 {
+                font-size: 11pt;
+                page-break-after: avoid;
+                margin-top: 0.8em;
+            }
+            
+            /* Prevent breaks inside important elements */
+            table, .highlight-box, .metric-box, ul, ol {
+                page-break-inside: avoid;
+            }
+            
+            /* Keep headings with following content */
+            h2, h3, strong {
+                page-break-after: avoid;
+            }
+            
+            /* Avoid orphan list items */
+            li {
+                page-break-inside: avoid;
+            }
+            
+            /* Force background colors to print */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            
+            /* Hide our custom footer since we don't want any footer */
+            .footer {
+                display: none !important;
+            }
+            
+            /* Smaller font for tables */
+            table {
+                font-size: 8.5pt;
+            }
+            
+            td, th {
+                padding: 4px 6px;
+            }
+            
+            /* Tighter spacing */
+            .highlight-box {
+                padding: 0.6em;
+                margin: 0.5em 0;
+            }
+            
+            /* Logo sizing for print */
+            img {
+                max-width: 150px !important;
+            }
         }
     </style>
 </head>
 <body>
 
-<!-- COVER PAGE -->
-<div class="cover-info">
-    <h1>Hours Intelligence</h1>
-    <p class="subtitle">Versatile Document Intelligence Platform</p>
-    <p style="font-size: 16pt; color: #1e40af; margin: 1em 0;"><strong>Business Plan</strong></p>
-    <p style="font-size: 12pt;">Venture Catalyst Application</p>
-    <p style="margin-top: 2em; color: #666;">January 2026</p>
+<div style="text-align: center; margin-bottom: 1em;">
+    <img src="public/logo.png" alt="HORUS Intelligence Logo" style="max-width: 200px; height: auto;">
 </div>
+<h1>HORUS Intelligence</h1>
+<p class="subtitle">Versatile Document Intelligence Platform | Business Proposal | January 2026</p>
 
-<div class="page-break"></div>
-
-<!-- EXECUTIVE SUMMARY -->
-<h2>Executive Summary</h2>
-
-<p>Hours Intelligence is a versatile document intelligence platform that transforms how organizations access and understand their internal knowledge. Starting as a career-focused SaaS solution for South Australian job seekers, the platform has evolved into a comprehensive document intelligence engine that works across any domain—from government policies to healthcare records, legal documents to training materials.</p>
-
-<p>Our proprietary technology combines <strong>Agentic Retrieval</strong>, <strong>Graph Database relationships (Neo4j)</strong>, and <strong>multi-mode reasoning</strong> to help organizations discover hidden connections, detect contradictions, and surface insights from their document libraries. Unlike single-purpose AI agents, Hours Intelligence adapts to any business need simply by ingesting relevant documents—making it the only platform organizations need for document intelligence.</p>
-
-<div class="highlight">
-<strong>Funding Request:</strong> We are seeking support from Venture Catalyst to validate product-market fit with government and enterprise customers, refine our go-to-market strategy, and scale our technology to serve the $28 million South Australian Office for AI initiative and broader enterprise market.
-</div>
-
-<!-- PROBLEM -->
+<!-- ============================================ -->
+<!-- SECTION 1: THE PROBLEM (approx 280 words) -->
+<!-- ============================================ -->
 <h2>1. The Problem We Are Solving</h2>
 
-<h3>1.1 The Document Intelligence Gap</h3>
+<p>Organizations across industries maintain thousands of policy documents, procedural manuals, regulatory texts, and knowledge bases. Yet teams lack tools to discover relationships between documents, detect contradictions, or synthesize information across them. The result: employees spend hours searching through documents instead of focusing on high-value work.</p>
 
-<p>Organizations are drowning in documents. Government departments maintain thousands of policy documents, healthcare systems generate millions of patient records, legal firms manage countless contracts and precedents, and enterprises accumulate years of procedural manuals, training materials, and compliance documentation.</p>
-
-<p><strong>The Core Problem:</strong> Traditional search and document management systems fail to reveal the relationships, contradictions, and insights hidden within document libraries. Staff spend hours—sometimes days—manually reading documents to:</p>
-
+<p><strong>Three Critical Challenges:</strong></p>
 <ul>
-    <li>Find connections between policies, regulations, or procedures</li>
-    <li>Identify contradictions or conflicts across documents</li>
-    <li>Understand how changes in one document affect others</li>
-    <li>Answer questions that require synthesis across multiple documents</li>
+    <li><strong>Productivity Crisis:</strong> Knowledge workers spend significant time navigating complex document systems and manual information retrieval. This administrative burden reduces time available for strategic work and decision-making. For example, the South Australian Office for AI has allocated <strong>$28 million over four years</strong> specifically to free operational staff from administrative burden, with document navigation as a primary target.</li>
+    <li><strong>Compliance Complexity:</strong> Regulatory requirements and policy updates demand thorough review of thousands of pages for contradictions—work that current tools cannot automate effectively. Organizations need enhanced document intelligence capabilities to ensure compliance and consistency. The 2026 mandate to modernize legislation for AI and privacy in South Australia requires checking thousands of pages for contradictions—work that current tools cannot automate.</li>
+    <li><strong>Existing Solutions Fall Short:</strong> Generic AI (ChatGPT, Claude) hallucinates without access to internal documents. Traditional search cannot synthesize across sources. Single-purpose agents require multiple costly platforms and complex integration.</li>
 </ul>
 
-<h3>1.2 The Regulatory Reform Challenge</h3>
+<p><strong>The Cost of Inaction:</strong> A compliance officer searching for contradictions between policies and procedures currently spends days on manual review. A healthcare administrator checking procedure updates against existing protocols repeats this process weekly. A legal team researching precedent across case files invests significant billable hours. Multiply this across departments, and organizations lose thousands of productive hours monthly.</p>
 
-<p>South Australia's 2026 Regulatory Reform mandate requires government departments to modernize thousands of pages of outdated legislation and policy to accommodate new AI and privacy laws. Policy officers are spending days checking if new regulations contradict old ones—a critical compliance task that current tools cannot automate.</p>
-
-<h3>1.3 The Frontline Staff Time Crisis</h3>
-
-<p>The South Australian Office for AI has identified "freeing up frontline staff" as a <strong>$28 million priority</strong>. Operational staff—police officers, nurses, social workers, case managers—spend significant time reading manuals, procedures, and policy documents instead of serving citizens.</p>
-
-<h3>1.4 Existing Solution Limitations</h3>
-
-<ul>
-    <li><strong>Generic AI chatbots</strong> search the internet, not internal documents, leading to hallucinations</li>
-    <li><strong>Traditional document search</strong> returns keyword matches but cannot synthesize information</li>
-    <li><strong>Single-purpose AI agents</strong> solve one problem but require separate tools for different departments</li>
-    <li><strong>Enterprise knowledge bases</strong> require extensive setup and don't understand document relationships</li>
-</ul>
-
-<div class="page-break"></div>
-
-<!-- CUSTOMER AND MARKET -->
-<h2>2. Customer and Market</h2>
-
-<h3>2.1 Primary Market: Government Sector (South Australia)</h3>
-
-<div class="section-box">
-<strong>Immediate Opportunity: South Australian Office for AI</strong>
-<ul>
-    <li><strong>Budget:</strong> $28 million over four years for Proof of Value initiatives</li>
-    <li><strong>Priority Sectors:</strong> Healthcare, policing, social services, public administration</li>
-    <li><strong>Focus:</strong> Solutions that free up frontline staff and streamline services</li>
-    <li><strong>Our Fit:</strong> Document intelligence directly addresses operational readiness needs</li>
-</ul>
+<div class="highlight-box">
+<strong>The Opportunity:</strong> Build document intelligence that works with your organization's own knowledge—not internet data—to surface connections, detect conflicts, and answer complex questions with full citations.
 </div>
 
-<p><strong>Target Departments:</strong></p>
+<!-- ============================================ -->
+<!-- SECTION 2: CUSTOMER & MARKET (approx 300 words) -->
+<!-- ============================================ -->
+<h2>2. Customer and Market</h2>
+
+<p class="section-intro">Who will benefit from this solution?</p>
+
+<p><strong>Primary Markets:</strong></p>
+<p>Organizations with complex document ecosystems and knowledge management needs across multiple industries:</p>
 <ul>
-    <li><strong>Policy Coordination Units:</strong> Need to identify contradictions and connections across policies</li>
-    <li><strong>Healthcare Services:</strong> Require instant access to procedures, protocols, and research</li>
-    <li><strong>Police Services:</strong> Need quick reference to regulations and updated procedures</li>
-    <li><strong>Social Services:</strong> Must navigate complex eligibility rules and policy changes</li>
-    <li><strong>Regulatory Reform Teams:</strong> Require systematic analysis of legislation modernization</li>
+    <li><strong>Government & Public Sector:</strong> Policy coordination, regulatory compliance, legislative reform, cross-department knowledge sharing. The South Australian Office for AI's $28 million Proof of Value program represents immediate, funded demand for document intelligence solutions. The Office for AI explicitly prioritizes locally-developed solutions that address frontline efficiency and regulatory compliance challenges.</li>
+    <li><strong>Legal Services:</strong> Case research, precedent analysis, contract review, regulatory compliance—law firms spend millions annually on document management</li>
+    <li><strong>Healthcare:</strong> Clinical governance, accreditation compliance, procedure management, policy navigation</li>
+    <li><strong>Financial Services:</strong> Regulatory compliance, policy management, audit preparation, risk assessment</li>
+    <li><strong>Professional Services:</strong> Consulting firms managing client documentation, internal knowledge bases, and best practices</li>
+    <li><strong>Enterprise Corporations:</strong> Large organizations with extensive policy libraries, compliance requirements, and knowledge management needs</li>
 </ul>
 
-<h3>2.2 Secondary Market: Enterprise Organizations</h3>
-
+<p><strong>Current Stage & Market Position:</strong></p>
 <ul>
-    <li><strong>Legal Firms:</strong> Need to find case precedents and identify contract contradictions</li>
-    <li><strong>Healthcare Organizations:</strong> Require synthesis of patient records and medical research</li>
-    <li><strong>Financial Services:</strong> Must track regulatory changes and compliance requirements</li>
-    <li><strong>Large Corporations:</strong> Need knowledge management across internal documentation</li>
+    <li>Working prototype fully operational with real-world document sets, including South Australian government policy documents</li>
+    <li>Proven technology stack validated through comprehensive testing</li>
+    <li>Pre-revenue—seeking partnerships and early customers to validate product-market fit</li>
+    <li>Engaged with South Australian startup ecosystem and government innovation programs</li>
+    <li>Scalable architecture ready for enterprise deployment</li>
 </ul>
 
-<p><strong>Market Opportunity:</strong> Australian enterprise document management market estimated at $500M+ annually</p>
+<div class="metric-box">
+<strong>Target: 8 Enterprise Customers</strong> in Year 1 | <strong>$500K ARR</strong> | <strong>Multi-Industry Presence</strong>
+</div>
 
-<h3>2.3 Market Validation Signals</h3>
+<!-- ============================================ -->
+<!-- SECTION 3: UNIQUE BENEFITS (approx 320 words) -->
+<!-- ============================================ -->
+<h2>3. Unique Benefits</h2>
 
+<p class="section-intro">What makes HORUS Intelligence valuable to customers?</p>
+
+<p><strong>1. Versatile Platform, Not Single-Purpose Tool</strong><br>
+Upload healthcare documents and receive a medical knowledge assistant. Upload policy documents and receive a policy coordination tool. Upload legal contracts and receive a legal research assistant. One platform adapts to any domain—eliminating multiple vendor contracts and integration complexity.</p>
+
+<p><strong>2. No Developers Required</strong><br>
+Business users configure the platform by uploading documents. The system automatically generates knowledge graphs, indexes content, and configures domain-specific reasoning. Setup takes hours, not the months required by traditional enterprise knowledge systems.</p>
+
+<p><strong>3. Intelligent Reasoning Beyond Search</strong></p>
 <ul>
-    <li><strong>Lot 14 Interest:</strong> Positive response and meeting scheduled within hours of initial contact</li>
-    <li><strong>Office for AI Alignment:</strong> Direct match with stated priorities and Proof of Value initiatives</li>
-    <li><strong>Regulatory Mandate:</strong> Urgent compliance need driving immediate demand</li>
-    <li><strong>Technology Readiness:</strong> Working prototype with real government documents already operational</li>
+    <li><strong>Graph Connections:</strong> Automatically discovers hidden relationships between documents that keyword search misses</li>
+    <li><strong>Contradiction Detection:</strong> Identifies conflicting statements across policies—critical for regulatory compliance and reform</li>
+    <li><strong>Multi-Step Synthesis:</strong> Answers complex questions requiring reasoning across multiple sources, with full citations for verification</li>
 </ul>
 
-<div class="page-break"></div>
+<p><strong>4. Data Sovereignty & Security</strong><br>
+Every byte of data remains within specified geographic regions (e.g., Australian borders for AU customers). Infrastructure deploys exclusively in regional data centers (Azure Australia East/Southeast, Supabase Australia, or customer-specified regions). This meets compliance requirements that international vendors cannot guarantee without significant additional cost.</p>
 
-<!-- UNIQUE BENEFITS -->
-<h2>3. Unique Benefits Our Solution Offers</h2>
+<p><strong>5. Rapid Customization & Agility</strong><br>
+Unlike large vendors with rigid product roadmaps, we co-design solutions with end users and iterate quickly. Direct access to the technical team enables fast resolution of edge cases and custom requirements. Our flexible architecture supports rapid pilot deployment and customization.</p>
 
-<h3>3.1 Versatility: One Platform, Multiple Use Cases</h3>
+<!-- ============================================ -->
+<!-- SECTION 4: COMPETITIVE DIFFERENTIATION (approx 320 words) -->
+<!-- ============================================ -->
+<h2>4. How Our Solution Differs from Others</h2>
 
-<p>Unlike single-purpose AI agents, Hours Intelligence adapts to any document intelligence need:</p>
-
-<ul>
-    <li><strong>Healthcare:</strong> Feed it medical records and research → becomes medical AI assistant</li>
-    <li><strong>Legal:</strong> Feed it contracts and precedents → becomes legal research assistant</li>
-    <li><strong>Government:</strong> Feed it policies and regulations → becomes policy coordination tool</li>
-    <li><strong>Training:</strong> Feed it manuals and procedures → becomes operational readiness platform</li>
-</ul>
-
-<p><strong>Benefit:</strong> Organizations need only one platform instead of multiple specialized tools, reducing costs and complexity.</p>
-
-<h3>3.2 Easy Customization: No Developers Required</h3>
-
-<p>Traditional AI solutions require software developers to customize for each use case. Hours Intelligence enables business users to customize the system by simply uploading relevant documents. The platform automatically:</p>
-
-<ul>
-    <li>Extracts and indexes document content</li>
-    <li>Builds knowledge graphs of relationships</li>
-    <li>Configures domain-specific reasoning</li>
-    <li>Creates searchable intelligence from the document library</li>
-</ul>
-
-<h3>3.3 Intelligent Reasoning: Beyond Simple Search</h3>
-
-<p><strong>Graph Connections:</strong> Discovers relationships between documents that aren't obvious through keyword matching</p>
-
-<p><strong>Contradiction Detection:</strong> Actively identifies conflicts and inconsistencies—critical for compliance and regulatory environments</p>
-
-<p><strong>Multi-Step Reasoning:</strong> Uses agentic loops to synthesize information across multiple documents, providing explanations with source citations</p>
-
-<h3>3.4 Operational Readiness: Freeing Frontline Staff</h3>
-
-<ul>
-    <li><strong>Instant Access:</strong> Find answers in seconds instead of reading 50+ page manuals</li>
-    <li><strong>Contextual Understanding:</strong> Answers consider related documents and procedures</li>
-    <li><strong>Always Current:</strong> Updates automatically as new documents are added</li>
-    <li><strong>Source Citations:</strong> Every answer includes references for verification</li>
-</ul>
-
-<div class="page-break"></div>
-
-<!-- COMPETITIVE DIFFERENTIATION -->
-<h2>4. How Our Solution Differs from Others in the Market</h2>
-
-<h3>4.1 Comparison with Generic AI Agents</h3>
+<p class="section-intro">Competitive positioning against existing alternatives.</p>
 
 <table>
     <tr>
-        <th>Feature</th>
-        <th>Generic AI Agents (ChatGPT, Claude)</th>
-        <th>Hours Intelligence</th>
+        <th>Capability</th>
+        <th>Generic AI (ChatGPT/Claude)</th>
+        <th>Enterprise Knowledge Bases</th>
+        <th>HORUS Intelligence</th>
     </tr>
     <tr>
         <td>Knowledge Source</td>
         <td>Internet/public data</td>
+        <td>Uploaded documents</td>
         <td>Your internal documents</td>
     </tr>
     <tr>
-        <td>Customization</td>
-        <td>Requires developers</td>
-        <td>Upload documents</td>
-    </tr>
-    <tr>
-        <td>Use Cases</td>
-        <td>Single purpose</td>
-        <td>Versatile platform</td>
-    </tr>
-    <tr>
-        <td>Connections</td>
-        <td>Search results</td>
-        <td>Graph relationships</td>
-    </tr>
-    <tr>
-        <td>Contradiction Detection</td>
-        <td>No</td>
-        <td>Yes</td>
-    </tr>
-    <tr>
-        <td>Domain Knowledge</td>
-        <td>Generic</td>
-        <td>Your specific domain</td>
-    </tr>
-    <tr>
-        <td>Trust & Verification</td>
-        <td>Limited citations</td>
-        <td>Full source citations</td>
-    </tr>
-</table>
-
-<h3>4.2 Comparison with Enterprise Knowledge Bases</h3>
-
-<table>
-    <tr>
-        <th>Feature</th>
-        <th>Traditional Knowledge Bases</th>
-        <th>Hours Intelligence</th>
-    </tr>
-    <tr>
         <td>Setup Time</td>
-        <td>Weeks/months</td>
+        <td>Immediate but generic</td>
+        <td>Weeks to months</td>
         <td>Hours (document upload)</td>
     </tr>
     <tr>
         <td>Relationship Discovery</td>
-        <td>Manual tagging</td>
+        <td>None</td>
+        <td>Manual tagging required</td>
         <td>Automatic graph building</td>
     </tr>
     <tr>
-        <td>Intelligence</td>
-        <td>Keyword search</td>
-        <td>Reasoning + connections</td>
-    </tr>
-    <tr>
         <td>Contradiction Detection</td>
+        <td>No</td>
         <td>Manual review</td>
         <td>Automated detection</td>
     </tr>
     <tr>
-        <td>Versatility</td>
-        <td>Fixed structure</td>
-        <td>Adapts to any domain</td>
+        <td>Multi-Step Reasoning</td>
+        <td>Limited context</td>
+        <td>Keyword search only</td>
+        <td>Full synthesis with citations</td>
+    </tr>
+    <tr>
+        <td>Data Sovereignty</td>
+        <td>No guarantee</td>
+        <td>Varies by vendor</td>
+        <td>Regional deployment options</td>
+    </tr>
+    <tr>
+        <td>Customization</td>
+        <td>Requires developers</td>
+        <td>IT-dependent</td>
+        <td>Business user configurable</td>
     </tr>
 </table>
 
-<h3>4.3 Our Unique Technical Differentiation</h3>
-
-<div class="section-box">
-<strong>Multi-Mode RAG Architecture:</strong>
-<ul>
-    <li><strong>Hybrid RAG:</strong> Fast, efficient retrieval for common queries</li>
-    <li><strong>Agentic RAG:</strong> Deep reasoning for complex questions requiring multi-step analysis</li>
-    <li><strong>Graph RAG (Neo4j):</strong> Relationship discovery and contradiction detection</li>
-</ul>
+<div class="highlight-box">
+<strong>Our Rarest Capability: Contradiction Detection</strong><br>
+Most RAG systems—including Microsoft Copilot, Google Vertex AI, and ChatGPT Enterprise—only retrieve and summarize. They cannot automatically find conflicts between documents. Our Graph RAG architecture is specifically designed to detect where Policy A contradicts Procedure B—a capability that major vendors simply do not offer without expensive custom development.
 </div>
 
-<div class="page-break"></div>
-
-<!-- TECHNOLOGY -->
-<h2>5. Technology Description and Industry Relevance</h2>
-
-<h3>5.1 Core Technology Stack</h3>
-
-<p><strong>Retrieval-Augmented Generation (RAG) Architecture:</strong></p>
+<p><strong>Positioning vs. Government AI Infrastructure (GovAI Build):</strong></p>
+<p>The Australian Government's GovAI Build platform provides infrastructure and tools for agencies to <em>build</em> their own AI applications. This validates the market demand for AI solutions, but creates a critical distinction:</p>
 <ul>
-    <li>Proprietary multi-mode RAG system supporting Hybrid, Agentic, and Graph-based retrieval</li>
-    <li>Combines vector embeddings, semantic search, and keyword matching for optimal results</li>
-    <li>Built on Azure OpenAI with embeddings generated using Azure OpenAI services</li>
+    <li><strong>GovAI Build = Infrastructure/Platform:</strong> Provides Azure AI Foundry, hosting, and development tools. Agencies must build, integrate, and maintain their own solutions—a process that takes months.</li>
+    <li><strong>HORUS Intelligence = Ready-Made Product:</strong> A complete, specialized document intelligence solution that agencies can deploy and use immediately. No development required.</li>
+</ul>
+<p><strong>Why Agencies Choose Products Over Building:</strong> While GovAI Build provides the infrastructure, agencies still need specialized products to solve specific problems. Building document intelligence with contradiction detection and Graph RAG on GovAI Build would require months of development. HORUS Intelligence delivers this capability in days, not months.</p>
+
+<p><strong>Why Large Vendors Face Limitations:</strong></p>
+<ul>
+    <li><strong>No contradiction detection:</strong> Microsoft Copilot and Google search documents but cannot identify conflicting statements across policies</li>
+    <li><strong>Generic solutions:</strong> Large vendors require significant customization for domain-specific document structures and workflows</li>
+    <li><strong>Data sovereignty costs:</strong> International vendors charge premiums for regional infrastructure; our architecture supports regional deployment natively</li>
+    <li><strong>Slow iteration:</strong> Enterprise sales cycles prevent rapid customization during pilot phases</li>
+    <li><strong>One-size-fits-all approach:</strong> Large vendors prioritize standardization over customization</li>
 </ul>
 
-<p><strong>Graph Database (Neo4j) Integration:</strong></p>
-<ul>
-    <li>Stores document relationships as graph structures</li>
-    <li>Enables discovery of connections that aren't obvious through traditional search</li>
-    <li>Supports contradiction detection by analyzing relationship patterns</li>
-</ul>
+<!-- ============================================ -->
+<!-- SECTION 5: TECHNOLOGY (approx 380 words) -->
+<!-- ============================================ -->
+<h2>5. Technology and Industry Relevance</h2>
 
-<p><strong>Agentic Reasoning:</strong></p>
-<ul>
-    <li>Multi-step reasoning loops that refine queries based on intermediate results</li>
-    <li>Synthesizes information across multiple documents</li>
-    <li>Provides explanations with confidence indicators</li>
-</ul>
+<p class="section-intro">Technical architecture and why it matters for government document intelligence.</p>
 
-<p><strong>Multi-Tenant Architecture:</strong></p>
-<ul>
-    <li>Isolated document libraries per organization</li>
-    <li>Secure, compliant with government data requirements</li>
-    <li>Scales to support multiple departments or organizations independently</li>
-</ul>
+<p><strong>Multi-Mode RAG Architecture</strong><br>
+HORUS Intelligence uses a proprietary architecture combining three complementary retrieval-augmented generation approaches:</p>
 
-<h3>5.2 Technology Relevance to Industry</h3>
+<p><strong>1. Hybrid RAG (Fast Retrieval)</strong><br>
+Combines vector embeddings with keyword search for accurate retrieval of relevant document sections. Handles 80% of queries in under 2 seconds. Uses Azure AI Search with semantic ranking optimized for government document structures.</p>
 
-<p><strong>Government Sector:</strong></p>
-<ul>
-    <li><strong>Regulatory Compliance:</strong> Graph reasoning identifies policy contradictions automatically</li>
-    <li><strong>Operational Efficiency:</strong> Instant document access frees frontline staff time</li>
-    <li><strong>Knowledge Preservation:</strong> Maintains institutional knowledge across staff turnover</li>
-    <li><strong>Decision Support:</strong> Connects budget decisions to policy outcomes</li>
-</ul>
+<p><strong>2. Agentic RAG (Complex Reasoning)</strong><br>
+For questions requiring synthesis across multiple documents, the system employs multi-step reasoning: planning what information is needed, retrieving from multiple sources, reasoning across retrieved content, and validating conclusions. Full citation trails provide the auditability government requires.</p>
 
-<h3>5.3 Sovereign Capability</h3>
+<p><strong>3. Graph RAG (Relationship Discovery)</strong><br>
+Dual graph database architecture—Neo4j for advanced analytics and Azure Cosmos DB (Gremlin API) for Australian compliance—automatically builds relationship maps between documents. This enables contradiction detection: identifying where Policy A conflicts with Procedure B, critical for regulatory reform and compliance.</p>
 
-<p>Built on Azure Australian regions with local data processing, meeting government requirements for sovereign AI capabilities.</p>
-
-<h3>5.4 Current State and Development Path</h3>
-
-<p><strong>Current State:</strong></p>
-<ul>
-    <li>Working prototype with government career documents</li>
-    <li>Multi-mode RAG operational (Hybrid, Agentic, Neo4j)</li>
-    <li>Graph connection discovery functional</li>
-    <li>Contradiction detection implemented</li>
-</ul>
-
-<p><strong>Development Path:</strong></p>
-<ul>
-    <li>Refine based on pilot feedback</li>
-    <li>Scale to support larger document libraries</li>
-    <li>Enhance graph reasoning algorithms</li>
-    <li>Add industry-specific features based on customer needs</li>
-</ul>
-
-<div class="page-break"></div>
-
-<!-- BUSINESS MODEL -->
-<h2>6. Business Model and Go-to-Market Strategy</h2>
-
-<h3>6.1 Business Model: SaaS Subscription</h3>
-
+<p><strong>Complete Technology Stack (Australian Data Sovereignty):</strong></p>
 <table>
     <tr>
-        <th>Tier</th>
-        <th>Description</th>
-        <th>Target Customer</th>
+        <th>Component</th>
+        <th>Technology</th>
+        <th>Purpose</th>
     </tr>
     <tr>
-        <td>Tier 1 (Pilot)</td>
-        <td>Single-tenant instance for pilot projects</td>
-        <td>Government departments</td>
+        <td>AI Orchestration</td>
+        <td>Azure AI Foundry</td>
+        <td>Unified AI model management, prompt engineering, and deployment</td>
     </tr>
     <tr>
-        <td>Tier 2 (Organization)</td>
-        <td>Multi-tenant with multiple document libraries</td>
-        <td>Mid-size enterprises</td>
+        <td>Language Model</td>
+        <td>GPT-4 (Azure OpenAI)</td>
+        <td>Acts as the "librarian"—reasoning over retrieved documents, never inventing information</td>
     </tr>
     <tr>
-        <td>Tier 3 (Enterprise)</td>
-        <td>White-label with custom branding and dedicated infrastructure</td>
-        <td>Large organizations</td>
+        <td>Embeddings</td>
+        <td>text-embedding-3-large</td>
+        <td>Converts documents into semantic vectors for similarity search</td>
+    </tr>
+    <tr>
+        <td>Vector Search</td>
+        <td>Azure AI Search</td>
+        <td>Semantic ranking and hybrid keyword+vector retrieval</td>
+    </tr>
+    <tr>
+        <td>Document Processing</td>
+        <td>Azure Document Intelligence</td>
+        <td>Extracts text, tables, and structure from PDFs and scanned documents</td>
+    </tr>
+    <tr>
+        <td>Pipeline Automation</td>
+        <td>Azure Automation</td>
+        <td>Scheduled document ingestion, re-indexing, and batch processing</td>
+    </tr>
+    <tr>
+        <td>Graph Database</td>
+        <td>Neo4j + Cosmos DB (Gremlin)</td>
+        <td>Relationship mapping and contradiction detection</td>
+    </tr>
+    <tr>
+        <td>Web Intelligence</td>
+        <td>Playwright Web Scraper</td>
+        <td>Automated collection of public regulatory updates and legislative changes</td>
+    </tr>
+    <tr>
+        <td>Database</td>
+        <td>Supabase Australia (PostgreSQL)</td>
+        <td>User data, session management, audit logs</td>
+    </tr>
+    <tr>
+        <td>Frontend</td>
+        <td>React + TypeScript + Vite</td>
+        <td>Modern, accessible dashboard interface</td>
     </tr>
 </table>
 
-<h3>6.2 Go-to-Market Strategy</h3>
-
-<p><strong>Phase 1: Government Pilots (Months 1-6)</strong></p>
+<p><strong>Zero Hallucination Architecture:</strong><br>
+Government's biggest AI concern is hallucination—LLMs inventing information. HORUS Intelligence eliminates this through <strong>citation-mandatory design</strong>:</p>
 <ul>
-    <li>Engage with South Australian Office for AI for Proof of Value pilots</li>
-    <li>Target 3-5 government departments (healthcare, policing, policy coordination)</li>
-    <li>Co-design solutions with end users</li>
-    <li>Validate product-market fit</li>
+    <li><strong>GPT-4 as Librarian, Not Author:</strong> The language model only synthesizes and explains content retrieved from your documents. It cannot generate claims without source material.</li>
+    <li><strong>Every Answer Includes Citations:</strong> Each response links to exact document sections, page numbers, and clause references. Users verify before acting.</li>
+    <li><strong>Confidence Scoring:</strong> When source material is ambiguous or insufficient, the system explicitly states uncertainty rather than guessing.</li>
+    <li><strong>Audit Trail:</strong> Full logging of queries, retrieved documents, and generated responses for compliance review.</li>
 </ul>
 
-<p><strong>Phase 2: Enterprise Expansion (Months 6-12)</strong></p>
+<p><strong>Industry Relevance:</strong></p>
 <ul>
-    <li>Leverage government success stories</li>
-    <li>Target legal, healthcare, and financial services sectors</li>
-    <li>Build case studies and testimonials</li>
+    <li><strong>Regulatory Compliance:</strong> Contradiction detection directly supports compliance requirements and policy reform initiatives, such as South Australia's 2026 mandate to modernize legislation for AI and privacy</li>
+    <li><strong>Operational Efficiency:</strong> Natural language queries replace hours of manual document navigation, directly addressing the South Australian Office for AI's $28M initiative to free operational staff from administrative burden</li>
+    <li><strong>Accountability:</strong> Citation-mandatory design meets transparency and audit standards across industries, including government compliance requirements</li>
+    <li><strong>Multi-Tenancy:</strong> Secure isolation between departments, teams, or clients within shared infrastructure</li>
 </ul>
 
-<p><strong>Phase 3: Platform Maturity (Year 2+)</strong></p>
-<ul>
-    <li>Expand to additional verticals</li>
-    <li>Build partner ecosystem</li>
-    <li>International expansion</li>
-</ul>
+<p><strong>Current State:</strong> Working prototype operational with real-world document sets across multiple domains. All three RAG modes functional. Contradiction detection tested on complex document collections with positive results.</p>
 
-<h3>6.3 Expected Outcomes (12-Month Goals)</h3>
+<!-- ============================================ -->
+<!-- SECTION 5.5: EXAMPLE SCENARIO & DASHBOARDS -->
+<!-- ============================================ -->
+<h2>5.1 Real-World Scenario: Policy Reform in Action</h2>
 
-<div class="section-box">
-<ul>
-    <li>5+ government pilot customers</li>
-    <li>3+ enterprise customers</li>
-    <li>$500K+ ARR</li>
-    <li>Proven product-market fit</li>
-    <li>Team of 5-8 people</li>
-</ul>
+<p class="section-intro">How HORUS Intelligence transforms a 3-day task into 15 minutes.</p>
+
+<div class="highlight-box">
+<strong>Scenario:</strong> A compliance team is reviewing organizational policies ahead of a regulatory audit. A compliance officer needs to identify all contradictions between company policy documents, procedure manuals, and recent regulatory guidelines.
 </div>
 
-<div class="page-break"></div>
+<p><strong>Without HORUS Intelligence (Current State):</strong></p>
+<ul>
+    <li>Compliance officer manually searches 400+ pages across multiple document sources</li>
+    <li>Copies relevant sections into spreadsheets for comparison</li>
+    <li>Cross-references manually, risking missed conflicts</li>
+    <li>Time: 2-3 days. Accuracy: dependent on human attention span</li>
+</ul>
 
-<!-- CONCLUSION -->
-<h2>7. Conclusion</h2>
-
-<p>Hours Intelligence represents a unique opportunity to transform how organizations access and understand their document knowledge. Starting as a career-focused solution for South Australians, the platform has evolved into a versatile document intelligence engine that addresses critical needs in government and enterprise sectors.</p>
-
-<p>With the South Australian Office for AI investing <strong>$28 million</strong> in Proof of Value initiatives, and regulatory reform creating urgent demand for policy coordination tools, the timing is ideal for bringing this platform to market.</p>
-
-<p>Our technology—combining multi-mode RAG, graph reasoning, and agentic retrieval—provides capabilities that existing solutions cannot match. Our business model—versatile platform with easy customization—enables rapid deployment and cost-effective scaling.</p>
-
-<div class="highlight">
-<strong>We seek support from Venture Catalyst to:</strong>
+<p><strong>With HORUS Intelligence:</strong></p>
 <ol>
-    <li>Validate product-market fit through government pilots</li>
-    <li>Refine our technology based on real-world usage</li>
-    <li>Build the team and infrastructure for scaling</li>
-    <li>Establish Hours Intelligence as the leading document intelligence platform in Australia</li>
+    <li><strong>Upload (5 minutes):</strong> Officer uploads all relevant documents to HORUS. The system automatically extracts text, builds knowledge graphs, and indexes relationships.</li>
+    <li><strong>Query (10 seconds):</strong> Officer asks: <em>"Find all contradictions between our data privacy policy and the new regulatory requirements regarding customer data retention."</em></li>
+    <li><strong>Analysis (30 seconds):</strong> Graph RAG identifies potential conflicts. Agentic RAG validates each, citing exact clauses and sections.</li>
+    <li><strong>Report (5 minutes):</strong> Officer reviews AI-generated summary with citations. Exports contradiction report for management review.</li>
 </ol>
-</div>
 
-<p>The journey from career SaaS to platform engineering reflects our commitment to building solutions that solve real problems while creating sustainable, scalable businesses. With Venture Catalyst support, we can accelerate this journey and bring Hours Intelligence to the customers who need it most.</p>
+<p><strong>Result:</strong> 3 days → 15 minutes. Team spends time on resolution, not discovery.</p>
 
-<div class="footer">
-    <p>Hours Intelligence | Venture Catalyst Application | January 2026</p>
-    <p>Confidential Business Plan</p>
-</div>
+<h2>5.2 Intelligence Dashboards</h2>
+
+<p class="section-intro">Beyond Q&A: visual analytics powered by a flexible, prompt-driven architecture.</p>
+
+<p><strong>Current Prototype Capabilities:</strong></p>
+<p>Our working prototype already demonstrates sophisticated dashboard capabilities:</p>
+<ul>
+    <li><strong>AI-Generated Executive Summaries:</strong> Automatic synthesis of key findings with actionable recommendations</li>
+    <li><strong>Relationship Visualization:</strong> Cross-domain connection mapping showing how data points relate</li>
+    <li><strong>Data Provenance & Audit Trails:</strong> Full transparency showing exactly how information was extracted and validated—critical for government compliance</li>
+    <li><strong>Trend Analysis:</strong> Visual indicators of growth, change, and emerging patterns across data sets</li>
+</ul>
+
+<p><strong>Prompt-Driven Customization:</strong></p>
+<p>The platform's intelligence layer is powered by configurable prompts—meaning <strong>dashboards can be rapidly customized to each organization's needs</strong> without code changes. During implementation, we configure:</p>
+<ul>
+    <li>Document Health Scores (contradiction density, outdated content detection)</li>
+    <li>Compliance Tracking (review deadlines, regulatory alignment)</li>
+    <li>Usage Analytics (query patterns, knowledge gap identification)</li>
+    <li>Custom KPIs specific to each organization's objectives</li>
+</ul>
+
+<p><strong>Why This Matters:</strong> Rather than a rigid product that forces users to adapt, HORUS Intelligence adapts to users. Each organization can have dashboards configured to their specific workflows, terminology, and priorities—delivered in days, not months.</p>
+
+<!-- ============================================ -->
+<!-- SECTION 6: OPPORTUNITIES FOR PARTNERSHIP (approx 200 words) -->
+<!-- ============================================ -->
+<h2>6. Opportunities for Partnership</h2>
+
+<p>HORUS Intelligence is seeking strategic partnerships and relationships that can accelerate growth and market adoption.</p>
+
+<p><strong>Investment & Funding:</strong></p>
+<ul>
+    <li>Seed or Series A funding to accelerate product development and market expansion</li>
+    <li>Strategic investors with expertise in enterprise SaaS, AI, or document intelligence</li>
+    <li>Funding to support pilot programs and early customer acquisition</li>
+</ul>
+
+<p><strong>Strategic Partnerships:</strong></p>
+<ul>
+    <li>Technology partnerships with cloud providers, enterprise software vendors, or AI platforms</li>
+    <li>Channel partnerships with system integrators, consultants, or resellers serving target markets</li>
+    <li>Joint go-to-market opportunities with complementary solution providers</li>
+</ul>
+
+<p><strong>Customer Opportunities:</strong></p>
+<ul>
+    <li>Early adopter customers across target industries (government, legal, healthcare, financial services)</li>
+    <li>Pilot programs to validate product-market fit and refine solutions</li>
+    <li>Reference customers to establish credibility in target markets</li>
+</ul>
+
+<p><strong>Advisory & Mentorship:</strong></p>
+<ul>
+    <li>Industry advisors with expertise in target markets (government, legal, healthcare, compliance)</li>
+    <li>Commercial advisors with experience in enterprise sales and B2B SaaS</li>
+    <li>Technical advisors with deep AI/ML and enterprise architecture expertise</li>
+</ul>
+
+<!-- ============================================ -->
+<!-- SECTION 7: FOUNDER & GOALS (approx 150 words) -->
+<!-- ============================================ -->
+<h2>7. Founder and 12-Month Goals</h2>
+
+<p><strong>Founder:</strong> University graduate with professional software engineering experience and hands-on startup experience. Currently a member of the <strong>Microsoft for Startups Founders Hub</strong>, providing access to Azure credits, technical mentorship, and enterprise tools. This combination provides both enterprise-grade technical skills and practical experience with the challenges early-stage companies face.</p>
+
+<p><strong>Team Development:</strong> Strong technical execution capabilities, with ongoing development in commercial and go-to-market functions. Seeking co-founders, advisors, or team members with enterprise sales, customer success, or industry-specific domain expertise to complement technical capabilities.</p>
+
+<p><strong>12-Month Goals:</strong></p>
+<ul>
+    <li>Complete 5-8 enterprise pilot programs with measurable outcomes across target industries</li>
+    <li>Secure 8 enterprise customers with proven product-market fit</li>
+    <li>Achieve $500K ARR with strong customer retention</li>
+    <li>Scale team to 5-8 people (engineering, customer success, sales, partnerships)</li>
+    <li>Establish HORUS Intelligence as a leading document intelligence platform in target markets</li>
+</ul>
 
 </body>
 </html>

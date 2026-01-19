@@ -769,6 +769,16 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.8; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.2); }
+}
+
 .animate-gradient-shift {
   animation: gradient-shift 8s ease infinite;
   background-size: 200% 200%;

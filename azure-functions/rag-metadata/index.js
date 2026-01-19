@@ -318,7 +318,7 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
     queryType: "semantic",
     semanticConfiguration: "default",
     top: topK,
-    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,category,sector,tags,url,metadata",
+    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,chunkType,category,sector,tags,url,metadata,hasChart,chartType,chartData,chartImageUrl,chartConfidence,visualDescription",
     captions: "extractive",
     answers: "extractive|count-3",
   };
@@ -338,23 +338,52 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
   );
 
   let searchResults = [];
+  let chartResults = [];  // NEW: Separate array for chart data
   if (searchResponse.ok) {
     const searchData = await searchResponse.json();
-    searchResults = (searchData.value || []).map((hit) => ({
-      id: hit.id,
-      content: hit.content,
-      title: hit.title || 'Untitled',
-      documentId: hit.documentId,
-      documentType: hit.documentType,
-      pageNumber: hit.pageNumber,
-      chunkIndex: hit.chunkIndex,
-      category: hit.category,
-      sector: hit.sector,
-      tags: hit.tags || [],
-      url: hit.url,
-      score: hit['@search.score'] || 0,
-      metadata: hit.metadata,
-    }));
+    searchResults = (searchData.value || []).map((hit) => {
+      const result = {
+        id: hit.id,
+        content: hit.content,
+        title: hit.title || 'Untitled',
+        documentId: hit.documentId,
+        documentType: hit.documentType,
+        pageNumber: hit.pageNumber,
+        chunkIndex: hit.chunkIndex,
+        chunkType: hit.chunkType || 'text',
+        category: hit.category,
+        sector: hit.sector,
+        tags: hit.tags || [],
+        url: hit.url,
+        score: hit['@search.score'] || 0,
+        metadata: hit.metadata,
+        // Chart-specific fields
+        hasChart: hit.hasChart || false,
+        chartType: hit.chartType,
+        chartData: hit.chartData,
+        chartImageUrl: hit.chartImageUrl,
+        chartConfidence: hit.chartConfidence,
+        visualDescription: hit.visualDescription,
+      };
+      
+      // Collect chart results separately for visualization
+      if (hit.hasChart || hit.chunkType === 'chart') {
+        chartResults.push({
+          id: hit.id,
+          documentId: hit.documentId,
+          pageNumber: hit.pageNumber,
+          chartType: hit.chartType,
+          chartData: hit.chartData ? (typeof hit.chartData === 'string' ? JSON.parse(hit.chartData) : hit.chartData) : null,
+          chartImageUrl: hit.chartImageUrl,
+          chartConfidence: hit.chartConfidence,
+          visualDescription: hit.visualDescription,
+          title: hit.title,
+          score: hit['@search.score'] || 0,
+        });
+      }
+      
+      return result;
+    });
   }
 
   if (searchResults.length === 0) {
@@ -479,7 +508,54 @@ Cite sources using [Source X] notation.
     content: result.content,
     snippet: result.content.substring(0, 300) + '...',
     metadata: result.metadata,
+    chunkType: result.chunkType,
+    hasChart: result.hasChart,
+    chartType: result.chartType,
+    visualDescription: result.visualDescription,
   }));
+
+  // Step 7: Extract visualization metadata from results
+  const visualizationData = {
+    // Chart data from extracted PDFs
+    charts: chartResults,
+    // Metadata aggregations for charts
+    metadataDistribution: {
+      categories: {},
+      sectors: {},
+      documentTypes: {},
+      chunkTypes: {},
+    },
+    // Relationship hints (for future graph visualization)
+    relationships: [],
+    // Summary stats
+    totalResults: searchResults.length,
+    chartCount: chartResults.length,
+    hasVisualizations: chartResults.length > 0,
+  };
+
+  // Aggregate metadata for distribution charts
+  searchResults.forEach(result => {
+    // Count categories
+    if (result.category) {
+      visualizationData.metadataDistribution.categories[result.category] = 
+        (visualizationData.metadataDistribution.categories[result.category] || 0) + 1;
+    }
+    // Count sectors
+    if (result.sector) {
+      visualizationData.metadataDistribution.sectors[result.sector] = 
+        (visualizationData.metadataDistribution.sectors[result.sector] || 0) + 1;
+    }
+    // Count document types
+    if (result.documentType) {
+      visualizationData.metadataDistribution.documentTypes[result.documentType] = 
+        (visualizationData.metadataDistribution.documentTypes[result.documentType] || 0) + 1;
+    }
+    // Count chunk types
+    if (result.chunkType) {
+      visualizationData.metadataDistribution.chunkTypes[result.chunkType] = 
+        (visualizationData.metadataDistribution.chunkTypes[result.chunkType] || 0) + 1;
+    }
+  });
 
   return {
     status: 200,
@@ -488,6 +564,8 @@ Cite sources using [Source X] notation.
       answer,
       sources,
       suggestedQuestions: [],
+      // NEW: Visualization data for dynamic charts
+      visualizationData,
     }),
   };
 }

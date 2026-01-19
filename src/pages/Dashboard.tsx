@@ -299,12 +299,32 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 relative overflow-hidden">
-      {/* Premium Animated Background */}
+      {/* Premium Animated Background - CSS Gradient Animation (Reliable) */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        {/* Base light gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.15),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.1),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.05),transparent_70%)]" />
+        
+        {/* Beautiful CSS Animated Gradient Background */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(135deg, 
+              rgba(59,130,246,0.45) 0%, 
+              rgba(99,102,241,0.5) 25%, 
+              rgba(139,92,246,0.45) 50%, 
+              rgba(20,184,166,0.5) 75%, 
+              rgba(14,165,233,0.45) 100%)`,
+            backgroundSize: '400% 400%',
+            animation: 'gradient-shift 12s ease infinite',
+            mixBlendMode: 'screen',
+            opacity: 0.75
+          }}
+        />
+        
+        {/* Radial gradients for depth */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.25),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.2),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.15),transparent_70%)]" />
         
         {/* Morphing Orbs */}
         <div className="absolute -top-40 right-[10%] w-[800px] h-[800px] rounded-full opacity-40"

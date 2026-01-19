@@ -8,7 +8,9 @@ import {
   LogOut,
   FileText,
   Monitor,
-  MessageSquare
+  MessageSquare,
+  Upload,
+  Database
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -29,6 +31,7 @@ import { useNavigate } from 'react-router-dom';
 
 const mainNavItems = [
   { title: 'Overview', url: '/admin', icon: LayoutDashboard },
+  { title: 'Documents', url: '/admin/documents', icon: Database },
   { title: 'User Management', url: '/admin/users', icon: Users },
   { title: 'Activity Logs', url: '/admin/activity', icon: Activity },
   { title: 'Sessions', url: '/admin/sessions', icon: Monitor },

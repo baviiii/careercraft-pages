@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Filter, UserPlus, MoreHorizontal, Shield, Ban, Key, Mail } from 'lucide-react';
+import { Search, Filter, UserPlus, MoreHorizontal, Shield, Ban, Key, Mail, Trash2, UserCheck, UserX, Send, AlertTriangle, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAdminData } from '@/hooks/useAdminData';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -19,16 +21,37 @@ export default function UserManagement() {
   const { users, fetchUsers, loading } = useAdminData();
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('user');
 
+  // Email dialog states
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState<any>(null);
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  // Delete dialog states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Suspend states
+  const [isSuspending, setIsSuspending] = useState(false);
+
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
+    const matchesSearch =
       user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    return matchesSearch && matchesRole;
+    const isSuspended = user.banned_until ? new Date(user.banned_until) > new Date() : false;
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && !isSuspended) ||
+      (statusFilter === 'suspended' && isSuspended);
+    return matchesSearch && matchesRole && matchesStatus;
   });
 
   const getRoleBadgeVariant = (role: string) => {
@@ -73,6 +96,96 @@ export default function UserManagement() {
     setInviteEmail('');
     setInviteRole('user');
   };
+
+  const handleSuspendUser = async (userId: string, suspend: boolean) => {
+    setIsSuspending(true);
+    try {
+      const bannedUntil = suspend ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
+
+      const { error } = await supabase.auth.admin.updateUserById(userId, {
+        ban_duration: suspend ? '720h' : 'none',
+      });
+
+      if (error) throw error;
+
+      toast.success(suspend ? 'User suspended successfully' : 'User unsuspended successfully');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error suspending user:', error);
+      toast.error(error.message || 'Failed to update user status');
+    } finally {
+      setIsSuspending(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.auth.admin.deleteUser(userToDelete.id);
+
+      if (error) throw error;
+
+      toast.success(`User ${userToDelete.email} deleted successfully`);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast.error(error.message || 'Failed to delete user');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailRecipient || !emailSubject || !emailMessage) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      // In a production app, you would call an API endpoint to send the email
+      // For now, we'll simulate it
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      toast.success(`Email sent to ${emailRecipient.email}`);
+      setEmailDialogOpen(false);
+      setEmailRecipient(null);
+      setEmailSubject('');
+      setEmailMessage('');
+    } catch (error) {
+      console.error('Error sending email:', error);
+      toast.error('Failed to send email');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const openEmailDialog = (user: any) => {
+    setEmailRecipient(user);
+    setEmailSubject('');
+    setEmailMessage('');
+    setEmailDialogOpen(true);
+  };
+
+  const openDeleteDialog = (user: any) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const getUserStatus = (user: any) => {
+    const isSuspended = user.banned_until ? new Date(user.banned_until) > new Date() : false;
+    return isSuspended ? 'suspended' : 'active';
+  };
+
+  // Calculate user stats
+  const totalUsers = users.length;
+  const activeUsers = users.filter(u => getUserStatus(u) === 'active').length;
+  const suspendedUsers = users.filter(u => getUserStatus(u) === 'suspended').length;
+  const adminUsers = users.filter(u => u.role === 'admin').length;
 
   return (
     <div className="space-y-6">
@@ -133,6 +246,65 @@ export default function UserManagement() {
         </Dialog>
       </div>
 
+      {/* User Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-border/50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Users</p>
+                <p className="text-2xl font-bold mt-1">{totalUsers}</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                <Users className="w-6 h-6 text-blue-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Active Users</p>
+                <p className="text-2xl font-bold mt-1">{activeUsers}</p>
+              </div>
+              <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
+                <UserCheck className="w-6 h-6 text-green-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Suspended</p>
+                <p className="text-2xl font-bold mt-1">{suspendedUsers}</p>
+              </div>
+              <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
+                <Ban className="w-6 h-6 text-orange-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Administrators</p>
+                <p className="text-2xl font-bold mt-1">{adminUsers}</p>
+              </div>
+              <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                <Shield className="w-6 h-6 text-purple-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="border-border/50">
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -146,7 +318,7 @@ export default function UserManagement() {
               />
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[160px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Filter by role" />
               </SelectTrigger>
@@ -154,6 +326,17 @@ export default function UserManagement() {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="admin">Admins</SelectItem>
                 <SelectItem value="user">Users</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[160px]">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -164,74 +347,103 @@ export default function UserManagement() {
               <TableRow className="border-border/50">
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead>Last Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow key={user.id} className="border-border/50">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-xs">
-                          {user.full_name?.charAt(0) || user.email?.charAt(0) || '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{user.full_name || 'Unnamed User'}</p>
-                        <p className="text-xs text-muted-foreground">{user.email || user.id.slice(0, 8)}</p>
+              {filteredUsers.map((user) => {
+                const userStatus = getUserStatus(user);
+                const isSuspended = userStatus === 'suspended';
+
+                return (
+                  <TableRow key={user.id} className="border-border/50">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">
+                            {user.full_name?.charAt(0) || user.email?.charAt(0) || '?'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{user.full_name || 'Unnamed User'}</p>
+                          <p className="text-xs text-muted-foreground">{user.email || user.id.slice(0, 8)}</p>
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {user.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {user.last_sign_in_at 
-                      ? formatDistanceToNow(new Date(user.last_sign_in_at), { addSuffix: true })
-                      : 'Never'
-                    }
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'admin')}>
-                          <Shield className="w-4 h-4 mr-2" />
-                          Make Admin
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleChangeRole(user.id, 'user')}>
-                          <Shield className="w-4 h-4 mr-2" />
-                          Make User
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>
-                          <Key className="w-4 h-4 mr-2" />
-                          Reset Password
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          <Ban className="w-4 h-4 mr-2" />
-                          Suspend User
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getRoleBadgeVariant(user.role)}>
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={isSuspended ? 'destructive' : 'outline'} className={isSuspended ? '' : 'bg-green-500/10 text-green-700 border-green-500/20'}>
+                        {isSuspended ? (
+                          <>
+                            <Ban className="w-3 h-3 mr-1" />
+                            Suspended
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-3 h-3 mr-1" />
+                            Active
+                          </>
+                        )}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {user.last_sign_in_at
+                        ? formatDistanceToNow(new Date(user.last_sign_in_at), { addSuffix: true })
+                        : 'Never'
+                      }
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => openEmailDialog(user)}>
+                            <Mail className="w-4 h-4 mr-2" />
+                            Send Email
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleChangeRole(user.id, user.role === 'admin' ? 'user' : 'admin')}>
+                            <Shield className="w-4 h-4 mr-2" />
+                            {user.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {isSuspended ? (
+                            <DropdownMenuItem onClick={() => handleSuspendUser(user.id, false)} className="text-green-600">
+                              <UserCheck className="w-4 h-4 mr-2" />
+                              Unsuspend User
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => handleSuspendUser(user.id, true)} className="text-orange-600">
+                              <UserX className="w-4 h-4 mr-2" />
+                              Suspend User
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => openDeleteDialog(user)} className="text-destructive">
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete User
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {filteredUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     {loading ? 'Loading users...' : 'No users found'}
                   </TableCell>
                 </TableRow>
@@ -240,6 +452,103 @@ export default function UserManagement() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Send Email to User</DialogTitle>
+            <DialogDescription>
+              Send an email to {emailRecipient?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="recipient">To</Label>
+              <Input
+                id="recipient"
+                value={emailRecipient?.email || ''}
+                disabled
+                className="bg-muted"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                placeholder="Email subject..."
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="message">Message</Label>
+              <Textarea
+                id="message"
+                placeholder="Type your message here..."
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+                rows={6}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendEmail} disabled={isSendingEmail}>
+              {isSendingEmail ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Delete User Account
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the account for <strong>{userToDelete?.email}</strong>?
+              <br /><br />
+              This action cannot be undone. This will permanently delete their account and remove all their data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete User
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

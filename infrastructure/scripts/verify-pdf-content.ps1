@@ -95,7 +95,7 @@ do {
         filter = $filter
         top = $top
         skip = $skip
-        select = "documentId,pageNumber,chunkIndex,title,metadata,content,contentVector,url,source,category,sector,tags,indexedAt"
+        select = "documentId,pageNumber,chunkIndex,title,metadata,content,contentVector,url,source,category,sector,tags,topics,sectors,occupation,indexedAt"
         orderby = "documentId,pageNumber,chunkIndex"
     } | ConvertTo-Json
     
@@ -139,6 +139,14 @@ $qualityMetrics = @{
     MissingMetadata = @()
     MissingSourceUrl = @()
     PdfCoverageDetails = @()
+    # Serialization issues
+    SerializationIssues = @{
+        occupationAsObject = @()
+        nullArrays = @()
+        scalarArrays = @()
+        arrayPrimitives = @()
+        totalIssues = 0
+    }
 }
 
 foreach ($pdfGroup in $pdfGroups) {
@@ -209,6 +217,54 @@ foreach ($pdfGroup in $pdfGroups) {
         if (-not $hasSector) { $missing += "sector" }
         if (-not $hasTags) { $missing += "tags" }
         $qualityMetrics.MissingMetadata += @{ PdfId = $pdfId; Missing = $missing }
+    }
+    
+    # Check for serialization issues in all chunks
+    foreach ($chunk in $chunks) {
+        # Check occupation field
+        if ($chunk.occupation -and $chunk.occupation.GetType().Name -eq "PSCustomObject") {
+            $qualityMetrics.SerializationIssues.occupationAsObject += @{
+                id = $chunk.id
+                documentId = $chunk.documentId
+                pageNumber = $chunk.pageNumber
+                chunkIndex = $chunk.chunkIndex
+            }
+            $qualityMetrics.SerializationIssues.totalIssues++
+        }
+        
+        # Check array fields for null
+        foreach ($field in @("tags", "sectors", "topics")) {
+            if ($null -eq $chunk.$field) {
+                $qualityMetrics.SerializationIssues.nullArrays += @{
+                    id = $chunk.id
+                    documentId = $chunk.documentId
+                    field = $field
+                }
+                $qualityMetrics.SerializationIssues.totalIssues++
+            }
+            # Check if array field is scalar
+            elseif ($chunk.$field -isnot [array] -and $chunk.$field -ne $null) {
+                $qualityMetrics.SerializationIssues.scalarArrays += @{
+                    id = $chunk.id
+                    documentId = $chunk.documentId
+                    field = $field
+                    value = $chunk.$field
+                }
+                $qualityMetrics.SerializationIssues.totalIssues++
+            }
+        }
+        
+        # Check primitive fields for arrays
+        foreach ($field in @("category", "title", "content")) {
+            if ($chunk.$field -is [array]) {
+                $qualityMetrics.SerializationIssues.arrayPrimitives += @{
+                    id = $chunk.id
+                    documentId = $chunk.documentId
+                    field = $field
+                }
+                $qualityMetrics.SerializationIssues.totalIssues++
+            }
+        }
     }
 }
 
@@ -337,6 +393,64 @@ if ($qualityMetrics.MissingMetadata.Count -gt 0 -and $Detailed) {
 }
 Write-Host ""
 
+# Serialization Issues (CRITICAL - Data Integrity)
+if ($qualityMetrics.SerializationIssues.totalIssues -gt 0) {
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "  SERIALIZATION ISSUES (CRITICAL)" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Total serialization issues: $($qualityMetrics.SerializationIssues.totalIssues)" -ForegroundColor Red
+    Write-Host ""
+    
+    if ($qualityMetrics.SerializationIssues.occupationAsObject.Count -gt 0) {
+        Write-Host "  [CRITICAL] Occupation as object: $($qualityMetrics.SerializationIssues.occupationAsObject.Count) chunks" -ForegroundColor Red
+        Write-Host "    Examples:" -ForegroundColor Yellow
+        foreach ($issue in $qualityMetrics.SerializationIssues.occupationAsObject | Select-Object -First 5) {
+            Write-Host "      - $($issue.documentId) (page $($issue.pageNumber), chunk $($issue.chunkIndex))" -ForegroundColor Gray
+        }
+        if ($qualityMetrics.SerializationIssues.occupationAsObject.Count -gt 5) {
+            Write-Host "      ... and $($qualityMetrics.SerializationIssues.occupationAsObject.Count - 5) more" -ForegroundColor Gray
+        }
+        Write-Host ""
+    }
+    
+    if ($qualityMetrics.SerializationIssues.nullArrays.Count -gt 0) {
+        Write-Host "  [ISSUE] Null array fields: $($qualityMetrics.SerializationIssues.nullArrays.Count)" -ForegroundColor Yellow
+        $byField = $qualityMetrics.SerializationIssues.nullArrays | Group-Object -Property field
+        foreach ($group in $byField) {
+            Write-Host "    - $($group.Name): $($group.Count) chunks" -ForegroundColor Yellow
+        }
+        Write-Host ""
+    }
+    
+    if ($qualityMetrics.SerializationIssues.scalarArrays.Count -gt 0) {
+        Write-Host "  [ISSUE] Scalar values in array fields: $($qualityMetrics.SerializationIssues.scalarArrays.Count)" -ForegroundColor Yellow
+        $byField = $qualityMetrics.SerializationIssues.scalarArrays | Group-Object -Property field
+        foreach ($group in $byField) {
+            Write-Host "    - $($group.Name): $($group.Count) chunks" -ForegroundColor Yellow
+        }
+        Write-Host ""
+    }
+    
+    if ($qualityMetrics.SerializationIssues.arrayPrimitives.Count -gt 0) {
+        Write-Host "  [ISSUE] Array values in primitive fields: $($qualityMetrics.SerializationIssues.arrayPrimitives.Count)" -ForegroundColor Yellow
+        $byField = $qualityMetrics.SerializationIssues.arrayPrimitives | Group-Object -Property field
+        foreach ($group in $byField) {
+            Write-Host "    - $($group.Name): $($group.Count) chunks" -ForegroundColor Yellow
+        }
+        Write-Host ""
+    }
+    
+    Write-Host "  [ACTION REQUIRED]" -ForegroundColor Red
+    Write-Host "    Run: .\process-pdfs.ps1 -ResourceGroupName $ResourceGroupName -ForceReprocess" -ForegroundColor Cyan
+    Write-Host "    The Python helper will automatically fix all serialization issues" -ForegroundColor Cyan
+    Write-Host ""
+} else {
+    Write-Host "Serialization Check:" -ForegroundColor White
+    Write-Host "  All fields properly serialized: PASS" -ForegroundColor Green
+    Write-Host ""
+}
+
 # Quality scorecard
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  QUALITY SCORECARD" -ForegroundColor Cyan
@@ -350,6 +464,7 @@ $checks += @{ Name = "Complete Metadata (80%+ target)"; Pass = $metadataPercenta
 $checks += @{ Name = "Source URLs"; Pass = $qualityMetrics.PDFsWithSourceUrl -eq $qualityMetrics.TotalPDFs; Value = "$($qualityMetrics.PDFsWithSourceUrl)/$($qualityMetrics.TotalPDFs)" }
 $checks += @{ Name = "Categories Tagged"; Pass = $qualityMetrics.PDFsWithCategory -eq $qualityMetrics.TotalPDFs; Value = "$($qualityMetrics.PDFsWithCategory)/$($qualityMetrics.TotalPDFs)" }
 $checks += @{ Name = "Sectors Tagged"; Pass = $qualityMetrics.PDFsWithSector -eq $qualityMetrics.TotalPDFs; Value = "$($qualityMetrics.PDFsWithSector)/$($qualityMetrics.TotalPDFs)" }
+$checks += @{ Name = "Serialization (No Issues)"; Pass = $qualityMetrics.SerializationIssues.totalIssues -eq 0; Value = "$($qualityMetrics.SerializationIssues.totalIssues) issues" }
 
 $passedChecks = ($checks | Where-Object { $_.Pass }).Count
 $totalChecks = $checks.Count
@@ -398,6 +513,11 @@ if ($metadataPercentage -lt 80) {
 
 if ($qualityMetrics.PDFsWithYear -lt $qualityMetrics.TotalPDFs) {
     $recommendations += "Extract and store publication year for all PDFs (required for time-aware queries)"
+}
+
+if ($qualityMetrics.SerializationIssues.totalIssues -gt 0) {
+    $recommendations += "CRITICAL: Fix serialization issues by running: .\process-pdfs.ps1 -ResourceGroupName $ResourceGroupName -ForceReprocess"
+    $recommendations += "  The Python helper (prepare-search-doc.py) will automatically fix all issues"
 }
 
 if ($recommendations.Count -eq 0) {

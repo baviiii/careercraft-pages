@@ -231,13 +231,25 @@ serve(async (req) => {
       )
     }
 
-    // AI-powered resume parsing
-    const parsePrompt = `You are an expert resume parser. Extract structured information from the following resume text.
+    // AI-powered resume parsing with enhanced instructions
+    const parsePrompt = `You are an expert resume parser. Extract ALL structured information from the following resume text. Be thorough and extract EVERY section.
+
+CRITICAL REQUIREMENTS:
+1. Extract ALL sections present in the resume - do not skip any
+2. Extract ALL work experiences, even if they seem minor or old
+3. Extract ALL education entries, including certifications if listed separately
+4. Extract ALL skills mentioned anywhere in the resume
+5. Parse dates consistently (YYYY-MM or YYYY format)
+6. Extract contact information accurately (name, email, phone, location, LinkedIn, website)
+7. If information is unclear, use null rather than guessing
+8. Group skills by logical categories (Technical, Soft Skills, Languages, etc.)
+9. Extract ALL bullet points for each work experience
+10. Include projects, certifications, languages if present
 
 RESUME TEXT:
 ${rawText.substring(0, 15000)}
 
-Extract and return a JSON object with this exact structure:
+Extract and return a JSON object with this exact structure. Include ALL data found:
 {
   "personalInfo": {
     "fullName": "extracted full name or null",
@@ -301,14 +313,24 @@ Extract and return a JSON object with this exact structure:
   "confidence": 0.0-1.0 (how confident you are in the extraction quality)
 }
 
-Important:
-- Extract ALL work experiences, even if they seem minor
-- Parse dates into consistent format (YYYY-MM or YYYY)
-- Group skills by logical categories
-- If information is unclear, use null rather than guessing
-- Set confidence based on how complete and clear the resume was
+EXTRACTION GUIDELINES:
+- Extract ALL work experiences in chronological order (most recent first if that's how they appear)
+- For each experience, extract ALL bullet points - do not skip any
+- Parse dates consistently: Use YYYY-MM for month/year, YYYY for year-only
+- For "Present" or "Current" jobs, set "current": true and endDate to null
+- Group skills by logical categories: Technical Skills, Soft Skills, Programming Languages, Tools, etc.
+- Extract summary/objective if present (may be labeled as "Summary", "Professional Summary", "Objective", "Profile")
+- Extract ALL education entries including incomplete degrees, certifications listed under education
+- Extract projects with ALL details (name, description, technologies, URL if present)
+- Extract certifications with issuer and dates if available
+- Extract languages with proficiency levels if mentioned
+- For contact info: Extract full name from header, email (look for @), phone (various formats), location (city, state/country)
+- Set confidence score (0.0-1.0) based on:
+  * How complete the extraction is (all sections found = higher score)
+  * How clear and structured the resume was (well-formatted = higher score)
+  * How much information was successfully extracted (more data = higher score)
 
-Return ONLY valid JSON, no explanations.`
+Return ONLY valid JSON, no explanations. Ensure all arrays include ALL items found in the resume.`
 
     const chatResponse = await fetch(
       `${openAIEndpoint}/openai/deployments/${chatDeployment}/chat/completions?api-version=2024-02-15-preview`,

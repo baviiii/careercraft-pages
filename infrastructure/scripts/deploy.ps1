@@ -41,8 +41,31 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Resource group may already exist, continuing..." -ForegroundColor Yellow
 }
 
-# Build parameters
+# Change to infrastructure/bicep directory for Bicep files
+$scriptDir = Split-Path -Parent $PSScriptRoot
+$bicepDir = Join-Path $scriptDir "bicep"
+Push-Location $bicepDir
+
+try {
+    # Build parameters - paths are relative to bicep directory
 $paramFile = "parameters/$Environment.bicepparam"
+    $templateFile = "main.bicep"
+    
+    # Verify files exist
+    if (-not (Test-Path $paramFile)) {
+        Write-Host "ERROR: Parameter file not found: $paramFile" -ForegroundColor Red
+        Write-Host "Expected location: $bicepDir\$paramFile" -ForegroundColor Yellow
+        Pop-Location
+        exit 1
+    }
+    
+    if (-not (Test-Path $templateFile)) {
+        Write-Host "ERROR: Bicep template not found: $templateFile" -ForegroundColor Red
+        Write-Host "Expected location: $bicepDir\$templateFile" -ForegroundColor Yellow
+        Pop-Location
+        exit 1
+    }
+    
 $params = @(
     "--parameters", $paramFile
 )
@@ -62,11 +85,14 @@ $ErrorActionPreference = "SilentlyContinue"
 # Run deployment and capture only JSON output (suppress warnings)
 $deploymentJson = az deployment group create `
     --resource-group $ResourceGroupName `
-    --template-file main.bicep `
+        --template-file $templateFile `
     --parameters $paramFile `
     --query "properties.outputs" `
     --output json `
     --only-show-errors
+} finally {
+    Pop-Location
+}
 
 $exitCode = $LASTEXITCODE
 $ErrorActionPreference = "Continue"

@@ -23,6 +23,7 @@ import {
   CrossTabConnections,
   DataStoriesPanel,
   LiveDiscoveryFeed,
+  DocumentIntelligenceVisualizer,  // NEW: Dynamic visualizations
 } from "@/components/intelligence";
 import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -242,6 +243,12 @@ function IntelligenceDashboardContent() {
 
                       {/* Cross-Tab Connections */}
                       <CrossTabConnections />
+
+                      {/* NEW: Dynamic Document Visualizations */}
+                      <DocumentIntelligenceVisualizer 
+                        sources={[]}  // Will be populated from RAG queries
+                        query={searchQuery}
+                      />
 
                       {/* Traditional Components */}
                       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -42,6 +42,32 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+# ============================================================
+# PYTHON JSON HELPER - Bypasses PowerShell array serialization bugs
+# ============================================================
+
+$script:pythonHelperScript = Join-Path $PSScriptRoot "prepare-search-doc.py"
+$script:pythonAvailable = $false
+$script:pythonWarnShown = $false
+$script:pythonFixCount = 0
+
+# Check if Python is available
+try {
+    $pythonVersion = python --version 2>&1
+    if ($pythonVersion -match "Python") {
+        # Check if helper script exists
+        if (Test-Path $script:pythonHelperScript) {
+            $script:pythonAvailable = $true
+            Write-Host "[PYTHON] JSON helper available - bulletproof array serialization enabled" -ForegroundColor Green
+        } else {
+            Write-Host "[WARN] Python helper script not found: $($script:pythonHelperScript)" -ForegroundColor Yellow
+            Write-Host "       Falling back to native PowerShell JSON (may have array serialization issues)" -ForegroundColor Yellow
+        }
+    }
+} catch {
+    Write-Host "[WARN] Python not available - using native PowerShell JSON serialization" -ForegroundColor Yellow
+}
+
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "  ENTERPRISE PDF PROCESSING PIPELINE" -ForegroundColor Cyan
 Write-Host "  Zero Hallucination Guarantee - Full Source Attribution" -ForegroundColor Cyan
@@ -242,46 +268,69 @@ function Test-PdfCoverage {
         }
         
         # Query Azure Search for chunks from this PDF
+        # Try text chunks first (they have totalChunks in metadata)
         $searchUrl = "$SearchEndpoint/indexes/$SearchIndexName/docs/search?api-version=2023-11-01"
         $searchBody = @{
             search = "*"
-            filter = "documentType eq 'pdf' and documentId eq '$PdfName'"
+            filter = "documentType eq 'pdf' and documentId eq '$PdfName' and chunkType eq 'text'"
             top = 1
             select = "metadata"
         } | ConvertTo-Json
         
         $result = Invoke-RestMethod -Uri $searchUrl -Method Post -Headers $headers -Body $searchBody -ErrorAction SilentlyContinue
         
+        # If no text chunks, try any chunk type
         if (-not $result -or $result.value.Count -eq 0) {
+            $searchBody = @{
+                search = "*"
+                filter = "documentType eq 'pdf' and documentId eq '$PdfName'"
+                top = 5
+                select = "metadata,chunkType"
+            } | ConvertTo-Json
+            $result = Invoke-RestMethod -Uri $searchUrl -Method Post -Headers $headers -Body $searchBody -ErrorAction SilentlyContinue
+        }
+        
+        if (-not $result -or $result.value.Count -eq 0) {
+            Write-Host "      [DEBUG] PDF not found in index" -ForegroundColor Gray
             return $false  # PDF not found, needs processing
         }
         
-        # Get metadata from first chunk to find expected chunk count
-        $firstChunk = $result.value[0]
-        $metadata = try { $firstChunk.metadata | ConvertFrom-Json } catch { $null }
+        # Try to find a chunk with totalChunks in metadata (text chunks usually have it)
+        $metadata = $null
+        foreach ($chunk in $result.value) {
+            $chunkMeta = try { $chunk.metadata | ConvertFrom-Json } catch { $null }
+            if ($chunkMeta -and $chunkMeta.totalChunks) {
+                $metadata = $chunkMeta
+                break
+            }
+        }
         
         if (-not $metadata -or -not $metadata.totalChunks) {
+            Write-Host "      [DEBUG] No metadata or totalChunks missing" -ForegroundColor Gray
             return $false  # No metadata, needs processing
         }
         
         $expectedChunks = $metadata.totalChunks
+        Write-Host "      [DEBUG] Expected chunks: $expectedChunks" -ForegroundColor Gray
         
-        # Now count actual chunks with embeddings
+        # Count all indexed chunks for this document (use $count=true in URL)
+        $countUrl = "$SearchEndpoint/indexes/$SearchIndexName/docs/search?api-version=2023-11-01&`$count=true"
         $countBody = @{
             search = "*"
-            filter = "documentType eq 'pdf' and documentId eq '$PdfName' and contentVector/any()"
+            filter = "documentType eq 'pdf' and documentId eq '$PdfName'"
             top = 0
-            includeTotalResultCount = $true
         } | ConvertTo-Json
         
-        $countResult = Invoke-RestMethod -Uri $searchUrl -Method Post -Headers $headers -Body $countBody -ErrorAction SilentlyContinue
+        $countResult = Invoke-RestMethod -Uri $countUrl -Method Post -Headers $headers -Body $countBody -ErrorAction SilentlyContinue
         
-        if (-not $countResult -or -not $countResult.'@odata.count') {
+        if (-not $countResult -or $null -eq $countResult.'@odata.count') {
+            Write-Host "      [DEBUG] Could not count indexed chunks" -ForegroundColor Gray
             return $false  # Can't determine, needs processing
         }
         
-        $chunksWithEmbeddings = $countResult.'@odata.count'
-        $coverage = if ($expectedChunks -gt 0) { ($chunksWithEmbeddings / $expectedChunks) * 100 } else { 0 }
+        $indexedChunks = $countResult.'@odata.count'
+        $coverage = if ($expectedChunks -gt 0) { ($indexedChunks / $expectedChunks) * 100 } else { 0 }
+        Write-Host "      [DEBUG] Indexed chunks: $indexedChunks, Expected: $expectedChunks, Coverage: $([math]::Round($coverage, 1))%" -ForegroundColor Gray
         
         return $coverage -ge $MinCoverage
     }
@@ -531,11 +580,13 @@ Be PRECISE with numbers - extract actual values, not approximations.
             
             for ($retry = 0; $retry -lt $maxRetries; $retry++) {
                 try {
+                    # Set timeout to prevent hanging (120 seconds for chart extraction - can be slow)
                     $functionResponse = Invoke-RestMethod -Uri $chartFunctionEndpoint `
                         -Method Post `
                         -Body $functionBody `
                         -ContentType "application/json" `
                         -Headers @{ "Content-Type" = "application/json" } `
+                        -TimeoutSec 120 `
                         -ErrorAction Stop
                     
                     return $functionResponse
@@ -887,7 +938,8 @@ function Get-DocumentTags {
     if ($lowerContent -match "indigenous|aboriginal") { $tags += "indigenous" }
     if ($lowerContent -match "youth|young people|graduate") { $tags += "youth" }
     
-    return $tags | Select-Object -Unique
+    # CRITICAL: Wrap in @() because Select-Object -Unique returns scalar for single item
+    return @($tags | Select-Object -Unique)
 }
 
 function Get-DocumentSector {
@@ -918,6 +970,141 @@ function Get-DocumentSector {
 # ============================================================
 # AI-POWERED CHUNK TAGGING - World-Class Intelligence
 # ============================================================
+
+function Get-DocumentTagsWithAI {
+    param(
+        [string]$Content,
+        [string]$OpenAIEndpoint,
+        [string]$OpenAIKey,
+        [string]$DocumentTitle = "",
+        [string]$Deployment = "gpt-4o-mini",
+        [int]$RetryCount = 0,
+        [int]$MaxRetries = 3
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($Content) -or $Content.Length -lt 50) {
+        return @{
+            category = "general"
+            sectors = @("general")
+            tags = @()
+            topics = @()
+            occupation = $null
+            confidence = 0.5
+        }
+    }
+    
+    $headers = @{
+        "Content-Type" = "application/json"
+        "api-key" = $OpenAIKey
+    }
+    
+    # ELITE: Intelligent document sampling for full-document analysis
+    # Sample: First 10k chars (intro/overview) + Last 5k chars (conclusions/summary)
+    # This gives AI a comprehensive view of the entire document
+    $sampleContent = ""
+    if ($Content.Length -le 15000) {
+        # Small document - use entire content
+        $sampleContent = $Content
+    } else {
+        # Large document - sample strategically
+        $firstPart = $Content.Substring(0, [Math]::Min(10000, $Content.Length))
+        $lastPart = if ($Content.Length -gt 5000) { 
+            $Content.Substring([Math]::Max(0, $Content.Length - 5000)) 
+        } else { 
+            "" 
+        }
+        $sampleContent = "$firstPart`n`n[... document continues ...]`n`n$lastPart"
+    }
+    
+    $systemPrompt = @"
+You are a world-class expert document analyst specializing in South Australian Government documents. Analyze this ENTIRE document to extract comprehensive document-level metadata.
+
+This is a FULL DOCUMENT analysis (not a chunk). Consider the document's overall theme, purpose, and all major topics covered throughout.
+
+ANALYZE DEEPLY - Consider context, relationships, and implicit meaning. This is for a production RAG system requiring zero-hallucination accuracy.
+
+RESPOND ONLY WITH VALID JSON - no markdown, no explanation, no additional text.
+
+Categories (pick ONE most relevant - be precise):
+- budget: Financial reports, appropriations, expenditure, revenue, funding, fiscal policy
+- policy: Guidelines, procedures, regulations, compliance, standards, frameworks
+- strategy: Strategic plans, roadmaps, vision documents, long-term goals, initiatives
+- workforce: Employment data, job market, labor statistics, HR, recruitment, career development
+- education: Training, schools, learning, qualifications, curriculum, academic programs
+- health: Medical, healthcare, hospitals, nursing, public health, medical services
+- career-guidance: Job applications, interviews, resumes, career advice, selection criteria
+- report: Annual reports, reviews, assessments, evaluations, summaries
+- government-document: General government content that doesn't fit other categories
+
+Sectors (pick ALL that apply - be comprehensive based on entire document):
+- health, education, public-sector, construction, technology, ICT, digital
+- agriculture, resources, mining, energy, renewable-energy, hydrogen
+- services, finance, treasury, accounting, banking
+- defense, security, police, emergency-services
+- transport, logistics, infrastructure, roads, public-transport
+- community-services, social-services, welfare, housing
+- manufacturing, industry, production
+- arts-culture, creative-industries, entertainment
+- environment, climate, sustainability, conservation
+- legal, justice, courts, law-enforcement
+- retail, hospitality, tourism
+- research, innovation, science
+
+Tags: Extract 5-12 relevant tags that describe the document's themes, topics, and focus areas. Include both specific and general tags (e.g., "budget", "infrastructure", "regional-development", "skills-training", "south-australia").
+
+Topics: Extract 5-10 major topics covered throughout the document (e.g., "workforce development programs", "budget allocation for infrastructure", "skills training initiatives", "digital transformation strategy"). Be specific and descriptive.
+
+Occupation: If the document discusses specific occupations/roles/professions, list them (e.g., "registered nurse", "primary school teacher", "electrician"). Include qualification levels if mentioned.
+
+Confidence: Rate your tagging confidence 0.0-1.0 based on clarity of content and your certainty
+"@
+
+    $userPrompt = "Document Title: $DocumentTitle`n`nFull Document Content (sampled):`n$sampleContent"
+    
+    $body = @{
+        messages = @(
+            @{ role = "system"; content = $systemPrompt }
+            @{ role = "user"; content = $userPrompt }
+        )
+        temperature = 0.1
+        max_tokens = 1000  # More tokens for comprehensive document analysis
+        response_format = @{ type = "json_object" }
+    } | ConvertTo-Json -Depth 5
+    
+    try {
+        $url = "$OpenAIEndpoint/openai/deployments/$Deployment/chat/completions?api-version=2024-02-15-preview"
+        # Set timeout to prevent hanging (60 seconds max per API call)
+        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -ContentType "application/json; charset=utf-8" -TimeoutSec 60
+        
+        $jsonResponse = $response.choices[0].message.content | ConvertFrom-Json
+        
+        return @{
+            category = if ($jsonResponse.category) { $jsonResponse.category } else { "general" }
+            sectors = if ($jsonResponse.sectors -and $jsonResponse.sectors.Count -gt 0) { $jsonResponse.sectors } else { @("general") }
+            tags = if ($jsonResponse.tags) { $jsonResponse.tags } else { @() }
+            topics = if ($jsonResponse.topics) { $jsonResponse.topics } else { @() }
+            occupation = $jsonResponse.occupation
+            confidence = if ($jsonResponse.confidence) { [double]$jsonResponse.confidence } else { 0.8 }
+        }
+    }
+    catch {
+        if ($RetryCount -lt $MaxRetries -and $_.Exception.Message -match "429|503|timeout") {
+            Start-Sleep -Seconds ([Math]::Pow(2, $RetryCount + 1))
+            return Get-DocumentTagsWithAI -Content $Content -OpenAIEndpoint $OpenAIEndpoint -OpenAIKey $OpenAIKey `
+                -DocumentTitle $DocumentTitle -Deployment $Deployment -RetryCount ($RetryCount + 1)
+        }
+        
+        # Fallback to regex-based tagging
+        return @{
+            category = Get-DocumentCategory -FileName $DocumentTitle -Content $Content
+            sectors = @(Get-DocumentSector -Content $Content)
+            tags = @(Get-DocumentTags -FileName $DocumentTitle -Content $Content)
+            topics = @()
+            occupation = $null
+            confidence = 0.6
+        }
+    }
+}
 
 function Get-ChunkTagsWithAI {
     param(
@@ -1003,7 +1190,8 @@ Confidence: Rate your tagging confidence 0.0-1.0 based on clarity of content and
     
     try {
         $url = "$OpenAIEndpoint/openai/deployments/$Deployment/chat/completions?api-version=2024-02-15-preview"
-        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -ContentType "application/json; charset=utf-8"
+        # Set timeout to prevent hanging (60 seconds max per API call)
+        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -ContentType "application/json; charset=utf-8" -TimeoutSec 60
         
         $jsonResponse = $response.choices[0].message.content | ConvertFrom-Json
         
@@ -1059,6 +1247,78 @@ function Get-PublicationYear {
 }
 
 # ============================================================
+# JSON SANITIZATION - Guaranteed Array Fields via Python
+# ============================================================
+
+function Get-CleanSearchJson {
+    param(
+        [Parameter(Mandatory=$true)]
+        [object]$Documents,
+        [int]$Depth = 15
+    )
+    
+    # Convert to JSON first
+    $jsonBody = $Documents | ConvertTo-Json -Depth $Depth -Compress
+    
+    # If Python helper is available, use it to guarantee array fields
+    if ($script:pythonAvailable -and $script:pythonHelperScript) {
+        try {
+            # Pipe JSON through Python - capture stdout only, stderr separate
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = "python"
+            $psi.Arguments = "`"$($script:pythonHelperScript)`""
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardInput = $true
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.CreateNoWindow = $true
+            
+            $process = [System.Diagnostics.Process]::Start($psi)
+            
+            # Write JSON to stdin
+            $process.StandardInput.Write($jsonBody)
+            $process.StandardInput.Close()
+            
+            # Read output
+            $pythonResult = $process.StandardOutput.ReadToEnd()
+            $pythonError = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            $exitCode = $process.ExitCode
+            $process.Dispose()
+            
+            # Check if Python succeeded and output is valid JSON
+            if ($exitCode -eq 0 -and $pythonResult) {
+                $cleanResult = $pythonResult.Trim()
+                # Validate it's valid JSON
+                try {
+                    $null = $cleanResult | ConvertFrom-Json -ErrorAction Stop
+                    if ($cleanResult.StartsWith("{") -or $cleanResult.StartsWith("[")) {
+                        $script:pythonFixCount++
+                        $stats.pythonJsonFixes++
+                        return $cleanResult
+                    }
+                } catch {
+                    Write-Host "      [WARN] Python output is not valid JSON" -ForegroundColor Yellow
+                }
+            }
+            Write-Host "      [WARN] Python helper failed (exit: $exitCode)" -ForegroundColor Yellow
+            if ($pythonError) { Write-Host "      Error: $pythonError" -ForegroundColor Gray }
+        } catch {
+            Write-Host "      [WARN] Python helper error: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    } else {
+        # Only warn once per run about missing Python
+        if (-not $script:pythonWarnShown) {
+            Write-Host "      [WARN] Python not available - JSON may have serialization issues" -ForegroundColor Yellow
+            $script:pythonWarnShown = $true
+        }
+    }
+    
+    # Fallback: return native PowerShell JSON
+    return $jsonBody
+}
+
+# ============================================================
 # BATCH INDEXING FUNCTION - World-Class Performance
 # ============================================================
 
@@ -1084,80 +1344,11 @@ function Invoke-BatchIndex {
     
     for ($i = 0; $i -lt $Documents.Count; $i += $BatchSize) {
         $batchNum++
-        $endIndex = [Math]::Min($i + $BatchSize - 1, $Documents.Count - 1)
-        
-        # CRITICAL: Build batch as explicit array to ensure proper JSON serialization
-        $batch = [System.Collections.ArrayList]::new()
-        for ($j = $i; $j -le $endIndex; $j++) {
-            $doc = $Documents[$j]
-            
-            # CRITICAL: Ensure all array fields are actually arrays (Azure Search requirement)
-            if ($doc -is [hashtable] -or $doc -is [PSCustomObject]) {
-                # Convert to hashtable if needed
-                $docHash = if ($doc -is [hashtable]) { $doc } else { @{}; $doc.PSObject.Properties | ForEach-Object { $docHash[$_.Name] = $_.Value } }
-                
-                # Ensure tags, topics, sectors are always arrays
-                if ($docHash.ContainsKey('tags')) {
-                    $docHash['tags'] = if ($docHash['tags'] -is [array]) { @($docHash['tags']) } else { @() }
-                }
-                if ($docHash.ContainsKey('topics')) {
-                    $docHash['topics'] = if ($docHash['topics'] -is [array]) { @($docHash['topics']) } else { @() }
-                }
-                if ($docHash.ContainsKey('sectors')) {
-                    $docHash['sectors'] = if ($docHash['sectors'] -is [array]) { @($docHash['sectors']) } else { @("general") }
-                }
-                
-                [void]$batch.Add($docHash)
-            } else {
-                [void]$batch.Add($doc)
-            }
-        }
-        
-        # Ensure batch is always treated as array (even with single element)
-        if ($batch.Count -eq 0) {
-            continue
-        }
+        $batch = [array]@($Documents[$i..([Math]::Min($i + $BatchSize - 1, $Documents.Count - 1))])
         
         try {
-            # CRITICAL: Explicitly ensure value is an array in the hashtable
-            # Use [array] cast to force array type even with single element
-            $batchArray = [array]$batch.ToArray()
-            
-            # Double-check: ensure it's actually an array
-            if ($batchArray -isnot [array]) {
-                $batchArray = @($batchArray)
-            }
-            
-            # Build request body - CRITICAL: Ensure value is always an array
-            # Use System.Collections.Generic.List to ensure proper array serialization
-            $valueList = New-Object System.Collections.Generic.List[object]
-            foreach ($doc in $batchArray) {
-                $valueList.Add($doc)
-            }
-            
-            # Create request body with List (which serializes as array)
-            $requestBody = @{
-                value = $valueList
-            }
-            
-            # Convert to JSON - this should properly serialize the List as an array
-            $batchBody = $requestBody | ConvertTo-Json -Depth 10 -Compress
-            
-            # Validate JSON structure before sending - parse and verify
-            try {
-                $jsonTest = $batchBody | ConvertFrom-Json
-                if (-not $jsonTest.value) {
-                    throw "JSON missing 'value' field"
-                }
-                if ($jsonTest.value -isnot [array] -and $jsonTest.value -isnot [System.Collections.IEnumerable]) {
-                    throw "JSON 'value' field is not an array (type: $($jsonTest.value.GetType().Name))"
-                }
-            } catch {
-                Write-Host "      [DEBUG] JSON validation failed: $_" -ForegroundColor Yellow
-                Write-Host "      [DEBUG] Batch size: $($batchArray.Count), First 200 chars of JSON: $($batchBody.Substring(0, [Math]::Min(200, $batchBody.Length)))" -ForegroundColor Yellow
-                throw "Invalid batch JSON structure: $_"
-            }
-            
+            # CRITICAL: Use Python helper to guarantee array fields are properly serialized
+            $batchBody = Get-CleanSearchJson -Documents @{ value = [array]$batch } -Depth 15
             $response = Invoke-WebRequest -Uri $indexUrl -Method Post -Headers $SearchHeaders -Body $batchBody -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
             
             $successCount += $batch.Count
@@ -1196,39 +1387,44 @@ function Invoke-BatchIndex {
                 }
             } catch {}
             
-            # CRITICAL: Stop processing immediately on any error - no partial indexing allowed
-            Write-Host "      [ERROR] Batch $batchNum/$totalBatches FAILED: $errorDetails" -ForegroundColor Red
-            Write-Host "      [ERROR] ⚠️  $($batch.Count) $BatchType documents in this batch were NOT indexed (indexing failed)" -ForegroundColor Red
-            if ($successCount -gt 0) {
-                Write-Host "      [ERROR] ⚠️  $successCount documents were indexed before this error - but process is stopping" -ForegroundColor Red
-            }
-            Write-Host "      [ERROR] STOPPING batch indexing immediately - no partial indexing allowed" -ForegroundColor Red
-            $failedCount += $batch.Count
+            Write-Host "      [WARN] Batch $batchNum/$totalBatches failed: $errorDetails" -ForegroundColor Yellow
             
-            # Return error indicator to stop processing immediately
-            # IMPORTANT: success = documents that WERE indexed, failed = documents that were NOT indexed
-            return @{ 
-                success = $successCount
-                failed = $failedCount
-                error = $true
-                errorMessage = $errorDetails
-                lastFailedBatch = $batchNum
-                lastFailedBatchSize = $batch.Count
-                indexed = $successCount  # Explicit: these WERE indexed
-                notIndexed = $failedCount  # Explicit: these were NOT indexed
-                stopped = $true  # Process was stopped
+            # FALLBACK: Try indexing documents individually to identify problematic ones
+            if ($batch.Count -gt 1) {
+                Write-Host "      [RETRY] Attempting individual document indexing to identify issues..." -ForegroundColor Cyan
+                $individualSuccess = 0
+                $individualFailed = 0
+                
+                foreach ($doc in $batch) {
+                    try {
+                        # Use Python helper for guaranteed array serialization
+                        $singleBody = Get-CleanSearchJson -Documents @{ value = @($doc) } -Depth 15
+                        $singleResponse = Invoke-WebRequest -Uri $indexUrl -Method Post -Headers $SearchHeaders -Body $singleBody -ContentType "application/json" -UseBasicParsing -ErrorAction Stop
+                        $individualSuccess++
+                    }
+                    catch {
+                        $individualFailed++
+                        $docId = if ($doc.id) { $doc.id.Substring(0, [Math]::Min(30, $doc.id.Length)) + "..." } else { "unknown" }
+                        $singleError = $_.Exception.Message
+                        try {
+                            if ($_.ErrorDetails.Message) {
+                                $singleError = $_.ErrorDetails.Message
+                            }
+                        } catch {}
+                        Write-Host "         [FAIL] Doc ID: $docId - $($singleError.Substring(0, [Math]::Min(100, $singleError.Length)))" -ForegroundColor Red
+                    }
+                }
+                
+                $successCount += $individualSuccess
+                $failedCount += $individualFailed
+                Write-Host "      [RESULT] Individual retry: $individualSuccess succeeded, $individualFailed failed" -ForegroundColor $(if ($individualFailed -eq 0) { "Green" } else { "Yellow" })
+            } else {
+            $failedCount += $batch.Count
             }
         }
     }
     
-    # Return results - all batches completed successfully
-    return @{ 
-        success = $successCount
-        failed = $failedCount
-        error = $false
-        indexed = $successCount  # Documents that WERE indexed
-        notIndexed = $failedCount  # Should be 0 if no errors
-    }
+    return @{ success = $successCount; failed = $failedCount }
 }
 
 function Generate-Embedding {
@@ -1291,7 +1487,8 @@ function Generate-Embedding {
     $embeddingUrl = "$cleanEndpoint/openai/deployments/$Model/embeddings?api-version=2024-02-15-preview"
     
     try {
-        $response = Invoke-RestMethod -Uri $embeddingUrl -Method Post -Headers $headers -Body $body -ErrorAction Stop
+        # Set timeout to prevent hanging (60 seconds max per embedding call)
+        $response = Invoke-RestMethod -Uri $embeddingUrl -Method Post -Headers $headers -Body $body -TimeoutSec 60 -ErrorAction Stop
         if ($response.data -and $response.data.Count -gt 0) {
             # ELITE: Return structured object with metadata
             return @{
@@ -1491,8 +1688,11 @@ $stats = @{
     chartsExtracted = 0
     aiTagsSucceeded = 0
     aiTagsFailed = 0
+    documentAITagsSucceeded = 0
+    documentAITagsFailed = 0
     sanitizationIssues = 0
     lowConfidenceChunks = 0
+    pythonJsonFixes = 0  # Count of times Python fixed JSON serialization issues
     
     # Per-document tracking
     documentsWithTables = 0
@@ -1637,7 +1837,27 @@ foreach ($pdf in $pdfs) {
         $hasGoodCoverage = Test-PdfCoverage -PdfName $pdfName -SearchEndpoint $searchEndpoint -SearchKey $searchKey -SearchIndexName $SearchIndexName -MinCoverage 95.0
         
         if ($hasGoodCoverage) {
-            Write-Host "   [SKIP] PDF already processed with >= 95% coverage - skipping to save costs" -ForegroundColor Green
+            Write-Host "   [DEBUG] Coverage check result: GOOD (>= 95%)" -ForegroundColor Gray
+            # Get existing chunk count for audit log
+            try {
+                $countHeaders = @{
+                    "Content-Type" = "application/json"
+                    "api-key" = $searchKey
+                }
+                $countUrl = "$searchEndpoint/indexes/$SearchIndexName/docs/search?api-version=2023-11-01"
+                $countBody = @{
+                    search = "*"
+                    filter = "documentType eq 'pdf' and documentId eq '$pdfName'"
+                    top = 0
+                    includeTotalResultCount = $true
+                } | ConvertTo-Json
+                $countResult = Invoke-RestMethod -Uri $countUrl -Method Post -Headers $countHeaders -Body $countBody -ErrorAction SilentlyContinue
+                $existingChunks = if ($countResult.'@odata.count') { $countResult.'@odata.count' } else { 0 }
+            } catch {
+                $existingChunks = 0
+            }
+            
+            Write-Host "   [SKIP] PDF already processed with >= 95% coverage ($existingChunks chunks) - skipping to save costs" -ForegroundColor Green
             Write-Host "         (Use -ForceReprocess to reprocess anyway)" -ForegroundColor Gray
             $stats.skipped++
             
@@ -1657,6 +1877,7 @@ foreach ($pdf in $pdfs) {
             continue
         } else {
             Write-Host "   [OK] PDF needs processing or has low coverage - proceeding..." -ForegroundColor Cyan
+            Write-Host "   [DEBUG] Coverage check result: NEEDS PROCESSING (< 95% or not found)" -ForegroundColor Gray
         }
     } else {
         Write-Host "   [INFO] ForceReprocess enabled - will reprocess even if already done" -ForegroundColor Yellow
@@ -2152,35 +2373,66 @@ foreach ($pdf in $pdfs) {
         # Analyze document for metadata (Phase 1 - Data Foundation)
         Write-Host "   [3/4] Analyzing document metadata..." -ForegroundColor Gray
         
-        # WORLD-CLASS: Document-level metadata (fallback values)
+        $title = ($pdfName -replace '\.pdf$', '' -replace '[-_]', ' ')
+        $publicationYear = Get-PublicationYear -FileName $pdfName -Content $fullText
+        
+        # WORLD-CLASS: AI-powered document-level tagging (analyzes full document)
+        # AI tagging is ENABLED by default when OpenAI is available (world-class intelligence, no compromise)
+        $useAITagging = (-not $DisableAITagging) -and $hasOpenAI
+        
+        if ($useAITagging) {
+            try {
+                Write-Host "      [AI] Analyzing document-level metadata with AI..." -ForegroundColor Magenta
+                $docAITags = Get-DocumentTagsWithAI -Content $fullText -OpenAIEndpoint $openAIEndpoint `
+                    -OpenAIKey $openAIKey -DocumentTitle $title -Deployment $AITaggingModel
+                
+                $docCategory = $docAITags.category
+                $docSector = if ($docAITags.sectors -and $docAITags.sectors.Count -gt 0) { $docAITags.sectors[0] } else { "general" }
+                $docTags = if ($docAITags.tags -and $docAITags.tags.Count -gt 0) { @($docAITags.tags) } else { @() }
+                $docTopics = if ($docAITags.topics -and $docAITags.topics.Count -gt 0) { @($docAITags.topics) } else { @() }
+                
+                Write-Host "      [OK] AI document-level analysis complete (confidence: $($docAITags.confidence))" -ForegroundColor Green
+                $stats.documentAITagsSucceeded++
+            } catch {
+                Write-Host "      [WARN] AI document-level tagging failed, using regex fallback" -ForegroundColor Yellow
+                $stats.documentAITagsFailed++
+                # Fallback to regex
         $docCategory = Get-DocumentCategory -FileName $pdfName -Content $fullText
         $docTags = Get-DocumentTags -FileName $pdfName -Content $fullText
         $docSector = Get-DocumentSector -Content $fullText
-        $publicationYear = Get-PublicationYear -FileName $pdfName -Content $fullText
-        $title = ($pdfName -replace '\.pdf$', '' -replace '[-_]', ' ')
+                $docTopics = @()
+            }
+        } else {
+            # Use regex-based tagging (fallback)
+            $docCategory = Get-DocumentCategory -FileName $pdfName -Content $fullText
+            $docTags = Get-DocumentTags -FileName $pdfName -Content $fullText
+            $docSector = Get-DocumentSector -Content $fullText
+            $docTopics = @()
+        }
         
         # WORLD-CLASS: AI-powered chunk-level tagging (MANDATORY for best intelligence)
-        # AI tagging is ENABLED by default when OpenAI is available (world-class intelligence, no compromise)
         $useChunkLevelAI = (-not $DisableAITagging) -and $hasOpenAI
         Write-Host ""
         Write-Host "   [AI Tagging Status for: $pdfName]" -ForegroundColor Cyan
         if ($useChunkLevelAI) {
-            Write-Host "      ✅ AI Chunk Tagging: ENABLED" -ForegroundColor Green
+            Write-Host "      ✅ AI Document-Level: ENABLED (full document analysis)" -ForegroundColor Green
+            Write-Host "      ✅ AI Chunk-Level: ENABLED" -ForegroundColor Green
             Write-Host "         Model: $AITaggingModel" -ForegroundColor White
-            Write-Host "         Every chunk (text + tables) will get:" -ForegroundColor White
+            Write-Host "         Document-level: Full document analysis (8000 chars)" -ForegroundColor Cyan
+            Write-Host "         Chunk-level: Every chunk (text + tables) will get:" -ForegroundColor White
             Write-Host "           • AI-powered category classification" -ForegroundColor Cyan
             Write-Host "           • Multi-sector identification (all relevant sectors)" -ForegroundColor Cyan
             Write-Host "           • 3-7 specific topics extracted" -ForegroundColor Cyan
             Write-Host "           • Occupation detection (with qualification levels)" -ForegroundColor Cyan
             Write-Host "           • Confidence scoring (0.0-1.0)" -ForegroundColor Cyan
-            Write-Host "         Status: World-class intelligence active" -ForegroundColor Green
+            Write-Host "         Status: World-class intelligence active (document + chunk level)" -ForegroundColor Green
         } elseif ($hasOpenAI -and $DisableAITagging) {
-            Write-Host "      ❌ AI Chunk Tagging: DISABLED (flag: -DisableAITagging)" -ForegroundColor Red
+            Write-Host "      ❌ AI Tagging: DISABLED (flag: -DisableAITagging)" -ForegroundColor Red
             Write-Host "         WARNING: Graph RAG will NOT work without AI tags!" -ForegroundColor Red
             Write-Host "         WARNING: Sectors, topics, categories needed for relationships!" -ForegroundColor Red
             Write-Host "         FIX: Remove -DisableAITagging flag and reprocess" -ForegroundColor Yellow
         } elseif (-not $hasOpenAI) {
-            Write-Host "      ❌ AI Chunk Tagging: UNAVAILABLE (OpenAI not configured)" -ForegroundColor Red
+            Write-Host "      ❌ AI Tagging: UNAVAILABLE (OpenAI not configured)" -ForegroundColor Red
             Write-Host "         Using: Regex-based document-level tagging" -ForegroundColor Gray
             Write-Host "         To enable: Deploy OpenAI with: .\deploy-openai-model.ps1" -ForegroundColor Gray
         }
@@ -2276,7 +2528,8 @@ foreach ($pdf in $pdfs) {
                     # CRITICAL: Ensure tags is always an array
                     $aiTagArray = if ($aiTags.tags -and $aiTags.tags.Count -gt 0) { @($aiTags.tags) } else { @() }
                     $docTagArray = if ($docTags -and $docTags.Count -gt 0) { @($docTags) } else { @() }
-                    $tableChunkTags = ($aiTagArray + $docTagArray) | Select-Object -Unique
+                    # CRITICAL: Wrap in @() because Select-Object -Unique returns scalar for single item
+                    $tableChunkTags = @(($aiTagArray + $docTagArray) | Select-Object -Unique)
                     # CRITICAL: Ensure topics is always an array
                     $tableChunkTopics = if ($aiTags.topics -and $aiTags.topics.Count -gt 0) { @($aiTags.topics) } else { @() }
                     $tableChunkOccupation = $aiTags.occupation
@@ -2300,9 +2553,10 @@ foreach ($pdf in $pdfs) {
             }
             
             # CRITICAL: Ensure all array fields are always arrays (Azure AI Search requirement)
-            $finalTableTags = if ($tableChunkTags -and $tableChunkTags.Count -gt 0) { @($tableChunkTags) } else { @() }
-            $finalTableSectors = if ($tableChunkSectors -and $tableChunkSectors.Count -gt 0) { @($tableChunkSectors) } else { @("general") }
-            $finalTableTopics = if ($tableChunkTopics -and $tableChunkTopics.Count -gt 0) { @($tableChunkTopics) } else { @() }
+            # Pre-create typed arrays BEFORE hashtable to ensure proper JSON serialization
+            [string[]]$finalTableTagsArray = if ($tableChunkTags -and $tableChunkTags.Count -gt 0) { $tableChunkTags } else { @() }
+            [string[]]$finalTableSectorsArray = if ($tableChunkSectors -and $tableChunkSectors.Count -gt 0) { $tableChunkSectors } else { @("general") }
+            [string[]]$finalTableTopicsArray = if ($tableChunkTopics -and $tableChunkTopics.Count -gt 0) { $tableChunkTopics } else { @() }
             
             $tableDocument = @{
                 "@search.action" = if ($ForceReprocess) { "upload" } else { "mergeOrUpload" }
@@ -2319,10 +2573,10 @@ foreach ($pdf in $pdfs) {
                 confidence = $tableChunk.confidence
                 indexedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                 category = $tableChunkCategory
-                tags = $finalTableTags
+                tags = $finalTableTagsArray
                 sector = $tableChunkSector
-                sectors = $finalTableSectors
-                topics = $finalTableTopics
+                sectors = $finalTableSectorsArray
+                topics = $finalTableTopicsArray
                 occupation = $tableChunkOccupation
                 tagConfidence = $tableTagConfidence
                 metadata = $sanitizedTableMetadata
@@ -2334,15 +2588,32 @@ foreach ($pdf in $pdfs) {
                 $tableTextForEmbedding = Sanitize-TextForIndexing -Text $tableChunk.content
                 $embeddingResult = Generate-Embedding -Text $tableTextForEmbedding -Endpoint $openAIEndpoint -Key $openAIKey
                 if ($embeddingResult -and $embeddingResult.embedding) {
-                    $tableDocument["contentVector"] = $embeddingResult.embedding
+                    # CRITICAL: Cast embedding to [double[]] for proper JSON serialization
+                    $embeddingArray = [double[]]@($embeddingResult.embedding)
+                    
+                    # Validate embedding doesn't contain Infinity/NaN values
+                    $hasInvalidValue = $false
+                    foreach ($val in $embeddingArray) {
+                        if ([double]::IsNaN($val) -or [double]::IsInfinity($val)) {
+                            $hasInvalidValue = $true
+                            break
+                        }
+                    }
+                    
+                    if (-not $hasInvalidValue) {
+                        $tableDocument["contentVector"] = $embeddingArray
                     $tableDocument["embeddingModel"] = $embeddingResult.model
                     $tableDocument["embeddingGeneratedAt"] = $embeddingResult.generatedAt
                     $stats.embeddingsGenerated++
                 } else {
-                    Write-Host "      [SKIP] Table row $($tableChunk.rowIndex) skipped - no embedding generated" -ForegroundColor Yellow
+                        Write-Host "      [WARN] Table row $($tableChunk.rowIndex) has invalid embedding values - skipping embedding" -ForegroundColor Yellow
+                    }
+                } else {
+                    # IMPORTANT: Still index the table row without embedding (preserves keyword search)
+                    Write-Host "      [WARN] Table row $($tableChunk.rowIndex) has no embedding - indexing without vector" -ForegroundColor Yellow
                     $stats.embeddingErrors++
                     
-                    # AUDIT: Track skipped chunk
+                    # AUDIT: Track chunk without embedding
                     $auditLog.skippedChunks += @{
                         documentId = $pdfName
                         chunkType = "table_row"
@@ -2352,8 +2623,7 @@ foreach ($pdf in $pdfs) {
                         content = $tableChunk.content.Substring(0, [Math]::Min(100, $tableChunk.content.Length)) + "..."
                         timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                     }
-                    $chunkGlobalIndex++
-                    continue
+                    # NO continue - still add document to index!
                 }
                 # Adaptive rate limiting for table chunks
                 $currentDelay = if ($stats.rateLimitHits -gt 10) { $baseEmbeddingDelay * 3 }
@@ -2436,6 +2706,10 @@ foreach ($pdf in $pdfs) {
                     if ($chunk.index -eq 0) {
                         Write-Host "      [AI] Analyzing text chunks with AI intelligence..." -ForegroundColor Magenta
                     }
+                    # Show progress every 50 chunks
+                    if ($chunk.index -gt 0 -and $chunk.index % 50 -eq 0) {
+                        Write-Host "      [AI] Progress: $($chunk.index)/$($textChunks.Count) chunks analyzed..." -ForegroundColor Gray
+                    }
                     $aiTags = Get-ChunkTagsWithAI -Content $chunk.text -OpenAIEndpoint $openAIEndpoint `
                         -OpenAIKey $openAIKey -DocumentTitle $title -Deployment $AITaggingModel
                     
@@ -2444,9 +2718,10 @@ foreach ($pdf in $pdfs) {
                     $chunkSectors = if ($aiTags.sectors -and $aiTags.sectors.Count -gt 0) { @($aiTags.sectors) } else { @("general") }
                     $chunkSector = if ($chunkSectors.Count -gt 0) { $chunkSectors[0] } else { "general" }
                     # CRITICAL: Ensure tags is always an array
+                    # Note: Select-Object -Unique returns scalar for single item, so wrap in @() to force array
                     $aiTagArray = if ($aiTags.tags -and $aiTags.tags.Count -gt 0) { @($aiTags.tags) } else { @() }
                     $docTagArray = if ($docTags -and $docTags.Count -gt 0) { @($docTags) } else { @() }
-                    $chunkTags = ($aiTagArray + $docTagArray) | Select-Object -Unique
+                    $chunkTags = @(($aiTagArray + $docTagArray) | Select-Object -Unique)
                     # CRITICAL: Ensure topics is always an array
                     $chunkTopics = if ($aiTags.topics -and $aiTags.topics.Count -gt 0) { @($aiTags.topics) } else { @() }
                     $chunkOccupation = $aiTags.occupation
@@ -2486,9 +2761,10 @@ foreach ($pdf in $pdfs) {
             }
             
             # CRITICAL: Ensure all array fields are always arrays (Azure AI Search requirement)
-            $finalTags = if ($chunkTags -and $chunkTags.Count -gt 0) { @($chunkTags) } else { @() }
-            $finalSectors = if ($chunkSectors -and $chunkSectors.Count -gt 0) { @($chunkSectors) } else { @("general") }
-            $finalTopics = if ($chunkTopics -and $chunkTopics.Count -gt 0) { @($chunkTopics) } else { @() }
+            # Pre-create typed arrays BEFORE hashtable to ensure proper JSON serialization
+            [string[]]$finalTagsArray = if ($chunkTags -and $chunkTags.Count -gt 0) { $chunkTags } else { @() }
+            [string[]]$finalSectorsArray = if ($chunkSectors -and $chunkSectors.Count -gt 0) { $chunkSectors } else { @("general") }
+            [string[]]$finalTopicsArray = if ($chunkTopics -and $chunkTopics.Count -gt 0) { $chunkTopics } else { @() }
             
             $document = @{
                 "@search.action" = if ($ForceReprocess) { "upload" } else { "mergeOrUpload" }
@@ -2505,10 +2781,10 @@ foreach ($pdf in $pdfs) {
                 confidence = $chunkConfidence
                 indexedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                 category = $chunkCategory
-                tags = $finalTags
+                tags = $finalTagsArray
                 sector = $chunkSector
-                sectors = $finalSectors
-                topics = $finalTopics
+                sectors = $finalSectorsArray
+                topics = $finalTopicsArray
                 occupation = $chunkOccupation
                 tagConfidence = $tagConfidence
                 metadata = $sanitizedMetadata
@@ -2521,16 +2797,38 @@ foreach ($pdf in $pdfs) {
                 $textForEmbedding = Sanitize-TextForIndexing -Text $chunk.text
                 $embeddingResult = Generate-Embedding -Text $textForEmbedding -Endpoint $openAIEndpoint -Key $openAIKey
                 if ($embeddingResult -and $embeddingResult.embedding) {
-                    $document["contentVector"] = $embeddingResult.embedding
+                    # CRITICAL: Cast embedding to [double[]] to ensure proper JSON serialization
+                    # PowerShell's ConvertTo-Json can mishandle arrays from Invoke-RestMethod
+                    $embeddingArray = [double[]]@($embeddingResult.embedding)
+                    
+                    # Validate embedding doesn't contain Infinity/NaN values
+                    $hasInvalidValue = $false
+                    foreach ($val in $embeddingArray) {
+                        if ([double]::IsNaN($val) -or [double]::IsInfinity($val)) {
+                            $hasInvalidValue = $true
+                            break
+                        }
+                    }
+                    
+                    if ($hasInvalidValue) {
+                        # IMPORTANT: Still index the document, just without vector (allows keyword search)
+                        Write-Host "      [WARN] Chunk $($chunk.index) has invalid embedding values (Infinity/NaN) - indexing without vector" -ForegroundColor Yellow
+                        $stats.embeddingErrors++
+                        # Don't set contentVector - document will still be indexed for keyword search
+                    } else {
+                        $document["contentVector"] = $embeddingArray
                     # ELITE: Store embedding metadata
                     $document["embeddingModel"] = $embeddingResult.model
                     $document["embeddingGeneratedAt"] = $embeddingResult.generatedAt
                     $stats.embeddingsGenerated++
+                    }
                 } else {
+                    # IMPORTANT: Still index the document without embedding (preserves keyword search)
+                    # Don't skip - the text content is still valuable for keyword/semantic search
                     $stats.embeddingErrors++
-                    Write-Host "      [SKIP] Chunk $($chunk.index) skipped - no embedding generated" -ForegroundColor Yellow
+                    Write-Host "      [WARN] Chunk $($chunk.index) has no embedding - indexing without vector" -ForegroundColor Yellow
                     
-                    # AUDIT: Track skipped chunk
+                    # AUDIT: Track chunk without embedding
                     $auditLog.skippedChunks += @{
                         documentId = $pdfName
                         chunkType = "text"
@@ -2540,8 +2838,7 @@ foreach ($pdf in $pdfs) {
                         contentPreview = $chunk.text.Substring(0, [Math]::Min(100, $chunk.text.Length)) + "..."
                         timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                     }
-                    $chunkGlobalIndex++
-                    continue
+                    # NO continue - still add document to index!
                 }
                 # Adaptive rate limiting
                 $currentDelay = if ($stats.rateLimitHits -gt 10) { $baseEmbeddingDelay * 3 }
@@ -2569,7 +2866,13 @@ foreach ($pdf in $pdfs) {
         if ($chartExtractionResults.Count -gt 0) {
             Write-Host "   [CHARTS] Processing $($chartExtractionResults.Count) chart/figure chunks for indexing..." -ForegroundColor Magenta
             
+            $chartIndex = 0
             foreach ($chart in $chartExtractionResults) {
+                $chartIndex++
+                # Show progress every 10 charts
+                if ($chartIndex % 10 -eq 0 -or $chartIndex -eq 1) {
+                    Write-Host "      [CHARTS] Progress: $chartIndex/$($chartExtractionResults.Count) charts processed..." -ForegroundColor Gray
+                }
                 $chartDocId = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$pdfName-chart-$($chart.figureIndex)")) -replace '[^a-zA-Z0-9]', ''
                 $chartDocId = $chartDocId.Substring(0, [Math]::Min(128, $chartDocId.Length))
                 
@@ -2625,6 +2928,7 @@ foreach ($pdf in $pdfs) {
                 $docTagArray = if ($docTags -and $docTags.Count -gt 0) { @($docTags) } else { @() }
                 $chartTags = $docTagArray + @("chart", "visualization", $chart.visualType)
                 $chartSector = $docSector
+                $chartSectorsArray = if ($docSector) { @($docSector) } else { @("general") }
                 $chartTopics = @()
                 
                 if ($useChunkLevelAI -and $sanitizedChartContent.Length -gt 20) {
@@ -2637,7 +2941,8 @@ foreach ($pdf in $pdfs) {
                         $chartSector = if ($chartSectorsArray.Count -gt 0) { $chartSectorsArray[0] } else { "general" }
                         # CRITICAL: Ensure tags is always an array
                         $aiTagArray = if ($aiTags.tags -and $aiTags.tags.Count -gt 0) { @($aiTags.tags) } else { @() }
-                        $chartTags = ($aiTagArray + $chartTags) | Select-Object -Unique
+                        # CRITICAL: Wrap in @() because Select-Object -Unique returns scalar for single item
+                        $chartTags = @(($aiTagArray + $chartTags) | Select-Object -Unique)
                         # CRITICAL: Ensure topics is always an array
                         $chartTopics = if ($aiTags.topics -and $aiTags.topics.Count -gt 0) { @($aiTags.topics) } else { @() }
                         $stats.aiTagsSucceeded++
@@ -2647,8 +2952,10 @@ foreach ($pdf in $pdfs) {
                 }
                 
                 # CRITICAL: Ensure all array fields are always arrays (Azure AI Search requirement)
-                $finalChartTags = if ($chartTags -and $chartTags.Count -gt 0) { @($chartTags) } else { @() }
-                $finalChartTopics = if ($chartTopics -and $chartTopics.Count -gt 0) { @($chartTopics) } else { @() }
+                # Pre-create typed arrays BEFORE hashtable to ensure proper JSON serialization
+                [string[]]$finalChartTagsArray = if ($chartTags -and $chartTags.Count -gt 0) { $chartTags } else { @() }
+                [string[]]$finalChartSectorsArray = if ($chartSectorsArray -and $chartSectorsArray.Count -gt 0) { $chartSectorsArray } else { @("general") }
+                [string[]]$finalChartTopicsArray = if ($chartTopics -and $chartTopics.Count -gt 0) { $chartTopics } else { @() }
                 
                 $chartDocument = @{
                     "@search.action" = if ($ForceReprocess) { "upload" } else { "mergeOrUpload" }
@@ -2665,9 +2972,10 @@ foreach ($pdf in $pdfs) {
                     confidence = $chart.confidence
                     indexedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                     category = $chartCategory
-                    tags = $finalChartTags
+                    tags = $finalChartTagsArray
                     sector = $chartSector
-                    topics = $finalChartTopics
+                    sectors = $finalChartSectorsArray
+                    topics = $finalChartTopicsArray
                     metadata = Sanitize-TextForIndexing -Text (@{
                         figureIndex = $chart.figureIndex
                         extractionStatus = $chart.status
@@ -2687,10 +2995,26 @@ foreach ($pdf in $pdfs) {
                 if ($hasOpenAI -and $GenerateEmbeddings -and $sanitizedChartContent.Length -gt 20) {
                     $embeddingResult = Generate-Embedding -Text $sanitizedChartContent -Endpoint $openAIEndpoint -Key $openAIKey
                     if ($embeddingResult -and $embeddingResult.embedding) {
-                        $chartDocument["contentVector"] = $embeddingResult.embedding
+                        # CRITICAL: Cast embedding to [double[]] for proper JSON serialization
+                        $embeddingArray = [double[]]@($embeddingResult.embedding)
+                        
+                        # Validate embedding doesn't contain Infinity/NaN values
+                        $hasInvalidValue = $false
+                        foreach ($val in $embeddingArray) {
+                            if ([double]::IsNaN($val) -or [double]::IsInfinity($val)) {
+                                $hasInvalidValue = $true
+                                break
+                            }
+                        }
+                        
+                        if (-not $hasInvalidValue) {
+                            $chartDocument["contentVector"] = $embeddingArray
                         $chartDocument["embeddingModel"] = $embeddingResult.model
                         $chartDocument["embeddingGeneratedAt"] = $embeddingResult.generatedAt
                         $stats.embeddingsGenerated++
+                        } else {
+                            Write-Host "      [WARN] Chart $($chart.figureIndex) has invalid embedding values - skipping embedding" -ForegroundColor Yellow
+                        }
                     }
                     Start-Sleep -Milliseconds $baseEmbeddingDelay
                 }
@@ -2713,30 +3037,6 @@ foreach ($pdf in $pdfs) {
         if ($tableDocumentsToIndex.Count -gt 0) {
             $tableBatchResult = Invoke-BatchIndex -Documents $tableDocumentsToIndex -SearchEndpoint $searchEndpoint `
                 -SearchHeaders $searchHeaders -SearchIndexName $SearchIndexName -BatchType "table rows" -BatchSize 100
-            
-            # CRITICAL: Stop processing immediately if batch indexing failed
-            if ($tableBatchResult.error) {
-                Write-Host "   [ERROR] Batch indexing FAILED for table documents. Error: $($tableBatchResult.errorMessage)" -ForegroundColor Red
-                Write-Host "   [ERROR] ✓ $($tableBatchResult.success) table documents WERE indexed (before error)" -ForegroundColor Yellow
-                Write-Host "   [ERROR] ✗ $($tableBatchResult.failed) table documents were NOT indexed (indexing failed)" -ForegroundColor Red
-                Write-Host "   [ERROR] Total attempted: $($tableDocumentsToIndex.Count), Indexed: $($tableBatchResult.success), NOT Indexed: $($tableBatchResult.failed)" -ForegroundColor Red
-                Write-Host "   [ERROR] STOPPING processing for this PDF immediately - no partial indexing allowed" -ForegroundColor Red
-                
-                # AUDIT: Track failed table indexing
-                $auditLog.failedIndexing += @{
-                    documentId = $pdfName
-                    type = "table_rows"
-                    attempted = $tableDocumentsToIndex.Count
-                    failed = $tableBatchResult.failed
-                    indexed = $tableBatchResult.success
-                    error = $tableBatchResult.errorMessage
-                    stopped = $true
-                    timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-                }
-                
-                throw "Batch indexing failed for table documents: $($tableBatchResult.errorMessage). Process stopped to prevent partial indexing."
-            }
-            
             $indexedChunks += $tableBatchResult.success
             $stats.tableRowsIndexed += $tableBatchResult.success  # AUDIT: Track table rows indexed
             if ($tableBatchResult.failed -gt 0) {
@@ -2761,20 +3061,18 @@ foreach ($pdf in $pdfs) {
         if ($textDocumentsToIndex.Count -gt 0) {
             $textBatchResult = Invoke-BatchIndex -Documents $textDocumentsToIndex -SearchEndpoint $searchEndpoint `
                 -SearchHeaders $searchHeaders -SearchIndexName $SearchIndexName -BatchType "text chunks" -BatchSize 100
-            
-            # CRITICAL: Stop processing immediately if batch indexing failed
-            if ($textBatchResult.error) {
-                Write-Host "   [ERROR] Batch indexing FAILED for text documents. Error: $($textBatchResult.errorMessage)" -ForegroundColor Red
-                Write-Host "   [ERROR] ✓ $($textBatchResult.success) text documents WERE indexed (before error)" -ForegroundColor Yellow
-                Write-Host "   [ERROR] ✗ $($textBatchResult.failed) text documents were NOT indexed (indexing failed)" -ForegroundColor Red
-                Write-Host "   [ERROR] Total attempted: $($textDocumentsToIndex.Count), Indexed: $($textBatchResult.success), NOT Indexed: $($textBatchResult.failed)" -ForegroundColor Red
-                Write-Host "   [ERROR] STOPPING processing for this PDF immediately - no partial indexing allowed" -ForegroundColor Red
-                throw "Batch indexing failed for text documents: $($textBatchResult.errorMessage). Process stopped to prevent partial indexing."
-            }
-            
             $indexedChunks += $textBatchResult.success
             if ($textBatchResult.failed -gt 0) {
                 Write-Host "      [WARN] $($textBatchResult.failed) text documents failed to index" -ForegroundColor Yellow
+                
+                # AUDIT: Track failed text indexing
+                $auditLog.failedIndexing += @{
+                    documentId = $pdfName
+                    type = "text_chunks"
+                    attempted = $textDocumentsToIndex.Count
+                    failed = $textBatchResult.failed
+                    timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                }
             }
         }
         
@@ -2786,30 +3084,6 @@ foreach ($pdf in $pdfs) {
         if ($chartDocumentsToIndex.Count -gt 0) {
             $chartBatchResult = Invoke-BatchIndex -Documents $chartDocumentsToIndex -SearchEndpoint $searchEndpoint `
                 -SearchHeaders $searchHeaders -SearchIndexName $SearchIndexName -BatchType "charts/figures" -BatchSize 100
-            
-            # CRITICAL: Stop processing immediately if batch indexing failed
-            if ($chartBatchResult.error) {
-                Write-Host "   [ERROR] Batch indexing FAILED for chart documents. Error: $($chartBatchResult.errorMessage)" -ForegroundColor Red
-                Write-Host "   [ERROR] ✓ $($chartBatchResult.success) chart documents WERE indexed (before error)" -ForegroundColor Yellow
-                Write-Host "   [ERROR] ✗ $($chartBatchResult.failed) chart documents were NOT indexed (indexing failed)" -ForegroundColor Red
-                Write-Host "   [ERROR] Total attempted: $($chartDocumentsToIndex.Count), Indexed: $($chartBatchResult.success), NOT Indexed: $($chartBatchResult.failed)" -ForegroundColor Red
-                Write-Host "   [ERROR] STOPPING processing for this PDF immediately - no partial indexing allowed" -ForegroundColor Red
-                
-                # AUDIT: Track failed chart indexing
-                $auditLog.failedIndexing += @{
-                    documentId = $pdfName
-                    type = "charts"
-                    attempted = $chartDocumentsToIndex.Count
-                    failed = $chartBatchResult.failed
-                    indexed = $chartBatchResult.success
-                    error = $chartBatchResult.errorMessage
-                    stopped = $true
-                    timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-                }
-                
-                throw "Batch indexing failed for chart documents: $($chartBatchResult.errorMessage). Process stopped to prevent partial indexing."
-            }
-            
             $indexedChunks += $chartBatchResult.success
             $stats.documentsWithCharts++
             if ($chartBatchResult.failed -gt 0) {
@@ -2824,16 +3098,16 @@ foreach ($pdf in $pdfs) {
                     timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                 }
             }
-            Write-Host "   [OK] Indexed $($chartDocumentsToIndex.Count) chart/figure documents" -ForegroundColor Green
+            Write-Host "   [OK] Indexed $($chartBatchResult.success) chart/figure documents" -ForegroundColor Green
         }
         
         $totalExpectedChunks = $textChunks.Count + $tableChunks.Count + $chartExtractionResults.Count
-        $textCount = $textChunks.Count
-        $tableCount = $tableChunks.Count
-        $chartCount = $chartExtractionResults.Count
-        $summaryMsg = "   [OK] Successfully indexed {0}/{1} chunks ({2} text + {3} table rows + {4} charts)" -f $indexedChunks, $totalExpectedChunks, $textCount, $tableCount, $chartCount
-        Write-Host $summaryMsg -ForegroundColor Green
-        
+        $failedChunks = $totalExpectedChunks - $indexedChunks
+        if ($failedChunks -gt 0) {
+            Write-Host "   [PARTIAL] Indexed $indexedChunks/$totalExpectedChunks chunks ($failedChunks FAILED) - $($textChunks.Count) text + $($tableChunks.Count) table rows + $($chartExtractionResults.Count) charts" -ForegroundColor Yellow
+        } else {
+            Write-Host "   [OK] Indexed $indexedChunks/$totalExpectedChunks chunks ($($textChunks.Count) text + $($tableChunks.Count) table rows + $($chartExtractionResults.Count) charts)" -ForegroundColor Green
+        }
         $stats.processed++
         $stats.chunks += $totalExpectedChunks
         $stats.indexed += $indexedChunks
@@ -2991,11 +3265,21 @@ $auditLog.coverage = @{
         [math]::Round(($stats.aiTagsSucceeded / ($stats.aiTagsSucceeded + $stats.aiTagsFailed)) * 100, 2) 
     } else { 100 }
     
+    # Document-level AI tagging stats
+    documentAITagsSucceeded = $stats.documentAITagsSucceeded
+    documentAITagsFailed = $stats.documentAITagsFailed
+    documentAITagSuccessRate = if (($stats.documentAITagsSucceeded + $stats.documentAITagsFailed) -gt 0) { 
+        [math]::Round(($stats.documentAITagsSucceeded / ($stats.documentAITagsSucceeded + $stats.documentAITagsFailed)) * 100, 2) 
+    } else { 100 }
+    
     # Rate limiting
     rateLimitHits = $stats.rateLimitHits
     
     # Quality flags
     lowConfidenceChunks = $stats.lowConfidenceChunks
+    
+    # Python JSON fixes
+    pythonJsonFixes = $stats.pythonJsonFixes
 }
 
 # Display audit summary
@@ -3011,10 +3295,19 @@ Write-Host "    Figures: $($stats.figuresDetected) detected from $($stats.docume
 Write-Host "    Charts: $($stats.chartsExtracted) extracted" -ForegroundColor White
 Write-Host ""
 
+if ($script:pythonAvailable -and $stats.pythonJsonFixes -gt 0) {
+    Write-Host "  [JSON NORMALIZATION]" -ForegroundColor Cyan
+    Write-Host "    Python fixes applied: $($stats.pythonJsonFixes) (prevented serialization errors)" -ForegroundColor Green
+    Write-Host ""
+}
+
 Write-Host "  [AI TAGGING]" -ForegroundColor Cyan
 $aiTagRate = $auditLog.coverage.aiTagSuccessRate
 $aiTagColor = if ($aiTagRate -ge 95) { "Green" } elseif ($aiTagRate -ge 80) { "Yellow" } else { "Red" }
-Write-Host "    Success: $($stats.aiTagsSucceeded), Failed: $($stats.aiTagsFailed) ($aiTagRate%)" -ForegroundColor $aiTagColor
+Write-Host "    Chunk-Level: $($stats.aiTagsSucceeded) succeeded, $($stats.aiTagsFailed) failed ($aiTagRate%)" -ForegroundColor $aiTagColor
+$docAITagRate = $auditLog.coverage.documentAITagSuccessRate
+$docAITagColor = if ($docAITagRate -ge 95) { "Green" } elseif ($docAITagRate -ge 80) { "Yellow" } else { "Red" }
+Write-Host "    Document-Level: $($stats.documentAITagsSucceeded) succeeded, $($stats.documentAITagsFailed) failed ($docAITagRate%)" -ForegroundColor $docAITagColor
 Write-Host ""
 
 # Flag warnings if any
@@ -3075,8 +3368,8 @@ if ($hasFlags) {
     
     if ($auditLog.errors.Count -gt 0) {
         Write-Host "    Errors: $($auditLog.errors.Count)" -ForegroundColor Red
-        foreach ($error in $auditLog.errors | Select-Object -First 5) {
-            Write-Host "      - $($error.documentId): $($error.message)" -ForegroundColor Red
+        foreach ($err in $auditLog.errors | Select-Object -First 5) {
+            Write-Host "      - $($err.documentId): $($err.message)" -ForegroundColor Red
         }
     }
     

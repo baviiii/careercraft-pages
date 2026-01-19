@@ -309,16 +309,78 @@ export default function Analysis() {
   };
 
   const handleEnhancement = async (type: string) => {
-    if (!resumeText || !jobDescription) return;
+    if (!resumeText || !jobDescription) {
+      toast({ 
+        title: "Missing information", 
+        description: "Please provide both a resume and job description.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    // Pre-rewrite validation
+    if (type === "auto-rewrite") {
+      // Check if resume text is complete
+      if (resumeText.length < 100) {
+        toast({ 
+          title: "Resume too short", 
+          description: "The resume appears incomplete. Please upload a complete resume.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      
+      // Check if analysis is available for better results
+      if (!analysis) {
+        toast({ 
+          title: "Analysis recommended", 
+          description: "Running analysis first will provide better rewrite results. Analyzing now...", 
+        });
+        // Auto-run analysis if not done
+        try {
+          setStep("analyzing");
+          setIsAnalyzing(true);
+          const result = await runATSAIAnalysis(resumeText, jobDescription);
+          setAnalysis(result);
+          setStep("results");
+          toast({ title: "Analysis complete", description: `ATS Score: ${result.overallScore}/100` });
+        } catch (error) {
+          toast({ 
+            title: "Analysis failed", 
+            description: "Continuing with rewrite without analysis context.", 
+            variant: "destructive" 
+          });
+        } finally {
+          setIsAnalyzing(false);
+        }
+      }
+      
+      // Check for required sections in resume
+      const lowerText = resumeText.toLowerCase();
+      const hasContact = lowerText.includes('@') || lowerText.includes('email') || lowerText.includes('phone');
+      const hasExperience = lowerText.includes('experience') || lowerText.includes('employment') || lowerText.includes('work');
+      const hasEducation = lowerText.includes('education') || lowerText.includes('degree') || lowerText.includes('university');
+      
+      if (!hasContact || !hasExperience) {
+        toast({ 
+          title: "Resume may be incomplete", 
+          description: "Some sections may be missing. The rewrite will attempt to include all sections.", 
+          variant: "default" 
+        });
+      }
+    }
     
     setActiveEnhancement(type);
     setEnhancementResult("");
     setEnhancedResumeData(null);
     
     try {
+      // Pass analysis context to rewrite functions for better optimization
+      const analysisContext = analysis || undefined;
+      
       // For builder resumes with auto-rewrite, use structured rewrite
       if (type === "auto-rewrite" && isBuilderResume && parsedResumeData) {
-        const structuredResult = await rewriteResumeStructured(parsedResumeData, jobDescription);
+        const structuredResult = await rewriteResumeStructured(parsedResumeData, jobDescription, analysisContext);
         setEnhancedResumeData(structuredResult as AIResumeData);
         setEnhancementResult(""); // Clear text result since we have structured data
         toast({ 
@@ -330,25 +392,90 @@ export default function Analysis() {
         let result = "";
         switch (type) {
           case "auto-rewrite":
-            result = await autoRewriteResume(resumeText, jobDescription);
+            result = await autoRewriteResume(resumeText, jobDescription, analysisContext);
             break;
           case "rewrite-experience":
-            result = await rewriteExperienceSection(resumeText, jobDescription);
+            result = await rewriteExperienceSection(resumeText, jobDescription, analysisContext);
             break;
           case "generate-achievements":
-            result = await generateAchievements(resumeText, jobDescription);
+            result = await generateAchievements(resumeText, jobDescription, analysisContext);
             break;
           case "generate-summaries":
-            result = await generateSummaries(resumeText, jobDescription);
+            result = await generateSummaries(resumeText, jobDescription, analysisContext);
             break;
         }
+        
+        // Post-rewrite validation for auto-rewrite
+        if (type === "auto-rewrite" && result) {
+          const validation = validateRewriteResult(result, resumeText);
+          
+          if (!validation.isComplete) {
+            toast({ 
+              title: "⚠️ Rewrite may be incomplete", 
+              description: validation.missingSections.length > 0 
+                ? `Missing sections: ${validation.missingSections.join(", ")}. Consider retrying.`
+                : "Response appears truncated. Consider retrying.",
+              variant: "default",
+              duration: 5000
+            });
+          } else {
+            toast({ 
+              title: "✓ Enhancement complete", 
+              description: "All sections rewritten successfully" 
+            });
+          }
+        } else {
+          toast({ title: "Enhancement complete" });
+        }
+        
         setEnhancementResult(result);
-        toast({ title: "Enhancement complete" });
       }
     } catch (error) {
       toast({ title: "Enhancement failed", description: error instanceof Error ? error.message : "Could not process request", variant: "destructive" });
       setActiveEnhancement(null);
     }
+  };
+
+  // Validate rewrite result completeness
+  const validateRewriteResult = (rewritten: string, original: string): {
+    isComplete: boolean;
+    missingSections: string[];
+    hasTruncation: boolean;
+  } => {
+    const missingSections: string[] = [];
+    const lowerRewritten = rewritten.toLowerCase();
+    const lowerOriginal = original.toLowerCase();
+    
+    // Check for required sections
+    const sections = [
+      { name: "Contact Information", keywords: ["email", "phone", "@", "location"] },
+      { name: "Professional Summary", keywords: ["summary", "professional", "objective"] },
+      { name: "Work Experience", keywords: ["experience", "employment", "work history"] },
+      { name: "Education", keywords: ["education", "degree", "university", "college"] },
+      { name: "Skills", keywords: ["skills", "technical", "competencies"] },
+    ];
+    
+    sections.forEach(section => {
+      const originalHas = section.keywords.some(kw => lowerOriginal.includes(kw));
+      if (originalHas) {
+        const rewrittenHas = section.keywords.some(kw => lowerRewritten.includes(kw));
+        if (!rewrittenHas) {
+          missingSections.push(section.name);
+        }
+      }
+    });
+    
+    // Check for truncation
+    const hasTruncation = 
+      rewritten.length < original.length * 0.3 || // Less than 30% of original (too short)
+      rewritten.endsWith("...") ||
+      rewritten.endsWith("•") ||
+      rewritten.endsWith("-") ||
+      (rewritten.split("\n\n").length < 3 && rewritten.length > 500); // No clear sections but long text
+    
+    const isComplete = missingSections.length === 0 && !hasTruncation;
+    
+    return { isComplete, missingSections, hasTruncation };
   };
 
   const copyToClipboard = (text: string, id: string) => {

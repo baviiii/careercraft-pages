@@ -27,6 +27,13 @@ param openAIEndpoint string = ''
 @secure()
 param openAIKey string = ''
 
+@description('Azure Document Intelligence endpoint (optional)')
+param docIntelEndpoint string = ''
+
+@description('Azure Document Intelligence key (optional)')
+@secure()
+param docIntelKey string = ''
+
 @description('Storage account name for Function App')
 param storageAccountName string
 
@@ -108,7 +115,9 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         }
       ]
       cors: {
-        allowedOrigins: ['*'] // Configure for production with specific domains
+        // SECURITY: Change to specific domains in production
+        // Example: allowedOrigins: ['https://your-site.vercel.app', 'https://your-domain.com']
+        allowedOrigins: ['*'] // TODO: Configure for production with specific domains
         supportCredentials: false
       }
       http20Enabled: true
@@ -145,7 +154,7 @@ resource functionAppPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   }
 }
 
-// Add OpenAI settings if provided
+// Add OpenAI and Document Intelligence settings if provided
 resource functionAppConfig 'Microsoft.Web/sites/config@2023-01-01' = if (openAIEndpoint != '') {
   parent: functionApp
   name: 'appsettings'
@@ -154,6 +163,10 @@ resource functionAppConfig 'Microsoft.Web/sites/config@2023-01-01' = if (openAIE
     AZURE_OPENAI_KEY: openAIKey
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT: 'text-embedding-3-large'
     AZURE_OPENAI_CHAT_DEPLOYMENT: 'gpt-4o-mini'
+    AZURE_OPENAI_VISION_DEPLOYMENT: 'gpt-4o'
+    // Document Intelligence for PDF rendering (S1 tier for figures)
+    AZURE_DOC_INTEL_ENDPOINT: docIntelEndpoint
+    AZURE_DOC_INTEL_KEY: docIntelKey
   }
   dependsOn: [functionApp]
 }

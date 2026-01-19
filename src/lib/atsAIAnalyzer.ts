@@ -106,7 +106,8 @@ export async function runATSAIAnalysis(
 
 export async function autoRewriteResume(
   resumeText: string,
-  jobDescription: string
+  jobDescription: string,
+  analysisContext?: ATSAIAnalysis
 ): Promise<string> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
@@ -120,6 +121,7 @@ export async function autoRewriteResume(
         resumeText,
         jobDescription,
         analysisType: "auto-rewrite",
+        analysisContext: analysisContext ? JSON.stringify(analysisContext) : undefined,
       }),
     }
   );
@@ -135,7 +137,8 @@ export async function autoRewriteResume(
 
 export async function rewriteExperienceSection(
   resumeText: string,
-  jobDescription: string
+  jobDescription: string,
+  analysisContext?: ATSAIAnalysis
 ): Promise<string> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
@@ -149,6 +152,7 @@ export async function rewriteExperienceSection(
         resumeText,
         jobDescription,
         analysisType: "rewrite-experience",
+        analysisContext: analysisContext ? JSON.stringify(analysisContext) : undefined,
       }),
     }
   );
@@ -164,7 +168,8 @@ export async function rewriteExperienceSection(
 
 export async function generateAchievements(
   resumeText: string,
-  jobDescription: string
+  jobDescription: string,
+  analysisContext?: ATSAIAnalysis
 ): Promise<string> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
@@ -178,6 +183,7 @@ export async function generateAchievements(
         resumeText,
         jobDescription,
         analysisType: "generate-achievements",
+        analysisContext: analysisContext ? JSON.stringify(analysisContext) : undefined,
       }),
     }
   );
@@ -193,7 +199,8 @@ export async function generateAchievements(
 
 export async function generateSummaries(
   resumeText: string,
-  jobDescription: string
+  jobDescription: string,
+  analysisContext?: ATSAIAnalysis
 ): Promise<string> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
@@ -207,6 +214,7 @@ export async function generateSummaries(
         resumeText,
         jobDescription,
         analysisType: "generate-summaries",
+        analysisContext: analysisContext ? JSON.stringify(analysisContext) : undefined,
       }),
     }
   );
@@ -223,7 +231,8 @@ export async function generateSummaries(
 // Enhanced rewrite that returns structured data for builder resumes
 export async function rewriteResumeStructured(
   resumeData: any,
-  jobDescription: string
+  jobDescription: string,
+  analysisContext?: ATSAIAnalysis
 ): Promise<any> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
@@ -237,6 +246,7 @@ export async function rewriteResumeStructured(
         resumeData: JSON.stringify(resumeData),
         jobDescription,
         analysisType: "rewrite-structured",
+        analysisContext: analysisContext ? JSON.stringify(analysisContext) : undefined,
       }),
     }
   );

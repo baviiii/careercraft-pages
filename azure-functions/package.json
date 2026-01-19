@@ -7,8 +7,10 @@
     "test": "echo \"No tests yet\""
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.17.0",
     "gremlin": "^3.7.1",
-    "neo4j-driver": "^5.15.0"
+    "neo4j-driver": "^5.15.0",
+    "pdfjs-dist": "^4.0.189"
   },
   "engines": {
     "node": ">=18.0.0"

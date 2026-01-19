@@ -4,7 +4,17 @@
       "Bash(npm run build:*)",
       "WebSearch",
       "WebFetch(domain:www.premier.sa.gov.au)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(powershell -File deploy-azure-functions.ps1 -ResourceGroupName \"rg-careercraft-dev\")",
+      "Bash(az disk delete:*)",
+      "Bash(az network public-ip delete:*)",
+      "Bash(az network nic delete:*)",
+      "Bash(az network nsg delete:*)",
+      "Bash(az resource list:*)",
+      "Bash(powershell:*)",
+      "Bash(Select-Object -First 50)"
     ],
     "deny": [],
     "ask": []
