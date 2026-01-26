@@ -749,48 +749,32 @@ export default function Analysis() {
                   )}
                 </div>
                 
-                {resumeText ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                      <FileText className="w-5 h-5 text-green-500" />
-                      <span className="text-sm font-medium flex-1 truncate">{fileName || "Resume uploaded"}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {resumeSource === "saved" ? "Saved" : "Uploaded"}
-                      </Badge>
-                    </div>
-                    <ScrollArea className="h-32 rounded-lg border bg-muted/30 p-3">
-                      <pre className="whitespace-pre-wrap font-sans text-xs text-muted-foreground">{resumeText.slice(0, 600)}...</pre>
-                    </ScrollArea>
-                    <Button variant="outline" size="sm" onClick={() => { setResumeText(""); setSelectedResumeId(""); setParsedResumeData(null); }} className="w-full">
-                      Choose Different Resume
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Saved Resumes Selector */}
-                    {savedResumes.length > 0 && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Select from My Resumes</Label>
-                        <Select value={selectedResumeId} onValueChange={handleSelectSavedResume}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Choose a saved resume..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {savedResumes.map(resume => (
-                              <SelectItem key={resume.id} value={resume.id}>
-                                <div className="flex items-center gap-2">
-                                  <FileText className="w-4 h-4" />
-                                  <span>{resume.name}</span>
-                                  {resume.template_id && (
-                                    <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
-                                      Template
-                                    </Badge>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                <div className="space-y-4">
+                  {/* Saved Resumes Selector - Always show when resumes are available */}
+                  {savedResumes.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Select from My Resumes</Label>
+                      <Select value={selectedResumeId} onValueChange={handleSelectSavedResume}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={resumeText ? "Switch to another resume..." : "Choose a saved resume..."} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {savedResumes.map(resume => (
+                            <SelectItem key={resume.id} value={resume.id}>
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4" />
+                                <span>{resume.name}</span>
+                                {resume.template_id && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+                                    Template
+                                  </Badge>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!resumeText && (
                         <div className="relative my-3">
                           <div className="absolute inset-0 flex items-center">
                             <div className="w-full border-t" />
@@ -799,10 +783,28 @@ export default function Analysis() {
                             <span className="bg-card px-2 text-muted-foreground">Or upload new</span>
                           </div>
                         </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {resumeText ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                        <FileText className="w-5 h-5 text-green-500" />
+                        <span className="text-sm font-medium flex-1 truncate">{fileName || "Resume uploaded"}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {resumeSource === "saved" ? "Saved" : "Uploaded"}
+                        </Badge>
                       </div>
-                    )}
-                    
-                    {/* Upload Zone */}
+                      <ScrollArea className="h-32 rounded-lg border bg-muted/30 p-3">
+                        <pre className="whitespace-pre-wrap font-sans text-xs text-muted-foreground">{resumeText.slice(0, 600)}...</pre>
+                      </ScrollArea>
+                      <Button variant="outline" size="sm" onClick={() => { setResumeText(""); setSelectedResumeId(""); setParsedResumeData(null); setFileName(""); }} className="w-full">
+                        Clear Resume
+                      </Button>
+                    </div>
+                  ) : (
+                    /* Upload Zone */
                     <div
                       {...getRootProps()}
                       className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
@@ -823,8 +825,8 @@ export default function Analysis() {
                         </>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </Card>
 
               <Card className="p-6 border-2">

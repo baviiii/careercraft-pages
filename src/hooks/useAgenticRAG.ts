@@ -10,12 +10,11 @@
  * BACKEND INTEGRATION:
  * - agentic-planner Azure Function: Query planning with GPT-4 function calling
  * - intersection-reasoning Azure Function: Analyze overlaps & contradictions
- * - Supabase graph tables: Entity/relationship storage
+ * - graph-query Azure Function: Cosmos DB (Gremlin) and Neo4j graph queries
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRAGMetadata } from "./useRAGMetadata";
-import { supabase } from "@/integrations/supabase/client";
 
 // Reuse types from useEnterpriseRAG for consistency
 export interface ChatMessage {
@@ -362,34 +361,16 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     }
   }, [graphBackend]);
 
-  // Fallback: Direct Supabase query when edge function unavailable
+  // Fallback: Return empty array if graph query unavailable
+  // No Supabase fallback - use Cosmos DB or Neo4j only
   const traverseGraphFallback = useCallback(async (
     startEntityId: string,
     relationships: string[],
     depth: number
   ): Promise<any[]> => {
-    try {
-      console.log("[AgenticRAG] 🔄 Using fallback direct query");
-      
-      // Type assertion needed until Supabase types are regenerated
-      const response = await supabase
-        .rpc('get_related_entities' as any, {
-          p_entity_id: startEntityId,
-          p_relationship_type: relationships[0] || null,
-          p_direction: 'both',
-        });
-      const { data: relatedEntities, error: entityError } = response as { data: any; error: any };
-
-      if (entityError) {
-        console.error("[AgenticRAG] ❌ Fallback query error:", entityError);
-        return [];
-      }
-
-      return (relatedEntities as any[]) || [];
-    } catch (error) {
-      console.error("[AgenticRAG] ❌ Fallback traversal error:", error);
-      return [];
-    }
+    console.warn("[AgenticRAG] ⚠️ Graph query unavailable - no fallback available");
+    console.warn("[AgenticRAG] ⚠️ Ensure graph-query Azure Function is configured");
+    return [];
   }, []);
 
   // ========================================================================

@@ -35,6 +35,164 @@ if (-not $StatusApiUrl) {
     $StatusApiUrl = "https://careercraft-functions-dev.azurewebsites.net/api/pdf-upload"
 }
 
+# Check for Python availability (same as main script)
+$pythonAvailable = $false
+$pythonHelperScript = $null
+try {
+    $pythonTest = python --version 2>&1
+    if ($LASTEXITCODE -eq 0 -or $pythonTest -match "Python") {
+        $pythonAvailable = $true
+        Write-Output "Python detected: $pythonTest"
+        
+        # Try to find Python helper script (if runbook has access to it)
+        # In Azure Automation, you may need to upload this script as a module
+        $possiblePaths = @(
+            "$PSScriptRoot\prepare-search-doc.py",
+            ".\prepare-search-doc.py",
+            "$env:AZURE_AUTOMATION_MODULE_PATH\prepare-search-doc.py"
+        )
+        
+        foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+                $pythonHelperScript = $path
+                Write-Output "Found Python helper script: $path"
+                break
+            }
+        }
+        
+        if (-not $pythonHelperScript) {
+            Write-Warning "Python available but helper script not found - will use PowerShell fallback"
+        }
+    }
+} catch {
+    Write-Warning "Python not available - will use PowerShell fallback for JSON normalization"
+}
+
+# Helper function to normalize JSON for Azure Search (prevents serialization issues)
+# Uses Python when available (same as main script), falls back to PowerShell
+function Get-CleanSearchJson {
+    param(
+        [Parameter(Mandatory=$true)]
+        [object]$Documents,
+        [int]$Depth = 15
+    )
+    
+    # Convert to JSON first
+    $jsonBody = $Documents | ConvertTo-Json -Depth $Depth -Compress
+    
+    # If Python helper is available, use it (same as main script)
+    if ($pythonAvailable -and $pythonHelperScript) {
+        try {
+            # Pipe JSON through Python - capture stdout only, stderr separate
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = "python"
+            $psi.Arguments = "`"$pythonHelperScript`""
+            $psi.UseShellExecute = $false
+            $psi.RedirectStandardInput = $true
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+            $psi.CreateNoWindow = $true
+            
+            $process = [System.Diagnostics.Process]::Start($psi)
+            
+            # Write JSON to stdin
+            $process.StandardInput.Write($jsonBody)
+            $process.StandardInput.Close()
+            
+            # Read output
+            $pythonResult = $process.StandardOutput.ReadToEnd()
+            $pythonError = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            $exitCode = $process.ExitCode
+            $process.Dispose()
+            
+            # Check if Python succeeded and output is valid JSON
+            if ($exitCode -eq 0 -and $pythonResult) {
+                $cleanResult = $pythonResult.Trim()
+                # Validate it's valid JSON
+                try {
+                    $null = $cleanResult | ConvertFrom-Json -ErrorAction Stop
+                    if ($cleanResult.StartsWith("{") -or $cleanResult.StartsWith("[")) {
+                        Write-Output "  [OK] Python JSON normalization applied"
+                        return $cleanResult
+                    }
+                } catch {
+                    Write-Warning "Python output is not valid JSON, using PowerShell fallback"
+                }
+            } else {
+                Write-Warning "Python normalization failed: $pythonError"
+            }
+        } catch {
+            Write-Warning "Python normalization error: $_ - using PowerShell fallback"
+        }
+    }
+    
+    # PowerShell fallback (if Python not available or failed)
+    function Normalize-Document {
+        param([hashtable]$Doc)
+        
+        # Array fields that must always be arrays
+        $arrayFields = @('tags', 'sectors', 'topics')
+        foreach ($field in $arrayFields) {
+            if ($Doc.ContainsKey($field)) {
+                $val = $Doc[$field]
+                if ($null -eq $val) {
+                    $Doc[$field] = @()
+                } elseif ($val -isnot [array]) {
+                    $Doc[$field] = @($val)
+                }
+            } else {
+                # Ensure field exists as empty array
+                $Doc[$field] = @()
+            }
+        }
+        
+        # Primitive string fields that must be scalars (not arrays)
+        $primitiveFields = @('id', 'content', 'documentId', 'documentType', 'source', 'url', 'title', 'category', 'sector', 'occupation', 'metadata', 'chunkType', '@search.action')
+        foreach ($field in $primitiveFields) {
+            if ($Doc.ContainsKey($field)) {
+                $val = $Doc[$field]
+                if ($val -is [array] -and $val.Count -gt 0) {
+                    # Unwrap array - take first element
+                    $Doc[$field] = $val[0]
+                } elseif ($null -eq $val) {
+                    $Doc[$field] = ""
+                }
+            }
+        }
+        
+        return $Doc
+    }
+    
+    # Normalize documents (PowerShell fallback)
+    if ($Documents.value -is [array]) {
+        # Azure Search batch format: { value: [...] }
+        $normalizedDocs = $Documents.value | ForEach-Object {
+            if ($_ -is [hashtable]) {
+                Normalize-Document $_
+            } else {
+                $_
+            }
+        }
+        $Documents.value = $normalizedDocs
+    } elseif ($Documents -is [array]) {
+        # Array of documents
+        $Documents = $Documents | ForEach-Object {
+            if ($_ -is [hashtable]) {
+                Normalize-Document $_
+            } else {
+                $_
+            }
+        }
+    } elseif ($Documents -is [hashtable]) {
+        # Single document
+        $Documents = Normalize-Document $Documents
+    }
+    
+    # Convert to JSON
+    return $Documents | ConvertTo-Json -Depth $Depth -Compress
+}
+
 # Helper function to report status
 function Update-ProcessingStatus {
     param(
@@ -197,7 +355,9 @@ try {
     $analysisResult = $statusResponse.analyzeResult
     Write-Output "Analysis complete: $($analysisResult.pages.Count) pages"
     
-    Update-ProcessingStatus -BlobName $BlobName -Status "chunking" -Progress 40 -Step "Document analyzed - $($analysisResult.pages.Count) pages"
+    # Extract tables count
+$tablesFound = $analysisResult.tables.Count
+Update-ProcessingStatus -BlobName $BlobName -Status "chunking" -Progress 40 -Step "Document analyzed: $($analysisResult.pages.Count) pages, $tablesFound tables found"
     
 } catch {
     Write-Error "Document Intelligence error: $_"
@@ -302,7 +462,9 @@ foreach ($table in $analysisResult.tables) {
 
 Write-Output "Extracted $($tableChunks.Count) table rows"
 
-Update-ProcessingStatus -BlobName $BlobName -Status "embedding" -Progress 55 -Step "Created $($chunks.Count) text chunks, $($tableChunks.Count) table rows"
+# Calculate progress based on chunks
+$totalChunks = $chunks.Count + $tableChunks.Count
+Update-ProcessingStatus -BlobName $BlobName -Status "embedding" -Progress 55 -Step "Chunking complete: $($chunks.Count) text chunks, $($tableChunks.Count) table rows ($totalChunks total)"
 
 # ============================================
 # STEP 3: Generate Embeddings
@@ -333,15 +495,17 @@ foreach ($chunk in $chunks) {
         $chunk.embedding = $null
     }
     
-    # Progress
+    # Progress updates
     if ($chunk.index % 10 -eq 0) {
+        $embedProgress = [Math]::Round((($chunk.index + 1) / $chunks.Count) * 15) + 55  # 55-70% range
         Write-Output "  Embedded $($chunk.index + 1)/$($chunks.Count) chunks"
+        Update-ProcessingStatus -BlobName $BlobName -Status "embedding" -Progress $embedProgress -Step "Generating embeddings: $($chunk.index + 1)/$($chunks.Count) chunks"
     }
 }
 
-Write-Output "Embeddings complete"
+Write-Output "Embeddings complete: $embeddingsGenerated/$($chunks.Count) generated"
 
-Update-ProcessingStatus -BlobName $BlobName -Status "indexing" -Progress 80 -Step "Embeddings generated - indexing to search"
+Update-ProcessingStatus -BlobName $BlobName -Status "indexing" -Progress 75 -Step "Embeddings complete ($embeddingsGenerated/$($chunks.Count)) - indexing to Azure Search"
 
 # ============================================
 # STEP 4: Index to Azure Search
@@ -359,6 +523,7 @@ foreach ($chunk in $chunks) {
     $docId = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$BlobName-text-$($chunk.index)")) -replace '[^a-zA-Z0-9]', ''
     $docId = $docId.Substring(0, [Math]::Min(128, $docId.Length))
     
+    # CRITICAL: Ensure array fields are always arrays (Azure Search requirement)
     $doc = @{
         "@search.action" = "mergeOrUpload"
         id = $docId
@@ -375,6 +540,9 @@ foreach ($chunk in $chunks) {
         indexedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
         category = "government-document"
         sector = "general"
+        tags = @()  # CRITICAL: Always array
+        sectors = @("general")  # CRITICAL: Always array
+        topics = @()  # CRITICAL: Always array
     }
     
     if ($chunk.embedding) {
@@ -389,6 +557,7 @@ foreach ($tChunk in $tableChunks) {
     $docId = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$BlobName-table-$($tChunk.tableIndex)-$($tChunk.rowIndex)")) -replace '[^a-zA-Z0-9]', ''
     $docId = $docId.Substring(0, [Math]::Min(128, $docId.Length))
     
+    # CRITICAL: Ensure array fields are always arrays (Azure Search requirement)
     $documents += @{
         "@search.action" = "mergeOrUpload"
         id = $docId
@@ -404,6 +573,9 @@ foreach ($tChunk in $tableChunks) {
         indexedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
         category = "government-document"
         sector = "general"
+        tags = @()  # CRITICAL: Always array
+        sectors = @("general")  # CRITICAL: Always array
+        topics = @()  # CRITICAL: Always array
     }
 }
 
@@ -413,7 +585,8 @@ $batchSize = 100
 
 for ($i = 0; $i -lt $documents.Count; $i += $batchSize) {
     $batch = $documents[$i..[Math]::Min($i + $batchSize - 1, $documents.Count - 1)]
-    $batchBody = @{ value = $batch } | ConvertTo-Json -Depth 10
+    # CRITICAL: Use normalization function to prevent serialization issues
+    $batchBody = Get-CleanSearchJson -Documents @{ value = [array]$batch } -Depth 10
     
     try {
         Invoke-RestMethod -Uri $indexUrl -Method Post -Headers @{
@@ -421,7 +594,11 @@ for ($i = 0; $i -lt $documents.Count; $i += $batchSize) {
             "Content-Type" = "application/json"
         } -Body $batchBody
         
-        Write-Output "  Indexed batch $([Math]::Floor($i / $batchSize) + 1)"
+        $batchNum = [Math]::Floor($i / $batchSize) + 1
+        $totalBatches = [Math]::Ceiling($documents.Count / $batchSize)
+        $indexProgress = 75 + [Math]::Round(($batchNum / $totalBatches) * 20)  # 75-95% range
+        Write-Output "  Indexed batch $batchNum/$totalBatches"
+        Update-ProcessingStatus -BlobName $BlobName -Status "indexing" -Progress $indexProgress -Step "Indexing to Azure Search: batch $batchNum/$totalBatches"
     } catch {
         Write-Error "Index batch failed: $_"
     }
@@ -432,13 +609,33 @@ for ($i = 0; $i -lt $documents.Count; $i += $batchSize) {
 # ============================================
 $elapsed = (Get-Date) - $StartTime
 
-# Report final completion status
+# Calculate quality metrics
+$embeddingsGenerated = ($chunks | Where-Object { $_.embedding }).Count
+$embeddingCoverage = if ($chunks.Count -gt 0) { [Math]::Round(($embeddingsGenerated / $chunks.Count) * 100, 1) } else { 0 }
+$tablesFound = $analysisResult.tables.Count
+$chartsFound = 0  # Will be updated if chart extraction is added
+
+# Determine quality status
+$qualityStatus = if ($embeddingCoverage -ge 98) { "EXCELLENT" } elseif ($embeddingCoverage -ge 95) { "GOOD" } else { "LOW" }
+
+# Report final completion status with comprehensive metrics
 $resultData = @{
     pages = $analysisResult.pages.Count
     textChunks = $chunks.Count
     tableRows = $tableChunks.Count
+    chartsFound = $chartsFound
     totalIndexed = $documents.Count
+    embeddingsGenerated = $embeddingsGenerated
+    embeddingCoverage = $embeddingCoverage
+    tablesFound = $tablesFound
     processingTime = "$([Math]::Round($elapsed.TotalMinutes, 2)) minutes"
+    quality = @{
+        coverage = $embeddingCoverage
+        status = $qualityStatus
+        hasEmbeddings = $embeddingsGenerated -gt 0
+        hasTables = $tablesFound -gt 0
+        hasCharts = $chartsFound -gt 0
+    }
 }
 Update-ProcessingStatus -BlobName $BlobName -Status "completed" -Progress 100 -Step "Processing complete" -Result $resultData
 

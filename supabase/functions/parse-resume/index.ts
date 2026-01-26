@@ -124,8 +124,13 @@ serve(async (req) => {
       const docIntelKey = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_KEY')
 
       if (!docIntelEndpoint || !docIntelKey) {
+        // Fallback: Return error but suggest using JSON method with pre-extracted text
         return new Response(
-          JSON.stringify({ error: 'Azure Document Intelligence not configured' }),
+          JSON.stringify({ 
+            success: false,
+            error: 'Azure Document Intelligence not configured',
+            details: 'Please configure AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY in Supabase secrets, or use client-side text extraction first.'
+          }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -141,32 +146,69 @@ serve(async (req) => {
 
     // Step 1: Use prebuilt-document model for general document extraction
     // This handles PDFs, images, and Office documents
-    const analyzeUrl = `${docIntelEndpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-02-29-preview`
+    // Try multiple API paths/versions for compatibility
+    // Ensure endpoint doesn't have trailing slash
+    const cleanEndpoint = docIntelEndpoint.replace(/\/$/, '');
+    const apiPaths = [
+      { path: '/documentintelligence/documentModels/prebuilt-layout:analyze', version: '2024-11-30' },
+      { path: '/documentintelligence/documentModels/prebuilt-layout:analyze', version: '2024-07-31-preview' },
+      { path: '/documentintelligence/documentModels/prebuilt-layout:analyze', version: '2024-02-29-preview' },
+      { path: '/formrecognizer/documentModels/prebuilt-layout:analyze', version: '2023-07-31' },
+    ]
 
-    const analyzeResponse = await fetch(analyzeUrl, {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': docIntelKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        base64Source: base64Content
-      })
-    })
+    let analyzeResponse = null
+    let operationLocation = null
+    let lastError = null
 
-    if (!analyzeResponse.ok) {
-      const error = await analyzeResponse.text()
-      console.error('Document Intelligence error:', error)
-      throw new Error(`Document analysis failed: ${analyzeResponse.status}`)
+    // Try each API path until one works
+    for (const apiPath of apiPaths) {
+      try {
+        const analyzeUrl = `${cleanEndpoint}${apiPath.path}?api-version=${apiPath.version}`
+        console.log(`Trying API path: ${apiPath.path} with version ${apiPath.version}`)
+
+        analyzeResponse = await fetch(analyzeUrl, {
+          method: 'POST',
+          headers: {
+            'Ocp-Apim-Subscription-Key': docIntelKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            base64Source: base64Content
+          })
+        })
+
+        if (analyzeResponse.ok) {
+          operationLocation = analyzeResponse.headers.get('Operation-Location')
+          if (operationLocation) {
+            console.log(`✅ Successfully started analysis with ${apiPath.version}`)
+            break
+          }
+        } else {
+          const errorText = await analyzeResponse.text()
+          lastError = `Status ${analyzeResponse.status}: ${errorText}`
+          console.warn(`API path ${apiPath.path} (${apiPath.version}) failed: ${lastError}`)
+        }
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err)
+        console.warn(`API path ${apiPath.path} (${apiPath.version}) exception: ${lastError}`)
+        continue
+      }
     }
 
-    // Get operation location for polling
-    const operationLocation = analyzeResponse.headers.get('Operation-Location')
-    if (!operationLocation) {
-      throw new Error('No operation location returned')
+    if (!analyzeResponse || !analyzeResponse.ok || !operationLocation) {
+      const errorMsg = lastError || 'All API paths failed'
+      console.error('Document Intelligence error:', errorMsg)
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: `Document analysis failed: ${errorMsg}`,
+          details: 'Please check Azure Document Intelligence configuration. The service may not support the API version, or credentials may be incorrect.'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Poll for results
+    // Poll for results (operationLocation already set above)
     let result = null
     let attempts = 0
     const maxAttempts = 30

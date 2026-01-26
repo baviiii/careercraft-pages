@@ -17,6 +17,142 @@ const cosmosClient = new gremlin.driver.Client(
   }
 );
 
+// ============================================================================
+// SEMANTIC ENTITY SEARCH
+// Uses Azure AI Search entity index for semantic similarity discovery
+// This is the "sidecar" semantic index - discovery without graph pollution
+// ============================================================================
+
+/**
+ * Search for similar entities using semantic similarity
+ * This enables finding entities even when names don't match exactly
+ * 
+ * @param {string} entityName - Entity name to search for
+ * @param {string} entityType - Optional entity type filter
+ * @param {number} topK - Number of results to return
+ * @param {Object} context - Azure Function context for logging
+ * @returns {Promise<Array>} Array of similar entities with similarity scores
+ */
+async function searchSimilarEntities(entityName, entityType = null, topK = 10, context = null) {
+  const searchEndpoint = process.env.AZURE_SEARCH_ENDPOINT;
+  const searchKey = process.env.AZURE_SEARCH_KEY;
+  const openAIEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const openAIKey = process.env.AZURE_OPENAI_KEY;
+  const entityIndex = process.env.AZURE_SEARCH_ENTITY_INDEX || 'entities';
+  const embeddingDeployment = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-large';
+  
+  // Check if entity index is configured
+  if (!searchEndpoint || !searchKey || !openAIEndpoint || !openAIKey) {
+    if (context) context.log('Semantic entity search not configured - missing credentials');
+    return [];
+  }
+  
+  try {
+    // Step 1: Generate embedding for search query
+    const embeddingResponse = await fetch(
+      `${openAIEndpoint}/openai/deployments/${embeddingDeployment}/embeddings?api-version=2024-02-15-preview`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': openAIKey,
+        },
+        body: JSON.stringify({
+          input: entityName.substring(0, 8000),
+          model: embeddingDeployment,
+        }),
+      }
+    );
+    
+    if (!embeddingResponse.ok) {
+      if (context) context.log.warn('Failed to generate entity query embedding');
+      return [];
+    }
+    
+    const embeddingData = await embeddingResponse.json();
+    const queryVector = embeddingData.data[0].embedding;
+    
+    // Step 2: Build semantic search query
+    const searchBody = {
+      vectorQueries: [
+        {
+          kind: 'vector',
+          vector: queryVector,
+          fields: 'entityVector',
+          k: topK
+        }
+      ],
+      select: 'id,entityType,name,canonicalName,description,aliases,confidence,graphVertexId,mentionCount,sector',
+      top: topK
+    };
+    
+    // Add entity type filter if specified
+    if (entityType) {
+      searchBody.filter = `entityType eq '${entityType}'`;
+    }
+    
+    // Step 3: Execute semantic search
+    const searchResponse = await fetch(
+      `${searchEndpoint}/indexes/${entityIndex}/docs/search?api-version=2023-11-01`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': searchKey,
+        },
+        body: JSON.stringify(searchBody),
+      }
+    );
+    
+    if (!searchResponse.ok) {
+      // Entity index might not exist yet - that's okay, fallback to text search
+      const errorText = await searchResponse.text();
+      if (context) context.log(`Semantic entity search failed (index may not exist): ${errorText.substring(0, 200)}`);
+      return [];
+    }
+    
+    const searchData = await searchResponse.json();
+    
+    // Step 4: Format results with similarity scores and classification
+    const similar = (searchData.value || []).map(hit => {
+      // Normalize similarity score (Azure Search vector scores are typically 0-1 for cosine)
+      // Higher is better, so we use the score directly
+      const similarity = hit['@search.score'] || 0;
+      
+      return {
+        id: hit.id,
+        name: hit.name,
+        canonicalName: hit.canonicalName,
+        entityType: hit.entityType,
+        description: hit.description || '',
+        aliases: hit.aliases || [],
+        confidence: hit.confidence || 0.8,
+        graphVertexId: hit.graphVertexId, // Link to graph vertex
+        mentionCount: hit.mentionCount || 1,
+        sector: hit.sector,
+        // Similarity metrics
+        similarity: similarity,
+        similarityPercent: Math.round(similarity * 100),
+        // Classification based on decision rubric thresholds
+        classification: similarity >= 0.88 ? 'high_similarity' : 
+                        similarity >= 0.75 ? 'medium_similarity' : 'low_similarity',
+        // Search method indicator
+        searchMethod: 'semantic',
+        // Verification status (for agent decision rubric)
+        needsVerification: similarity < 0.88, // Below high threshold needs doc verification
+      };
+    });
+    
+    if (context) context.log(`Semantic entity search found ${similar.length} similar entities for "${entityName}"`);
+    
+    return similar;
+    
+  } catch (error) {
+    if (context) context.log.warn(`Semantic entity search error: ${error.message}`);
+    return []; // Return empty array on error - will fallback to text search
+  }
+}
+
 // Neo4j connection
 let neo4jDriver = null;
 function getNeo4jDriver() {
@@ -67,21 +203,44 @@ module.exports = async function (context, req) {
       // Default to Cosmos DB
       switch (action) {
         case 'lookup':
-          result = await lookupEntity(entityName, entityType);
+          result = await lookupEntity(entityName, entityType, context);
           break;
 
         case 'traverse':
-          result = await traverseRelationships(entityName, depth, limit);
+          // For traverse, first find the entity using semantic search if needed
+          if (entityName) {
+            const foundEntities = await lookupEntity(entityName, entityType, context);
+            if (foundEntities.length > 0) {
+              // Use the first found entity (highest similarity if semantic)
+              const targetEntity = foundEntities[0];
+              result = await traverseRelationships(targetEntity.canonical_name || targetEntity.name, depth, limit);
+            } else {
+              result = [];
+            }
+          } else {
+            result = await traverseRelationships(entityName, depth, limit);
+          }
           break;
 
         case 'path':
           const { fromEntity, toEntity, maxHops = 5 } = req.body;
-          result = await findPath(fromEntity, toEntity, maxHops);
+          // Use semantic search to find both entities first
+          const fromEntities = await lookupEntity(fromEntity, null, context);
+          const toEntities = await lookupEntity(toEntity, null, context);
+          if (fromEntities.length > 0 && toEntities.length > 0) {
+            result = await findPath(
+              fromEntities[0].canonical_name || fromEntities[0].name,
+              toEntities[0].canonical_name || toEntities[0].name,
+              maxHops
+            );
+          } else {
+            result = [];
+          }
           break;
 
         case 'search':
           const { query, types } = req.body;
-          result = await searchEntities(query, types, limit);
+          result = await searchEntities(query, types, limit, context);
           break;
 
         case 'related':
@@ -107,6 +266,19 @@ module.exports = async function (context, req) {
       }
     }
 
+    // Add semantic search metadata if available
+    const semanticMetadata = Array.isArray(result) && result.length > 0 && result[0]._semantic
+      ? {
+          searchMethod: result[0]._semantic.searchMethod,
+          semanticResultsCount: result.filter(r => r._semantic?.searchMethod === 'semantic').length,
+          textResultsCount: result.filter(r => r._semantic?.searchMethod === 'text').length,
+          avgSimilarity: result
+            .filter(r => r._semantic?.similarity !== null && r._semantic?.similarity !== undefined)
+            .reduce((sum, r) => sum + (r._semantic.similarity || 0), 0) / 
+            Math.max(1, result.filter(r => r._semantic?.similarity !== null).length)
+        }
+      : null;
+    
     context.res = {
       status: 200,
       headers,
@@ -115,7 +287,9 @@ module.exports = async function (context, req) {
         action,
         backend,
         data: result,
-        count: Array.isArray(result) ? result.length : 1
+        count: Array.isArray(result) ? result.length : 1,
+        // Semantic search metadata for agent decision rubric
+        semanticSearch: semanticMetadata
       }
     };
 
@@ -133,8 +307,42 @@ module.exports = async function (context, req) {
 };
 
 // Lookup entity by name OR canonical_name, and optional type
-async function lookupEntity(entityName, entityType) {
-  // Search by both name and canonical_name
+// Uses SEMANTIC SEARCH first to find similar entities, then exact match
+async function lookupEntity(entityName, entityType, context = null) {
+  // STEP 1: Try semantic search first (finds similar entities)
+  const semanticResults = await searchSimilarEntities(entityName, entityType, 5, context);
+  
+  if (semanticResults.length > 0 && semanticResults[0].similarity >= 0.75) {
+    // Found good semantic matches - return them
+    const graphResults = semanticResults.map(semanticEntity => ({
+      id: semanticEntity.graphVertexId || semanticEntity.id,
+      name: semanticEntity.name,
+      canonical_name: semanticEntity.canonicalName,
+      entity_type: semanticEntity.entityType,
+      description: semanticEntity.description,
+      aliases: semanticEntity.aliases,
+      confidence: semanticEntity.confidence,
+      mention_count: semanticEntity.mentionCount,
+      _semantic: {
+        similarity: semanticEntity.similarity,
+        similarityPercent: semanticEntity.similarityPercent,
+        classification: semanticEntity.classification,
+        searchMethod: 'semantic'
+      }
+    }));
+    
+    if (context) {
+      context.log(`Entity lookup: Found ${semanticResults.length} entities via semantic search`);
+    }
+    
+    return graphResults;
+  }
+  
+  // STEP 2: Fallback to exact match in graph
+  if (context) {
+    context.log(`Entity lookup: Semantic search found no good matches, using exact match`);
+  }
+  
   let query = `g.V().or(has('name', '${escapeGremlin(entityName)}'), has('canonical_name', '${escapeGremlin(entityName)}'))`;
   
   if (entityType) {
@@ -144,7 +352,17 @@ async function lookupEntity(entityName, entityType) {
   query += `.valueMap(true).limit(10)`;
   
   const result = await cosmosClient.submit(query);
-  return formatVertices(result._items || []);
+  const exactResults = formatVertices(result._items || []);
+  
+  // Mark as text search
+  exactResults.forEach(r => {
+    r._semantic = {
+      searchMethod: 'text',
+      similarity: null
+    };
+  });
+  
+  return exactResults;
 }
 
 // Traverse relationships from an entity
@@ -178,8 +396,50 @@ async function findPath(fromEntity, toEntity, maxHops) {
   return formatPaths(result._items || []);
 }
 
-// Search entities by query string (searches name and canonical_name)
-async function searchEntities(query, types, limit) {
+// Search entities by query string - SEMANTIC FIRST, then text fallback
+async function searchEntities(query, types, limit, context = null) {
+  // STEP 1: Try semantic entity search first (finds similar entities even with different names)
+  const semanticResults = await searchSimilarEntities(query, types?.[0], limit, context);
+  
+  if (semanticResults.length > 0) {
+    // Found semantic matches - convert to graph format and return
+    // Map semantic results to graph vertex format
+    const graphResults = semanticResults.map(semanticEntity => {
+      // If we have graphVertexId, we can fetch full vertex data
+      // Otherwise, return the semantic data formatted as a vertex
+      return {
+        id: semanticEntity.graphVertexId || semanticEntity.id,
+        name: semanticEntity.name,
+        canonical_name: semanticEntity.canonicalName,
+        entity_type: semanticEntity.entityType,
+        description: semanticEntity.description,
+        aliases: semanticEntity.aliases,
+        confidence: semanticEntity.confidence,
+        mention_count: semanticEntity.mentionCount,
+        sector: semanticEntity.sector,
+        // Semantic search metadata
+        _semantic: {
+          similarity: semanticEntity.similarity,
+          similarityPercent: semanticEntity.similarityPercent,
+          classification: semanticEntity.classification,
+          searchMethod: 'semantic',
+          needsVerification: semanticEntity.needsVerification
+        }
+      };
+    });
+    
+    if (context) {
+      context.log(`Entity search: Found ${semanticResults.length} entities via semantic search (similarity: ${semanticResults[0]?.similarityPercent || 0}%)`);
+    }
+    
+    return graphResults;
+  }
+  
+  // STEP 2: Fallback to text search in graph (exact/partial name matching)
+  if (context) {
+    context.log(`Entity search: Semantic search found no results, falling back to text search`);
+  }
+  
   let gremlinQuery = `g.V()`;
   
   if (types && types.length > 0) {
@@ -191,8 +451,19 @@ async function searchEntities(query, types, limit) {
   gremlinQuery += `.or(has('name', containing('${escapeGremlin(query)}')), has('canonical_name', containing('${escapeGremlin(query)}')))`;
   gremlinQuery += `.valueMap(true).limit(${Math.min(limit, 50)})`;
   
-  const result = await client.submit(gremlinQuery);
-  return formatVertices(result._items || []);
+  const result = await cosmosClient.submit(gremlinQuery);
+  const textResults = formatVertices(result._items || []);
+  
+  // Mark text search results
+  textResults.forEach(r => {
+    r._semantic = {
+      searchMethod: 'text',
+      similarity: null,
+      needsVerification: true // Text matches always need verification
+    };
+  });
+  
+  return textResults;
 }
 
 // Get related entities by relationship type

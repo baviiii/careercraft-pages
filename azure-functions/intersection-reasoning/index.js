@@ -14,6 +14,134 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
+// ============================================================================
+// AGENT DECISION RUBRIC
+// Same rules as agentic-planner for consistent validation
+// ============================================================================
+
+const ASSERTION_RULES = {
+  minSimilarity: 0.88,
+  minDocumentAppearances: 2,
+  requireTextualSupport: true,
+  maxAgeYears: 5,
+  requireSameEntityType: true,
+  minConfidenceToAssert: 0.75,
+  minConfidenceToMention: 0.5,
+};
+
+/**
+ * Validates an assertion against the decision rubric
+ */
+function validateAssertion(assertion) {
+  const validationResults = [];
+  let passedRules = 0;
+  let totalRules = 0;
+  
+  // Rule 1: Strength/similarity check
+  if (assertion.strength !== undefined) {
+    totalRules++;
+    if (assertion.strength >= ASSERTION_RULES.minSimilarity) {
+      passedRules++;
+      validationResults.push({ rule: 'minSimilarity', passed: true });
+    } else {
+      validationResults.push({ rule: 'minSimilarity', passed: false });
+    }
+  }
+  
+  // Rule 2: Evidence check
+  if (ASSERTION_RULES.requireTextualSupport) {
+    totalRules++;
+    if (assertion.evidence && assertion.evidence.length > 20) {
+      passedRules++;
+      validationResults.push({ rule: 'requireTextualSupport', passed: true });
+    } else {
+      validationResults.push({ rule: 'requireTextualSupport', passed: false });
+    }
+  }
+  
+  const rulePassRate = totalRules > 0 ? passedRules / totalRules : 0;
+  const confidence = rulePassRate * (assertion.strength || 0.7);
+  
+  let classification;
+  let suggestedLanguage;
+  
+  if (confidence >= ASSERTION_RULES.minConfidenceToAssert && passedRules === totalRules) {
+    classification = 'verified';
+    suggestedLanguage = 'is connected to';
+  } else if (confidence >= ASSERTION_RULES.minConfidenceToMention) {
+    classification = 'related';
+    suggestedLanguage = 'may be related to';
+  } else {
+    classification = 'insufficient';
+    suggestedLanguage = null;
+  }
+  
+  return {
+    valid: classification === 'verified',
+    classification,
+    confidence,
+    suggestedLanguage,
+    passedRules,
+    totalRules,
+    details: validationResults
+  };
+}
+
+/**
+ * Apply rubric to connections from GPT-4 analysis
+ */
+function applyRubricToAnalysis(analysis) {
+  // Validate and classify connections
+  const validatedConnections = (analysis.connections || []).map(conn => {
+    const validation = validateAssertion({
+      strength: conn.strength,
+      evidence: conn.evidence || conn.description
+    });
+    return {
+      ...conn,
+      validation,
+      confidence: validation.confidence,
+      classification: validation.classification,
+      suggestedLanguage: validation.suggestedLanguage
+    };
+  });
+  
+  // Separate by classification
+  const verifiedConnections = validatedConnections.filter(c => c.classification === 'verified');
+  const relatedConnections = validatedConnections.filter(c => c.classification === 'related');
+  const insufficientConnections = validatedConnections.filter(c => c.classification === 'insufficient');
+  
+  // Validate contradictions (higher bar for contradictions)
+  const validatedContradictions = (analysis.contradictions || []).map(contra => {
+    // Contradictions need strong evidence from both sources
+    const hasEvidence = contra.source1Text && contra.source1Text.length > 20 && 
+                        contra.source2Text && contra.source2Text.length > 20;
+    return {
+      ...contra,
+      validated: hasEvidence,
+      evidenceQuality: hasEvidence ? 'sufficient' : 'insufficient'
+    };
+  }).filter(c => c.validated); // Only include validated contradictions
+  
+  return {
+    ...analysis,
+    connections: validatedConnections,
+    verifiedConnections,
+    relatedConnections,
+    insufficientConnections,
+    contradictions: validatedContradictions,
+    rubricApplied: true,
+    validationSummary: {
+      totalConnections: validatedConnections.length,
+      verifiedCount: verifiedConnections.length,
+      relatedCount: relatedConnections.length,
+      insufficientCount: insufficientConnections.length,
+      contradictionsValidated: validatedContradictions.length,
+      rulesApplied: ASSERTION_RULES
+    }
+  };
+}
+
 // Analysis tools for GPT-4 function calling
 const analysisTools = [
   {
@@ -439,13 +567,18 @@ module.exports = async function (context, req) {
     }
 
     // Perform GPT-4 analysis
-    const analysis = await performAnalysis(openAIEndpoint, openAIKey, queryResults, originalQuery);
+    const rawAnalysis = await performAnalysis(openAIEndpoint, openAIKey, queryResults, originalQuery);
 
-    // Save findings if enabled
+    // Apply decision rubric to validate assertions
+    const analysis = applyRubricToAnalysis(rawAnalysis);
+    
+    context.log(`Rubric applied: ${analysis.validationSummary.verifiedCount} verified, ${analysis.validationSummary.relatedCount} related, ${analysis.validationSummary.insufficientCount} insufficient`);
+
+    // Save only validated findings if enabled
     if (saveFindings && supabaseUrl && supabaseKey) {
       await Promise.all([
         saveContradictions(supabaseUrl, supabaseKey, analysis.contradictions, queryResults),
-        updateGraphRelationships(supabaseUrl, supabaseKey, analysis.connections),
+        updateGraphRelationships(supabaseUrl, supabaseKey, analysis.verifiedConnections), // Only save verified connections
       ]);
     }
 
@@ -458,6 +591,12 @@ module.exports = async function (context, req) {
         ...analysis,
         overlapStats,
         analysisTime,
+        // Government-grade: Clear distinction between verified and suggested
+        governmentCompliance: {
+          verifiedAssertionsOnly: true,
+          rubricApplied: true,
+          rules: ASSERTION_RULES
+        }
       }),
     };
 

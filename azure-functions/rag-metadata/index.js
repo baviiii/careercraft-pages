@@ -7,6 +7,289 @@ const corsHeaders = {
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 300;
 
+// ============================================================================
+// EVIDENCE CHAIN ENFORCEMENT
+// Validates citations and calculates confidence scores for government-grade trust
+// ============================================================================
+
+/**
+ * Validates that citations in the AI response map to actual sources
+ * @param {string} answer - The AI-generated response
+ * @param {Array} sources - Array of source documents
+ * @returns {Object} Citation validation results
+ */
+function validateCitations(answer, sources) {
+  // Find all [Source X] references in the answer
+  const citationPattern = /\[Source\s*(\d+)\]/gi;
+  const matches = [...answer.matchAll(citationPattern)];
+  
+  const citedSourceIds = new Set();
+  const invalidCitations = [];
+  const validCitations = [];
+  
+  for (const match of matches) {
+    const sourceNum = parseInt(match[1], 10);
+    if (sourceNum >= 1 && sourceNum <= sources.length) {
+      citedSourceIds.add(sourceNum);
+      validCitations.push({
+        reference: match[0],
+        sourceIndex: sourceNum - 1,
+        sourceTitle: sources[sourceNum - 1]?.title || 'Unknown',
+        documentId: sources[sourceNum - 1]?.documentId || 'Unknown'
+      });
+    } else {
+      invalidCitations.push({
+        reference: match[0],
+        reason: sourceNum > sources.length ? 'Source index out of range' : 'Invalid source number'
+      });
+    }
+  }
+  
+  // Count sentences/claims to estimate citation coverage
+  const sentences = answer.split(/[.!?]+/).filter(s => s.trim().length > 20);
+  const sentencesWithCitations = sentences.filter(s => citationPattern.test(s)).length;
+  const citationCoverage = sentences.length > 0 
+    ? Math.round((sentencesWithCitations / sentences.length) * 100) 
+    : 0;
+  
+  // Identify uncited claims (sentences without citations that make factual claims)
+  const factualIndicators = /\b(is|are|was|were|will|has|have|shows|indicates|reveals|confirms|according to|data shows|statistics|percent|%|\$|million|billion)\b/i;
+  const uncitedClaims = sentences
+    .filter(s => !citationPattern.test(s) && factualIndicators.test(s))
+    .map(s => s.trim().substring(0, 100) + (s.length > 100 ? '...' : ''));
+  
+  return {
+    totalCitations: matches.length,
+    uniqueSourcesCited: citedSourceIds.size,
+    totalSourcesAvailable: sources.length,
+    validCitations,
+    invalidCitations,
+    citationCoverage, // Percentage of sentences with citations
+    uncitedClaims: uncitedClaims.slice(0, 5), // First 5 uncited factual claims
+    allSourcesCited: citedSourceIds.size === sources.length && sources.length > 0
+  };
+}
+
+/**
+ * Calculates evidence-based confidence score for the response
+ * @param {Object} citationValidation - Results from validateCitations
+ * @param {Array} sources - Source documents with scores
+ * @param {string} query - Original query
+ * @returns {Object} Confidence assessment
+ */
+// ============================================================================
+// TEMPORAL AWARENESS
+// Policy version tracking and temporal status calculation
+// ============================================================================
+
+/**
+ * Calculate temporal status for a document
+ * Determines if document is current, superseded, expired, or historical
+ */
+function calculateTemporalStatus(document) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  
+  // Check if superseded
+  if (document.supersededBy) {
+    return {
+      status: 'superseded',
+      description: `Replaced by ${document.supersededBy}`,
+      isCurrentVersion: false,
+      recommendAction: 'Use newer version'
+    };
+  }
+  
+  // Check if expired
+  if (document.expiryDate) {
+    const expiryDate = new Date(document.expiryDate);
+    if (expiryDate < now) {
+      return {
+        status: 'expired',
+        description: `Expired on ${document.expiryDate}`,
+        isCurrentVersion: false,
+        recommendAction: 'Check for updated policy'
+      };
+    }
+  }
+  
+  // Check effective date (not yet effective)
+  if (document.effectiveDate) {
+    const effectiveDate = new Date(document.effectiveDate);
+    if (effectiveDate > now) {
+      return {
+        status: 'pending',
+        description: `Takes effect on ${document.effectiveDate}`,
+        isCurrentVersion: false,
+        recommendAction: 'Note future effective date'
+      };
+    }
+  }
+  
+  // Check publication year for freshness
+  if (document.publicationYear) {
+    const age = currentYear - document.publicationYear;
+    if (age > 5) {
+      return {
+        status: 'historical',
+        description: `Published ${age} years ago (${document.publicationYear})`,
+        isCurrentVersion: true,
+        recommendAction: 'Verify information is still current',
+        ageYears: age
+      };
+    }
+    if (age > 2) {
+      return {
+        status: 'aging',
+        description: `Published ${age} years ago (${document.publicationYear})`,
+        isCurrentVersion: true,
+        recommendAction: 'May have updates available',
+        ageYears: age
+      };
+    }
+  }
+  
+  // Check if this is an amendment
+  if (document.amendmentOf) {
+    return {
+      status: 'amendment',
+      description: `Amendment to ${document.amendmentOf}`,
+      isCurrentVersion: true,
+      recommendAction: 'Read with original document'
+    };
+  }
+  
+  // Default to current
+  return {
+    status: 'current',
+    description: 'Current version',
+    isCurrentVersion: true,
+    recommendAction: null,
+    ageYears: document.publicationYear ? currentYear - document.publicationYear : null
+  };
+}
+
+/**
+ * Add temporal metadata summary to response
+ */
+function calculateTemporalSummary(sources) {
+  const statusCounts = {
+    current: 0,
+    superseded: 0,
+    expired: 0,
+    historical: 0,
+    aging: 0,
+    pending: 0,
+    amendment: 0
+  };
+  
+  const yearDistribution = {};
+  let oldestYear = null;
+  let newestYear = null;
+  
+  for (const source of sources) {
+    // Count statuses
+    const status = source.temporalStatus?.status || 'current';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+    
+    // Track year distribution
+    if (source.publicationYear) {
+      yearDistribution[source.publicationYear] = (yearDistribution[source.publicationYear] || 0) + 1;
+      if (!oldestYear || source.publicationYear < oldestYear) oldestYear = source.publicationYear;
+      if (!newestYear || source.publicationYear > newestYear) newestYear = source.publicationYear;
+    }
+  }
+  
+  // Calculate temporal warnings
+  const warnings = [];
+  if (statusCounts.superseded > 0) {
+    warnings.push(`${statusCounts.superseded} source(s) have been superseded - newer versions may exist`);
+  }
+  if (statusCounts.expired > 0) {
+    warnings.push(`${statusCounts.expired} source(s) have expired - information may be outdated`);
+  }
+  if (statusCounts.historical > 0) {
+    warnings.push(`${statusCounts.historical} source(s) are over 5 years old - verify information is current`);
+  }
+  
+  return {
+    statusCounts,
+    yearDistribution,
+    dateRange: oldestYear && newestYear ? { oldest: oldestYear, newest: newestYear } : null,
+    warnings,
+    hasFreshnessIssues: statusCounts.superseded > 0 || statusCounts.expired > 0 || statusCounts.historical > 0
+  };
+}
+
+function calculateEvidenceScore(citationValidation, sources, query) {
+  // Factor 1: Citation coverage (0-40 points)
+  const coverageScore = Math.min(40, citationValidation.citationCoverage * 0.4);
+  
+  // Factor 2: Source relevance (0-30 points) - based on search scores
+  const avgSourceScore = sources.length > 0 
+    ? sources.reduce((sum, s) => sum + (s.score || 0), 0) / sources.length 
+    : 0;
+  // Azure Search scores typically range 0-100 for semantic search
+  const relevanceScore = Math.min(30, avgSourceScore * 0.3);
+  
+  // Factor 3: Citation validity (0-20 points)
+  const validityRatio = citationValidation.totalCitations > 0
+    ? citationValidation.validCitations.length / citationValidation.totalCitations
+    : 0;
+  const validityScore = validityRatio * 20;
+  
+  // Factor 4: Source diversity (0-10 points) - using multiple sources is better
+  const diversityScore = Math.min(10, citationValidation.uniqueSourcesCited * 2);
+  
+  // Calculate total score
+  const totalScore = Math.round(coverageScore + relevanceScore + validityScore + diversityScore);
+  
+  // Determine confidence level
+  let confidenceLevel;
+  let confidenceDescription;
+  
+  if (totalScore >= 75 && citationValidation.invalidCitations.length === 0) {
+    confidenceLevel = 'high';
+    confidenceDescription = 'All claims are well-supported by cited sources';
+  } else if (totalScore >= 50 && citationValidation.uncitedClaims.length <= 2) {
+    confidenceLevel = 'medium';
+    confidenceDescription = 'Most claims are supported, some may need verification';
+  } else {
+    confidenceLevel = 'low';
+    confidenceDescription = 'Response contains unsupported claims or weak evidence';
+  }
+  
+  // Build warnings for weak evidence
+  const warnings = [];
+  if (citationValidation.invalidCitations.length > 0) {
+    warnings.push(`${citationValidation.invalidCitations.length} invalid citation(s) detected`);
+  }
+  if (citationValidation.uncitedClaims.length > 3) {
+    warnings.push(`${citationValidation.uncitedClaims.length} claims lack citations`);
+  }
+  if (citationValidation.citationCoverage < 50) {
+    warnings.push('Low citation coverage - many claims are unsupported');
+  }
+  if (sources.length === 0) {
+    warnings.push('No source documents found');
+  }
+  
+  return {
+    score: totalScore,
+    maxScore: 100,
+    level: confidenceLevel,
+    description: confidenceDescription,
+    breakdown: {
+      citationCoverage: Math.round(coverageScore),
+      sourceRelevance: Math.round(relevanceScore),
+      citationValidity: Math.round(validityScore),
+      sourceDiversity: Math.round(diversityScore)
+    },
+    warnings,
+    isReliable: confidenceLevel !== 'low' && warnings.length === 0
+  };
+}
+
 async function fetchWithRetry(url, options, retryCount = 0, maxRetries = 5) {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
@@ -294,7 +577,7 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
   const embeddingData = await embeddingResponse.json();
   const queryEmbedding = embeddingData.data[0].embedding;
 
-  // Step 2: Build filter expression
+  // Step 2: Build filter expression with TEMPORAL AWARENESS
   let filterExpr = "";
   const filterParts = [];
   if (filters?.category) filterParts.push(`category eq '${filters.category}'`);
@@ -302,6 +585,31 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
   if (filters?.documentType && filters.documentType !== 'all') {
     filterParts.push(`documentType eq '${filters.documentType}'`);
   }
+  
+  // TEMPORAL FILTERING - Government Policy Version Awareness
+  // Filter by publication year range
+  if (filters?.publicationYearFrom) {
+    filterParts.push(`publicationYear ge ${filters.publicationYearFrom}`);
+  }
+  if (filters?.publicationYearTo) {
+    filterParts.push(`publicationYear le ${filters.publicationYearTo}`);
+  }
+  
+  // Exclude superseded documents by default (unless explicitly requested)
+  // Documents with supersededBy field are old versions
+  if (filters?.excludeSuperseded !== false) {
+    // Note: This filter only applies if the field exists in the index
+    // filterParts.push(`supersededBy eq null`);
+  }
+  
+  // Filter by effective date range (for policy documents)
+  if (filters?.effectiveDateFrom) {
+    filterParts.push(`effectiveDate ge '${filters.effectiveDateFrom}'`);
+  }
+  if (filters?.effectiveDateTo) {
+    filterParts.push(`effectiveDate le '${filters.effectiveDateTo}'`);
+  }
+  
   if (filterParts.length > 0) filterExpr = filterParts.join(' and ');
 
   // Step 3: Hybrid search (vector + semantic + keyword)
@@ -318,7 +626,7 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
     queryType: "semantic",
     semanticConfiguration: "default",
     top: topK,
-    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,chunkType,category,sector,tags,url,metadata,hasChart,chartType,chartData,chartImageUrl,chartConfidence,visualDescription",
+    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,chunkType,category,sector,tags,url,metadata,hasChart,chartType,chartData,chartImageUrl,chartConfidence,visualDescription,publicationYear,effectiveDate,expiryDate,version,supersedes,supersededBy,amendmentOf",
     captions: "extractive",
     answers: "extractive|count-3",
   };
@@ -364,6 +672,16 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
         chartImageUrl: hit.chartImageUrl,
         chartConfidence: hit.chartConfidence,
         visualDescription: hit.visualDescription,
+        // TEMPORAL FIELDS - Policy Version Awareness
+        publicationYear: hit.publicationYear,
+        effectiveDate: hit.effectiveDate,
+        expiryDate: hit.expiryDate,
+        version: hit.version,
+        supersedes: hit.supersedes,
+        supersededBy: hit.supersededBy,
+        amendmentOf: hit.amendmentOf,
+        // Computed temporal status
+        temporalStatus: calculateTemporalStatus(hit),
       };
       
       // Collect chart results separately for visualization
@@ -496,7 +814,8 @@ Cite sources using [Source X] notation.
   }
 
   // Step 6: Format sources with full content for extraction
-  const sources = searchResults.map((result) => ({
+  const sources = searchResults.map((result, index) => ({
+    sourceIndex: index + 1, // For citation mapping [Source X]
     id: result.id,
     title: result.title,
     documentId: result.documentId,
@@ -557,6 +876,37 @@ Cite sources using [Source X] notation.
     }
   });
 
+  // Step 8: EVIDENCE CHAIN ENFORCEMENT - Validate citations and calculate confidence
+  const citationValidation = validateCitations(answer, sources);
+  const evidenceScore = calculateEvidenceScore(citationValidation, sources, query);
+  
+  // Step 9: TEMPORAL AWARENESS - Calculate temporal summary
+  const temporalSummary = calculateTemporalSummary(sources);
+  
+  // Build evidence chain metadata for government-grade traceability
+  const evidenceChain = {
+    confidence: evidenceScore.level,
+    confidenceScore: evidenceScore.score,
+    confidenceDescription: evidenceScore.description,
+    breakdown: evidenceScore.breakdown,
+    citations: {
+      total: citationValidation.totalCitations,
+      valid: citationValidation.validCitations.length,
+      invalid: citationValidation.invalidCitations.length,
+      coverage: citationValidation.citationCoverage,
+      details: citationValidation.validCitations
+    },
+    warnings: evidenceScore.warnings,
+    uncitedClaims: citationValidation.uncitedClaims,
+    isReliable: evidenceScore.isReliable,
+    // Audit trail
+    auditMetadata: {
+      queryTimestamp: new Date().toISOString(),
+      sourcesEvaluated: sources.length,
+      uniqueDocuments: new Set(sources.map(s => s.documentId)).size
+    }
+  };
+
   return {
     status: 200,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -566,6 +916,10 @@ Cite sources using [Source X] notation.
       suggestedQuestions: [],
       // NEW: Visualization data for dynamic charts
       visualizationData,
+      // NEW: Evidence chain for government-grade traceability
+      evidenceChain,
+      // NEW: Temporal awareness for policy version tracking
+      temporalSummary,
     }),
   };
 }

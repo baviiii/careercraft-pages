@@ -15,6 +15,256 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
+// ============================================================================
+// AGENT DECISION RUBRIC
+// Explicit rules for making assertions - prevents false confidence
+// Government-grade: Only assert relationships when verified
+// ============================================================================
+
+const ASSERTION_RULES = {
+  // Semantic similarity threshold for entity matching
+  minSimilarity: 0.88,
+  
+  // Entity must appear in at least this many documents to be considered established
+  minDocumentAppearances: 2,
+  
+  // All assertions must have explicit textual support
+  requireTextualSupport: true,
+  
+  // Information freshness - documents older than this (years) get lower confidence
+  maxAgeYears: 5,
+  
+  // Entity types must match for same_as relationships
+  requireSameEntityType: true,
+  
+  // Minimum confidence threshold to assert (vs. suggest)
+  minConfidenceToAssert: 0.75,
+  
+  // Minimum confidence threshold to even mention
+  minConfidenceToMention: 0.5,
+};
+
+/**
+ * Validates an assertion against the decision rubric
+ * Returns validation result with confidence level and reasoning
+ * 
+ * @param {Object} assertion - The assertion to validate
+ * @param {string} assertion.type - Type of assertion (connection, contradiction, etc.)
+ * @param {string} assertion.source - Source entity/document
+ * @param {string} assertion.target - Target entity/document
+ * @param {number} assertion.similarity - Semantic similarity score (0-1)
+ * @param {string} assertion.evidence - Textual evidence supporting the assertion
+ * @param {number} assertion.documentAppearances - Number of documents mentioning both entities
+ * @param {string} assertion.entityType1 - Type of source entity
+ * @param {string} assertion.entityType2 - Type of target entity
+ * @param {Date} assertion.documentDate - Date of the source document
+ * @returns {Object} Validation result
+ */
+function validateAssertion(assertion) {
+  const validationResults = [];
+  let passedRules = 0;
+  let totalRules = 0;
+  
+  // Rule 1: Semantic similarity check
+  if (assertion.similarity !== undefined) {
+    totalRules++;
+    if (assertion.similarity >= ASSERTION_RULES.minSimilarity) {
+      passedRules++;
+      validationResults.push({
+        rule: 'minSimilarity',
+        passed: true,
+        value: assertion.similarity,
+        threshold: ASSERTION_RULES.minSimilarity,
+        message: `Similarity ${(assertion.similarity * 100).toFixed(1)}% meets threshold`
+      });
+    } else {
+      validationResults.push({
+        rule: 'minSimilarity',
+        passed: false,
+        value: assertion.similarity,
+        threshold: ASSERTION_RULES.minSimilarity,
+        message: `Similarity ${(assertion.similarity * 100).toFixed(1)}% below ${ASSERTION_RULES.minSimilarity * 100}% threshold`
+      });
+    }
+  }
+  
+  // Rule 2: Document appearances check
+  if (assertion.documentAppearances !== undefined) {
+    totalRules++;
+    if (assertion.documentAppearances >= ASSERTION_RULES.minDocumentAppearances) {
+      passedRules++;
+      validationResults.push({
+        rule: 'minDocumentAppearances',
+        passed: true,
+        value: assertion.documentAppearances,
+        threshold: ASSERTION_RULES.minDocumentAppearances,
+        message: `Appears in ${assertion.documentAppearances} documents (meets minimum)`
+      });
+    } else {
+      validationResults.push({
+        rule: 'minDocumentAppearances',
+        passed: false,
+        value: assertion.documentAppearances,
+        threshold: ASSERTION_RULES.minDocumentAppearances,
+        message: `Appears in only ${assertion.documentAppearances} document(s) (needs ${ASSERTION_RULES.minDocumentAppearances})`
+      });
+    }
+  }
+  
+  // Rule 3: Textual support check
+  if (ASSERTION_RULES.requireTextualSupport) {
+    totalRules++;
+    if (assertion.evidence && assertion.evidence.length > 20) {
+      passedRules++;
+      validationResults.push({
+        rule: 'requireTextualSupport',
+        passed: true,
+        message: 'Evidence text provided'
+      });
+    } else {
+      validationResults.push({
+        rule: 'requireTextualSupport',
+        passed: false,
+        message: 'No evidence text provided'
+      });
+    }
+  }
+  
+  // Rule 4: Entity type match (for same_as relationships)
+  if (assertion.type === 'same_entity' || assertion.type === 'sameAs') {
+    if (ASSERTION_RULES.requireSameEntityType) {
+      totalRules++;
+      if (assertion.entityType1 === assertion.entityType2) {
+        passedRules++;
+        validationResults.push({
+          rule: 'requireSameEntityType',
+          passed: true,
+          message: `Entity types match (${assertion.entityType1})`
+        });
+      } else {
+        validationResults.push({
+          rule: 'requireSameEntityType',
+          passed: false,
+          message: `Entity types don't match (${assertion.entityType1} vs ${assertion.entityType2})`
+        });
+      }
+    }
+  }
+  
+  // Rule 5: Document freshness
+  if (assertion.documentDate) {
+    totalRules++;
+    const ageYears = (new Date() - new Date(assertion.documentDate)) / (1000 * 60 * 60 * 24 * 365);
+    if (ageYears <= ASSERTION_RULES.maxAgeYears) {
+      passedRules++;
+      validationResults.push({
+        rule: 'maxAgeYears',
+        passed: true,
+        value: ageYears.toFixed(1),
+        threshold: ASSERTION_RULES.maxAgeYears,
+        message: `Document is ${ageYears.toFixed(1)} years old (within limit)`
+      });
+    } else {
+      validationResults.push({
+        rule: 'maxAgeYears',
+        passed: false,
+        value: ageYears.toFixed(1),
+        threshold: ASSERTION_RULES.maxAgeYears,
+        message: `Document is ${ageYears.toFixed(1)} years old (exceeds ${ASSERTION_RULES.maxAgeYears} year limit)`
+      });
+    }
+  }
+  
+  // Calculate overall confidence and classification
+  const rulePassRate = totalRules > 0 ? passedRules / totalRules : 0;
+  const confidence = rulePassRate * (assertion.similarity || 0.7);
+  
+  let classification;
+  let canAssert;
+  let language;
+  
+  if (confidence >= ASSERTION_RULES.minConfidenceToAssert && passedRules === totalRules) {
+    classification = 'verified';
+    canAssert = true;
+    language = 'is connected to';
+  } else if (confidence >= ASSERTION_RULES.minConfidenceToMention) {
+    classification = 'related';
+    canAssert = false;
+    language = 'may be related to';
+  } else {
+    classification = 'insufficient';
+    canAssert = false;
+    language = null; // Don't mention at all
+  }
+  
+  return {
+    valid: canAssert,
+    classification,
+    confidence,
+    suggestedLanguage: language,
+    passedRules,
+    totalRules,
+    rulePassRate,
+    details: validationResults,
+    // Audit trail
+    rulesApplied: ASSERTION_RULES,
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
+ * Apply rubric to a list of connections/assertions
+ * Filters and classifies based on evidence quality
+ */
+function applyRubricToConnections(connections) {
+  const verified = [];
+  const related = [];
+  const insufficient = [];
+  
+  for (const connection of connections) {
+    const validation = validateAssertion({
+      type: connection.type,
+      source: connection.source,
+      target: connection.target,
+      similarity: connection.strength || connection.similarity,
+      evidence: connection.evidence || connection.description,
+      documentAppearances: connection.documentAppearances,
+      entityType1: connection.sourceType,
+      entityType2: connection.targetType,
+      documentDate: connection.documentDate
+    });
+    
+    const enrichedConnection = {
+      ...connection,
+      validation,
+      confidence: validation.confidence,
+      classification: validation.classification,
+      suggestedLanguage: validation.suggestedLanguage
+    };
+    
+    if (validation.classification === 'verified') {
+      verified.push(enrichedConnection);
+    } else if (validation.classification === 'related') {
+      related.push(enrichedConnection);
+    } else {
+      insufficient.push(enrichedConnection);
+    }
+  }
+  
+  return {
+    verified,
+    related,
+    insufficient,
+    summary: {
+      totalConnections: connections.length,
+      verifiedCount: verified.length,
+      relatedCount: related.length,
+      insufficientCount: insufficient.length,
+      verificationRate: connections.length > 0 ? verified.length / connections.length : 0
+    }
+  };
+}
+
 // Query planning tools for GPT-4 function calling
 const planningTools = [
   {
@@ -128,9 +378,9 @@ AVAILABLE DATA SOURCES:
 - Economic reports
 
 RETRIEVAL METHODS:
-1. hybrid_search: Combined vector + keyword search. Best for general queries.
-2. graph_traversal: Follow entity relationships. Best when query involves connections between entities.
-3. entity_lookup: Direct entity search. Best when specific organizations/programs are mentioned.
+1. hybrid_search: Combined vector + keyword + semantic search. Best for general document queries.
+2. graph_traversal: Follow entity relationships in graph. Best when query involves connections between entities.
+3. entity_lookup: SEMANTIC entity search - finds similar entities even with different names. Best when specific organizations/programs are mentioned. Uses semantic similarity to discover related entities (e.g., "SA Health" finds "Department of Health").
 4. filter_search: Filtered search by category/sector. Best for scoped queries.
 
 PLANNING GUIDELINES:
@@ -143,10 +393,13 @@ PLANNING GUIDELINES:
 IMPORTANT - USE GRAPH FOR RICHER RESULTS:
 - ALWAYS include at least one graph_traversal step when entities are mentioned (organizations, programs, sectors)
 - Combine document search WITH graph traversal for comprehensive answers
+- entity_lookup now uses SEMANTIC SEARCH - it will find similar entities automatically
+  Example: "SA Health" will also find "Department of Health", "Health SA", "South Australian Health"
 - Example plan for "renewable energy initiatives":
   Step 1: filter_search for documents about renewable energy
-  Step 2: graph_traversal starting from "renewable energy" sector to find connected entities
-  Step 3: entity_lookup for specific organizations found
+  Step 2: entity_lookup for "renewable energy" (semantic search finds related entities)
+  Step 3: graph_traversal starting from entities found in Step 2
+  Step 4: hybrid_search for documents about specific programs found
 
 ENTITY TYPES TO RECOGNIZE:
 - Organizations: SA Health, TAFE SA, Department for Education, etc.
@@ -186,87 +439,29 @@ async function generateEmbedding(openAIEndpoint, openAIKey, text) {
 }
 
 /**
- * Check Supabase for cached similar query plans
+ * Check for cached similar query plans
+ * NOTE: Query plan caching removed - Supabase not powerful enough for graph operations
+ * Plans are generated fresh each time for maximum accuracy
+ * 
+ * @deprecated Caching disabled - always returns null
  */
-async function findCachedPlan(supabaseUrl, supabaseKey, queryEmbedding, similarityThreshold = 0.90) {
-  try {
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/rpc/find_similar_query_plans`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-        },
-        body: JSON.stringify({
-          p_query_embedding: queryEmbedding,
-          p_similarity_threshold: similarityThreshold,
-          p_limit: 1,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      console.warn('Cache lookup failed:', await response.text());
-      return null;
-    }
-
-    const results = await response.json();
-    if (results && results.length > 0 && results[0].success_rate >= 0.7) {
-      console.log(`Found cached plan with ${(results[0].similarity * 100).toFixed(1)}% similarity`);
-      return results[0];
-    }
-
-    return null;
-  } catch (error) {
-    console.warn('Cache lookup error:', error);
-    return null;
-  }
+async function findCachedPlan() {
+  // Caching disabled - always return null to generate fresh plans
+  // This ensures plans are always up-to-date with latest graph state
+  return null;
 }
 
 /**
  * Save successful plan to cache
+ * NOTE: Query plan caching removed - Supabase not powerful enough for graph operations
+ * Plans are generated fresh each time for maximum accuracy
+ * 
+ * @deprecated Caching disabled - no-op
  */
-async function cachePlan(supabaseUrl, supabaseKey, query, queryEmbedding, plan) {
-  try {
-    // Generate hash for exact matching
-    const encoder = new TextEncoder();
-    const data = encoder.encode(query.toLowerCase().trim());
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const queryHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/agentic_query_plans`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({
-          query_text: query,
-          query_embedding: queryEmbedding,
-          query_hash: queryHash,
-          plan: plan,
-          strategy: plan.strategy,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      // Ignore duplicate key errors (plan already exists)
-      if (!error.includes('duplicate key')) {
-        console.warn('Failed to cache plan:', error);
-      }
-    }
-  } catch (error) {
-    console.warn('Cache save error:', error);
-  }
+async function cachePlan() {
+  // Caching disabled - no-op
+  // Plans are generated fresh to ensure accuracy with latest graph state
+  return;
 }
 
 /**
@@ -385,11 +580,20 @@ function estimateExecutionTime(plan) {
 
 /**
  * Lookup entities from Cosmos DB graph via graph-query function
+ * Now uses SEMANTIC SEARCH automatically - finds similar entities even with different names
+ * Applies decision rubric to classify results
  */
 async function lookupEntities(entityNames) {
   try {
     const graphQueryUrl = process.env.GRAPH_QUERY_URL || 'http://localhost:7071/api/graph-query';
     const results = [];
+    const semanticMetadata = {
+      totalSearched: entityNames.length,
+      semanticFound: 0,
+      textFound: 0,
+      highSimilarity: 0,
+      needsVerification: 0
+    };
     
     for (const name of entityNames) {
       const response = await fetch(
@@ -402,7 +606,7 @@ async function lookupEntities(entityNames) {
           body: JSON.stringify({
             action: 'search',
             query: name,
-            limit: 3
+            limit: 5  // Get more results to allow semantic discovery
           }),
         }
       );
@@ -410,18 +614,84 @@ async function lookupEntities(entityNames) {
       if (response.ok) {
         const result = await response.json();
         if (result.data && Array.isArray(result.data)) {
-          results.push(...result.data);
+          // Track semantic search metadata
+          if (result.semanticSearch) {
+            semanticMetadata.semanticFound += result.semanticSearch.semanticResultsCount || 0;
+            semanticMetadata.textFound += result.semanticSearch.textResultsCount || 0;
+          }
+          
+          // Apply decision rubric to each entity
+          const validatedEntities = result.data.map(entity => {
+            // Check if this was found via semantic search
+            const isSemantic = entity._semantic?.searchMethod === 'semantic';
+            const similarity = entity._semantic?.similarity || null;
+            
+            if (isSemantic && similarity !== null) {
+              // Validate semantic match using decision rubric
+              const validation = validateAssertion({
+                type: 'entity_match',
+                source: name,
+                target: entity.name,
+                similarity: similarity,
+                documentAppearances: entity.mention_count || 1,
+                evidence: entity.description || '',
+                entityType1: 'unknown',
+                entityType2: entity.entity_type
+              });
+              
+              if (validation.classification === 'verified') {
+                semanticMetadata.highSimilarity++;
+              } else {
+                semanticMetadata.needsVerification++;
+              }
+              
+              // Add validation metadata
+              entity._validation = validation;
+            }
+            
+            return entity;
+          });
+          
+          results.push(...validatedEntities);
         }
       }
     }
 
-    // Deduplicate by id
-    const seen = new Set();
-    return results.filter(e => {
-      if (seen.has(e.id)) return false;
-      seen.add(e.id);
-      return true;
-    });
+    // Deduplicate by id (prefer semantic matches over text matches)
+    const seen = new Map(); // id -> entity
+    for (const entity of results) {
+      const id = entity.id || entity.graphVertexId;
+      if (!id) continue;
+      
+      if (!seen.has(id)) {
+        seen.set(id, entity);
+      } else {
+        // Prefer semantic matches over text matches
+        const existing = seen.get(id);
+        const existingIsSemantic = existing._semantic?.searchMethod === 'semantic';
+        const currentIsSemantic = entity._semantic?.searchMethod === 'semantic';
+        
+        if (currentIsSemantic && !existingIsSemantic) {
+          seen.set(id, entity); // Replace text match with semantic match
+        } else if (currentIsSemantic && existingIsSemantic) {
+          // Both semantic - prefer higher similarity
+          const currentSim = entity._semantic?.similarity || 0;
+          const existingSim = existing._semantic?.similarity || 0;
+          if (currentSim > existingSim) {
+            seen.set(id, entity);
+          }
+        }
+      }
+    }
+    
+    const deduplicated = Array.from(seen.values());
+    
+    // Log semantic search success
+    if (semanticMetadata.semanticFound > 0) {
+      console.log(`Entity lookup: Found ${semanticMetadata.semanticFound} entities via semantic search, ${semanticMetadata.textFound} via text search`);
+    }
+    
+    return deduplicated;
   } catch (error) {
     console.warn('Entity lookup error:', error);
     return [];
@@ -453,7 +723,7 @@ module.exports = async function (context, req) {
       request = req.body;
     }
 
-    const { query, conversationContext = [], useCache = true, focusArea = 'careers' } = request;
+    const { query, conversationContext = [], focusArea = 'careers' } = request;
 
     if (!query) {
       context.res = {
@@ -467,8 +737,6 @@ module.exports = async function (context, req) {
     // Get credentials
     const openAIEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
     const openAIKey = process.env.AZURE_OPENAI_KEY;
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!openAIEndpoint || !openAIKey) {
       throw new Error('Azure OpenAI credentials not configured');
@@ -478,52 +746,36 @@ module.exports = async function (context, req) {
     let plan = null;
     let fromCache = false;
 
-    // Step 1: Generate query embedding
+    // Step 1: Generate query embedding (for future use, not caching)
     const queryEmbedding = await generateEmbedding(openAIEndpoint, openAIKey, query);
 
-    // Step 2: Check cache for similar plans
-    if (useCache && supabaseUrl && supabaseKey) {
-      const cachedResult = await findCachedPlan(supabaseUrl, supabaseKey, queryEmbedding);
-      if (cachedResult) {
-        plan = cachedResult.plan;
-        fromCache = true;
-        context.log(`Using cached plan (similarity: ${(cachedResult.similarity * 100).toFixed(1)}%)`);
-      }
-    }
+    // Step 2: Generate fresh plan (caching disabled - Supabase not powerful enough)
+    // Always generate new plans to ensure accuracy with latest graph state
+    plan = await generatePlan(openAIEndpoint, openAIKey, query, conversationContext, focusArea);
+    
+    // Step 3: Enhance plan with entity lookups from Cosmos DB/Neo4j
+    if (plan.intent.entities?.length > 0) {
+      const entities = await lookupEntities(plan.intent.entities);
+      if (entities.length > 0) {
+        plan.resolvedEntities = entities.map(e => ({
+          id: e.id,
+          name: e.name,
+          type: e.entity_type,
+          canonicalName: e.canonical_name,
+        }));
 
-    // Step 3: Generate new plan if not cached
-    if (!plan) {
-      plan = await generatePlan(openAIEndpoint, openAIKey, query, conversationContext, focusArea);
-      
-      // Step 4: Enhance plan with entity lookups from Cosmos DB
-      if (plan.intent.entities?.length > 0) {
-        const entities = await lookupEntities(plan.intent.entities);
-        if (entities.length > 0) {
-          plan.resolvedEntities = entities.map(e => ({
-            id: e.id,
-            name: e.name,
-            type: e.entity_type,
-            canonicalName: e.canonical_name,
-          }));
-
-          // Update graph traversal steps with resolved entity IDs
-          for (const step of plan.steps) {
-            if (step.method === 'graph_traversal' && step.graphParams?.startEntity) {
-              const matchedEntity = entities.find(e => 
-                e.name.toLowerCase().includes(step.graphParams.startEntity.toLowerCase()) ||
-                e.canonical_name.includes(step.graphParams.startEntity.toLowerCase().replace(/\s+/g, '_'))
-              );
-              if (matchedEntity) {
-                step.graphParams.startEntityId = matchedEntity.id;
-              }
+        // Update graph traversal steps with resolved entity IDs
+        for (const step of plan.steps) {
+          if (step.method === 'graph_traversal' && step.graphParams?.startEntity) {
+            const matchedEntity = entities.find(e => 
+              e.name.toLowerCase().includes(step.graphParams.startEntity.toLowerCase()) ||
+              e.canonical_name.includes(step.graphParams.startEntity.toLowerCase().replace(/\s+/g, '_'))
+            );
+            if (matchedEntity) {
+              step.graphParams.startEntityId = matchedEntity.id;
             }
           }
         }
-      }
-
-      // Step 5: Cache the new plan
-      if (supabaseUrl && supabaseKey) {
-        await cachePlan(supabaseUrl, supabaseKey, query, queryEmbedding, plan);
       }
     }
 

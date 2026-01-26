@@ -26,6 +26,10 @@ export interface ChatMessage {
   visualData?: VisualChartData;
   confidence?: "high" | "medium" | "low";
   queryIntent?: QueryIntent;
+  // Evidence Chain - Government-Grade Traceability
+  evidenceChain?: EvidenceChain;
+  // Temporal Summary - Policy Version Awareness
+  temporalSummary?: TemporalSummary;
 }
 
 export interface EnhancedSource {
@@ -38,6 +42,79 @@ export interface EnhancedSource {
   category?: string;
   tableData?: any;
   extractionMethod?: "table" | "text" | "metadata";
+  sourceIndex?: number; // For citation mapping [Source X]
+  // Temporal fields for policy version awareness
+  publicationYear?: number;
+  effectiveDate?: string;
+  expiryDate?: string;
+  version?: string;
+  supersedes?: string;
+  supersededBy?: string;
+  amendmentOf?: string;
+  temporalStatus?: TemporalStatus;
+}
+
+// Evidence Chain Types for Government-Grade Traceability
+export interface CitationDetail {
+  reference: string;
+  sourceIndex: number;
+  sourceTitle: string;
+  documentId: string;
+}
+
+export interface EvidenceChain {
+  confidence: "high" | "medium" | "low";
+  confidenceScore: number;
+  confidenceDescription: string;
+  breakdown: {
+    citationCoverage: number;
+    sourceRelevance: number;
+    citationValidity: number;
+    sourceDiversity: number;
+  };
+  citations: {
+    total: number;
+    valid: number;
+    invalid: number;
+    coverage: number;
+    details: CitationDetail[];
+  };
+  warnings: string[];
+  uncitedClaims: string[];
+  isReliable: boolean;
+  auditMetadata: {
+    queryTimestamp: string;
+    sourcesEvaluated: number;
+    uniqueDocuments: number;
+  };
+}
+
+// Temporal Awareness Types for Policy Version Tracking
+export interface TemporalStatus {
+  status: "current" | "superseded" | "expired" | "historical" | "aging" | "pending" | "amendment";
+  description: string;
+  isCurrentVersion: boolean;
+  recommendAction: string | null;
+  ageYears?: number;
+}
+
+export interface TemporalSummary {
+  statusCounts: {
+    current: number;
+    superseded: number;
+    expired: number;
+    historical: number;
+    aging: number;
+    pending: number;
+    amendment: number;
+  };
+  yearDistribution: Record<number, number>;
+  dateRange: {
+    oldest: number;
+    newest: number;
+  } | null;
+  warnings: string[];
+  hasFreshnessIssues: boolean;
 }
 
 export interface ProactiveInsight {
@@ -400,9 +477,10 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
       // Enhanced sources with relevance
       // Azure AI Search semantic ranking typically scores 0-100
       // Default to 82 for semantic searches (high confidence baseline)
-      const enhancedSources: EnhancedSource[] = result.sources.map(s => ({
+      const enhancedSources: EnhancedSource[] = result.sources.map((s, idx) => ({
         ...s,
         relevance: s.relevance || 82,
+        sourceIndex: s.sourceIndex || idx + 1,
       }));
 
       // Generate follow-ups
@@ -414,10 +492,14 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
       // Check if should embed chart
       const visualData = shouldEmbedChart(content, intent);
 
-      // Determine confidence (optimized for Azure AI Search semantic ranking)
-      const avgRelevance = enhancedSources.reduce((sum, s) => sum + s.relevance, 0) / enhancedSources.length;
-      const confidence: "high" | "medium" | "low" =
-        avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
+      // Use evidence chain confidence if available, otherwise fall back to relevance-based
+      const evidenceChain: EvidenceChain | undefined = result.evidenceChain;
+      const temporalSummary: TemporalSummary | undefined = result.temporalSummary;
+      const confidence: "high" | "medium" | "low" = evidenceChain?.confidence || 
+        (() => {
+          const avgRelevance = enhancedSources.reduce((sum, s) => sum + s.relevance, 0) / enhancedSources.length;
+          return avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
+        })();
 
       // Cache the response
       setCachedResponse(content, {
@@ -442,6 +524,10 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
         responseTime,
         tokens: result.tokens,
         queryIntent: intent,
+        // Evidence Chain - Government-Grade Traceability
+        evidenceChain,
+        // Temporal Summary - Policy Version Awareness
+        temporalSummary,
       }]);
 
       // Stream the response

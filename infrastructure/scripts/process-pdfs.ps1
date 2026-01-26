@@ -43,6 +43,79 @@ param(
 $ErrorActionPreference = "Continue"
 
 # ============================================================
+# AUDIT LOG SAVE FUNCTION - Can be called on script termination
+# ============================================================
+
+function Save-AuditLog {
+    param(
+        [object]$AuditLog,
+        [object]$Stats,
+        [string]$LogDir
+    )
+    
+    if (-not $AuditLog -or -not $Stats) {
+        return
+    }
+    
+    try {
+        # Add final stats to audit log
+        $AuditLog.finalStats = $Stats
+        $AuditLog.terminatedEarly = $true
+        $AuditLog.terminatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        
+        # Create logs directory if it doesn't exist
+        if (-not (Test-Path $LogDir)) {
+            New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+        }
+        
+        $auditLogPath = Join-Path $LogDir "audit-$(Get-Date -Format 'yyyy-MM-dd-HHmmss')-INTERRUPTED.json"
+        $AuditLog | ConvertTo-Json -Depth 10 | Out-File -FilePath $auditLogPath -Encoding UTF8
+        
+        Write-Host ""
+        Write-Host "  [AUDIT LOG SAVED ON INTERRUPT]" -ForegroundColor Yellow
+        Write-Host "    Path: $auditLogPath" -ForegroundColor White
+        return $auditLogPath
+    } catch {
+        Write-Host "  [ERROR] Could not save audit log on interrupt: $($_.Exception.Message)" -ForegroundColor Red
+        return $null
+    }
+}
+
+# ============================================================
+# SIGNAL HANDLER - Save audit log on Ctrl+C or termination
+# ============================================================
+
+$script:auditLogPath = $null
+$script:auditLogDir = Join-Path $PSScriptRoot "logs"
+
+# Register handler for script termination
+Register-EngineEvent PowerShell.Exiting -Action {
+    if ($script:auditLog -and $script:stats) {
+        Save-AuditLog -AuditLog $script:auditLog -Stats $script:stats -LogDir $script:auditLogDir | Out-Null
+    }
+} | Out-Null
+
+# Handle Ctrl+C gracefully
+[Console]::TreatControlCAsInput = $false
+try {
+    $null = [Console]::CancelKeyPress += {
+        param($sender, $e)
+        Write-Host ""
+        Write-Host "  [INTERRUPT] Script interrupted by user (Ctrl+C)" -ForegroundColor Yellow
+        if ($script:auditLog -and $script:stats) {
+            $savedPath = Save-AuditLog -AuditLog $script:auditLog -Stats $script:stats -LogDir $script:auditLogDir
+            if ($savedPath) {
+                Write-Host "  [SAVED] Partial audit log: $savedPath" -ForegroundColor Green
+            }
+        }
+        Write-Host "  [INFO] Exiting gracefully..." -ForegroundColor Gray
+    }
+} catch {
+    # CancelKeyPress may not be available in all PowerShell hosts (e.g., VS Code terminal)
+    # This is non-critical, script will still work
+}
+
+# ============================================================
 # PYTHON JSON HELPER - Bypasses PowerShell array serialization bugs
 # ============================================================
 
@@ -242,6 +315,28 @@ if (-not $pdfs -or $pdfs.Count -eq 0) {
     Write-Host "        Upload PDFs first using:" -ForegroundColor Yellow
     Write-Host "        az storage blob upload-batch --account-name $storageAccountName --destination $ContainerName --source <folder>" -ForegroundColor White
     exit 1
+}
+
+# Filter to single PDF if SingleBlobName is specified
+if ($SingleBlobName) {
+    $originalCount = $pdfs.Count
+    $pdfs = $pdfs | Where-Object { $_.name -eq $SingleBlobName }
+    if ($pdfs.Count -eq 0) {
+        Write-Host "[ERROR] PDF not found: $SingleBlobName" -ForegroundColor Red
+        Write-Host "        Available PDFs:" -ForegroundColor Yellow
+        $allPdfs = az storage blob list `
+            --account-name $storageAccountName `
+            --container-name $ContainerName `
+            --account-key $storageKey `
+            --query "[?ends_with(name, '.pdf')].name" `
+            --output json 2>$null | ConvertFrom-Json
+        $allPdfs | Select-Object -First 10 | ForEach-Object { Write-Host "          $_" -ForegroundColor Gray }
+        if ($allPdfs.Count -gt 10) { Write-Host "          ... and $($allPdfs.Count - 10) more" -ForegroundColor Gray }
+        exit 1
+    }
+    Write-Host "[INFO] Filtering to single PDF: $SingleBlobName" -ForegroundColor Cyan
+    Write-Host "       (Skipping $($originalCount - 1) other PDFs)" -ForegroundColor Gray
+    Write-Host ""
 }
 
 $totalSize = ($pdfs | Measure-Object -Property size -Sum).Sum / 1MB
@@ -1294,7 +1389,7 @@ function Get-CleanSearchJson {
                     $null = $cleanResult | ConvertFrom-Json -ErrorAction Stop
                     if ($cleanResult.StartsWith("{") -or $cleanResult.StartsWith("[")) {
                         $script:pythonFixCount++
-                        $stats.pythonJsonFixes++
+                        $script:stats.pythonJsonFixes++
                         return $cleanResult
                     }
                 } catch {
@@ -1576,14 +1671,8 @@ function Generate-Embedding {
         # Only retry if it's ACTUALLY a rate limit, not a masked error
         $isActualRateLimit = ($statusCode -eq 429 -or $statusCode -eq 503) -and -not $isEncodingError
         
-        # If we've retried 3+ times and still hitting rate limits, skip this chunk
-        # This prevents infinite loops - we'll process other chunks and come back later
-        if ($isActualRateLimit -and $RetryCount -ge 3) {
-            Write-Host "      [SKIP] Skipping chunk after $RetryCount retries - rate limit persists" -ForegroundColor Yellow
-            Write-Host "      [INFO] This chunk will be skipped. Process remaining chunks and retry later." -ForegroundColor Gray
-            return $null
-        }
-        
+        # Use all retries for rate limits (up to MaxRetries) - don't give up early
+        # The early exit at 3 retries was causing low coverage - now we use all 5 retries
         if ($isActualRateLimit -and $RetryCount -lt $MaxRetries) {
             # Track rate limit hits for adaptive throttling
             $script:stats.rateLimitHits++
@@ -1607,12 +1696,12 @@ function Generate-Embedding {
                 Write-Host "      [RETRY $($RetryCount + 1)/$MaxRetries] Rate limited ($statusCode), waiting $waitTime seconds..." -ForegroundColor Yellow
             }
             
-            Write-Host "      [INFO] Total rate limit hits: $($stats.rateLimitHits) - delays will be increased" -ForegroundColor Gray
+            Write-Host "      [INFO] Total rate limit hits: $($script:stats.rateLimitHits) - delays will be increased" -ForegroundColor Gray
             Write-Host "      [TIP] S0 tier has low rate limits. Consider upgrading to S1+ for higher limits." -ForegroundColor Gray
             
             # If we've hit many rate limits, wait even longer to let the window fully reset
             # S0 tier rate limit window is typically 60 seconds, so we need to wait for full reset
-            if ($stats.rateLimitHits -gt 5) {
+            if ($script:stats.rateLimitHits -gt 5) {
                 $additionalWait = 30  # Wait extra 30 seconds to ensure window resets
                 Write-Host "      [INFO] High rate limit count - adding $additionalWait second buffer to reset window..." -ForegroundColor Cyan
                 $waitTime += $additionalWait
@@ -1636,7 +1725,8 @@ function Generate-Embedding {
             Write-Host "      [COOLDOWN] Additional $cooldownBuffer second buffer before retry..." -ForegroundColor Cyan
             Start-Sleep -Seconds $cooldownBuffer
             
-            Write-Host "      [RETRY] Attempting embedding again after full cooldown..." -ForegroundColor Green
+            Write-Host "      [RETRY] Attempting embedding again after full cooldown (attempt $($RetryCount + 1)/$MaxRetries)..." -ForegroundColor Green
+            # Recursive retry - will use all MaxRetries (5) attempts before giving up
             return Generate-Embedding -Text $Text -Endpoint $Endpoint -Key $Key -Model $Model -RetryCount ($RetryCount + 1) -MaxRetries $MaxRetries
         }
         
@@ -1646,15 +1736,17 @@ function Generate-Embedding {
             return $null
         }
         
-        # If we've exhausted retries or it's a different error, log and return null
+        # If we've exhausted retries, log and return null (chunk will be indexed without embedding)
         if ($RetryCount -ge $MaxRetries) {
-            Write-Host "      [ERROR] Max retries ($MaxRetries) exceeded for embedding" -ForegroundColor Red
+            Write-Host "      [WARN] Max retries ($MaxRetries) exceeded for embedding - chunk will be indexed without vector" -ForegroundColor Yellow
+            Write-Host "      [INFO] This chunk will still be searchable via keyword search" -ForegroundColor Gray
         } else {
             Write-Host "      [ERROR] Embedding generation failed: $errorMsg (Status: $statusCode)" -ForegroundColor Red
             if ($errorBody) {
                 Write-Host "      [DEBUG] Error details: $errorBody" -ForegroundColor Gray
             }
         }
+        # Return null - chunk will be indexed without embedding (still searchable)
         return $null
     }
 }
@@ -1671,7 +1763,8 @@ $searchHeaders = @{
     "api-key" = $searchKey
 }
 
-$stats = @{
+# Store in script scope for signal handler access
+$script:stats = @{
     processed = 0
     embeddingsGenerated = 0
     embeddingErrors = 0
@@ -1703,7 +1796,8 @@ $stats = @{
 # ============================================================
 # AUDIT LOG - Complete Processing History
 # ============================================================
-$auditLog = @{
+# Store in script scope for signal handler access
+$script:auditLog = @{
     startTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
     endTime = $null
     resourceGroup = $ResourceGroupName
@@ -1812,13 +1906,13 @@ $startTime = Get-Date
 
 foreach ($pdf in $pdfs) {
     $pdfName = $pdf.name
-    $pdfIndex = $stats.processed + $stats.failed + 1
+    $pdfIndex = $script:stats.processed + $script:stats.failed + 1
     
     # If we've hit too many rate limits, warn user before processing more PDFs
     # This prevents wasting Document Intelligence costs on PDFs we can't embed
-    if ($stats.rateLimitHits -ge 10 -and $pdfIndex -gt 1) {
+    if ($script:stats.rateLimitHits -ge 10 -and $pdfIndex -gt 1) {
         Write-Host ""
-        Write-Host "  [WARNING] High rate limit hits detected ($($stats.rateLimitHits))" -ForegroundColor Yellow
+        Write-Host "  [WARNING] High rate limit hits detected ($($script:stats.rateLimitHits))" -ForegroundColor Yellow
         Write-Host "  [WARNING] You're paying for Document Intelligence extraction but embeddings are failing!" -ForegroundColor Red
         Write-Host "  [WARNING] Consider:" -ForegroundColor Yellow
         Write-Host "    1. Upgrading OpenAI to S1+ tier for higher limits" -ForegroundColor Gray
@@ -1838,18 +1932,18 @@ foreach ($pdf in $pdfs) {
         
         if ($hasGoodCoverage) {
             Write-Host "   [DEBUG] Coverage check result: GOOD (>= 95%)" -ForegroundColor Gray
-            # Get existing chunk count for audit log
+            # Get existing chunk count for audit log (use same method as Test-PdfCoverage)
             try {
                 $countHeaders = @{
                     "Content-Type" = "application/json"
                     "api-key" = $searchKey
                 }
-                $countUrl = "$searchEndpoint/indexes/$SearchIndexName/docs/search?api-version=2023-11-01"
+                # Use $count=true in URL (same as Test-PdfCoverage) to get accurate count
+                $countUrl = "$searchEndpoint/indexes/$SearchIndexName/docs/search?api-version=2023-11-01&`$count=true"
                 $countBody = @{
                     search = "*"
                     filter = "documentType eq 'pdf' and documentId eq '$pdfName'"
                     top = 0
-                    includeTotalResultCount = $true
                 } | ConvertTo-Json
                 $countResult = Invoke-RestMethod -Uri $countUrl -Method Post -Headers $countHeaders -Body $countBody -ErrorAction SilentlyContinue
                 $existingChunks = if ($countResult.'@odata.count') { $countResult.'@odata.count' } else { 0 }
@@ -1859,7 +1953,7 @@ foreach ($pdf in $pdfs) {
             
             Write-Host "   [SKIP] PDF already processed with >= 95% coverage ($existingChunks chunks) - skipping to save costs" -ForegroundColor Green
             Write-Host "         (Use -ForceReprocess to reprocess anyway)" -ForegroundColor Gray
-            $stats.skipped++
+            $script:stats.skipped++
             
             # AUDIT: Track skipped document
             Add-AuditEvent -Type "SKIP" -Category "document" -Message "Already processed with good coverage" `
@@ -1868,7 +1962,7 @@ foreach ($pdf in $pdfs) {
                     existingChunks = $existingChunks
                     coverage = ">=95%"
                 }
-            $auditLog.skippedDocuments += @{
+            $script:auditLog.skippedDocuments += @{
                 documentId = $pdfName
                 reason = "already_processed"
                 existingChunks = $existingChunks
@@ -1881,6 +1975,51 @@ foreach ($pdf in $pdfs) {
         }
     } else {
         Write-Host "   [INFO] ForceReprocess enabled - will reprocess even if already done" -ForegroundColor Yellow
+        
+        # Delete old chunks before reprocessing to avoid duplicates
+        Write-Host "   [DELETE] Removing old chunks for this PDF..." -ForegroundColor Yellow
+        try {
+            $deleteUrl = "$searchEndpoint/indexes/$SearchIndexName/docs/search?api-version=2023-11-01"
+            $deleteBody = @{
+                search = "*"
+                filter = "documentType eq 'pdf' and documentId eq '$pdfName'"
+                top = 1000
+                select = "id"
+            } | ConvertTo-Json
+            
+            $existingChunks = Invoke-RestMethod -Uri $deleteUrl -Method Post -Headers $searchHeaders -Body $deleteBody -ErrorAction SilentlyContinue
+            
+            if ($existingChunks -and $existingChunks.value -and $existingChunks.value.Count -gt 0) {
+                # Prepare delete batch
+                $deleteBatch = $existingChunks.value | ForEach-Object {
+                    @{
+                        "@search.action" = "delete"
+                        id = $_.id
+                    }
+                }
+                
+                # Delete in batches of 1000 (Azure Search limit)
+                $batchSize = 1000
+                for ($i = 0; $i -lt $deleteBatch.Count; $i += $batchSize) {
+                    $batch = $deleteBatch[$i..([Math]::Min($i + $batchSize - 1, $deleteBatch.Count - 1))]
+                    $batchUrl = "$searchEndpoint/indexes/$SearchIndexName/docs/index?api-version=2023-11-01"
+                    
+                    # CRITICAL: Wrap batch in 'value' array (Azure Search requires this format for batch operations)
+                    $deleteBody = @{
+                        value = [array]$batch
+                    } | ConvertTo-Json -Depth 10
+                    
+                    $batchResult = Invoke-RestMethod -Uri $batchUrl -Method Post -Headers $searchHeaders -Body $deleteBody -ErrorAction Stop
+                }
+                
+                Write-Host "   [OK] Deleted $($existingChunks.value.Count) old chunks" -ForegroundColor Green
+            } else {
+                Write-Host "   [INFO] No existing chunks found to delete" -ForegroundColor Gray
+            }
+        } catch {
+            Write-Host "   [WARN] Could not delete old chunks: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "          Continuing with reprocess (may create duplicates)" -ForegroundColor Gray
+        }
     }
     
     try {
@@ -1899,7 +2038,7 @@ foreach ($pdf in $pdfs) {
         
         if (-not $sasToken -or $sasToken -match "ERROR" -or $sasToken -match "error") {
             Write-Host "   [ERROR] SAS token generation failed: $sasToken" -ForegroundColor Red
-            $stats.failed++
+            $script:stats.failed++
             continue
         }
         
@@ -1912,7 +2051,7 @@ foreach ($pdf in $pdfs) {
         
         if (-not $docIntelResult -or -not $docIntelResult.analyzeResult) {
             Write-Host "   [FAILED] Document Intelligence extraction failed" -ForegroundColor Red
-            $stats.failed++
+            $script:stats.failed++
             
             # AUDIT: Track failed document
             Add-AuditEvent -Type "ERROR" -Category "document" -Message "Document Intelligence extraction failed" `
@@ -1920,7 +2059,7 @@ foreach ($pdf in $pdfs) {
                     reason = "extraction_failed"
                     stage = "document_intelligence"
                 }
-            $auditLog.errors += @{
+            $script:auditLog.errors += @{
                 documentId = $pdfName
                 stage = "document_intelligence"
                 error = "Extraction failed"
@@ -1939,7 +2078,7 @@ foreach ($pdf in $pdfs) {
                 Write-Host "   [FATAL] -RequireFigures flag is set but figures not available!" -ForegroundColor Red
                 Write-Host "          To fix: Upgrade Document Intelligence to support preview API" -ForegroundColor Yellow
                 Write-Host "          Or: Remove -RequireFigures flag to continue without images" -ForegroundColor Yellow
-                $stats.failed++
+                $script:stats.failed++
                 continue
             }
         }
@@ -2125,9 +2264,9 @@ foreach ($pdf in $pdfs) {
         Write-Host "   [OK] Extracted $($structuredTables.Count) structured tables" -ForegroundColor Green
         
         # AUDIT: Track table extraction
-        $stats.tablesExtracted += $structuredTables.Count
+        $script:stats.tablesExtracted += $structuredTables.Count
         if ($structuredTables.Count -gt 0) {
-            $stats.documentsWithTables++
+            $script:stats.documentsWithTables++
             Add-AuditEvent -Type "SUCCESS" -Category "table" -Message "Extracted $($structuredTables.Count) tables" `
                 -DocumentId $pdfName -Details @{
                     tableCount = $structuredTables.Count
@@ -2186,8 +2325,8 @@ foreach ($pdf in $pdfs) {
             Write-Host "   [OK] Detected $($extractedFigures.Count) figures for chart extraction" -ForegroundColor Green
             
             # AUDIT: Track figure detection
-            $stats.figuresDetected += $extractedFigures.Count
-            $stats.documentsWithFigures++
+            $script:stats.figuresDetected += $extractedFigures.Count
+            $script:stats.documentsWithFigures++
             Add-AuditEvent -Type "SUCCESS" -Category "figure" -Message "Detected $($extractedFigures.Count) figures" `
                 -DocumentId $pdfName -Details @{
                     figureCount = $extractedFigures.Count
@@ -2392,10 +2531,10 @@ foreach ($pdf in $pdfs) {
                 $docTopics = if ($docAITags.topics -and $docAITags.topics.Count -gt 0) { @($docAITags.topics) } else { @() }
                 
                 Write-Host "      [OK] AI document-level analysis complete (confidence: $($docAITags.confidence))" -ForegroundColor Green
-                $stats.documentAITagsSucceeded++
+                $script:stats.documentAITagsSucceeded++
             } catch {
                 Write-Host "      [WARN] AI document-level tagging failed, using regex fallback" -ForegroundColor Yellow
-                $stats.documentAITagsFailed++
+                $script:stats.documentAITagsFailed++
                 # Fallback to regex
         $docCategory = Get-DocumentCategory -FileName $pdfName -Content $fullText
         $docTags = Get-DocumentTags -FileName $pdfName -Content $fullText
@@ -2534,13 +2673,13 @@ foreach ($pdf in $pdfs) {
                     $tableChunkTopics = if ($aiTags.topics -and $aiTags.topics.Count -gt 0) { @($aiTags.topics) } else { @() }
                     $tableChunkOccupation = $aiTags.occupation
                     $tableTagConfidence = $aiTags.confidence
-                    $stats.aiTagsSucceeded++
+                    $script:stats.aiTagsSucceeded++
                 } catch {
                     Write-Host "      [WARN] AI tagging failed for table row $($tableChunk.rowIndex), using doc-level tags" -ForegroundColor Yellow
-                    $stats.aiTagsFailed++
+                    $script:stats.aiTagsFailed++
                     
                     # AUDIT: Track AI tag failure
-                    $auditLog.failedAITags += @{
+                    $script:auditLog.failedAITags += @{
                         documentId = $pdfName
                         chunkType = "table_row"
                         tableIndex = $tableChunk.tableIndex
@@ -2604,17 +2743,17 @@ foreach ($pdf in $pdfs) {
                         $tableDocument["contentVector"] = $embeddingArray
                     $tableDocument["embeddingModel"] = $embeddingResult.model
                     $tableDocument["embeddingGeneratedAt"] = $embeddingResult.generatedAt
-                    $stats.embeddingsGenerated++
+                    $script:stats.embeddingsGenerated++
                 } else {
                         Write-Host "      [WARN] Table row $($tableChunk.rowIndex) has invalid embedding values - skipping embedding" -ForegroundColor Yellow
                     }
                 } else {
                     # IMPORTANT: Still index the table row without embedding (preserves keyword search)
                     Write-Host "      [WARN] Table row $($tableChunk.rowIndex) has no embedding - indexing without vector" -ForegroundColor Yellow
-                    $stats.embeddingErrors++
+                    $script:stats.embeddingErrors++
                     
                     # AUDIT: Track chunk without embedding
-                    $auditLog.skippedChunks += @{
+                    $script:auditLog.skippedChunks += @{
                         documentId = $pdfName
                         chunkType = "table_row"
                         tableIndex = $tableChunk.tableIndex
@@ -2626,9 +2765,9 @@ foreach ($pdf in $pdfs) {
                     # NO continue - still add document to index!
                 }
                 # Adaptive rate limiting for table chunks
-                $currentDelay = if ($stats.rateLimitHits -gt 10) { $baseEmbeddingDelay * 3 }
-                               elseif ($stats.rateLimitHits -gt 5) { $baseEmbeddingDelay * 2 }
-                               elseif ($stats.rateLimitHits -gt 2) { $baseEmbeddingDelay * 1.5 }
+                $currentDelay = if ($script:stats.rateLimitHits -gt 10) { $baseEmbeddingDelay * 3 }
+                               elseif ($script:stats.rateLimitHits -gt 5) { $baseEmbeddingDelay * 2 }
+                               elseif ($script:stats.rateLimitHits -gt 2) { $baseEmbeddingDelay * 1.5 }
                                else { $baseEmbeddingDelay }
                 Start-Sleep -Milliseconds $currentDelay
             } elseif ($GenerateEmbeddings -and -not $hasOpenAI) {
@@ -2668,14 +2807,17 @@ foreach ($pdf in $pdfs) {
             }
             
             # ELITE: Build complete metadata with confidence scores
+            # Include charts in totalChunks for accurate coverage calculation
+            $chartCount = if ($chartExtractionResults) { $chartExtractionResults.Count } else { 0 }
             $documentMetadata = @{
                 fileName = $pdfName
                 fileSize = $pdf.size
                 totalPages = $pageCount
-                totalChunks = $textChunks.Count + $tableChunks.Count
+                totalChunks = $textChunks.Count + $tableChunks.Count + $chartCount
                 chunkCharCount = $chunk.charCount
                 extractionMethod = "DocumentIntelligence-Layout"
                 tablesFound = $structuredTables.Count
+                chartsFound = $chartCount
                 chunkType = "text"  # ELITE: Chunk type identification
                 confidence = $chunkConfidence  # ELITE: Confidence score
             }
@@ -2726,12 +2868,12 @@ foreach ($pdf in $pdfs) {
                     $chunkTopics = if ($aiTags.topics -and $aiTags.topics.Count -gt 0) { @($aiTags.topics) } else { @() }
                     $chunkOccupation = $aiTags.occupation
                     $tagConfidence = $aiTags.confidence
-                    $stats.aiTagsSucceeded++
+                    $script:stats.aiTagsSucceeded++
                     
                     # AUDIT: Track low confidence chunks for review
                     if ($tagConfidence -lt 0.7) {
-                        $stats.lowConfidenceChunks++
-                        $auditLog.lowConfidenceItems += @{
+                        $script:stats.lowConfidenceChunks++
+                        $script:auditLog.lowConfidenceItems += @{
                             documentId = $pdfName
                             chunkType = "text"
                             chunkIndex = $chunk.index
@@ -2745,10 +2887,10 @@ foreach ($pdf in $pdfs) {
                 } catch {
                     # Fallback to document-level tags on error
                     Write-Host "     [WARN] AI tagging failed for chunk $($chunk.index), using doc-level tags" -ForegroundColor Yellow
-                    $stats.aiTagsFailed++
+                    $script:stats.aiTagsFailed++
                     
                     # AUDIT: Track AI tag failure
-                    $auditLog.failedAITags += @{
+                    $script:auditLog.failedAITags += @{
                         documentId = $pdfName
                         chunkType = "text"
                         chunkIndex = $chunk.index
@@ -2813,23 +2955,23 @@ foreach ($pdf in $pdfs) {
                     if ($hasInvalidValue) {
                         # IMPORTANT: Still index the document, just without vector (allows keyword search)
                         Write-Host "      [WARN] Chunk $($chunk.index) has invalid embedding values (Infinity/NaN) - indexing without vector" -ForegroundColor Yellow
-                        $stats.embeddingErrors++
+                        $script:stats.embeddingErrors++
                         # Don't set contentVector - document will still be indexed for keyword search
                     } else {
                         $document["contentVector"] = $embeddingArray
                     # ELITE: Store embedding metadata
                     $document["embeddingModel"] = $embeddingResult.model
                     $document["embeddingGeneratedAt"] = $embeddingResult.generatedAt
-                    $stats.embeddingsGenerated++
+                    $script:stats.embeddingsGenerated++
                     }
                 } else {
                     # IMPORTANT: Still index the document without embedding (preserves keyword search)
                     # Don't skip - the text content is still valuable for keyword/semantic search
-                    $stats.embeddingErrors++
+                    $script:stats.embeddingErrors++
                     Write-Host "      [WARN] Chunk $($chunk.index) has no embedding - indexing without vector" -ForegroundColor Yellow
                     
                     # AUDIT: Track chunk without embedding
-                    $auditLog.skippedChunks += @{
+                    $script:auditLog.skippedChunks += @{
                         documentId = $pdfName
                         chunkType = "text"
                         chunkIndex = $chunk.index
@@ -2841,9 +2983,9 @@ foreach ($pdf in $pdfs) {
                     # NO continue - still add document to index!
                 }
                 # Adaptive rate limiting
-                $currentDelay = if ($stats.rateLimitHits -gt 10) { $baseEmbeddingDelay * 3 }
-                               elseif ($stats.rateLimitHits -gt 5) { $baseEmbeddingDelay * 2 }
-                               elseif ($stats.rateLimitHits -gt 2) { $baseEmbeddingDelay * 1.5 }
+                $currentDelay = if ($script:stats.rateLimitHits -gt 10) { $baseEmbeddingDelay * 3 }
+                               elseif ($script:stats.rateLimitHits -gt 5) { $baseEmbeddingDelay * 2 }
+                               elseif ($script:stats.rateLimitHits -gt 2) { $baseEmbeddingDelay * 1.5 }
                                else { $baseEmbeddingDelay }
                 Start-Sleep -Milliseconds $currentDelay
             } elseif ($GenerateEmbeddings -and -not $hasOpenAI) {
@@ -2945,9 +3087,9 @@ foreach ($pdf in $pdfs) {
                         $chartTags = @(($aiTagArray + $chartTags) | Select-Object -Unique)
                         # CRITICAL: Ensure topics is always an array
                         $chartTopics = if ($aiTags.topics -and $aiTags.topics.Count -gt 0) { @($aiTags.topics) } else { @() }
-                        $stats.aiTagsSucceeded++
+                        $script:stats.aiTagsSucceeded++
                     } catch {
-                        $stats.aiTagsFailed++
+                        $script:stats.aiTagsFailed++
                     }
                 }
                 
@@ -3011,7 +3153,7 @@ foreach ($pdf in $pdfs) {
                             $chartDocument["contentVector"] = $embeddingArray
                         $chartDocument["embeddingModel"] = $embeddingResult.model
                         $chartDocument["embeddingGeneratedAt"] = $embeddingResult.generatedAt
-                        $stats.embeddingsGenerated++
+                        $script:stats.embeddingsGenerated++
                         } else {
                             Write-Host "      [WARN] Chart $($chart.figureIndex) has invalid embedding values - skipping embedding" -ForegroundColor Yellow
                         }
@@ -3023,7 +3165,7 @@ foreach ($pdf in $pdfs) {
                 $chunkGlobalIndex++
                 
                 # Track in stats
-                $stats.chartsExtracted++
+                $script:stats.chartsExtracted++
             }
             
             Write-Host "   [OK] Prepared $($chartDocumentsToIndex.Count) chart documents for indexing" -ForegroundColor Green
@@ -3038,12 +3180,12 @@ foreach ($pdf in $pdfs) {
             $tableBatchResult = Invoke-BatchIndex -Documents $tableDocumentsToIndex -SearchEndpoint $searchEndpoint `
                 -SearchHeaders $searchHeaders -SearchIndexName $SearchIndexName -BatchType "table rows" -BatchSize 100
             $indexedChunks += $tableBatchResult.success
-            $stats.tableRowsIndexed += $tableBatchResult.success  # AUDIT: Track table rows indexed
+            $script:stats.tableRowsIndexed += $tableBatchResult.success  # AUDIT: Track table rows indexed
             if ($tableBatchResult.failed -gt 0) {
                 Write-Host "      [WARN] $($tableBatchResult.failed) table documents failed to index" -ForegroundColor Yellow
                 
                 # AUDIT: Track failed table indexing
-                $auditLog.failedIndexing += @{
+                $script:auditLog.failedIndexing += @{
                     documentId = $pdfName
                     type = "table_rows"
                     attempted = $tableDocumentsToIndex.Count
@@ -3066,7 +3208,7 @@ foreach ($pdf in $pdfs) {
                 Write-Host "      [WARN] $($textBatchResult.failed) text documents failed to index" -ForegroundColor Yellow
                 
                 # AUDIT: Track failed text indexing
-                $auditLog.failedIndexing += @{
+                $script:auditLog.failedIndexing += @{
                     documentId = $pdfName
                     type = "text_chunks"
                     attempted = $textDocumentsToIndex.Count
@@ -3085,12 +3227,12 @@ foreach ($pdf in $pdfs) {
             $chartBatchResult = Invoke-BatchIndex -Documents $chartDocumentsToIndex -SearchEndpoint $searchEndpoint `
                 -SearchHeaders $searchHeaders -SearchIndexName $SearchIndexName -BatchType "charts/figures" -BatchSize 100
             $indexedChunks += $chartBatchResult.success
-            $stats.documentsWithCharts++
+            $script:stats.documentsWithCharts++
             if ($chartBatchResult.failed -gt 0) {
                 Write-Host "      [WARN] $($chartBatchResult.failed) chart documents failed to index" -ForegroundColor Yellow
                 
                 # AUDIT: Track failed chart indexing
-                $auditLog.failedIndexing += @{
+                $script:auditLog.failedIndexing += @{
                     documentId = $pdfName
                     type = "charts"
                     attempted = $chartDocumentsToIndex.Count
@@ -3108,12 +3250,12 @@ foreach ($pdf in $pdfs) {
         } else {
             Write-Host "   [OK] Indexed $indexedChunks/$totalExpectedChunks chunks ($($textChunks.Count) text + $($tableChunks.Count) table rows + $($chartExtractionResults.Count) charts)" -ForegroundColor Green
         }
-        $stats.processed++
-        $stats.chunks += $totalExpectedChunks
-        $stats.indexed += $indexedChunks
+        $script:stats.processed++
+        $script:stats.chunks += $totalExpectedChunks
+        $script:stats.indexed += $indexedChunks
         
         # AUDIT: Per-document audit record
-        $auditLog.documents += @{
+        $script:auditLog.documents += @{
             documentId = $pdfName
             status = "success"
             timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
@@ -3131,7 +3273,7 @@ foreach ($pdf in $pdfs) {
     }
     catch {
         Write-Host "   [FAILED] $($_.Exception.Message)" -ForegroundColor Red
-        $stats.failed++
+        $script:stats.failed++
         
         # AUDIT: Track document processing failure
         Add-AuditEvent -Type "ERROR" -Category "document" -Message "Document processing failed" `
@@ -3148,7 +3290,7 @@ foreach ($pdf in $pdfs) {
 # COMPLETE AUDIT LOG - Finalize
 # ============================================================
 
-$auditLog.endTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+$script:auditLog.endTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
 
 # ============================================================
 # STEP 4: SUMMARY
@@ -3162,22 +3304,22 @@ Write-Host "  PROCESSING COMPLETE" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Duration:       $([math]::Round($duration.TotalMinutes, 1)) minutes" -ForegroundColor White
-Write-Host "  PDFs Processed: $($stats.processed)/$($pdfs.Count)" -ForegroundColor $(if ($stats.failed -eq 0) { "Green" } else { "Yellow" })
-Write-Host "  PDFs Skipped:  $($stats.skipped) (already had >= 95% coverage)" -ForegroundColor Cyan
-Write-Host "  PDFs Failed:   $($stats.failed)" -ForegroundColor $(if ($stats.failed -eq 0) { "Green" } else { "Red" })
-Write-Host "  Total Chunks:   $($stats.chunks)" -ForegroundColor White
-Write-Host "  Chunks Indexed: $($stats.indexed)" -ForegroundColor Green
+Write-Host "  PDFs Processed: $($script:stats.processed)/$($pdfs.Count)" -ForegroundColor $(if ($script:stats.failed -eq 0) { "Green" } else { "Yellow" })
+Write-Host "  PDFs Skipped:  $($script:stats.skipped) (already had >= 95% coverage)" -ForegroundColor Cyan
+Write-Host "  PDFs Failed:   $($script:stats.failed)" -ForegroundColor $(if ($script:stats.failed -eq 0) { "Green" } else { "Red" })
+Write-Host "  Total Chunks:   $($script:stats.chunks)" -ForegroundColor White
+Write-Host "  Chunks Indexed: $($script:stats.indexed)" -ForegroundColor Green
 
 # ELITE: Embedding coverage quality check (target: 98%+)
 if ($hasOpenAI -and $GenerateEmbeddings) {
-    Write-Host "  Embeddings:     $($stats.embeddingsGenerated)" -ForegroundColor $(if ($stats.embeddingErrors -eq 0) { "Green" } else { "Yellow" })
-    if ($stats.embeddingErrors -gt 0) {
-        Write-Host "  Embedding Errors: $($stats.embeddingErrors)" -ForegroundColor Yellow
+    Write-Host "  Embeddings:     $($script:stats.embeddingsGenerated)" -ForegroundColor $(if ($script:stats.embeddingErrors -eq 0) { "Green" } else { "Yellow" })
+    if ($script:stats.embeddingErrors -gt 0) {
+        Write-Host "  Embedding Errors: $($script:stats.embeddingErrors)" -ForegroundColor Yellow
     }
     
     # Quality check (target: 98%+ coverage)
-    if ($stats.indexed -gt 0) {
-        $embeddingCoverage = [math]::Round(($stats.embeddingsGenerated / $stats.indexed) * 100, 2)
+    if ($script:stats.indexed -gt 0) {
+        $embeddingCoverage = [math]::Round(($script:stats.embeddingsGenerated / $script:stats.indexed) * 100, 2)
         $coverageColor = if ($embeddingCoverage -ge 98) { "Green" } elseif ($embeddingCoverage -ge 95) { "Yellow" } else { "Red" }
         Write-Host "  Embedding Coverage: $embeddingCoverage%" -ForegroundColor $coverageColor
         
@@ -3206,7 +3348,7 @@ Write-Host "  1. Verify quality: .\verify-pdf-content.ps1 -ResourceGroupName $Re
 Write-Host "  2. Check Azure Portal for indexed documents" -ForegroundColor White
 Write-Host ""
 
-if ($stats.processed -gt 0) {
+if ($script:stats.processed -gt 0) {
     Write-Host "  [SUCCESS] Your RAG system is ready!" -ForegroundColor Green
     Write-Host ""
     Write-Host "  Every document has:" -ForegroundColor Cyan
@@ -3236,139 +3378,139 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 # Coverage summary
-$auditLog.coverage = @{
+$script:auditLog.coverage = @{
     totalPDFs = $pdfs.Count
-    processed = $stats.processed
-    skipped = $stats.skipped
-    failed = $stats.failed
-    totalChunks = $stats.chunks
-    indexedChunks = $stats.indexed
-    embeddingsGenerated = $stats.embeddingsGenerated
-    embeddingErrors = $stats.embeddingErrors
-    embeddingCoverage = if ($stats.indexed -gt 0) { [math]::Round(($stats.embeddingsGenerated / $stats.indexed) * 100, 2) } else { 0 }
+    processed = $script:stats.processed
+    skipped = $script:stats.skipped
+    failed = $script:stats.failed
+    totalChunks = $script:stats.chunks
+    indexedChunks = $script:stats.indexed
+    embeddingsGenerated = $script:stats.embeddingsGenerated
+    embeddingErrors = $script:stats.embeddingErrors
+    embeddingCoverage = if ($script:stats.indexed -gt 0) { [math]::Round(($script:stats.embeddingsGenerated / $script:stats.indexed) * 100, 2) } else { 0 }
     
     # Detailed stats
-    tablesExtracted = $stats.tablesExtracted
-    tableRowsIndexed = $stats.tableRowsIndexed
-    figuresDetected = $stats.figuresDetected
-    chartsExtracted = $stats.chartsExtracted
+    tablesExtracted = $script:stats.tablesExtracted
+    tableRowsIndexed = $script:stats.tableRowsIndexed
+    figuresDetected = $script:stats.figuresDetected
+    chartsExtracted = $script:stats.chartsExtracted
     
     # Document stats
-    documentsWithTables = $stats.documentsWithTables
-    documentsWithFigures = $stats.documentsWithFigures
-    documentsWithCharts = $stats.documentsWithCharts
+    documentsWithTables = $script:stats.documentsWithTables
+    documentsWithFigures = $script:stats.documentsWithFigures
+    documentsWithCharts = $script:stats.documentsWithCharts
     
     # AI tagging stats
-    aiTagsSucceeded = $stats.aiTagsSucceeded
-    aiTagsFailed = $stats.aiTagsFailed
-    aiTagSuccessRate = if (($stats.aiTagsSucceeded + $stats.aiTagsFailed) -gt 0) { 
-        [math]::Round(($stats.aiTagsSucceeded / ($stats.aiTagsSucceeded + $stats.aiTagsFailed)) * 100, 2) 
+    aiTagsSucceeded = $script:stats.aiTagsSucceeded
+    aiTagsFailed = $script:stats.aiTagsFailed
+    aiTagSuccessRate = if (($script:stats.aiTagsSucceeded + $script:stats.aiTagsFailed) -gt 0) { 
+        [math]::Round(($script:stats.aiTagsSucceeded / ($script:stats.aiTagsSucceeded + $script:stats.aiTagsFailed)) * 100, 2) 
     } else { 100 }
     
     # Document-level AI tagging stats
-    documentAITagsSucceeded = $stats.documentAITagsSucceeded
-    documentAITagsFailed = $stats.documentAITagsFailed
-    documentAITagSuccessRate = if (($stats.documentAITagsSucceeded + $stats.documentAITagsFailed) -gt 0) { 
-        [math]::Round(($stats.documentAITagsSucceeded / ($stats.documentAITagsSucceeded + $stats.documentAITagsFailed)) * 100, 2) 
+    documentAITagsSucceeded = $script:stats.documentAITagsSucceeded
+    documentAITagsFailed = $script:stats.documentAITagsFailed
+    documentAITagSuccessRate = if (($script:stats.documentAITagsSucceeded + $script:stats.documentAITagsFailed) -gt 0) { 
+        [math]::Round(($script:stats.documentAITagsSucceeded / ($script:stats.documentAITagsSucceeded + $script:stats.documentAITagsFailed)) * 100, 2) 
     } else { 100 }
     
     # Rate limiting
-    rateLimitHits = $stats.rateLimitHits
+    rateLimitHits = $script:stats.rateLimitHits
     
     # Quality flags
-    lowConfidenceChunks = $stats.lowConfidenceChunks
+    lowConfidenceChunks = $script:stats.lowConfidenceChunks
     
     # Python JSON fixes
-    pythonJsonFixes = $stats.pythonJsonFixes
+    pythonJsonFixes = $script:stats.pythonJsonFixes
 }
 
 # Display audit summary
 Write-Host "  [COVERAGE]" -ForegroundColor Cyan
-Write-Host "    Documents: $($stats.processed)/$($pdfs.Count) processed, $($stats.skipped) skipped, $($stats.failed) failed" -ForegroundColor White
-Write-Host "    Chunks: $($stats.indexed)/$($stats.chunks) indexed" -ForegroundColor White
-Write-Host "    Embeddings: $($stats.embeddingsGenerated) generated, $($stats.embeddingErrors) errors" -ForegroundColor $(if ($stats.embeddingErrors -eq 0) { "Green" } else { "Yellow" })
+Write-Host "    Documents: $($script:stats.processed)/$($pdfs.Count) processed, $($script:stats.skipped) skipped, $($script:stats.failed) failed" -ForegroundColor White
+Write-Host "    Chunks: $($script:stats.indexed)/$($script:stats.chunks) indexed" -ForegroundColor White
+Write-Host "    Embeddings: $($script:stats.embeddingsGenerated) generated, $($script:stats.embeddingErrors) errors" -ForegroundColor $(if ($script:stats.embeddingErrors -eq 0) { "Green" } else { "Yellow" })
 Write-Host ""
 
 Write-Host "  [EXTRACTION]" -ForegroundColor Cyan
-Write-Host "    Tables: $($stats.tablesExtracted) extracted from $($stats.documentsWithTables) documents" -ForegroundColor White
-Write-Host "    Figures: $($stats.figuresDetected) detected from $($stats.documentsWithFigures) documents" -ForegroundColor White
-Write-Host "    Charts: $($stats.chartsExtracted) extracted" -ForegroundColor White
+Write-Host "    Tables: $($script:stats.tablesExtracted) extracted from $($script:stats.documentsWithTables) documents" -ForegroundColor White
+Write-Host "    Figures: $($script:stats.figuresDetected) detected from $($script:stats.documentsWithFigures) documents" -ForegroundColor White
+Write-Host "    Charts: $($script:stats.chartsExtracted) extracted" -ForegroundColor White
 Write-Host ""
 
-if ($script:pythonAvailable -and $stats.pythonJsonFixes -gt 0) {
+if ($script:pythonAvailable -and $script:stats.pythonJsonFixes -gt 0) {
     Write-Host "  [JSON NORMALIZATION]" -ForegroundColor Cyan
-    Write-Host "    Python fixes applied: $($stats.pythonJsonFixes) (prevented serialization errors)" -ForegroundColor Green
+    Write-Host "    Python fixes applied: $($script:stats.pythonJsonFixes) (prevented serialization errors)" -ForegroundColor Green
     Write-Host ""
 }
 
 Write-Host "  [AI TAGGING]" -ForegroundColor Cyan
-$aiTagRate = $auditLog.coverage.aiTagSuccessRate
+$aiTagRate = $script:auditLog.coverage.aiTagSuccessRate
 $aiTagColor = if ($aiTagRate -ge 95) { "Green" } elseif ($aiTagRate -ge 80) { "Yellow" } else { "Red" }
-Write-Host "    Chunk-Level: $($stats.aiTagsSucceeded) succeeded, $($stats.aiTagsFailed) failed ($aiTagRate%)" -ForegroundColor $aiTagColor
-$docAITagRate = $auditLog.coverage.documentAITagSuccessRate
+Write-Host "    Chunk-Level: $($script:stats.aiTagsSucceeded) succeeded, $($script:stats.aiTagsFailed) failed ($aiTagRate%)" -ForegroundColor $aiTagColor
+$docAITagRate = $script:auditLog.coverage.documentAITagSuccessRate
 $docAITagColor = if ($docAITagRate -ge 95) { "Green" } elseif ($docAITagRate -ge 80) { "Yellow" } else { "Red" }
-Write-Host "    Document-Level: $($stats.documentAITagsSucceeded) succeeded, $($stats.documentAITagsFailed) failed ($docAITagRate%)" -ForegroundColor $docAITagColor
+Write-Host "    Document-Level: $($script:stats.documentAITagsSucceeded) succeeded, $($script:stats.documentAITagsFailed) failed ($docAITagRate%)" -ForegroundColor $docAITagColor
 Write-Host ""
 
 # Flag warnings if any
-$hasFlags = $auditLog.warnings.Count -gt 0 -or 
-            $auditLog.skippedChunks.Count -gt 0 -or 
-            $auditLog.failedAITags.Count -gt 0 -or
-            $auditLog.lowConfidenceItems.Count -gt 0 -or
-            $auditLog.failedIndexing.Count -gt 0
+$hasFlags = $script:auditLog.warnings.Count -gt 0 -or 
+            $script:auditLog.skippedChunks.Count -gt 0 -or 
+            $script:auditLog.failedAITags.Count -gt 0 -or
+            $script:auditLog.lowConfidenceItems.Count -gt 0 -or
+            $script:auditLog.failedIndexing.Count -gt 0
 
 if ($hasFlags) {
     Write-Host "  [FLAGS/WARNINGS]" -ForegroundColor Yellow
     
-    if ($auditLog.skippedDocuments.Count -gt 0) {
-        Write-Host "    Skipped Documents: $($auditLog.skippedDocuments.Count)" -ForegroundColor Yellow
+    if ($script:auditLog.skippedDocuments.Count -gt 0) {
+        Write-Host "    Skipped Documents: $($script:auditLog.skippedDocuments.Count)" -ForegroundColor Yellow
     }
     
-    if ($auditLog.skippedChunks.Count -gt 0) {
-        Write-Host "    Skipped Chunks: $($auditLog.skippedChunks.Count)" -ForegroundColor Yellow
+    if ($script:auditLog.skippedChunks.Count -gt 0) {
+        Write-Host "    Skipped Chunks: $($script:auditLog.skippedChunks.Count)" -ForegroundColor Yellow
         # Show first 3 examples
-        $examples = $auditLog.skippedChunks | Select-Object -First 3
+        $examples = $script:auditLog.skippedChunks | Select-Object -First 3
         foreach ($example in $examples) {
             $chunkId = if ($example.chunkIndex) { $example.chunkIndex } else { $example.rowIndex }
             Write-Host "      - $($example.documentId) chunk $chunkId`: $($example.reason)" -ForegroundColor Gray
         }
-        if ($auditLog.skippedChunks.Count -gt 3) {
-            Write-Host "      ... and $($auditLog.skippedChunks.Count - 3) more (see audit log)" -ForegroundColor Gray
+        if ($script:auditLog.skippedChunks.Count -gt 3) {
+            Write-Host "      ... and $($script:auditLog.skippedChunks.Count - 3) more (see audit log)" -ForegroundColor Gray
         }
     }
     
-    if ($auditLog.failedAITags.Count -gt 0) {
-        Write-Host "    Failed AI Tags: $($auditLog.failedAITags.Count)" -ForegroundColor Yellow
-        $examples = $auditLog.failedAITags | Select-Object -First 3
+    if ($script:auditLog.failedAITags.Count -gt 0) {
+        Write-Host "    Failed AI Tags: $($script:auditLog.failedAITags.Count)" -ForegroundColor Yellow
+        $examples = $script:auditLog.failedAITags | Select-Object -First 3
         foreach ($example in $examples) {
             Write-Host "      - $($example.documentId): $($example.error)" -ForegroundColor Gray
         }
-        if ($auditLog.failedAITags.Count -gt 3) {
-            Write-Host "      ... and $($auditLog.failedAITags.Count - 3) more (see audit log)" -ForegroundColor Gray
+        if ($script:auditLog.failedAITags.Count -gt 3) {
+            Write-Host "      ... and $($script:auditLog.failedAITags.Count - 3) more (see audit log)" -ForegroundColor Gray
         }
     }
     
-    if ($auditLog.lowConfidenceItems.Count -gt 0) {
-        Write-Host "    Low Confidence Chunks (<70%): $($auditLog.lowConfidenceItems.Count)" -ForegroundColor Yellow
-        $examples = $auditLog.lowConfidenceItems | Select-Object -First 3
+    if ($script:auditLog.lowConfidenceItems.Count -gt 0) {
+        Write-Host "    Low Confidence Chunks (<70%): $($script:auditLog.lowConfidenceItems.Count)" -ForegroundColor Yellow
+        $examples = $script:auditLog.lowConfidenceItems | Select-Object -First 3
         foreach ($example in $examples) {
             Write-Host "      - $($example.documentId) chunk $($example.chunkIndex): $([math]::Round($example.confidence * 100, 1))% ($($example.category))" -ForegroundColor Gray
         }
-        if ($auditLog.lowConfidenceItems.Count -gt 3) {
-            Write-Host "      ... and $($auditLog.lowConfidenceItems.Count - 3) more (see audit log)" -ForegroundColor Gray
+        if ($script:auditLog.lowConfidenceItems.Count -gt 3) {
+            Write-Host "      ... and $($script:auditLog.lowConfidenceItems.Count - 3) more (see audit log)" -ForegroundColor Gray
         }
     }
     
-    if ($auditLog.failedIndexing.Count -gt 0) {
-        Write-Host "    Failed Indexing: $($auditLog.failedIndexing.Count) batches" -ForegroundColor Red
-        foreach ($failure in $auditLog.failedIndexing | Select-Object -First 3) {
+    if ($script:auditLog.failedIndexing.Count -gt 0) {
+        Write-Host "    Failed Indexing: $($script:auditLog.failedIndexing.Count) batches" -ForegroundColor Red
+        foreach ($failure in $script:auditLog.failedIndexing | Select-Object -First 3) {
             Write-Host "      - $($failure.documentId): $($failure.failed)/$($failure.attempted) $($failure.type) failed" -ForegroundColor Red
         }
     }
     
-    if ($auditLog.errors.Count -gt 0) {
-        Write-Host "    Errors: $($auditLog.errors.Count)" -ForegroundColor Red
-        foreach ($err in $auditLog.errors | Select-Object -First 5) {
+    if ($script:auditLog.errors.Count -gt 0) {
+        Write-Host "    Errors: $($script:auditLog.errors.Count)" -ForegroundColor Red
+        foreach ($err in $script:auditLog.errors | Select-Object -First 5) {
             Write-Host "      - $($err.documentId): $($err.message)" -ForegroundColor Red
         }
     }
@@ -3381,19 +3523,21 @@ if ($hasFlags) {
 }
 
 # Save audit log to JSON file
-$auditLogPath = Join-Path $PSScriptRoot "logs" "audit-$(Get-Date -Format 'yyyy-MM-dd-HHmmss').json"
-$auditLogDir = Split-Path $auditLogPath -Parent
+$script:auditLogDir = Join-Path $PSScriptRoot "logs"
+$auditLogPath = Join-Path $script:auditLogDir "audit-$(Get-Date -Format 'yyyy-MM-dd-HHmmss').json"
 
 # Create logs directory if it doesn't exist
-if (-not (Test-Path $auditLogDir)) {
-    New-Item -ItemType Directory -Path $auditLogDir -Force | Out-Null
+if (-not (Test-Path $script:auditLogDir)) {
+    New-Item -ItemType Directory -Path $script:auditLogDir -Force | Out-Null
 }
 
 # Add final stats to audit log
-$auditLog.finalStats = $stats
+$script:auditLog.finalStats = $script:stats
+$script:auditLog.endTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+$script:auditLog.terminatedEarly = $false
 
 try {
-    $auditLog | ConvertTo-Json -Depth 10 | Out-File -FilePath $auditLogPath -Encoding UTF8
+    $script:auditLog | ConvertTo-Json -Depth 10 | Out-File -FilePath $auditLogPath -Encoding UTF8
     Write-Host "  [AUDIT LOG SAVED]" -ForegroundColor Green
     Write-Host "    Path: $auditLogPath" -ForegroundColor White
     Write-Host ""

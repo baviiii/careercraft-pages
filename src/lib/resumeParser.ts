@@ -182,8 +182,113 @@ export async function parseResumeWithAI(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Parse-resume error:', errorText);
-      throw new Error(`Failed to parse resume: ${response.status}`);
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: errorText };
+      }
+      
+      console.error('❌ Parse-resume error:', errorData);
+      
+      // If Document Intelligence is not configured or fails, fall back to client-side extraction
+      if (errorData.error?.includes('Document Intelligence not configured') || 
+          errorData.error?.includes('Document analysis failed') ||
+          response.status === 500) {
+        console.warn('⚠️ Document Intelligence unavailable, falling back to client-side extraction...');
+        
+        // Fallback to client-side extraction
+        if (onProgress) onProgress(30);
+        
+        let rawText = '';
+        if (fileType === 'application/pdf') {
+          rawText = await parsePDF(file);
+        } else if (
+          fileType === 'application/msword' || 
+          fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ) {
+          rawText = await parseDOC(file);
+        } else if (isImageFile(file)) {
+          rawText = await parseImageWithOCR(file, onProgress);
+        } else {
+          throw new Error('Unsupported file type');
+        }
+        
+        if (onProgress) onProgress(60);
+        
+        // Send pre-extracted text to AI parser
+        const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('parse-resume', {
+          body: {
+            rawText,
+            fileName: file.name,
+            fileType: file.type,
+            pageCount: 1
+          }
+        });
+        
+        if (fallbackError || !fallbackData?.success) {
+          throw new Error(fallbackData?.error || 'AI parsing failed');
+        }
+        
+        const data = fallbackData;
+        if (onProgress) onProgress(90);
+        
+        if (data?.parsed) {
+          const parsed = data.parsed;
+          console.log('✅ AI parsing successful (fallback mode)! Extracted:', {
+            name: parsed.personalInfo?.fullName,
+            experienceCount: parsed.workExperience?.length,
+            skillsCount: parsed.skills?.reduce((acc: number, s: any) => acc + s.items.length, 0)
+          });
+
+          if (onProgress) onProgress(100);
+
+          // Transform ParsedResume to AIResumeData format
+          const transformedData: AIResumeData = {
+            contact: {
+              name: parsed.personalInfo.fullName || '',
+              email: parsed.personalInfo.email || '',
+              phone: parsed.personalInfo.phone || '',
+              location: parsed.personalInfo.location || '',
+              linkedin: parsed.personalInfo.linkedin,
+              website: parsed.personalInfo.website,
+            },
+            summary: parsed.personalInfo.summary || '',
+            experience: parsed.workExperience.map((exp: any, index: number) => ({
+              id: `exp-${index}`,
+              title: exp.title,
+              company: exp.company,
+              location: exp.location || '',
+              startDate: exp.startDate || '',
+              endDate: exp.current ? 'Present' : (exp.endDate || ''),
+              current: exp.current,
+              bullets: exp.bullets,
+            })),
+            education: parsed.education.map((edu: any, index: number) => ({
+              id: `edu-${index}`,
+              degree: edu.degree,
+              school: edu.institution,
+              location: edu.field || '',
+              graduationDate: edu.endDate || '',
+              gpa: edu.gpa,
+            })),
+            skills: parsed.skills.flatMap((s: any) => s.items),
+            certifications: parsed.certifications?.map((cert: any) => cert.name) || [],
+            projects: parsed.projects?.map((proj: any, index: number) => ({
+              id: `proj-${index}`,
+              name: proj.name,
+              description: proj.description || '',
+              technologies: proj.technologies,
+            })) || [],
+          };
+
+          return transformedData;
+        }
+        
+        throw new Error('No data returned from AI parser');
+      }
+      
+      throw new Error(`Failed to parse resume: ${response.status} - ${errorData.error || errorText}`);
     }
 
     const data = await response.json();

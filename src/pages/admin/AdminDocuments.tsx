@@ -24,8 +24,19 @@ interface ProcessingStatus {
     pages: number;
     textChunks: number;
     tableRows: number;
+    chartsFound?: number;
     totalIndexed: number;
+    embeddingsGenerated?: number;
+    embeddingCoverage?: number;
+    tablesFound?: number;
     processingTime: string;
+    quality?: {
+      coverage: number;
+      status: 'EXCELLENT' | 'GOOD' | 'LOW';
+      hasEmbeddings: boolean;
+      hasTables: boolean;
+      hasCharts: boolean;
+    };
   };
 }
 
@@ -435,12 +446,95 @@ export default function AdminDocuments() {
                     
                     {/* Result summary for completed files */}
                     {isCompleted && status?.result && (
-                      <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
-                        <span><strong>{status.result.pages}</strong> pages</span>
-                        <span><strong>{status.result.textChunks}</strong> chunks</span>
-                        <span><strong>{status.result.tableRows}</strong> table rows</span>
-                        <span><strong>{status.result.totalIndexed}</strong> indexed</span>
-                        <span className="text-green-600">{status.result.processingTime}</span>
+                      <div className="mt-3 space-y-2">
+                        {/* Quality Score Card */}
+                        {status.result.quality && (
+                          <div className={cn(
+                            "p-2 rounded text-xs",
+                            status.result.quality.status === 'EXCELLENT' && "bg-green-100 dark:bg-green-900/30 border border-green-300",
+                            status.result.quality.status === 'GOOD' && "bg-blue-100 dark:bg-blue-900/30 border border-blue-300",
+                            status.result.quality.status === 'LOW' && "bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300"
+                          )}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-semibold">Quality Score</span>
+                              <Badge variant={
+                                status.result.quality.status === 'EXCELLENT' ? 'default' :
+                                status.result.quality.status === 'GOOD' ? 'secondary' : 'outline'
+                              } className={cn(
+                                status.result.quality.status === 'EXCELLENT' && "bg-green-600 text-white",
+                                status.result.quality.status === 'GOOD' && "bg-blue-600 text-white"
+                              )}>
+                                {status.result.quality.status}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{status.result.quality.coverage.toFixed(1)}%</span>
+                              <span className="text-muted-foreground">coverage</span>
+                              {status.result.quality.hasEmbeddings && (
+                                <Badge variant="outline" className="text-xs">✓ Embeddings</Badge>
+                              )}
+                              {status.result.quality.hasTables && (
+                                <Badge variant="outline" className="text-xs">✓ Tables</Badge>
+                              )}
+                              {status.result.quality.hasCharts && (
+                                <Badge variant="outline" className="text-xs">✓ Charts</Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Detailed Metrics */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div className="p-2 bg-muted/50 rounded">
+                            <div className="text-muted-foreground">Pages</div>
+                            <div className="font-semibold text-lg">{status.result.pages}</div>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <div className="text-muted-foreground">Text Chunks</div>
+                            <div className="font-semibold text-lg">{status.result.textChunks}</div>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <div className="text-muted-foreground">Table Rows</div>
+                            <div className="font-semibold text-lg">{status.result.tableRows || 0}</div>
+                          </div>
+                          <div className="p-2 bg-muted/50 rounded">
+                            <div className="text-muted-foreground">Total Indexed</div>
+                            <div className="font-semibold text-lg">{status.result.totalIndexed}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Additional Metrics */}
+                        {(status.result.chartsFound !== undefined || status.result.embeddingsGenerated !== undefined || status.result.embeddingCoverage !== undefined) && (
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground pt-1 border-t">
+                            {status.result.chartsFound !== undefined && (
+                              <span><strong>{status.result.chartsFound}</strong> charts found</span>
+                            )}
+                            {status.result.embeddingsGenerated !== undefined && (
+                              <span><strong>{status.result.embeddingsGenerated}</strong> embeddings</span>
+                            )}
+                            {status.result.embeddingCoverage !== undefined && (
+                              <span className={cn(
+                                status.result.embeddingCoverage >= 95 && "text-green-600",
+                                status.result.embeddingCoverage >= 80 && "text-blue-600",
+                                "text-yellow-600"
+                              )}>
+                                <strong>{status.result.embeddingCoverage.toFixed(1)}%</strong> embedding coverage
+                              </span>
+                            )}
+                            <span className="text-green-600 ml-auto">{status.result.processingTime}</span>
+                          </div>
+                        )}
+                        
+                        {/* Fallback for old format */}
+                        {!status.result.quality && (
+                          <div className="flex gap-4 text-xs text-muted-foreground">
+                            <span><strong>{status.result.pages}</strong> pages</span>
+                            <span><strong>{status.result.textChunks}</strong> chunks</span>
+                            <span><strong>{status.result.tableRows}</strong> table rows</span>
+                            <span><strong>{status.result.totalIndexed}</strong> indexed</span>
+                            <span className="text-green-600">{status.result.processingTime}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                     

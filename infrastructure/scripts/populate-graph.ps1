@@ -1,6 +1,7 @@
 # ============================================================================
 # GRAPH POPULATION SCRIPT
-# Extracts entities from Azure Search chunks and populates Supabase graph tables
+# Extracts entities from Azure Search chunks and populates Cosmos DB (Gremlin) graph
+# Supports both Cosmos DB and Neo4j backends
 # ============================================================================
 
 param(
