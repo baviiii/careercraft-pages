@@ -1,37 +1,27 @@
 /**
  * DocumentIntelligenceVisualizer Component
- * 
- * Main container component that orchestrates all intelligence visualizations.
- * Handles query-based regeneration and manages visualization state.
+ *
+ * Collapsible panel showing exactly which PDFs and page numbers were used,
+ * plus PDF charts and contradiction detection.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import {
-  BarChart3,
-  PieChart,
-  Network,
-  AlertTriangle,
-  Download,
-  RefreshCw,
+  FileText,
   Image as ImageIcon,
-  Layers,
-  Table2,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  BookOpen,
 } from 'lucide-react';
-import { MetadataDistributionCharts } from './MetadataDistributionCharts';
 import { PDFChartVisualizer } from './PDFChartVisualizer';
-import { QueryInsightsVisualizer } from './QueryInsightsVisualizer';
-import { RelationshipGraph } from './RelationshipGraph';
 import { ContradictionVisualizer } from './ContradictionVisualizer';
-import { DataTableVisualizer } from './DataTableVisualizer';
 import {
   VisualizationData,
-  ChartResult,
-  MetadataDistribution,
   createEmptyVisualizationData,
 } from '@/lib/intelligence/visualizationData';
 
@@ -47,6 +37,7 @@ interface Source {
   hasChart?: boolean;
   chartType?: string;
   visualDescription?: string;
+  chunkType?: string;
 }
 
 interface AgenticContradiction {
@@ -56,7 +47,7 @@ interface AgenticContradiction {
   source2Document: string;
   source2Text?: string;
   description: string;
-  severity: "high" | "medium" | "low";
+  severity: 'high' | 'medium' | 'low';
   possibleResolution?: string;
 }
 
@@ -75,288 +66,259 @@ export const DocumentIntelligenceVisualizer: React.FC<DocumentIntelligenceVisual
   visualizationData,
   query,
   isLoading = false,
-  onRefresh,
   className = '',
   contradictions,
 }) => {
-  const [activeTab, setActiveTab] = useState('insights');
-  const [autoRegenerate, setAutoRegenerate] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState('sources');
 
-  // Use provided visualization data or create empty
   const vizData = visualizationData || createEmptyVisualizationData();
-
-  // Map agentic contradictions to ContradictionPair format
-  const mappedContradictions = useMemo(() => {
-    if (!contradictions || contradictions.length === 0) return undefined;
-    
-    const typeMap: Record<string, 'policy' | 'data' | 'definition' | 'procedure' | 'other'> = {
-      'policy_conflict': 'policy',
-      'funding_mismatch': 'data',
-      'data_inconsistency': 'data',
-      'timeline_conflict': 'procedure',
-      'priority_conflict': 'policy',
-    };
-
-    return contradictions.map((c, idx) => ({
-      id: `contradiction-${idx}`,
-      documentA: {
-        id: c.source1Document,
-        title: c.source1Document,
-        excerpt: c.source1Text || 'No excerpt available',
-      },
-      documentB: {
-        id: c.source2Document,
-        title: c.source2Document,
-        excerpt: c.source2Text || 'No excerpt available',
-      },
-      type: typeMap[c.type] || 'other' as const,
-      severity: c.severity,
-      description: c.description,
-      confidence: c.severity === 'high' ? 0.85 : c.severity === 'medium' ? 0.65 : 0.45,
-    }));
-  }, [contradictions]);
-
-  // Fetch graph relationships from graph-query API
-  const [graphRelationships, setGraphRelationships] = useState<Array<{ source: string; target: string; type: string; weight?: number }>>([]);
-  const [loadingGraph, setLoadingGraph] = useState(false);
-
-  useEffect(() => {
-    const fetchGraphRelationships = async () => {
-      const graphUrl = import.meta.env.VITE_AZURE_GRAPH_QUERY_URL || '';
-      const functionKey = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
-      if (!graphUrl || sources.length === 0) return;
-
-      setLoadingGraph(true);
-      try {
-        // Extract unique sectors/categories from sources to query for related entities
-        const sectors = [...new Set(sources.map(s => s.sector).filter(Boolean))];
-        const categories = [...new Set(sources.map(s => s.category).filter(Boolean))];
-        const entities = [...sectors, ...categories].slice(0, 5);
-
-        const allRelationships: Array<{ source: string; target: string; type: string; weight?: number }> = [];
-
-        for (const entity of entities) {
-          try {
-            const response = await fetch(graphUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(functionKey ? { 'x-functions-key': functionKey } : {}),
-              },
-              body: JSON.stringify({
-                action: 'search',
-                query: entity,
-                limit: 10,
-              }),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              const raw = Array.isArray(data) ? data : data.data || data.result || data.results || [];
-              // Flatten paths (arrays of arrays) into flat entity objects
-              const flat: any[] = [];
-              for (const item of raw) {
-                if (Array.isArray(item)) {
-                  for (const step of item) {
-                    if (step && typeof step === 'object' && !Array.isArray(step)) flat.push(step);
-                  }
-                } else if (item && typeof item === 'object') {
-                  flat.push(item);
-                }
-              }
-              for (const item of flat) {
-                const targetName = item.name || item.canonical_name || item.canonicalName || item.id;
-                if (targetName && typeof targetName === 'string') {
-                  allRelationships.push({
-                    source: entity!,
-                    target: targetName,
-                    type: item.relationship_type || item.entity_type || item.type || 'related',
-                    weight: item.weight || item.similarity || 0.7,
-                  });
-                }
-              }
-            }
-          } catch {
-            // Silently continue if a single entity lookup fails
-          }
-        }
-
-        setGraphRelationships(allRelationships);
-      } catch (err) {
-        console.error('Failed to fetch graph relationships:', err);
-      } finally {
-        setLoadingGraph(false);
-      }
-    };
-
-    fetchGraphRelationships();
-  }, [sources]);
-
-  // Auto-regenerate when query changes
-  useEffect(() => {
-    if (autoRegenerate && query && onRefresh) {
-      // Visualizations auto-update when new data comes in
-      // This is handled by the parent component passing new props
-    }
-  }, [query, autoRegenerate, onRefresh]);
-
-  // Calculate stats
   const totalCharts = vizData.charts.length;
   const hasCharts = totalCharts > 0;
-  const hasMetadata = Object.keys(vizData.metadataDistribution.categories).length > 0;
 
-  // Loading skeleton
+  const typeMap: Record<string, 'policy' | 'data' | 'definition' | 'procedure' | 'other'> = {
+    policy_conflict: 'policy',
+    funding_mismatch: 'data',
+    data_inconsistency: 'data',
+    timeline_conflict: 'procedure',
+    priority_conflict: 'policy',
+  };
+
+  const mappedContradictions = contradictions && contradictions.length > 0
+    ? contradictions.map((c, idx) => ({
+        id: `contradiction-${idx}`,
+        documentA: {
+          id: c.source1Document,
+          title: c.source1Document,
+          excerpt: c.source1Text || 'No excerpt available',
+        },
+        documentB: {
+          id: c.source2Document,
+          title: c.source2Document,
+          excerpt: c.source2Text || 'No excerpt available',
+        },
+        type: typeMap[c.type] || ('other' as const),
+        severity: c.severity,
+        description: c.description,
+        confidence: c.severity === 'high' ? 0.85 : c.severity === 'medium' ? 0.65 : 0.45,
+      }))
+    : undefined;
+
+  const hasContradictions = mappedContradictions && mappedContradictions.length > 0;
+
+  // Group sources by document, collecting all page numbers used
+  const groupedDocs = useMemo(() => {
+    const map = new Map<string, {
+      title: string;
+      documentId: string;
+      pages: Set<number>;
+      maxScore: number;
+      category?: string;
+      sector?: string;
+      chunkCount: number;
+    }>();
+    const maxScore = sources.length > 0 ? Math.max(...sources.map(s => s.score)) : 1;
+    for (const s of sources) {
+      const key = s.documentId || s.title;
+      if (!map.has(key)) {
+        map.set(key, {
+          title: s.title || s.documentId,
+          documentId: s.documentId,
+          pages: new Set(),
+          maxScore: 0,
+          category: s.category,
+          sector: s.sector,
+          chunkCount: 0,
+        });
+      }
+      const doc = map.get(key)!;
+      if (s.pageNumber) doc.pages.add(s.pageNumber);
+      if (s.score > doc.maxScore) doc.maxScore = s.score;
+      doc.chunkCount++;
+    }
+    const globalMax = maxScore > 0 ? maxScore : 1;
+    return Array.from(map.values())
+      .map(d => ({ ...d, relevance: Math.round((d.maxScore / globalMax) * 100) }))
+      .sort((a, b) => b.relevance - a.relevance);
+  }, [sources]);
+
+  const uniqueDocCount = groupedDocs.length;
+  const totalChunkCount = sources.length;
+
   if (isLoading) {
     return (
-      <div className={`space-y-4 ${className}`}>
-        <Card className="bg-slate-900/50 border-slate-700">
-          <CardHeader className="pb-2">
-            <Skeleton className="h-6 w-48" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Skeleton className="h-64 w-full" />
-              <div className="grid grid-cols-4 gap-4">
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-                <Skeleton className="h-20" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className={`${className}`}>
+        <div className="rounded-2xl border border-slate-700/50 bg-slate-900/50 p-4 space-y-3">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-32 w-full" />
+        </div>
       </div>
     );
   }
 
-  // No data state
-  if (sources.length === 0 && !hasCharts && !hasMetadata) {
-    return (
-      <Card className={`bg-slate-900/50 border-slate-700 ${className}`}>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Layers className="w-12 h-12 text-slate-600 mb-4" />
-          <p className="text-slate-400 text-center">
-            No visualization data available.<br />
-            Run a query to see insights and charts.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (sources.length === 0 && !hasCharts) return null;
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Header with controls */}
-      <Card className="bg-slate-900/50 border-slate-700">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2 text-slate-100">
-              <BarChart3 className="w-5 h-5 text-blue-400" />
-              Intelligence Visualizations
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              {totalCharts > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  <ImageIcon className="w-3 h-3 mr-1" />
-                  {totalCharts} Chart{totalCharts !== 1 ? 's' : ''}
-                </Badge>
-              )}
-              {onRefresh && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onRefresh}
-                  disabled={isLoading}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-              )}
-              <Button variant="ghost" size="sm">
-                <Download className="w-4 h-4 mr-1" />
-                Export
-              </Button>
+    <div className={`${className}`}>
+      <div className="rounded-2xl border border-slate-700/50 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+
+        {/* ── Collapsible Header ── */}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/4 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center">
+              <BookOpen className="w-3.5 h-3.5 text-blue-400" />
             </div>
+            <span className="text-sm font-semibold text-white">Source Intelligence</span>
+            <Badge className="text-[10px] bg-slate-700/60 text-slate-300 border-slate-600/50">
+              {uniqueDocCount} PDF{uniqueDocCount !== 1 ? 's' : ''} · {totalChunkCount} chunks
+            </Badge>
+            {hasContradictions && (
+              <Badge className="text-[10px] bg-red-500/20 text-red-300 border-red-500/40">
+                <AlertTriangle className="w-2.5 h-2.5 mr-1" />
+                {mappedContradictions!.length} conflict{mappedContradictions!.length !== 1 ? 's' : ''}
+              </Badge>
+            )}
+            {hasCharts && (
+              <Badge className="text-[10px] bg-purple-500/20 text-purple-300 border-purple-500/40">
+                <ImageIcon className="w-2.5 h-2.5 mr-1" />
+                {totalCharts} chart{totalCharts !== 1 ? 's' : ''}
+              </Badge>
+            )}
           </div>
-        </CardHeader>
-      </Card>
+          {collapsed
+            ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+            : <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
+          }
+        </button>
 
-      {/* Visualization Tabs */}
-      <Card className="bg-slate-900/50 border-slate-700">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full justify-start bg-slate-800/50 border-b border-slate-700 rounded-b-none">
-            <TabsTrigger value="insights" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Query Insights
-            </TabsTrigger>
-            <TabsTrigger value="distribution" className="flex items-center gap-2">
-              <PieChart className="w-4 h-4" />
-              Distribution
-            </TabsTrigger>
-            {hasCharts && (
-              <TabsTrigger value="charts" className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4" />
-                PDF Charts
-                <Badge variant="secondary" className="text-xs ml-1">
-                  {totalCharts}
-                </Badge>
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="tables" className="flex items-center gap-2">
-              <Table2 className="w-4 h-4" />
-              Tables
-            </TabsTrigger>
-            <TabsTrigger value="relationships" className="flex items-center gap-2">
-              <Network className="w-4 h-4" />
-              Relationships
-            </TabsTrigger>
-            <TabsTrigger value="contradictions" className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
-              Contradictions
-            </TabsTrigger>
-          </TabsList>
+        {/* ── Body ── */}
+        {!collapsed && (
+          <div className="border-t border-slate-700/50">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              {/* Tab bar */}
+              <div className="px-4 pt-3 pb-0">
+                <TabsList className="bg-slate-800/60 border border-slate-700/50 h-9 gap-1 p-1">
+                  <TabsTrigger
+                    value="sources"
+                    className="flex items-center gap-1.5 text-xs data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Sources
+                    <span className="ml-0.5 text-[10px] opacity-70">({uniqueDocCount})</span>
+                  </TabsTrigger>
+                  {hasCharts && (
+                    <TabsTrigger
+                      value="charts"
+                      className="flex items-center gap-1.5 text-xs data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      PDF Charts
+                      <span className="ml-0.5 text-[10px] opacity-70">({totalCharts})</span>
+                    </TabsTrigger>
+                  )}
+                  <TabsTrigger
+                    value="contradictions"
+                    className="flex items-center gap-1.5 text-xs data-[state=active]:bg-red-500/20 data-[state=active]:text-red-300"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Contradictions
+                    {hasContradictions && (
+                      <span className="ml-0.5 text-[10px] opacity-70">({mappedContradictions!.length})</span>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-          <CardContent className="pt-4">
-            <TabsContent value="insights" className="mt-0">
-              <QueryInsightsVisualizer
-                sources={sources}
-                visualizationData={vizData}
-                query={query}
-              />
-            </TabsContent>
+              {/* Sources tab — exact PDFs + page numbers */}
+              <TabsContent value="sources" className="mt-0 p-4">
+                {groupedDocs.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-6">No source documents available.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {groupedDocs.map((doc, i) => {
+                      const sortedPages = Array.from(doc.pages).sort((a, b) => a - b);
+                      return (
+                        <div
+                          key={doc.documentId + i}
+                          className="flex items-start gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/40 hover:border-slate-600/60 transition-colors"
+                        >
+                          {/* Rank */}
+                          <span className="text-[11px] font-bold text-slate-500 w-5 shrink-0 mt-0.5">
+                            {i + 1}
+                          </span>
 
-            <TabsContent value="distribution" className="mt-0">
-              <MetadataDistributionCharts
-                distribution={vizData.metadataDistribution}
-                title="Source Distribution Analysis"
-              />
-            </TabsContent>
-
-            {hasCharts && (
-              <TabsContent value="charts" className="mt-0">
-                <PDFChartVisualizer charts={vizData.charts} />
+                          {/* Doc info */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white leading-snug">
+                              {doc.title}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              {/* Page numbers */}
+                              {sortedPages.length > 0 ? (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[10px] text-slate-400">Pages:</span>
+                                  {sortedPages.map(pg => (
+                                    <span
+                                      key={pg}
+                                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/25"
+                                    >
+                                      {pg}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-500">Page not specified</span>
+                              )}
+                              {/* Chunk count */}
+                              <span className="text-[10px] text-slate-500">
+                                · {doc.chunkCount} chunk{doc.chunkCount !== 1 ? 's' : ''}
+                              </span>
+                              {/* Sector */}
+                              {doc.sector && doc.sector !== 'General' && (
+                                <Badge className="text-[10px] px-1.5 py-0 bg-purple-500/15 text-purple-300 border-purple-500/30">
+                                  {doc.sector}
+                                </Badge>
+                              )}
+                              {/* Category */}
+                              {doc.category && (
+                                <Badge className="text-[10px] px-1.5 py-0 bg-slate-700/60 text-slate-300 border-slate-600/40">
+                                  {doc.category}
+                                </Badge>
+                              )}
+                            </div>
+                            {/* Relevance bar */}
+                            <div className="flex items-center gap-2 mt-2">
+                              <Progress value={doc.relevance} className="h-1 flex-1" />
+                              <span className="text-[10px] text-slate-400 shrink-0 w-8 text-right">
+                                {doc.relevance}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </TabsContent>
-            )}
 
-            <TabsContent value="tables" className="mt-0">
-              <DataTableVisualizer
-                query={query}
-                sector={sources[0]?.sector}
-                category={sources[0]?.category}
-                maxTables={30}
-              />
-            </TabsContent>
+              {/* PDF Charts tab */}
+              {hasCharts && (
+                <TabsContent value="charts" className="mt-0 p-4">
+                  <PDFChartVisualizer charts={vizData.charts} />
+                </TabsContent>
+              )}
 
-            <TabsContent value="relationships" className="mt-0">
-              <RelationshipGraph sources={sources} graphRelationships={graphRelationships} loadingGraph={loadingGraph} />
-            </TabsContent>
-
-            <TabsContent value="contradictions" className="mt-0">
-              <ContradictionVisualizer contradictions={mappedContradictions} />
-            </TabsContent>
-          </CardContent>
-        </Tabs>
-      </Card>
+              {/* Contradictions tab */}
+              <TabsContent value="contradictions" className="mt-0 p-4">
+                <ContradictionVisualizer contradictions={mappedContradictions} />
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

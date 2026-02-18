@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePersonalization } from "@/hooks/usePersonalization";
 import { gsap } from "gsap";
 import InterviewDashboard from "@/components/interview/InterviewDashboard";
+import { SAMarketIntelligence } from "@/components/interview/SAMarketIntelligence";
 import {
   Select,
   SelectContent,
@@ -918,6 +919,11 @@ export default function InterviewPrep() {
                     </Button>
                   </div>
                 </Card>
+              )}
+
+              {/* SA Market Intelligence — shown once a field is selected */}
+              {field && (
+                <SAMarketIntelligence field={field} seniority={seniority} />
               )}
 
               {/* Main Setup Card */}

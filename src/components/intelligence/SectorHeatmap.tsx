@@ -45,10 +45,13 @@ export function SectorHeatmap() {
     const sectorMap = new Map<string, { funding: number; jobs: number; growth: number; change: number }>();
 
     fundingAllocations.forEach(alloc => {
-      const existing = sectorMap.get(alloc.sector) || { funding: 0, jobs: 0, growth: 0, change: 0 };
-      sectorMap.set(alloc.sector, {
+      // Use lowercase key to prevent "Infrastructure" vs "infrastructure" duplicates summing
+      const key = alloc.sector.trim();
+      const existing = sectorMap.get(key) || { funding: 0, jobs: 0, growth: 0, change: 0 };
+      sectorMap.set(key, {
         ...existing,
-        funding: existing.funding + alloc.amount,
+        // Take max, never sum — prevents double-counting if canonical dedup misses a variant
+        funding: Math.max(existing.funding, alloc.amount),
         change: alloc.change,
       });
     });

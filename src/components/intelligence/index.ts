@@ -14,10 +14,7 @@ export { CrossTabConnections } from './CrossTabConnections';
 export { ChartIntelligence } from './ChartIntelligence';
 export { DataStoriesPanel, LiveDiscoveryFeed } from './NextGenInsights';
 
-// Dynamic Visualization Components (NEW!)
+// Dynamic Visualization Components
 export { DocumentIntelligenceVisualizer } from './DocumentIntelligenceVisualizer';
-export { MetadataDistributionCharts } from './MetadataDistributionCharts';
 export { PDFChartVisualizer } from './PDFChartVisualizer';
-export { QueryInsightsVisualizer } from './QueryInsightsVisualizer';
-export { RelationshipGraph } from './RelationshipGraph';
 export { ContradictionVisualizer } from './ContradictionVisualizer';

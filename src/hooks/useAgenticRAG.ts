@@ -204,6 +204,8 @@ interface StepResult {
 
 interface AgenticRAGOptions {
   graphBackend?: 'cosmos' | 'neo4j';
+  /** When set (e.g. HORUS tab prompt), the final semanticSearch uses this + agentic context for structured/parseable output. */
+  finalSystemPrompt?: string;
 }
 
 // Normalize Azure AI Search @search.score to a 0-100 relevance percentage
@@ -318,7 +320,7 @@ function mergeAndDeduplicateSources(
 }
 
 export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAGOptions = {}) {
-  const { graphBackend = 'cosmos' } = options;
+  const { graphBackend = 'cosmos', finalSystemPrompt } = options;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [context, setContext] = useState<ConversationContext>({
     messages: [],
@@ -655,10 +657,13 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       // Build enriched context from agentic step results to feed into the final LLM call
       const agenticContext = buildAgenticContext(plan, stepResults, uniqueSources, analysis);
 
-      // Generate response using semanticSearch with agentic context injected as system prompt supplement
+      // Generate response using semanticSearch; combine finalSystemPrompt (e.g. HORUS tab prompt) with agentic context
       const agenticSystemPrompt = agenticContext
         ? `You have access to additional context from an agentic retrieval pipeline. Use this alongside the retrieved documents to give a comprehensive answer.\n\n### Agentic Context\n${agenticContext}`
         : undefined;
+      const combinedSystemPrompt = finalSystemPrompt
+        ? (agenticSystemPrompt ? `${finalSystemPrompt}\n\n${agenticSystemPrompt}` : finalSystemPrompt)
+        : agenticSystemPrompt;
 
       const finalResult = await semanticSearch(
         content,
@@ -666,7 +671,7 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         {
           topK: 30,
           timeAwareRanking: true,
-          systemPrompt: agenticSystemPrompt,
+          systemPrompt: combinedSystemPrompt,
         }
       );
 
@@ -753,7 +758,7 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     } finally {
       setIsStreaming(false);
     }
-  }, [planQuery, traverseGraph, analyzeIntersections, semanticSearch]);
+  }, [planQuery, traverseGraph, analyzeIntersections, semanticSearch, finalSystemPrompt]);
 
   // ========================================================================
   // STEP EXECUTION ENGINE - Handles dependencies & parallel execution

@@ -88,11 +88,13 @@ export const QueryInsightsVisualizer: React.FC<QueryInsightsVisualizerProps> = (
       sectors[sector].count++;
       sectors[sector].totalScore += s.score;
     }
+    const allScores = sources.map(s => s.score);
+    const localMax = allScores.length > 0 ? Math.max(...allScores) : 1;
     return Object.entries(sectors)
       .map(([name, data]) => ({
         name,
         count: data.count,
-        avgRelevance: Math.round((data.totalScore / data.count) * 100),
+        avgRelevance: localMax > 0 ? Math.round(((data.totalScore / data.count) / localMax) * 100) : 0,
         fill: SECTOR_COLORS[name] || '#6366f1',
       }))
       .sort((a, b) => b.count - a.count);
@@ -156,6 +158,8 @@ export const QueryInsightsVisualizer: React.FC<QueryInsightsVisualizerProps> = (
     : [];
 
   const uniqueDocuments = new Set(sources.map(s => s.documentId)).size;
+  const maxScore = sources.length > 0 ? Math.max(...sources.map(s => s.score)) : 1;
+  const normalizeScore = (score: number) => maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
   const avgScore = sources.length > 0
     ? (sources.reduce((acc, s) => acc + s.score, 0) / sources.length)
     : 0;
@@ -183,7 +187,7 @@ export const QueryInsightsVisualizer: React.FC<QueryInsightsVisualizerProps> = (
         <Card className="bg-slate-800/60 border-slate-600">
           <CardContent className="p-4 text-center">
             <Target className="w-5 h-5 text-green-400 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-white">{Math.round(avgScore * 100)}%</p>
+            <p className="text-2xl font-bold text-white">{normalizeScore(avgScore)}%</p>
             <p className="text-xs text-slate-300">Avg Relevance</p>
           </CardContent>
         </Card>
@@ -362,12 +366,12 @@ export const QueryInsightsVisualizer: React.FC<QueryInsightsVisualizerProps> = (
                     </div>
                   </div>
                   <Badge
-                    className={`text-xs shrink-0 ${source.score > 0.7 ? 'bg-green-500/20 text-green-300 border-green-500/40' : source.score > 0.4 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-500/20 text-slate-300 border-slate-500/40'}`}
+                    className={`text-xs shrink-0 ${normalizeScore(source.score) >= 70 ? 'bg-green-500/20 text-green-300 border-green-500/40' : normalizeScore(source.score) >= 40 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-500/20 text-slate-300 border-slate-500/40'}`}
                   >
-                    {Math.round(source.score * 100)}%
+                    {normalizeScore(source.score)}%
                   </Badge>
                 </div>
-                <Progress value={source.score * 100} className="h-1 mt-2" />
+                <Progress value={normalizeScore(source.score)} className="h-1 mt-2" />
               </div>
             ))}
           </div>

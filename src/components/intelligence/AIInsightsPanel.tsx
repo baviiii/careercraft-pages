@@ -596,7 +596,7 @@ export function AIInsightsPanel({
                               <Briefcase className="w-5 h-5 text-white" />
                             </div>
                             <div>
-                              <h3 className="text-2xl font-bold text-foreground">{career.occupation}</h3>
+                              <h3 className="text-2xl font-bold text-white">{career.occupation}</h3>
                               <div className="flex items-center gap-2 mt-1">
                                 <Badge className="bg-pink-500/20 text-pink-400 border-pink-400/30">
                                   {career.sector}
@@ -671,7 +671,7 @@ export function AIInsightsPanel({
                             <Target className="w-4 h-4 text-pink-400" />
                             <p className="text-xs font-bold text-pink-400 uppercase tracking-widest">Decision Impact</p>
                           </div>
-                          <p className="text-sm text-foreground leading-relaxed">
+                          <p className="text-sm text-white/85 leading-relaxed">
                             {career.growth !== undefined && career.growth > 15
                               ? "Critical high-growth sector requiring immediate workforce development and training infrastructure investment."
                               : "Strategic opportunity for workforce development aligned with government policy priorities."}
@@ -1045,7 +1045,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
               <Briefcase className="w-5 h-5 text-white" />
             </motion.div>
             <div className="flex-1 min-w-0">
-              <h5 className="font-semibold text-lg text-foreground leading-tight mb-1">
+              <h5 className="font-semibold text-lg text-white leading-tight mb-1">
                 {career.occupation}
               </h5>
               {career.sector && (
@@ -1072,7 +1072,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
                 <span className="text-xs font-medium text-slate-400">Growth</span>
               </div>
-              <p className="text-base font-bold text-emerald-600">{career.growth}</p>
+              <p className="text-base font-bold text-emerald-400">{career.growth}</p>
             </div>
           )}
 
@@ -1082,7 +1082,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
                 <Briefcase className="w-3.5 h-3.5 text-blue-500" />
                 <span className="text-xs font-medium text-slate-400">Positions</span>
               </div>
-              <p className="text-base font-bold text-blue-600">{career.jobs}</p>
+              <p className="text-base font-bold text-blue-400">{career.jobs}</p>
             </div>
           )}
 
@@ -1092,7 +1092,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
                 <DollarSign className="w-3.5 h-3.5 text-amber-500" />
                 <span className="text-xs font-medium text-slate-400">Salary</span>
               </div>
-              <p className="text-base font-bold text-amber-600">{career.salary}</p>
+              <p className="text-base font-bold text-amber-400">{career.salary}</p>
             </div>
           )}
 
@@ -1102,7 +1102,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
                 <MapPin className="w-3.5 h-3.5 text-purple-500" />
                 <span className="text-xs font-medium text-slate-400">Region</span>
               </div>
-              <p className="text-base font-bold text-purple-600 truncate">{career.region}</p>
+              <p className="text-base font-bold text-purple-400 truncate">{career.region}</p>
             </div>
           )}
         </div>

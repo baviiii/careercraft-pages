@@ -333,6 +333,11 @@ Connect skills to:
 • Career pathways and progression
 • Government priority sectors
 
+When you identify training programs, courses, or pathways from the sources, output them in this exact block format so they can be parsed:
+**Training programs (if any):**
+Program: [name] | Provider: [org] | Skills: [comma-separated] | Duration: [text] | Funding: [text]
+(One line per program; omit any field not stated in sources. Omit the entire block if no programs are found in the sources.)
+
 Focus on skills with demonstrable policy or funding support.`,
 };
 
@@ -355,44 +360,46 @@ export const SEMANTIC_QUERIES: Record<IntelligenceTab, {
   };
 }> = {
   overview: {
-    primary: `Analyze whole-of-government strategic signals: What are the most significant shifts in funding, policy direction, and priorities across South Australia? Identify cross-departmental patterns, emerging trends, and strategic direction changes. Focus on system-wide implications and decision-maker insights.`,
+    primary: `Analyze whole-of-government strategic signals across South Australia 2024-25: What are the most significant shifts in budget allocations, workforce demand, and policy direction? Which sectors are receiving accelerated investment and where are jobs growing fastest? Surface cross-departmental patterns, emerging capability gaps, and strategic direction changes that affect workers, businesses, and communities. Connect funding movements to workforce and skills implications.`,
     secondary: [
-      "What major policy changes affect multiple government departments?",
-      "Which sectors show acceleration or reversal in government focus?",
-      "What are the emerging risks or opportunities across government?",
+      "Which SA sectors show the largest funding increases AND workforce growth simultaneously in 2024-25?",
+      "What new government programs or major initiatives launched in SA in 2024-25?",
+      "Where are the biggest gaps between government investment and available skilled workforce in SA?",
     ],
     filters: { documentType: "all" },
   },
   funding: {
-    primary: `Provide fiscal intelligence on South Australia government budgets: Analyze budget allocations, funding programs, year-over-year changes, and sector reallocations. Extract specific dollar amounts, percentage changes, program names, and funding cycles. Identify priority shifts, sunset programs, and emerging investment areas.`,
+    primary: `Provide fiscal intelligence on South Australia government budgets 2024-25: Analyze budget allocations, funding programs, year-over-year changes, and sector reallocations. Extract specific dollar amounts in millions or billions, percentage changes, program names, and funding cycles. Identify priority shifts, sunset programs, new investments, and emerging investment areas across Health, Infrastructure, Education, Energy, Housing, Defence, and Technology.`,
     secondary: [
-      "Which sectors received the largest funding increases or decreases?",
-      "What new programs launched and what programs are ending?",
-      "Where is funding being quietly reduced or flattened?",
+      "Which SA sectors received the largest funding increases or decreases in 2024-25?",
+      "What new programs launched and what programs are ending or receiving one-off funding in SA?",
+      "Where is SA government funding being quietly reduced or flattened compared to prior years?",
     ],
     filters: { category: "budget" },
   },
   careers: {
-    primary: `Extract comprehensive South Australia workforce intelligence from all retrieved documents. Identify distinct occupations and extract only explicitly stated data points (growth %, job counts, salaries, demand levels, sectors). Combine information about the same occupation across multiple documents when the name matches. Include occupations even with partial data (one quantitative signal is sufficient). Cover public and private sectors across Healthcare, Technology/ICT, Construction, Education, Energy, Defence, Agriculture, Finance, Retail, Hospitality, Engineering, and others. Target 20-30 distinct occupations. Output structured records in format: "Occupation: [name]\\nSector: [sector]\\nGrowth: [%]\\nJob Count: [number]\\nDemand: [High/Medium/Low]\\nSalary: [range]\\nRegion: [location]" - omit fields not explicitly supported.`,
+    primary: `Extract South Australia workforce and employment data 2024-25. From SA government workforce reports, budget papers, skills shortage lists, and TAFE SA documents: identify occupations with explicit growth percentages, job vacancy counts, salary ranges, and demand levels. Cover Healthcare, Technology/ICT, Construction, Education, Energy, Defence, Agriculture, Engineering, Finance, and Public Administration. Extract ONLY explicitly stated numbers — do not estimate or infer. Output structured records: "Occupation: [name]\nSector: [sector]\nGrowth: [%]\nJob Count: [number]\nDemand: [High/Medium/Low]\nSalary: [range]\nRegion: [location]" — omit any field not explicitly stated in source. Target 30+ occupations.`,
     secondary: [
-      "Which occupations show growth above 15% with specific percentages?",
-      "What are the job count estimates for high-demand roles?",
-      "Which sectors have the most career opportunities and why?",
-      "What is the breakdown of public vs private sector employment?",
-      "Which regions show the strongest job growth by occupation?",
-      "What emerging roles are appearing in South Australia?",
-      "Which occupations have the highest projected job counts?",
+      "Which SA occupations have explicit projected growth percentages above 10% in government documents?",
+      "What are the current job vacancy counts or total employment numbers by occupation in South Australia?",
+      "Which occupations are listed as critical shortage or priority occupations in SA government workforce documents?",
+      "What salary ranges are explicitly stated for SA public sector and high-demand private sector roles?",
+      "Which emerging roles appear in SA 2024-25 workforce strategy, digital economy, or defence industry documents?",
+      "What is the total employment size of key SA sectors like healthcare, construction, defence, and technology?",
+      "Which SA regions outside Adelaide show the strongest occupation demand or skills shortages?",
     ],
-    filters: { documentType: "all" }, // Broadened to search all document types
+    filters: { documentType: "all" },
   },
   skills: {
-    primary: `Provide skills foresight intelligence for South Australia: What skills are emerging as priorities based on funding, policy, and workforce signals? Identify capability gaps, in-demand skills, training programs, and credential requirements. Connect skills to government investment areas and career pathways.`,
+    primary: `Identify in-demand skills and capability gaps in South Australia 2024-25. From SA government workforce strategy documents, TAFE SA course data, skills shortage occupation lists, and budget papers: extract specific skills, qualifications, and competencies explicitly mentioned as in-demand, shortage areas, or government investment priorities. For each skill identify its sector, relevant training pathway, and any funding or subsidy support. List any named training programs, TAFE courses, or government-funded upskilling programs with provider and key skills/duration/funding when stated. Cover technical skills, digital skills, green energy skills, healthcare skills, construction trades, and defence industry capabilities.`,
     secondary: [
-      "What technical skills are government programs investing in?",
-      "Where are skills gaps creating bottlenecks?",
-      "Which emerging skills have strong policy support?",
+      "Which specific technical skills or qualifications appear on SA skills shortage lists or critical occupation lists?",
+      "What qualifications and certifications are SA government programs explicitly funding or subsidising in 2024-25?",
+      "Which digital, AI, green energy, or emerging technology skills are explicitly prioritised in SA policy documents?",
+      "What skills gaps are explicitly identified in SA healthcare, construction, defence, and technology sectors?",
+      "Which TAFE SA courses or apprenticeship programs have the highest government investment or enrolment targets?",
     ],
-    filters: { category: "workforce" },
+    filters: { documentType: "all" },
   },
 };
 

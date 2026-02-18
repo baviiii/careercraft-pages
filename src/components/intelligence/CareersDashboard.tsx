@@ -137,8 +137,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     filtered.sort((a, b) => {
       const dir = sortDirection === "asc" ? 1 : -1;
       switch (sortField) {
-        case "growth": return (b.growth - a.growth) * dir;
-        case "jobs": return (b.jobs - a.jobs) * dir;
+        case "growth": return ((b.growth ?? 0) - (a.growth ?? 0)) * dir;
+        case "jobs": return ((b.jobs ?? 0) - (a.jobs ?? 0)) * dir;
         case "occupation": return a.occupation.localeCompare(b.occupation) * dir;
         default: return 0;
       }

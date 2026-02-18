@@ -11,7 +11,9 @@ param(
     [int]$MaxBatches = 0,  # 0 = unlimited
     [int]$DelayBetweenBatches = 2,  # seconds
     [switch]$DryRun,
-    [switch]$RunPostProcessing  # Run deduplication and refinement after population
+    [switch]$RunPostProcessing,  # Run deduplication and refinement after population
+    [switch]$PostProcessingOnly,  # Only run dedupe/canonical/validation; skip all chunk processing
+    [string]$DocumentId = ""  # If set, only process chunks from this document (e.g. for impact tuning)
 )
 
 $ErrorActionPreference = "Continue"
@@ -349,7 +351,16 @@ Write-Host "  - Max Batches: $(if ($MaxBatches -eq 0) { 'Unlimited' } else { $Ma
 Write-Host "  - Delay Between Batches: ${DelayBetweenBatches}s"
 Write-Host "  - Dry Run: $DryRun"
 Write-Host "  - Post-Processing: $RunPostProcessing"
+Write-Host "  - Post-Processing Only: $PostProcessingOnly"
+if ($DocumentId) {
+    Write-Host "  - Document filter: $DocumentId (only this document's chunks)" -ForegroundColor Cyan
+}
 Write-Host ""
+
+if ($PostProcessingOnly) {
+    Write-Host "  POST-PROCESSING ONLY - Skipping all chunk processing (dedupe + canonical + validation only)." -ForegroundColor Cyan
+    Write-Host ""
+}
 
 if ($DryRun) {
     Write-Host "DRY RUN MODE - No actual API calls will be made" -ForegroundColor Yellow
@@ -372,6 +383,8 @@ $script:auditLog = @{
         delayBetweenBatches = $DelayBetweenBatches
         dryRun = $DryRun.IsPresent
         runPostProcessing = $RunPostProcessing.IsPresent
+        postProcessingOnly = $PostProcessingOnly.IsPresent
+        documentIdFilter = if ($DocumentId) { $DocumentId.Trim() } else { $null }
         entityExtractionUrl = $EntityExtractionUrl
     }
     
@@ -457,6 +470,7 @@ $currentOffset = $StartOffset
 $batchCount = 0
 $hasMore = $true
 
+if (-not $PostProcessingOnly) {
 while ($hasMore) {
     $batchCount++
     $script:stats.TotalBatches = $batchCount
@@ -498,11 +512,15 @@ while ($hasMore) {
     }
     
     try {
-        $body = @{
+        $bodyHash = @{
             mode = "batch"
             batchSize = $BatchSize
             offset = $currentOffset
-        } | ConvertTo-Json
+        }
+        if ($DocumentId -and $DocumentId.Trim()) {
+            $bodyHash["documentIdFilter"] = $DocumentId.Trim()
+        }
+        $body = $bodyHash | ConvertTo-Json
         
         # Use retry wrapper function
         $response = Invoke-EntityExtractionWithRetry -Uri $EntityExtractionUrl -Headers $headers -Body $body
@@ -837,12 +855,13 @@ $script:auditLog.endTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:
 $script:auditLog.terminatedEarly = $false
 
 # Generate resume command
+$resumeDocParam = if ($DocumentId -and $DocumentId.Trim()) { " -DocumentId '$($DocumentId.Trim())'" } else { "" }
 if ($script:auditLog.lastSuccessfulOffset -gt $StartOffset) {
     $offset = $script:auditLog.lastSuccessfulOffset
-    $script:auditLog.resumeCommand = ".\populate-graph.ps1 -StartOffset $offset"
+    $script:auditLog.resumeCommand = ".\populate-graph.ps1 -StartOffset $offset$resumeDocParam"
 } else {
     $offset = if ($null -ne $currentOffset) { $currentOffset } else { $StartOffset }
-    $script:auditLog.resumeCommand = ".\populate-graph.ps1 -StartOffset $offset"
+    $script:auditLog.resumeCommand = ".\populate-graph.ps1 -StartOffset $offset$resumeDocParam"
 }
 
 # Calculate final statistics
@@ -1285,12 +1304,13 @@ if (-not $DryRun -and $script:stats.RelationshipsSkipped -gt 0) {
     Write-Host ""
     $script:auditLog.backfill = @{ executed = $false; reason = "no_skipped_relationships" }
 }
+}
 
 # ============================================================
 # POST-PROCESSING DEDUPLICATION (Optional)
 # ============================================================
 
-if ($RunPostProcessing -and -not $DryRun) {
+if (($RunPostProcessing -or $PostProcessingOnly) -and -not $DryRun) {
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Cyan
     Write-Host "  POST-PROCESSING DEDUPLICATION" -ForegroundColor Cyan

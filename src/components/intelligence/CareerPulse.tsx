@@ -155,7 +155,7 @@ export function CareerPulse() {
         icon: categoryIcons[cat.name] || <FileText className="w-5 h-5" />,
         color: colorConfig.color,
         bgColor: colorConfig.bgColor,
-        trend: cat.trend > 0 ? "up" : cat.trend < 0 ? "down" : "stable",
+        trend: cat.trend != null ? (cat.trend > 0 ? "up" : cat.trend < 0 ? "down" : "stable") : undefined,
       });
     });
 

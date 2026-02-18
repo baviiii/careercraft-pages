@@ -20,6 +20,9 @@
 
 const gremlin = require('gremlin');
 
+// Request context for logging (set by HTTP handler so context.log appears in Azure Log stream)
+let _requestContext = null;
+
 // Cosmos DB Gremlin connection
 let gremlinClient = null;
 
@@ -430,6 +433,15 @@ async function generateEmbedding(openAIEndpoint, openAIKey, text) {
  */
 async function extractEntities(openAIEndpoint, openAIKey, text, documentId, chunkId) {
   const chatDeployment = process.env.AZURE_OPENAI_CHAT_DEPLOYMENT || 'gpt-4o-mini';
+  // #region agent log
+  (function () {
+    const preview = (text && typeof text === 'string') ? text.substring(0, 150).replace(/\s+/g, ' ') : '';
+    const payload = { location: 'entity-extraction/index.js:extractEntities', message: 'chunk content', data: { textLength: (text && text.length) || 0, textPreview: preview, documentId: documentId, chunkId: chunkId }, timestamp: Date.now(), hypothesisId: 'H5' };
+    const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
+    if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
+    fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
+  })();
+  // #endregion
 
   const response = await fetch(
     `${openAIEndpoint}/openai/deployments/${chatDeployment}/chat/completions?api-version=2024-02-15-preview`,
@@ -491,6 +503,17 @@ async function extractEntities(openAIEndpoint, openAIKey, text, documentId, chun
     const keys = Object.keys(extraction).filter(k => !['entities', 'relationships', 'primaryTopics', 'impacts'].includes(k));
     if (keys.length > 0) console.log(`Extraction top-level keys (check for alternate impact key): ${keys.join(', ')}`);
   }
+
+  // #region agent log
+  (function () {
+    const rawKey = extraction.impacts?.length > 0 ? 'impacts' : (extraction.Impacts ? 'Impacts' : (extraction.policy_impacts ? 'policy_impacts' : 'none'));
+    const argsPreview = (toolCall && toolCall.function && toolCall.function.arguments) ? toolCall.function.arguments.substring(0, 400) : '';
+    const payload = { location: 'entity-extraction/index.js:extractEntities', message: 'extraction impacts after normalize', data: { impactCount: extraction.impacts.length, rawKeyFound: rawKey, allTopLevelKeys: Object.keys(extraction), toolArgsPreview: argsPreview }, timestamp: Date.now(), hypothesisId: 'H1_H4' };
+    const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
+    if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
+    fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
+  })();
+  // #endregion
 
   return extraction;
 }
@@ -1538,6 +1561,14 @@ async function aggregateImpactsAfterMerge(duplicateVertexId, canonicalVertexId) 
  */
 async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) {
   const emptyResult = { savedImpacts: [], stats: { policyEdgesCreated: 0, affectsEdgesCreated: 0, policyEdgesSkipped: 0, affectsEdgesSkipped: 0, resolvedViaGraph: 0, resolvedViaSemantic: 0, skippedDetails: [], errors: 0 } };
+  // #region agent log
+  (function () {
+    const payload = { location: 'entity-extraction/index.js:saveImpactsToCosmos', message: 'entry', data: { impactsLength: (impacts && impacts.length) || 0, documentId: documentId, chunkId: chunkId }, timestamp: Date.now(), hypothesisId: 'H3' };
+    const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
+    if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
+    fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
+  })();
+  // #endregion
   if (!impacts || impacts.length === 0) return emptyResult;
 
   const client = getGremlinClient();
@@ -1650,6 +1681,14 @@ async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) 
     } catch (error) {
       console.warn(`Failed to save impact:`, error.message);
       stats.errors++;
+      // #region agent log
+      (function () {
+        const payload = { location: 'entity-extraction/index.js:saveImpactsToCosmos', message: 'per-impact catch', data: { errorMessage: (error && error.message) || String(error), impactPolicyId: (impact && impact.policyId) || null }, timestamp: Date.now(), hypothesisId: 'H3' };
+        const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
+        if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
+        fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
+      })();
+      // #endregion
     }
   }
 
@@ -1667,14 +1706,23 @@ async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) 
  * Get all entities from Cosmos DB for post-processing
  */
 async function getAllEntitiesFromCosmos(limit = 10000) {
-  const client = getGremlinClient();
   const entities = [];
-  
+  let client;
   try {
-    const query = `g.V().has('entity_type').valueMap(true).limit(${limit})`;
+    client = getGremlinClient();
+    if (!client) return entities;
+  } catch (e) {
+    console.warn('getAllEntitiesFromCosmos: Gremlin client not available', e.message);
+    return entities;
+  }
+  try {
+    const query = `g.V().has('entity_type').valueMap(true).limit(${Math.min(limit, 10000)})`;
     const result = await client.submit(query);
-    
-    for (const item of result._items || []) {
+    const items = result && (Array.isArray(result) ? result : (result._items || []));
+    if (!Array.isArray(items)) return entities;
+
+    for (const item of items) {
+      if (!item || item.id == null) continue;
       const entity = {
         id: item.id,
         entityType: item.properties?.entity_type?.[0]?.value || '',
@@ -1684,19 +1732,16 @@ async function getAllEntitiesFromCosmos(limit = 10000) {
         description: item.properties?.description?.[0]?.value || '',
         mentionCount: parseInt(item.properties?.mention_count?.[0]?.value || '0', 10)
       };
-      
       try {
         entity.aliases = JSON.parse(entity.aliases);
       } catch (e) {
         entity.aliases = [];
       }
-      
       entities.push(entity);
     }
   } catch (error) {
-    console.warn(`Failed to get all entities:`, error.message);
+    console.warn('getAllEntitiesFromCosmos failed:', error.message);
   }
-  
   return entities;
 }
 
@@ -2108,8 +2153,9 @@ async function validateCrossDocumentEntities() {
 
 /**
  * Process a batch of chunks
+ * @param {string} [documentIdFilter] - If set, only chunks from this documentId are fetched (for focusing on specific docs, e.g. impact tuning).
  */
-async function processBatch(openAIEndpoint, openAIKey, searchEndpoint, searchKey, searchIndex, batchSize = 10, offset = 0) {
+async function processBatch(openAIEndpoint, openAIKey, searchEndpoint, searchKey, searchIndex, batchSize = 10, offset = 0, documentIdFilter = null) {
   // Fetch chunks from Azure Search
   const searchBody = {
     search: '*',
@@ -2119,6 +2165,11 @@ async function processBatch(openAIEndpoint, openAIKey, searchEndpoint, searchKey
     select: 'id,content,documentId,title,category,sector',
     orderby: 'documentId',
   };
+  if (documentIdFilter && typeof documentIdFilter === 'string' && documentIdFilter.trim()) {
+    // OData filter: escape single quotes in value
+    const escaped = documentIdFilter.trim().replace(/'/g, "''");
+    searchBody.filter = `documentId eq '${escaped}'`;
+  }
 
   const searchResponse = await fetch(
     `${searchEndpoint}/indexes/${searchIndex}/docs/search?api-version=2023-11-01`,
@@ -2176,6 +2227,14 @@ async function processBatch(openAIEndpoint, openAIKey, searchEndpoint, searchKey
       );
 
       // Save impacts to Cosmos DB (with cross-chunk edge resolution)
+      // #region agent log
+      (function () {
+        const payload = { location: 'entity-extraction/index.js:processBatch', message: 'before saveImpactsToCosmos', data: { extractionImpactsLength: (extraction.impacts || []).length, chunkId: chunk.id, documentId: chunk.documentId }, timestamp: Date.now(), hypothesisId: 'H2' };
+        const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
+        if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
+        fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
+      })();
+      // #endregion
       const impactResult = await saveImpactsToCosmos(
         extraction.impacts || [],
         savedEntities,
@@ -2256,7 +2315,9 @@ module.exports = async function (context, req) {
   }
 
   context.log('Entity Extraction request received');
+  _requestContext = context;
 
+  let requestMode = 'single'; // so outer catch can return 200 for deduplicate
   try {
     // Parse request
     let request = {};
@@ -2273,7 +2334,9 @@ module.exports = async function (context, req) {
       chunkId,
       batchSize = 10,
       offset = 0,
+      documentIdFilter, // optional: only process chunks from this document (batch mode)
     } = request;
+    requestMode = mode;
 
     // Get credentials
     const openAIEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
@@ -2298,65 +2361,80 @@ module.exports = async function (context, req) {
     const startTime = Date.now();
 
     if (mode === 'deduplicate') {
-      // Post-processing deduplication mode
+      // Post-processing deduplication mode - always return 200 so client can read error from body
       context.log('Starting post-processing deduplication...');
-      
-      const results = {
-        deduplication: null,
-        canonicalRefinement: null,
-        validation: null,
-        executionTime: 0
-      };
-      
-      try {
-        // Step 1: Post-processing deduplication
-        context.log('Step 1: Running deduplication pass...');
-        results.deduplication = await postProcessDeduplication();
-        
-        // Step 2: Canonical name refinement
-        context.log('Step 2: Refining canonical names...');
-        results.canonicalRefinement = await refineCanonicalNames();
-        
-        // Step 3: Cross-document validation
-        context.log('Step 3: Validating cross-document entities...');
-        results.validation = await validateCrossDocumentEntities();
-        
-        results.executionTime = Date.now() - startTime;
-        
-        context.log(`Post-processing complete in ${results.executionTime}ms`);
-        
+
+      const safeDeduplicateResponse = (success, errorMessage, resultsObj) => {
+        const errMsg = errorMessage != null ? String(errorMessage) : null;
+        const body = {
+          success: !!success,
+          executionTime: Date.now() - startTime,
+          error: errMsg || undefined,
+        };
+        if (resultsObj && success) {
+          body.deduplication = resultsObj.deduplication;
+          body.canonicalRefinement = resultsObj.canonicalRefinement;
+          body.validation = resultsObj.validation;
+          if (resultsObj.deduplication != null) {
+            body.summary = {
+              duplicatesMerged: resultsObj.deduplication.duplicatesMerged ?? 0,
+              canonicalNamesUpdated: (resultsObj.canonicalRefinement && resultsObj.canonicalRefinement.canonicalNamesUpdated) ?? 0,
+              entitiesVerified: (resultsObj.validation && resultsObj.validation.entitiesVerified) ?? 0,
+              potentialDuplicatesFound: (resultsObj.deduplication.potentialDuplicates?.length) ?? 0,
+              totalErrors: (resultsObj.deduplication?.errors?.length || 0) +
+                (resultsObj.canonicalRefinement?.errors?.length || 0) +
+                (resultsObj.validation?.errors?.length || 0),
+            };
+            body.potentialDuplicates = (resultsObj.deduplication.potentialDuplicates || []).slice(0, 50);
+          }
+        }
         context.res = {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            success: true,
-            ...results,
-            summary: {
-              duplicatesMerged: results.deduplication.duplicatesMerged,
-              canonicalNamesUpdated: results.canonicalRefinement.canonicalNamesUpdated,
-              entitiesVerified: results.validation.entitiesVerified,
-              potentialDuplicatesFound: results.deduplication.potentialDuplicates?.length || 0,
-              totalErrors: (results.deduplication.errors?.length || 0) + 
-                          (results.canonicalRefinement.errors?.length || 0) + 
-                          (results.validation.errors?.length || 0)
-            },
-            // Include potential duplicates for review (top 50 by similarity)
-            potentialDuplicates: (results.deduplication.potentialDuplicates || []).slice(0, 50)
-          }),
+          body: JSON.stringify(body),
         };
+      };
+
+      try {
+        if (!process.env.COSMOS_GREMLIN_ENDPOINT || !process.env.COSMOS_PRIMARY_KEY || !process.env.COSMOS_DATABASE || !process.env.COSMOS_GRAPH) {
+          context.log.warn('Post-processing skipped: Cosmos DB env vars not set');
+          safeDeduplicateResponse(false, 'Cosmos DB not configured. Set COSMOS_GREMLIN_ENDPOINT, COSMOS_PRIMARY_KEY, COSMOS_DATABASE, COSMOS_GRAPH.', null);
+          return;
+        }
+
+        const results = {
+          deduplication: null,
+          canonicalRefinement: null,
+          validation: null,
+        };
+
+        // Step 1: Post-processing deduplication
+        context.log('Step 1: Running deduplication pass...');
+        results.deduplication = await postProcessDeduplication();
+
+        // Step 2: Canonical name refinement
+        context.log('Step 2: Refining canonical names...');
+        results.canonicalRefinement = await refineCanonicalNames();
+
+        // Step 3: Cross-document validation
+        context.log('Step 3: Validating cross-document entities...');
+        results.validation = await validateCrossDocumentEntities();
+
+        context.log(`Post-processing complete in ${Date.now() - startTime}ms`);
+        safeDeduplicateResponse(true, null, results);
         return;
       } catch (error) {
-        context.log('Post-processing error:', error);
-        context.res = {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            success: false,
-            error: error.message,
-            partialResults: results,
-            executionTime: Date.now() - startTime
-          }),
-        };
+        context.log('Post-processing error:', error && error.message ? error.message : error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        try {
+          safeDeduplicateResponse(false, errMsg, null);
+        } catch (serializeErr) {
+          context.res = {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ success: false, error: errMsg, executionTime: Date.now() - startTime }),
+          };
+        }
         return;
       }
     }
@@ -2513,7 +2591,8 @@ module.exports = async function (context, req) {
       const batchResult = await processBatch(
         openAIEndpoint, openAIKey,
         searchEndpoint, searchKey, searchIndex,
-        batchSize, offset
+        batchSize, offset,
+        documentIdFilter || null
       );
 
       context.res = {
@@ -2608,13 +2687,18 @@ module.exports = async function (context, req) {
 
   } catch (error) {
     context.log('Entity Extraction error:', error);
-    
+    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+    // Deduplicate mode must always return 200 so client can read error from body
+    const status = requestMode === 'deduplicate' ? 200 : 500;
     context.res = {
-      status: 500,
+      status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        error: error instanceof Error ? error.message : 'Unknown error',
+        success: false,
+        error: errMsg,
       }),
     };
+  } finally {
+    _requestContext = null;
   }
 };

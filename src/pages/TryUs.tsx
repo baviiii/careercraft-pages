@@ -13,7 +13,6 @@ import {
   MessageSquareText,
   Brain,
   Sparkles,
-  TrendingUp,
   Activity,
   Briefcase,
   DollarSign,
@@ -40,10 +39,12 @@ import {
 } from "@/components/intelligence";
 import { ImpactScenarioPanel } from "@/components/intelligence/NextGenInsights";
 import CareerCoach from "@/components/rag/CareerCoach";
+import { SAMarketIntelligence } from "@/components/interview/SAMarketIntelligence";
+import { SAFundingIntelligence } from "@/components/interview/SAFundingIntelligence";
 import { useAgenticRAG } from "@/hooks/useAgenticRAG";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
-import type { IntelligenceTab } from "@/lib/intelligencePrompts";
+import { getTabPrompt, type IntelligenceTab } from "@/lib/intelligencePrompts";
 
 const container = {
   hidden: { opacity: 0 },
@@ -67,16 +68,19 @@ function GuestIntelligenceDashboard() {
     setSearchQuery,
     searchQuery,
     metrics,
+    ingestAgenticResult,
   } = useIntelligence();
 
   // Tab state
   const [intelligenceTab, setIntelligenceTab] = useState<IntelligenceTab>("overview");
+  // Careers showcase sector picker
+  const [careersSector, setCareersSector] = useState("Healthcare / Nursing");
   
-  // Agentic RAG hooks for each focus area
-  const { sendMessage: sendOverviewMsg, messages: overviewMsgs } = useAgenticRAG('overview');
-  const { sendMessage: sendCareersMsg, messages: careersMsgs } = useAgenticRAG('careers');
-  const { sendMessage: sendSkillsMsg, messages: skillsMsgs } = useAgenticRAG('skills');
-  const { sendMessage: sendFundingMsg, messages: fundingMsgs } = useAgenticRAG('funding');
+  // Agentic RAG hooks for each focus area — pass HORUS tab prompts so final answers are structured/parseable for dashboard metrics
+  const { sendMessage: sendOverviewMsg, messages: overviewMsgs } = useAgenticRAG('overview', { finalSystemPrompt: getTabPrompt('overview') });
+  const { sendMessage: sendCareersMsg, messages: careersMsgs } = useAgenticRAG('careers', { finalSystemPrompt: getTabPrompt('careers') });
+  const { sendMessage: sendSkillsMsg, messages: skillsMsgs } = useAgenticRAG('skills', { finalSystemPrompt: getTabPrompt('skills') });
+  const { sendMessage: sendFundingMsg, messages: fundingMsgs } = useAgenticRAG('funding', { finalSystemPrompt: getTabPrompt('funding') });
   
   // RAG metadata for semantic search
   const { semanticSearch } = useRAGMetadata();
@@ -99,6 +103,9 @@ function GuestIntelligenceDashboard() {
 
   // Track which tabs have had agentic RAG fire (to show visualizer even with 0 sources)
   const [tabAgenticFired, setTabAgenticFired] = useState<Record<string, boolean>>({});
+
+  // Track which agentic messages have already been ingested (by content length + source count) to avoid redundant calls
+  const ingestedMsgs = useRef<Set<string>>(new Set());
 
   // Set default search query on first load
   ReactUseEffect(() => {
@@ -160,6 +167,7 @@ function GuestIntelligenceDashboard() {
   }, [intelligenceTab, sendCareersMsg, sendSkillsMsg, sendFundingMsg]);
 
   // Extract sources and contradictions from agentic messages (tabs + overview fallback)
+  // Also ingest agentic result into IntelligenceContext so dashboard cards show agentic+graph data
   ReactUseEffect(() => {
     const msgSets: [any[], string][] = [
       [overviewMsgs, 'overview'],
@@ -179,6 +187,7 @@ function GuestIntelligenceDashboard() {
         score: (s.relevance || 70) / 100,
         category: s.category || 'Other',
         sector: s.sector || 'General',
+        pageNumber: s.pageNumber || s.metadata?.pageNumber || undefined,
         content: s.snippet || '',
         // Preserve chart metadata so PDF Charts tab populates
         hasChart: s.hasChart || false,
@@ -189,7 +198,7 @@ function GuestIntelligenceDashboard() {
         chunkType: s.chunkType,
       }));
 
-      if (sources.length > 0 && !tabSources[tab]?.length) {
+      if (sources.length > 0) {
         setTabSources(prev => ({ ...prev, [tab]: sources }));
         setTabVizData(prev => ({
           ...prev,
@@ -199,15 +208,22 @@ function GuestIntelligenceDashboard() {
 
       const contras = last.contradictions || [];
       if (contras.length > 0) {
-        // Always update contradictions when we get new ones
         setTabContradictions(prev => ({ ...prev, [tab]: contras }));
-        // Overview contradictions serve as fallback for all tabs
         if (tab === 'overview') {
           setContradictions(contras);
         }
       }
+
+      // Ingest agentic answer + sources into context — deduplicate by message fingerprint
+      const answer = typeof last.content === 'string' ? last.content : '';
+      const rawSources = last.sources || [];
+      const msgKey = `${tab}:${answer.length}:${rawSources.length}`;
+      if ((answer || rawSources.length > 0) && !ingestedMsgs.current.has(msgKey)) {
+        ingestedMsgs.current.add(msgKey);
+        ingestAgenticResult(tab as IntelligenceTab, { answer, sources: rawSources });
+      }
     }
-  }, [overviewMsgs, careersMsgs, skillsMsgs, fundingMsgs]);
+  }, [overviewMsgs, careersMsgs, skillsMsgs, fundingMsgs, ingestAgenticResult]);
 
   // Fetch chart chunks when search query changes
   ReactUseEffect(() => {
@@ -350,11 +366,11 @@ function GuestIntelligenceDashboard() {
                     <CrossTabConnections />
 
                     <DocumentIntelligenceVisualizer 
-                      sources={chartSources}
-                      visualizationData={chartVisualizationData}
+                      sources={tabSources.overview?.length ? tabSources.overview : chartSources}
+                      visualizationData={tabVizData.overview || chartVisualizationData}
                       query={searchQuery}
-                      isLoading={loadingCharts}
-                      contradictions={contradictions}
+                      isLoading={loadingCharts && !tabSources.overview?.length}
+                      contradictions={tabContradictions.overview?.length > 0 ? tabContradictions.overview : contradictions}
                     />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -389,6 +405,66 @@ function GuestIntelligenceDashboard() {
                     tab="careers" 
                     maxInsights={3}
                   />
+
+                  {/* ── SA Career Intelligence Showcase ── */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className="rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-950/60 via-purple-950/50 to-fuchsia-950/40 backdrop-blur-sm overflow-hidden shadow-xl shadow-pink-500/10"
+                  >
+                    {/* Header */}
+                    <div className="px-5 pt-5 pb-4 border-b border-pink-500/20">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-md shadow-pink-500/30">
+                              <Sparkles className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <h3 className="text-sm font-bold text-white">SA Career Intelligence</h3>
+                            <Badge className="text-[10px] bg-pink-500/20 text-pink-200 border-pink-400/40">
+                              Real SA government documents
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-white/60 ml-9">
+                            Select a sector — live skills, employers, salary signals &amp; interview tips
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Sector pill picker */}
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        {[
+                          { label: "Healthcare", field: "Healthcare / Nursing", emoji: "🏥" },
+                          { label: "Technology", field: "Software Engineering", emoji: "💻" },
+                          { label: "Data & AI", field: "Data Science", emoji: "📊" },
+                          { label: "Finance", field: "Finance", emoji: "💰" },
+                          { label: "Operations", field: "Operations", emoji: "⚙️" },
+                          { label: "Human Resources", field: "Human Resources", emoji: "👥" },
+                        ].map(({ label, field, emoji }) => (
+                          <button
+                            key={field}
+                            onClick={() => setCareersSector(field)}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 border",
+                              careersSector === field
+                                ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white border-pink-400/60 shadow-lg shadow-pink-500/30 scale-105"
+                                : "bg-white/8 text-white/70 border-white/15 hover:bg-pink-500/20 hover:text-white hover:border-pink-400/40"
+                            )}
+                          >
+                            <span>{emoji}</span>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Intelligence panel */}
+                    <div className="p-5">
+                      <SAMarketIntelligence field={careersSector} variant="dark" />
+                    </div>
+                  </motion.div>
+
                   <CareersDashboard searchQuery={searchQuery} />
                   {tabAgenticFired.careers && (
                     <DocumentIntelligenceVisualizer
@@ -451,6 +527,10 @@ function GuestIntelligenceDashboard() {
                     tab="funding" 
                     maxInsights={3}
                   />
+
+                  {/* SA Funding Intelligence — Where the Money Goes */}
+                  <SAFundingIntelligence />
+
                   <FundingDashboard searchQuery={searchQuery} />
                   {tabAgenticFired.funding && (
                     <DocumentIntelligenceVisualizer
@@ -482,24 +562,6 @@ function GuestCareerCoach() {
       transition={{ duration: 0.5 }}
       className="max-w-4xl mx-auto"
     >
-      {/* Welcome Card */}
-      <div className="mb-6 p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-            <Brain className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-1">Horus AI Career Assistant</h3>
-            <p className="text-sm text-slate-400">
-              Ask me anything about careers in South Australia! I can help with job market insights, 
-              skill recommendations, salary information, and career guidance — all powered by real 
-              government data and AI.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Career Coach Component */}
       <CareerCoach />
     </motion.div>
   );

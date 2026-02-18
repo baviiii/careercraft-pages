@@ -26,18 +26,18 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
   const maxAmount = sortedAllocations[0]?.amount || 1;
 
   return (
-    <div className="card-intelligence p-6">
+    <div className="rounded-2xl border border-fuchsia-500/20 bg-gradient-to-br from-slate-900/70 via-purple-950/30 to-slate-900/70 p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-pink-600 flex items-center justify-center shadow-lg shadow-fuchsia-500/20">
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-display text-lg font-bold text-foreground">Budget Distribution</h3>
-            <p className="text-xs text-slate-400">Top {sortedAllocations.length} sector allocations</p>
+            <h3 className="font-display text-lg font-bold text-white">Budget Distribution</h3>
+            <p className="text-xs text-white/50">Top {sortedAllocations.length} sector allocations</p>
           </div>
         </div>
-        <Badge variant="outline" className="text-xs">
+        <Badge className="text-xs bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/40">
           Live Data
         </Badge>
       </div>
@@ -59,13 +59,12 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
               {/* Sector Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-foreground">{alloc.sector}</span>
+                  <span className="font-medium text-sm text-white">{alloc.sector}</span>
                   <Badge
-                    variant="outline"
                     className={cn(
                       "text-xs",
-                      alloc.confidence === "high" && "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-                      alloc.confidence === "medium" && "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                      alloc.confidence === "high" && "bg-emerald-500/20 text-emerald-300 border-emerald-400/30",
+                      alloc.confidence === "medium" && "bg-amber-500/20 text-amber-300 border-amber-400/30"
                     )}
                   >
                     {alloc.confidence}
@@ -76,21 +75,21 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
                     <span
                       className={cn(
                         "text-xs font-medium flex items-center gap-1",
-                        alloc.change > 0 ? "text-emerald-600" : "text-red-600"
+                        alloc.change > 0 ? "text-emerald-400" : "text-red-400"
                       )}
                     >
                       <TrendingUp className={cn("w-3 h-3", alloc.change < 0 && "rotate-180")} />
                       {alloc.change > 0 ? "+" : ""}{alloc.change.toFixed(1)}%
                     </span>
                   )}
-                  <span className="text-sm font-bold text-foreground">
+                  <span className="text-sm font-bold text-white">
                     ${(alloc.amount / 1000).toFixed(2)}B
                   </span>
                 </div>
               </div>
 
               {/* Progress Bar */}
-              <div className="relative h-8 bg-muted rounded-lg overflow-hidden border border-border/50">
+              <div className="relative h-8 bg-white/10 rounded-lg overflow-hidden border border-white/10">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${barWidth}%` }}
@@ -124,52 +123,52 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
       </div>
 
       {/* Summary Stats */}
-      <div className="mt-6 pt-6 border-t border-border/50 grid grid-cols-3 gap-4">
+      <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-3 gap-4">
         <div className="text-center">
-          <p className="text-xs text-slate-400 mb-1">Total Tracked</p>
-          <p className="text-lg font-bold text-foreground">${(totalBudget / 1000).toFixed(1)}B</p>
+          <p className="text-xs text-white/50 mb-1">Total Tracked</p>
+          <p className="text-lg font-bold text-white">${(totalBudget / 1000).toFixed(1)}B</p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-slate-400 mb-1">Avg Allocation</p>
-          <p className="text-lg font-bold text-foreground">
+          <p className="text-xs text-white/50 mb-1">Avg Allocation</p>
+          <p className="text-lg font-bold text-white">
             ${(totalBudget / allocations.length / 1000).toFixed(2)}B
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-slate-400 mb-1">Sectors</p>
-          <p className="text-lg font-bold text-foreground">{allocations.length}</p>
+          <p className="text-xs text-white/50 mb-1">Sectors</p>
+          <p className="text-lg font-bold text-white">{allocations.length}</p>
         </div>
       </div>
 
       {/* Growth Distribution */}
-      <div className="mt-6 pt-6 border-t border-border/50">
+      <div className="mt-6 pt-6 border-t border-white/10">
         <div className="flex items-center gap-2 mb-4">
-          <PieChartIcon className="w-4 h-4 text-blue-500" />
-          <h4 className="font-semibold text-sm text-foreground">Growth Distribution</h4>
+          <PieChartIcon className="w-4 h-4 text-fuchsia-400" />
+          <h4 className="font-semibold text-sm text-white">Growth Distribution</h4>
         </div>
         <div className="flex gap-4">
           {/* High Growth */}
           <div className="flex-1 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <p className="text-2xl font-bold text-emerald-600">
+            <p className="text-2xl font-bold text-emerald-400">
               {allocations.filter(a => a.change > 10).length}
             </p>
-            <p className="text-xs text-slate-400 mt-1">High Growth (&gt;10%)</p>
+            <p className="text-xs text-white/50 mt-1">High Growth (&gt;10%)</p>
           </div>
 
           {/* Moderate Growth */}
           <div className="flex-1 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-            <p className="text-2xl font-bold text-blue-600">
+            <p className="text-2xl font-bold text-blue-400">
               {allocations.filter(a => a.change > 0 && a.change <= 10).length}
             </p>
-            <p className="text-xs text-slate-400 mt-1">Moderate (0-10%)</p>
+            <p className="text-xs text-white/50 mt-1">Moderate (0-10%)</p>
           </div>
 
           {/* Decline */}
           <div className="flex-1 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-            <p className="text-2xl font-bold text-red-600">
+            <p className="text-2xl font-bold text-red-400">
               {allocations.filter(a => a.change < 0).length}
             </p>
-            <p className="text-xs text-slate-400 mt-1">Decline (&lt;0%)</p>
+            <p className="text-xs text-white/50 mt-1">Decline (&lt;0%)</p>
           </div>
         </div>
       </div>

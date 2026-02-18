@@ -130,6 +130,16 @@ export interface SkillDemand {
   category: "technical" | "soft" | "emerging";
   trainingAvailable: boolean;
   relatedCareers?: string[];
+  estimated?: boolean; // true when demand/growth are derived, not from document data
+}
+
+export interface TrainingProgram {
+  name: string;
+  provider?: string;
+  skills: string[];
+  duration?: string;
+  funding?: string;
+  level?: "beginner" | "intermediate" | "advanced";
 }
 
 export interface CrossTabInsight {
@@ -171,6 +181,7 @@ interface IntelligenceState {
   fundingAllocations: FundingAllocation[];
   careerOpportunities: CareerOpportunity[];
   skillsDemand: SkillDemand[];
+  trainingPrograms: TrainingProgram[];
   
   // Cross-tab connections
   crossTabInsights: CrossTabInsight[];
@@ -188,6 +199,7 @@ interface IntelligenceContextType extends IntelligenceState {
   setSearchQuery: (query: string) => void;
   refreshTab: (tab: IntelligenceTab) => Promise<void>;
   refreshAll: () => Promise<void>;
+  ingestAgenticResult: (tab: IntelligenceTab, payload: { answer: string; sources: any[] }) => void;
   
   // Getters
   getTabData: (tab: IntelligenceTab) => TabData;
@@ -237,6 +249,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     fundingAllocations: [],
     careerOpportunities: [],
     skillsDemand: [],
+    trainingPrograms: [],
     crossTabInsights: [],
     isInitialized: false,
     globalLoading: true,
@@ -259,6 +272,38 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
   const extractFundingAllocations = useCallback((sources: any[]): FundingAllocation[] => {
     const allocationsMap = new Map<string, FundingAllocation>();
+
+    // Canonical sector key for grouping (e.g. "Infrastructure and Transport" -> "Infrastructure")
+    const getCanonicalFundingSector = (rawSector: string): string => {
+      const t = rawSector.trim().toLowerCase();
+      if (t.includes("infrastructure") || t === "infrastructure and transport") return "Infrastructure";
+      if (t === "transport") return "Transport";
+      if (t.includes("health")) return "Health";
+      if (t.includes("education")) return "Education";
+      if (t.includes("energy")) return "Energy";
+      if (t.includes("skill") || t.includes("training") || t.includes("employment")) return "Skills";
+      if (t.includes("housing")) return "Housing";
+      if (t.includes("tourism")) return "Tourism";
+      if (t.includes("arts")) return "Arts";
+      if (t.includes("sport")) return "Sport";
+      if (t.includes("environment")) return "Environment";
+      return rawSector.charAt(0).toUpperCase() + rawSector.slice(1).trim();
+    };
+    // Prefer more specific/shorter sector name; never let a higher raw amount override a table-extracted entry
+    // (text extraction can pick up cumulative/total figures that are inflated)
+    const preferOver = (existing: FundingAllocation, incomingSector: string, incomingAmount: number): boolean => {
+      const canon = getCanonicalFundingSector(incomingSector);
+      if (getCanonicalFundingSector(existing.sector) !== canon) return true;
+      // Never replace a high-confidence (table) entry with anything
+      if (existing.confidence === "high") return false;
+      const existingRaw = existing.sector.toLowerCase();
+      const incomingRaw = incomingSector.toLowerCase();
+      // Prefer the shorter/more specific name (e.g. "Infrastructure" over "Infrastructure and Transport")
+      if (incomingRaw.length < existingRaw.length) return true;
+      if (incomingRaw.length > existingRaw.length) return false;
+      // Same specificity — prefer higher amount only if both are medium/low confidence
+      return incomingAmount > existing.amount;
+    };
 
     // Known sectors for validation
     const knownSectors = [
@@ -317,6 +362,12 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
             h.toLowerCase().includes("%")
           );
 
+          // Fallback: find prior-year and current-year columns to compute YoY (e.g. "2023-24" / "2024-25", "Prior" / "Current")
+          const priorYearPatterns = /prior|previous|last\s*year|2023-24|2022-23|^\d{4}$/i;
+          const currentYearPatterns = /current|this\s*year|2024-25|2025-26|estimate|budget\s*\d/i;
+          const priorColIdx = headers.findIndex((h: string) => priorYearPatterns.test(h.trim()));
+          const currentColIdx = headers.findIndex((h: string) => currentYearPatterns.test(h.trim()));
+
           if (sectorIdx >= 0 && values[sectorIdx]) {
             const sector = String(values[sectorIdx]).trim();
 
@@ -334,19 +385,25 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
                 amount = parseFloat(numMatch[1].replace(/,/g, ""));
 
                 // Handle units (convert to millions for consistency)
-                if (amountStr.includes("billion") || amountStr.includes("bn") || amountStr.includes("b")) {
+                if (amountStr.includes("billion") || amountStr.includes("bn") || /\d+b$/.test(amountStr)) {
                   amount *= 1000;
                 } else if (amountStr.includes("million") || amountStr.includes("m")) {
                   // Already in millions
                 } else if (amountStr.includes("thousand") || amountStr.includes("k")) {
                   amount /= 1000;
                 } else if (amount > 100000) {
-                  // Assume large numbers are in dollars, convert to millions
+                  // Large raw number — assume dollars, convert to millions
                   amount /= 1000000;
                 }
+                // SA government budget: no single sector exceeds ~$30B. Cap at 30,000M to prevent
+                // raw table values (e.g. amounts stored in thousands) from producing absurd figures.
+                if (amount > 30000) {
+                  // Likely stored in thousands — divide by 1000 to get millions
+                  amount /= 1000;
+                }
 
-                // Validate amount is reasonable (between $1M and $100B)
-                if (amount >= 1 && amount <= 100000) {
+                // Validate amount is reasonable (between $1M and $30B)
+                if (amount >= 1 && amount <= 30000) {
                   hasValidAmount = true;
                 }
               }
@@ -369,6 +426,26 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
                   }
                 }
               }
+              // Fallback: compute YoY from prior-year and current-year columns when no change column
+              if (change === 0 && priorColIdx >= 0 && currentColIdx >= 0 && priorColIdx !== currentColIdx) {
+                const parseAmountFromCell = (cell: unknown): number => {
+                  const str = String(cell ?? "").toLowerCase().replace(/\s/g, "");
+                  const numMatch = str.match(/([\d,]+(?:\.\d+)?)/);
+                  if (!numMatch) return NaN;
+                  let val = parseFloat(numMatch[1].replace(/,/g, ""));
+                  if (str.includes("billion") || str.includes("bn") || str.includes("b")) val *= 1000;
+                  else if (str.includes("thousand") || str.includes("k")) val /= 1000;
+                  else if (val > 100000) val /= 1000000;
+                  return val;
+                };
+                const priorVal = parseAmountFromCell(values[priorColIdx]);
+                const currentVal = parseAmountFromCell(values[currentColIdx]);
+                if (priorVal > 0 && currentVal >= 0 && Number.isFinite(priorVal) && Number.isFinite(currentVal)) {
+                  change = Math.round(((currentVal - priorVal) / priorVal) * 1000) / 10;
+                  if (change < -50 || change > 200) change = 0;
+                  else changeValidations.push(`YoY computed from columns: ${change}%`);
+                }
+              }
 
               const sourceTitle = source.title || source.fileName || "Budget Document";
               const sourceExcerpt = values.slice(0, 5).join(" | ");
@@ -376,7 +453,9 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
               const sourcePageNum = metadata?.pageNumber || metadata?.page;
               const sourceTableNum = metadata?.tableNumber || metadata?.tableIndex;
 
-              const existing = allocationsMap.get(sector);
+              const canonicalKey = getCanonicalFundingSector(sector);
+              const existing = allocationsMap.get(canonicalKey);
+              const displaySector = sector.charAt(0).toUpperCase() + sector.slice(1);
 
               // Build validation log
               const validationsPassed = [
@@ -391,10 +470,11 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
                 ...changeValidations.filter(v => v.includes("reset"))
               ];
 
-              // Prefer table data with higher amounts (more specific/recent)
-              if (!existing || existing.confidence !== "high" || amount > existing.amount) {
-                allocationsMap.set(sector, {
-                  sector: sector.charAt(0).toUpperCase() + sector.slice(1),
+              // Use canonical key; prefer more specific sector name (e.g. "Infrastructure" over "Infrastructure and Transport") so headline figures match
+              const shouldSet = !existing || existing.confidence !== "high" || preferOver(existing, sector, amount);
+              if (shouldSet) {
+                allocationsMap.set(canonicalKey, {
+                  sector: displaySector,
                   amount,
                   change,
                   programs: (existing?.programs || 0) + 1,
@@ -459,19 +539,29 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
               for (const sector of knownSectors) {
                 const sectorRegex = new RegExp(`\\b${sector}\\b`, "i");
                 if (sectorRegex.test(context)) {
-                  const existing = allocationsMap.get(sector);
+                  const canonicalKey = getCanonicalFundingSector(sector);
+                  const existing = allocationsMap.get(canonicalKey);
+
+                  // Try to parse YoY change from nearby text (e.g. "5.2% increase", "grew by 10%", "+3.1%")
+                  let textChange = existing?.change ?? 0;
+                  const changeInContext = context.match(/(?:increase|growth|rise|up|grew|change)\s*(?:of|by)?\s*([+-]?\d+(?:\.\d+)?)\s*%|([+-]?\d+(?:\.\d+)?)\s*%\s*(?:increase|growth|rise|yoy|year-on-year)/i);
+                  if (changeInContext) {
+                    const pct = parseFloat(changeInContext[1] || changeInContext[2] || "0");
+                    if (pct >= -50 && pct <= 200) textChange = pct;
+                  }
 
                   // Only use text extraction if no table data exists or this is more specific
-                  if (!existing || (existing.confidence !== "high" && amount > existing.amount)) {
+                  const shouldSet = !existing || (existing.confidence !== "high" && preferOver(existing, sector, amount));
+                  if (shouldSet) {
                     const sourceTitle = source.title || source.fileName || "Budget Document";
                     const sourceExcerpt = context.substring(0, 200);
                     const sourceCategory = source.category || metadata?.category || "budget";
                     const sourcePageNum = metadata?.pageNumber || metadata?.page;
 
-                    allocationsMap.set(sector, {
-                      sector,
+                    allocationsMap.set(canonicalKey, {
+                      sector: sector.charAt(0).toUpperCase() + sector.slice(1),
                       amount,
-                      change: existing?.change || 0,
+                      change: textChange,
                       programs: (existing?.programs || 0) + 1,
                       priority: amount > 500 ? "high" : amount > 100 ? "medium" : "low",
                       confidence: "medium", // Text extraction = medium confidence
@@ -1805,6 +1895,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "technical",
               trainingAvailable: true,
+              estimated: true,
             });
           }
         }
@@ -1819,6 +1910,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "soft",
               trainingAvailable: true,
+              estimated: true,
             });
           }
         }
@@ -1833,6 +1925,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "emerging",
               trainingAvailable: true,
+              estimated: true,
             });
           }
         }
@@ -1897,6 +1990,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
               sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
               category,
               trainingAvailable: true,
+              estimated: isNaN(number) || number > 100,
             });
           }
         }
@@ -1923,6 +2017,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
           category,
           trainingAvailable: true,
+          estimated: true,
         });
       }
     }
@@ -1931,6 +2026,63 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       .sort((a, b) => b.demand - a.demand)
       .slice(0, 15);
   }, [normalizeSector]);
+
+  const extractTrainingProgramsFromAnswer = useCallback((answerText: string): TrainingProgram[] => {
+    const programs: TrainingProgram[] = [];
+    if (!answerText || !answerText.trim()) return programs;
+
+    const blockMatch = answerText.match(/\*\*Training programs \(if any\):\*\*[\s\S]*?(?=\n\s*\n|\*\*|$)/i);
+    const block = blockMatch ? blockMatch[0].replace(/\*\*Training programs \(if any\):\*\*\s*/i, "").trim() : null;
+
+    const parseLine = (line: string): TrainingProgram | null => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("(")) return null;
+      const parts: Record<string, string> = {};
+      for (const segment of trimmed.split("|")) {
+        const colonIdx = segment.indexOf(":");
+        if (colonIdx === -1) continue;
+        const key = segment.slice(0, colonIdx).trim().toLowerCase();
+        const value = segment.slice(colonIdx + 1).trim();
+        if (key && value) parts[key] = value;
+      }
+      const name = parts["program"] || parts["name"];
+      if (!name || name.length < 2) return null;
+      const skillsStr = parts["skills"] || "";
+      const skills = skillsStr ? skillsStr.split(",").map(s => s.trim()).filter(Boolean) : [];
+      return {
+        name,
+        provider: parts["provider"] || undefined,
+        skills,
+        duration: parts["duration"] || undefined,
+        funding: parts["funding"] || undefined,
+        level: (parts["level"] as "beginner" | "intermediate" | "advanced") || undefined,
+      };
+    };
+
+    if (block) {
+      for (const line of block.split("\n")) {
+        const prog = parseLine(line);
+        if (prog && !programs.some(p => p.name.toLowerCase() === prog.name.toLowerCase())) {
+          programs.push(prog);
+        }
+      }
+    }
+
+    if (programs.length === 0) {
+      const fallbackProgramMatch = answerText.match(/Program:\s*([^\n|]+)/gi);
+      if (fallbackProgramMatch) {
+        for (const m of fallbackProgramMatch) {
+          const nameMatch = m.match(/Program:\s*(.+)/i);
+          const name = nameMatch?.[1]?.trim();
+          if (name && name.length > 1 && !programs.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+            programs.push({ name, skills: [] });
+          }
+        }
+      }
+    }
+
+    return programs;
+  }, []);
 
   // ============================================================================
   // Generate Cross-Tab Insights
@@ -2034,7 +2186,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
         queryConfig.primary,
         queryConfig.filters || {},
         { 
-          topK: 40,
+          topK: tab === "careers" ? 60 : 40,
           systemPrompt: tabPrompt, // Pass tab-specific intelligence analyst prompt
         }
       );
@@ -2064,6 +2216,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       let fundingData: FundingAllocation[] = [];
       let careersData: CareerOpportunity[] = [];
       let skillsData: SkillDemand[] = [];
+      let trainingProgramsData: TrainingProgram[] = [];
 
       if (tab === "funding") {
         fundingData = extractFundingAllocations(sources);
@@ -2249,6 +2402,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           const existingSkills = new Set(skillsData.map(s => s.name.toLowerCase()));
           const newSkills = answerExtracted.filter(s => !existingSkills.has(s.name.toLowerCase()));
           skillsData = [...skillsData, ...newSkills];
+          trainingProgramsData = extractTrainingProgramsFromAnswer(result.answer);
+          console.log(`[fetchTabData] ${tab} extracted ${trainingProgramsData.length} training programs from answer`);
         }
         console.log(`[fetchTabData] ${tab} total extracted: ${skillsData.length} skills`);
       }
@@ -2276,6 +2431,9 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
         const newSkills = tab === "skills"
           ? skillsData
           : prev.skillsDemand;
+        const newTrainingPrograms = tab === "skills"
+          ? trainingProgramsData
+          : prev.trainingPrograms;
 
         // Detailed state update logging
         const stateCareersWithGrowth = newCareers.filter(c => c.growth !== undefined && typeof c.growth === 'number');
@@ -2301,6 +2459,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           fundingAllocations: newFunding,
           careerOpportunities: newCareers,
           skillsDemand: newSkills,
+          trainingPrograms: newTrainingPrograms,
           crossTabInsights: generateCrossTabInsights(newFunding, newCareers, newSkills),
         };
         
@@ -2327,7 +2486,108 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       fetchInProgress.current.delete(tab);
       console.log(`[fetchTabData] ${tab} fetch completed`);
     }
-      }, [semanticSearch, extractFundingAllocations, extractCareerOpportunities, extractSkillsDemand, generateCrossTabInsights, extractCareersFromAnswer, extractSkillsFromAnswer]);
+      }, [semanticSearch, extractFundingAllocations, extractCareerOpportunities, extractSkillsDemand, generateCrossTabInsights, extractCareersFromAnswer, extractSkillsFromAnswer, extractTrainingProgramsFromAnswer]);
+
+  const ingestAgenticResult = useCallback((tab: IntelligenceTab, payload: { answer: string; sources: any[] }) => {
+    const { answer, sources: rawSources } = payload;
+    const sources = (rawSources || []).map((s: any) => ({
+      ...s,
+      content: s.content ?? s.snippet ?? "",
+      metadata: s.metadata || (s.chunkType ? { chunkType: s.chunkType } : undefined),
+    }));
+
+    setState(prev => {
+      let newFunding = prev.fundingAllocations;
+      let newCareers = prev.careerOpportunities;
+      let newSkills = prev.skillsDemand;
+      let newTrainingPrograms = prev.trainingPrograms;
+
+      if (tab === "funding") {
+        const extracted = extractFundingAllocations(sources);
+        if (extracted.length > 0) {
+          // Merge into existing — don't overwrite a high-confidence fetchTabData result with a potentially weaker agentic one
+          const mergedMap = new Map<string, FundingAllocation>();
+          for (const alloc of prev.fundingAllocations) {
+            mergedMap.set(alloc.sector.toLowerCase(), alloc);
+          }
+          for (const alloc of extracted) {
+            const key = alloc.sector.toLowerCase();
+            const existing = mergedMap.get(key);
+            if (!existing) {
+              mergedMap.set(key, alloc);
+            } else if (alloc.confidence === "high" && existing.confidence !== "high") {
+              mergedMap.set(key, alloc);
+            } else if (alloc.confidence === existing.confidence && alloc.amount > existing.amount) {
+              mergedMap.set(key, alloc);
+            }
+            // else keep existing
+          }
+          newFunding = Array.from(mergedMap.values()).sort((a, b) => b.amount - a.amount);
+        }
+      }
+      if (tab === "careers") {
+        const fromSources = extractCareerOpportunities(sources);
+        const fromAnswer = answer ? extractCareersFromAnswer(answer) : [];
+        const normalizeKey = (name: string) =>
+          name.toLowerCase().replace(/s$/, "").replace(/[^a-z0-9]/g, "").trim();
+        const careersMap = new Map<string, CareerOpportunity>();
+        fromSources.forEach(c => careersMap.set(normalizeKey(c.occupation), c));
+        fromAnswer.forEach(c => {
+          const key = normalizeKey(c.occupation);
+          const existing = careersMap.get(key);
+          if (existing) {
+            if (c.growth !== undefined && (existing.growth === undefined || (typeof c.growth === "number" && Math.abs(c.growth) > Math.abs(existing.growth ?? 0))))
+              existing.growth = c.growth;
+            if (c.jobs !== undefined && (existing.jobs === undefined || (typeof c.jobs === "number" && c.jobs > existing.jobs)))
+              existing.jobs = c.jobs;
+            if (c.salary && !existing.salary) existing.salary = c.salary;
+            if (c.sector && c.sector !== "General" && (!existing.sector || existing.sector === "General"))
+              existing.sector = c.sector;
+          } else {
+            careersMap.set(key, c);
+          }
+        });
+        const mergedCareers = Array.from(careersMap.values()).filter(c => c.occupation?.trim());
+        if (mergedCareers.length > 0) newCareers = mergedCareers;
+      }
+      if (tab === "skills") {
+        const fromSources = extractSkillsDemand(sources);
+        const fromAnswer = answer ? extractSkillsFromAnswer(answer) : [];
+        const existingNames = new Set(fromSources.map(s => s.name.toLowerCase()));
+        const merged = [...fromSources, ...fromAnswer.filter(s => !existingNames.has(s.name.toLowerCase()))];
+        if (merged.length > 0) newSkills = merged;
+        const programs = answer ? extractTrainingProgramsFromAnswer(answer) : [];
+        if (programs.length > 0) newTrainingPrograms = programs;
+      }
+      if (tab === "overview" && answer) {
+        const overviewCareers = extractCareersFromAnswer(answer);
+        const overviewSkills = extractSkillsFromAnswer(answer);
+        const overviewPrograms = extractTrainingProgramsFromAnswer(answer);
+        if (overviewCareers.length > 0 || overviewSkills.length > 0 || overviewPrograms.length > 0) {
+          const norm = (name: string) => name.toLowerCase().replace(/s$/, "").replace(/[^a-z0-9]/g, "").trim();
+          const careerMap = new Map(prev.careerOpportunities.map(c => [norm(c.occupation), c]));
+          overviewCareers.forEach(c => {
+            const key = norm(c.occupation);
+            if (!careerMap.has(key)) careerMap.set(key, c);
+          });
+          newCareers = Array.from(careerMap.values());
+          const skillNames = new Set(prev.skillsDemand.map(s => s.name.toLowerCase()));
+          newSkills = [...prev.skillsDemand, ...overviewSkills.filter(s => !skillNames.has(s.name.toLowerCase()))];
+          const progNames = new Set(prev.trainingPrograms.map(p => p.name.toLowerCase()));
+          newTrainingPrograms = [...prev.trainingPrograms, ...overviewPrograms.filter(p => !progNames.has(p.name.toLowerCase()))];
+        }
+      }
+
+      return {
+        ...prev,
+        fundingAllocations: newFunding,
+        careerOpportunities: newCareers,
+        skillsDemand: newSkills,
+        trainingPrograms: newTrainingPrograms,
+        crossTabInsights: generateCrossTabInsights(newFunding, newCareers, newSkills),
+      };
+    });
+  }, [extractFundingAllocations, extractCareerOpportunities, extractCareersFromAnswer, extractSkillsDemand, extractSkillsFromAnswer, extractTrainingProgramsFromAnswer, generateCrossTabInsights]);
 
   // ============================================================================
   // Initialize
@@ -2479,10 +2739,15 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
   // Computed Values
   // ============================================================================
 
-  const totalBudget = useMemo(() => 
-    state.fundingAllocations.reduce((sum, f) => sum + f.amount, 0),
-    [state.fundingAllocations]
-  );
+  const totalBudget = useMemo(() => {
+    // Dedup by sector name before summing — prevents double-counting if canonical grouping misses a variant
+    const seen = new Map<string, number>();
+    for (const f of state.fundingAllocations) {
+      const key = f.sector.trim().toLowerCase();
+      seen.set(key, Math.max(seen.get(key) ?? 0, f.amount));
+    }
+    return Array.from(seen.values()).reduce((sum, amt) => sum + amt, 0);
+  }, [state.fundingAllocations]);
 
   const totalJobs = useMemo(() =>
     state.careerOpportunities.reduce((sum, c) => sum + (c.jobs || 0), 0),
@@ -2536,6 +2801,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     setSearchQuery,
     refreshTab,
     refreshAll,
+    ingestAgenticResult,
     getTabData,
     getTopInsights,
     getRelatedData,

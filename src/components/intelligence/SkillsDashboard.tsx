@@ -55,15 +55,8 @@ interface SkillsDashboardProps {
   searchQuery?: string;
 }
 
-const trainingPrograms = [
-  { name: "Digital Skills Bootcamp", provider: "TAFE SA", skills: ["Digital Literacy", "Data Analysis"], duration: "12 weeks", funding: "Fee-free", level: "beginner", rating: 4.8 },
-  { name: "Healthcare Career Pathways", provider: "SA Health", skills: ["Healthcare Admin", "Patient Care"], duration: "6 months", funding: "Subsidized", level: "intermediate", rating: 4.6 },
-  { name: "Project Management Certificate", provider: "University of Adelaide", skills: ["Project Management", "Leadership"], duration: "12 months", level: "advanced", rating: 4.9 },
-  { name: "Renewable Energy Training", provider: "TAFE SA", skills: ["Green Energy", "Solar Installation"], duration: "8 weeks", funding: "Government funded", level: "beginner", rating: 4.7 },
-];
-
 export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
-  const { skillsDemand, getTabData, globalLoading } = useIntelligence();
+  const { skillsDemand, trainingPrograms, getTabData, globalLoading } = useIntelligence();
   const tabData = getTabData("skills");
   const navigate = useNavigate();
   
@@ -172,7 +165,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
         metrics: [
           { label: "Multiplier Effect", value: "340%", icon: TrendingUp },
           { label: "Time Investment", value: "6 months", icon: Clock },
-          { label: "Market Demand", value: "+${topEmergingSkill?.demand || 92}%", icon: Sparkles },
+          { label: "Market Demand", value: `+${topEmergingSkill?.demand ?? 92}%`, icon: Sparkles },
           { label: "Competition", value: "Low", icon: TrendingDown },
         ],
         roiCalculation: {
@@ -537,7 +530,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
         </div>
       </div>
 
-      {/* Training Programs - PINK GLASSMORPHISM */}
+      {/* Training Programs - PINK GLASSMORPHISM - real data from context */}
       <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -546,49 +539,47 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
           </div>
           <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40">{trainingPrograms.length} programs</Badge>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {trainingPrograms.map((program, index) => (
-            <motion.div
-              key={program.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="group p-5 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/15 backdrop-blur-sm border border-pink-400/40 hover:border-pink-400/60 hover:shadow-lg hover:shadow-pink-500/20 transition-all"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
+        {trainingPrograms.length === 0 ? (
+          <p className="text-sm text-slate-300 text-center py-6">No training programs identified in the current sources. Load the Skills tab to see programs from government and TAFE data.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {trainingPrograms.map((program, index) => (
+              <motion.div
+                key={program.name}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="group p-5 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/15 backdrop-blur-sm border border-pink-400/40 hover:border-pink-400/60 hover:shadow-lg hover:shadow-pink-500/20 transition-all"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
                     <h4 className="font-semibold text-white drop-shadow">{program.name}</h4>
-                    {program.rating && (
-                      <div className="flex items-center gap-1">
-                        <Award className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                        <span className="text-xs font-semibold text-amber-300">{program.rating}</span>
-                      </div>
+                    {program.provider && <p className="text-sm text-pink-200/80 mt-1">{program.provider}</p>}
+                  </div>
+                  {program.level && <Badge className="text-[10px] capitalize bg-purple-500/20 text-purple-300 border-purple-400/40">{program.level}</Badge>}
+                </div>
+                {program.skills.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {program.skills.map((skill) => (
+                      <Badge key={skill} className="text-[10px] bg-pink-500/20 text-pink-200 border-pink-400/40">{skill}</Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-3 border-t border-pink-400/30">
+                  <div className="flex items-center gap-4 text-xs">
+                    {program.duration && <span className="text-pink-200/80">{program.duration}</span>}
+                    {program.funding && (
+                      <Badge className="text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-400/40">{program.funding}</Badge>
                     )}
                   </div>
-                  <p className="text-sm text-pink-200/80">{program.provider}</p>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-pink-200 hover:text-white hover:bg-pink-500/20">
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
                 </div>
-                <Badge className="text-[10px] capitalize bg-purple-500/20 text-purple-300 border-purple-400/40">{program.level}</Badge>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {program.skills.map((skill) => (
-                  <Badge key={skill} className="text-[10px] bg-pink-500/20 text-pink-200 border-pink-400/40">{skill}</Badge>
-                ))}
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-pink-400/30">
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-pink-200/80">{program.duration}</span>
-                  {program.funding && (
-                    <Badge className="text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-400/40">{program.funding}</Badge>
-                  )}
-                </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-pink-200 hover:text-white hover:bg-pink-500/20">
-                  <ExternalLink className="w-4 h-4" />
-                </Button>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -611,14 +602,15 @@ function SkillCard({ skill, index, color, isEmerging }: { skill: any; index: num
           </div>
           <div className="flex items-center gap-2">
             <Badge className="text-[10px] bg-purple-500/20 text-purple-300 border-purple-400/40">{skill.sector}</Badge>
-            <span className="text-xs font-semibold text-emerald-300">+{skill.growth.toFixed(1)}%</span>
+            <span className="text-xs font-semibold text-emerald-300">{skill.estimated ? "~" : "+"}{skill.growth.toFixed(1)}%</span>
+            {skill.estimated && <Badge className="text-[10px] px-1 py-0 bg-white/10 text-white/40 border-white/20">est.</Badge>}
           </div>
         </div>
       </div>
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
           <span className="text-slate-300">Demand</span>
-          <span className="font-semibold text-white">{skill.demand}%</span>
+          <span className="font-semibold text-white">{skill.estimated ? "~" : ""}{skill.demand}%</span>
         </div>
         <div className="h-2 w-full bg-pink-500/20 rounded-full overflow-hidden">
           <motion.div

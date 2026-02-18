@@ -439,8 +439,8 @@ export default function Dashboard() {
 
           {/* User Card */}
           <Card className="relative overflow-hidden p-4 bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 hover:border-blue-300/80 transition-all duration-300 cursor-pointer group shadow-md hover:shadow-lg">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-indigo-50/30 to-sky-50/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-indigo-50/30 to-sky-50/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent pointer-events-none" />
             <div className="relative flex items-center gap-3 mb-3">
               <div className="relative">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">

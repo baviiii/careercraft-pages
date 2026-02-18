@@ -158,6 +158,39 @@ useImpactQueries hooks	Backend ready
 - Tests without making changes
 - Validates configuration
 
+### 5. **Backfill & post-processing**
+
+**Post-processing (deduplicate):** Use **post-processing only** when the graph is already populated and you only want dedupe/canonical/validation (no chunk processing):
+```powershell
+.\populate-graph.ps1 -PostProcessingOnly
+```
+- **`-RunPostProcessing`** runs the **full** population (all chunks) and then post-processing at the end—so it can run a long time and re-add entities/relationships. Use it only when you intend to re-process every chunk.
+- **`-PostProcessingOnly`** skips all chunk processing and only calls the entity-extraction deduplicate endpoint (quick run).
+- The entity-extraction function returns **200** with `success: false` and `error` in the body when Cosmos/search fails, instead of 500. Check the response body for the exact error (e.g. Cosmos env vars, timeout).
+- Requires Cosmos DB env vars set in the Azure Function (or local.settings.json when running locally).
+
+**Backfill (retry skipped relationships):** The main populate script runs a backfill pass automatically after the main loop. To retry again using a saved audit log:
+```powershell
+.\backfill-relationships.ps1 -AuditLogPath ".\logs\audit-graph-YYYY-MM-DD-HHMMSS.json"
+```
+- Many "still unresolvable" relationships stay that way until the missing entities (e.g. `workforce_reform`, `departments_aboriginal_voice_framework`) exist in the graph—either from re-running extraction with different chunks or from adding those names to extraction/canonicalization.
+
+**Impacts (0 extracted):** The pipeline supports impact extraction (schema, prompt, and graph edges). If the audit shows 0 impacts, the model often returns an empty `impacts` array for chunks that are tables or lack explicit "aims to", "will support", "outcome" language. To improve: strengthen the prompt nudge for strategy/outcome chunks, or run population on documents that are more narrative than tabular.
+
+**Focusing on specific documents (impact tuning):** Because post-processing dedupes the graph, you can safely re-run population for **only certain documents** to iterate on impact extraction (or entity/relationship quality) without re-processing everything. Use `-DocumentId` so only that document’s chunks are fetched and processed; offset/batches apply within that document.
+
+```powershell
+# Process only chunks from one document (e.g. a strategy doc you're tuning)
+.\populate-graph.ps1 -DocumentId "your_document_id_here" -MaxBatches 5
+
+# After tuning the entity-extraction prompt or doc, run again for that doc; then run dedupe
+.\populate-graph.ps1 -DocumentId "your_document_id_here"
+.\populate-graph.ps1 -PostProcessingOnly
+```
+
+- Document IDs are the same as in Azure Search (e.g. from `documentId` in the index or from audit logs: `audit.chunks[].documentId`).
+- Use `-MaxBatches` to limit how many batches to run (e.g. 1–2 for a quick test on that doc).
+
 ## 📈 Power Level Assessment
 
 ### **Level 1: Basic Population** ✅ (100% Complete)
@@ -237,6 +270,6 @@ useImpactQueries hooks	Backend ready
 # If test passes, run full population
 .\populate-graph.ps1 -BatchSize 10 -DelayBetweenBatches 2
 
-# After population, run post-processing
-.\populate-graph.ps1 -RunPostProcessing
+# After population, run post-processing only (dedupe/canonical/validation)
+.\populate-graph.ps1 -PostProcessingOnly
 ```

@@ -142,7 +142,7 @@ export function IntelligenceHero() {
       gradient: "from-blue-500 via-cyan-500 to-teal-500",
       bgGradient: "from-blue-500/10 to-cyan-500/5",
       borderColor: "border-blue-500/30",
-      trend: careerOpportunities.length > 0 ? careerOpportunities.reduce((sum, c) => sum + c.growth, 0) / careerOpportunities.length : 0,
+      trend: careerOpportunities.length > 0 ? careerOpportunities.reduce((sum, c) => sum + (c.growth ?? 0), 0) / careerOpportunities.length : 0,
       loading: totalJobs === 0,
     },
     {
@@ -154,7 +154,7 @@ export function IntelligenceHero() {
       gradient: "from-purple-500 via-pink-500 to-rose-500",
       bgGradient: "from-purple-500/10 to-pink-500/5",
       borderColor: "border-purple-500/30",
-      trend: skillsDemand.length > 0 ? skillsDemand.reduce((sum, s) => sum + s.growth, 0) / skillsDemand.length : 0,
+      trend: skillsDemand.length > 0 ? skillsDemand.reduce((sum, s) => sum + (s.growth ?? 0), 0) / skillsDemand.length : 0,
       loading: skillsDemand.length === 0,
     },
     {
