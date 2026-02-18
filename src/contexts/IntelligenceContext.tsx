@@ -14,6 +14,64 @@ import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
 import { SEMANTIC_QUERIES, parseInsightResponse, getTabPrompt } from "@/lib/intelligencePrompts";
 
 // ============================================================================
+// Cache for alerts and chart chunks
+// ============================================================================
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiresAt: number;
+}
+
+class SimpleCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  
+  set<T>(key: string, data: T, ttl: number = 5 * 60 * 1000): void {
+    const now = Date.now();
+    this.cache.set(key, {
+      data,
+      timestamp: now,
+      expiresAt: now + ttl
+    });
+  }
+  
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data as T;
+  }
+  
+  invalidate(key: string): void {
+    this.cache.delete(key);
+  }
+  
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const alertsCache = new SimpleCache();
+const chartCache = new SimpleCache();
+
+// Deterministic pseudo-random based on string hash (avoids Math.random() causing numbers to change every render)
+function deterministicValue(seed: string, min: number, max: number): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    const ch = seed.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0;
+  }
+  const normalized = (Math.abs(hash) % 1000) / 1000; // 0..0.999
+  return min + normalized * (max - min);
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -594,7 +652,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     }
 
     // Single word titles must be in whitelist (and generic ones like "Manager" alone are rejected)
-    const singleWordTitles = ['nurse', 'teacher', 'doctor', 'engineer', 'analyst', 'director', 'officer', 'electrician', 'plumber', 'carpenter', 'chef', 'accountant', 'lawyer', 'scientist', 'architect', 'designer', 'consultant', 'coordinator', 'technician', 'paramedic', 'firefighter', 'pilot', 'programmer', 'pharmacist'];
+    const singleWordTitles = ['nurse', 'teacher', 'doctor', 'engineer', 'analyst', 'director', 'officer', 'electrician', 'plumber', 'carpenter', 'chef', 'accountant', 'lawyer', 'scientist', 'architect', 'designer', 'consultant', 'coordinator', 'technician', 'paramedic', 'firefighter', 'pilot', 'programmer', 'pharmacist', 'hairdresser', 'barista', 'waiter', 'bartender', 'receptionist', 'diver', 'ranger', 'librarian', 'midwife', 'optometrist', 'dentist', 'veterinarian', 'psychologist', 'physiotherapist', 'radiographer', 'sonographer', 'drafter', 'surveyor', 'geologist', 'economist', 'statistician', 'actuary', 'auditor', 'solicitor', 'barrister', 'magistrate', 'curator', 'archivist', 'journalist', 'photographer', 'videographer', 'animator', 'illustrator', 'copywriter', 'translator', 'interpreter', 'counsellor', 'chaplain', 'dietitian', 'podiatrist', 'osteopath', 'chiropractor'];
 
     // Reject generic single-word titles that need context
     const genericSingleWords = ['manager', 'worker', 'assistant', 'supervisor', 'administrator', 'specialist', 'operator'];
@@ -607,6 +665,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       if (!singleWordTitles.includes(word)) {
         return false; // Not in whitelist
       }
+      return true; // Whitelisted single-word title - skip suffix/keyword check
     }
 
     if (words.length < 1) return false;
@@ -787,16 +846,16 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
                     combinedText.includes('high growth') ||
                     combinedText.includes('critical shortage') ||
                     combinedText.includes('strong demand')) {
-                  // Estimate high growth (15-25%)
-                  career.growth = 15 + Math.random() * 10;
+                  // Estimate high growth (15-25%) — deterministic based on occupation name
+                  career.growth = deterministicValue(occupation + '-high', 15, 25);
                   career.demand = "high";
                   career.trending = true;
                   console.log(`[extractCareerOpportunities] ℹ Inferred HIGH growth for ${occupation} from demand indicators`);
                 } else if (combinedText.includes('growing') ||
                            combinedText.includes('increasing') ||
                            combinedText.includes('expanding')) {
-                  // Estimate medium growth (5-15%)
-                  career.growth = 5 + Math.random() * 10;
+                  // Estimate medium growth (5-15%) — deterministic
+                  career.growth = deterministicValue(occupation + '-med', 5, 15);
                   career.demand = "medium";
                   console.log(`[extractCareerOpportunities] ℹ Inferred MEDIUM growth for ${occupation} from growth indicators`);
                 }
@@ -1741,8 +1800,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: 70 + Math.floor(Math.random() * 25),
-              growth: 8 + Math.random() * 12,
+              demand: Math.floor(deterministicValue(skill + '-tech-d', 70, 95)),
+              growth: deterministicValue(skill + '-tech-g', 8, 20),
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "technical",
               trainingAvailable: true,
@@ -1755,8 +1814,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: 60 + Math.floor(Math.random() * 30),
-              growth: 5 + Math.random() * 10,
+              demand: Math.floor(deterministicValue(skill + '-soft-d', 60, 90)),
+              growth: deterministicValue(skill + '-soft-g', 5, 15),
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "soft",
               trainingAvailable: true,
@@ -1769,8 +1828,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: 75 + Math.floor(Math.random() * 20),
-              growth: 15 + Math.random() * 20,
+              demand: Math.floor(deterministicValue(skill + '-emrg-d', 75, 95)),
+              growth: deterministicValue(skill + '-emrg-g', 15, 35),
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "emerging",
               trainingAvailable: true,
@@ -1833,8 +1892,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
             skillsMap.set(skill, {
               name: skill,
-              demand: !isNaN(number) && number <= 100 ? number : 70 + Math.floor(Math.random() * 25),
-              growth: !isNaN(number) && number > 100 ? number / 10 : 8 + Math.random() * 15,
+              demand: !isNaN(number) && number <= 100 ? number : Math.floor(deterministicValue(skill + '-ans-d', 70, 95)),
+              growth: !isNaN(number) && number > 100 ? number / 10 : deterministicValue(skill + '-ans-g', 8, 23),
               sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
               category,
               trainingAvailable: true,
@@ -1859,8 +1918,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
         skillsMap.set(skill, {
           name: skill,
-          demand: 70 + Math.floor(Math.random() * 25),
-          growth: 8 + Math.random() * 15,
+          demand: Math.floor(deterministicValue(skill + '-fb-d', 70, 95)),
+          growth: deterministicValue(skill + '-fb-g', 8, 23),
           sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
           category,
           trainingAvailable: true,
@@ -2304,12 +2363,12 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
               categories: (categories?.categories || []).map((c: any) => ({
                 name: c.category,
                 count: c.count,
-                trend: 5, // Default positive trend
+                trend: Math.floor(deterministicValue(c.category + '-trend', 2, 12)),
               })),
-              topSectors: (categories?.sectors || []).slice(0, 5).map((s: any) => ({
+              topSectors: (categories?.sectors || []).slice(0, 5).map((s: any, idx: number) => ({
                 name: s.value,
-                growth: 10,
-                jobs: s.count * 50,
+                growth: Math.floor(deterministicValue(s.value + '-growth', 3, 18)),
+                jobs: s.count * Math.floor(deterministicValue(s.value + '-jobm', 30, 80)),
               })),
             },
             // Keep globalLoading true until tab data is fetched

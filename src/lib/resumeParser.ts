@@ -125,12 +125,58 @@ export interface AIResumeData {
     gpa?: string;
   }[];
   skills: string[];
-  certifications?: string[];
+  // Optional sections
   projects?: {
     id: string;
     name: string;
     description: string;
     technologies: string[];
+  }[];
+  certifications?: {
+    id: string;
+    name: string;
+    issuer?: string;
+    date?: string;
+    expiryDate?: string;
+  }[];
+  references?: {
+    id: string;
+    name: string;
+    title?: string;
+    company?: string;
+    phone?: string;
+    email?: string;
+    relationship?: string;
+  }[];
+  languages?: {
+    id: string;
+    language: string;
+    proficiency: string;
+  }[];
+  awards?: {
+    id: string;
+    title: string;
+    issuer?: string;
+    date?: string;
+    description?: string;
+  }[];
+  volunteer?: {
+    id: string;
+    role: string;
+    organization: string;
+    location?: string;
+    startDate?: string;
+    endDate?: string;
+    current?: boolean;
+    description?: string;
+  }[];
+  publications?: {
+    id: string;
+    title: string;
+    publisher?: string;
+    date?: string;
+    url?: string;
+    description?: string;
   }[];
 }
 

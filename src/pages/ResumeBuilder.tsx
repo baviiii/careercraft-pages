@@ -117,13 +117,72 @@ interface Education {
   gpa?: string;
 }
 
+interface Certification {
+  id: string;
+  name: string;
+  issuer?: string;
+  date?: string;
+  expiryDate?: string;
+}
+
+interface Reference {
+  id: string;
+  name: string;
+  title?: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+  relationship?: string;
+}
+
+interface Language {
+  id: string;
+  language: string;
+  proficiency: string;
+}
+
+interface Award {
+  id: string;
+  title: string;
+  issuer?: string;
+  date?: string;
+  description?: string;
+}
+
+interface Volunteer {
+  id: string;
+  role: string;
+  organization: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+}
+
+interface Publication {
+  id: string;
+  title: string;
+  publisher?: string;
+  date?: string;
+  url?: string;
+  description?: string;
+}
+
 interface ResumeData {
   contact: ContactInfo;
   summary: string;
   experience: Experience[];
   education: Education[];
   skills: string[];
+  // Optional sections
   projects?: { id: string; name: string; description: string; technologies: string[] }[];
+  certifications?: Certification[];
+  references?: Reference[];
+  languages?: Language[];
+  awards?: Award[];
+  volunteer?: Volunteer[];
+  publications?: Publication[];
 }
 
 type TemplateId = "modern1" | "modern2" | "modern3" | "modern4" | "modern5" | "modern6" | "modern7" | "professional" | "professional2" | "professional3" | "professional4" | "professional5" | "professional6" | "creative1" | "creative2" | "creative3" | "creative4" | "creative5" | "creative6" | "creative7" | "minimal1" | "minimal2" | "minimal3" | "minimal4" | "minimal5";
@@ -1052,7 +1111,7 @@ export default function ResumeBuilder() {
         if (pageCount > 0) {
           pdf.addPage();
         }
-        
+
         pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
         heightLeft -= pageHeight;
         position -= pageHeight;
@@ -1364,7 +1423,7 @@ export default function ResumeBuilder() {
               {/* Upload Zone */}
               <Card
                 {...getRootProps()}
-                className={`p-12 border-2 border-dashed cursor-pointer transition-all ${
+                className={`p-8 sm:p-12 border-2 border-dashed cursor-pointer transition-all ${
                   isDragActive ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"
                 }`}
               >
@@ -1372,8 +1431,8 @@ export default function ResumeBuilder() {
                 <div className="text-center">
                   {isProcessing ? (
                     <div className="space-y-4">
-                      <Loader2 className="w-12 h-12 mx-auto animate-spin text-primary" />
-                      <p className="font-medium">Processing your file...</p>
+                      <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 mx-auto animate-spin text-primary" />
+                      <p className="text-sm sm:text-base font-medium">Processing your file...</p>
                       {uploadProgress > 0 && (
                         <Progress value={uploadProgress} className="w-48 mx-auto" />
                       )}

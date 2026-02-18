@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceContext";
@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJobCounts } from "@/hooks/useJobCounts";
 import { CareerDetailModal } from "@/components/careers/CareerDetailModal";
+import { useAgenticRAG, type Contradiction, type GraphConnection } from "@/hooks/useAgenticRAG";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
+import { DocumentIntelligenceVisualizer, AIInsightsPanel } from "@/components/intelligence";
+import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
 import {
   Select,
   SelectContent,
@@ -57,6 +61,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ============================================================================
 // SECTOR CONFIGURATION
@@ -731,6 +736,118 @@ function CareerExplorerContent() {
     globalLoading,
     // Add any refresh/retry functions if available
   } = useIntelligence();
+
+  // ========================================================================
+  // AGENTIC RAG - Graph connections, intersection reasoning, contradictions
+  // ========================================================================
+  const { sendMessage: sendCareersMsg, messages: agenticMessages, isStreaming } = useAgenticRAG('careers');
+  const { semanticSearch } = useRAGMetadata();
+  const agenticFetchDone = useRef(false);
+  
+  // State for agentic data
+  const [chartSources, setChartSources] = useState<any[]>([]);
+  const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
+  const [contradictions, setContradictions] = useState<Contradiction[]>([]);
+  const [graphConnections, setGraphConnections] = useState<GraphConnection[]>([]);
+  const [loadingCharts, setLoadingCharts] = useState(false);
+
+  // Fire agentic RAG query on mount to enrich career explorer with graph data
+  useEffect(() => {
+    if (agenticFetchDone.current || globalLoading) return;
+    agenticFetchDone.current = true;
+    
+    const fetchAgenticData = async () => {
+      setLoadingCharts(true);
+      try {
+        // Semantic search for career documents
+        const searchResult = await semanticSearch(
+          "career opportunities job growth employment sectors workforce skills South Australia occupations",
+          { category: "careers" },
+          { topK: 20, timeAwareRanking: true }
+        );
+        
+        if (searchResult?.sources && searchResult.sources.length > 0) {
+          setChartSources(searchResult.sources);
+          
+          // Transform to visualization data
+          const vizData = transformSearchResultsToVisualizationData(searchResult.sources);
+          setChartVisualizationData(vizData);
+        }
+        
+        // Also send agentic query for deeper insights
+        await sendCareersMsg("What are the top career opportunities, emerging occupations, and skill requirements in South Australia? Include any contradictions or gaps in the employment data.");
+      } catch (error) {
+        console.error("[CareerExplorer] Agentic fetch error:", error);
+      } finally {
+        setLoadingCharts(false);
+      }
+    };
+    
+    fetchAgenticData();
+  }, [globalLoading, semanticSearch, sendCareersMsg]);
+
+  // Extract contradictions and connections from agentic messages
+  useEffect(() => {
+    const lastMsg = agenticMessages[agenticMessages.length - 1];
+    if (lastMsg?.role === "assistant" && !lastMsg.isLoading) {
+      if (lastMsg.contradictions && lastMsg.contradictions.length > 0) {
+        setContradictions(lastMsg.contradictions);
+      }
+      if (lastMsg.graphConnections && lastMsg.graphConnections.length > 0) {
+        setGraphConnections(lastMsg.graphConnections);
+      }
+    }
+  }, [agenticMessages]);
+
+  // Fetch intersection reasoning when sources are available
+  useEffect(() => {
+    const fetchIntersections = async () => {
+      if (chartSources.length < 2) return;
+      
+      const intersectionUrl = import.meta.env.VITE_AZURE_INTERSECTION_REASONING_URL || '';
+      const functionKey = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
+      if (!intersectionUrl) return;
+      
+      try {
+        const queryResults = chartSources.slice(0, 10).map(s => ({
+          query: "career opportunities",
+          results: [{
+            documentId: s.documentId || s.id,
+            title: s.title,
+            content: s.content || s.snippet,
+            category: s.category,
+          }]
+        }));
+        
+        const response = await fetch(intersectionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(functionKey && { 'x-functions-key': functionKey }),
+          },
+          body: JSON.stringify({
+            queryResults,
+            originalQuery: "career explorer analysis",
+            saveFindings: false,
+          }),
+        });
+        
+        if (response.ok) {
+          const analysis = await response.json();
+          if (analysis.contradictions?.length > 0) {
+            setContradictions(prev => [...prev, ...analysis.contradictions]);
+          }
+          if (analysis.connections?.length > 0) {
+            setGraphConnections(prev => [...prev, ...analysis.connections]);
+          }
+        }
+      } catch (error) {
+        console.error("[CareerExplorer] Intersection reasoning error:", error);
+      }
+    };
+    
+    fetchIntersections();
+  }, [chartSources]);
 
   // Loading stages for progressive UI
   const [loadingStages, setLoadingStages] = useState<LoadingStage[]>([
@@ -1492,11 +1609,41 @@ function CareerExplorerContent() {
           )}
         </AnimatePresence>
 
+        {/* AI Insights Panel - Agentic RAG powered */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <AIInsightsPanel
+            tab="careers"
+            title="Career Intelligence Insights"
+            maxInsights={4}
+          />
+        </motion.div>
+
+        {/* Document Intelligence Visualizer - Graph connections & contradictions */}
+        {(chartSources.length > 0 || loadingCharts) && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <DocumentIntelligenceVisualizer
+              sources={chartSources}
+              visualizationData={chartVisualizationData}
+              query="career opportunities employment analysis"
+              isLoading={loadingCharts}
+              contradictions={contradictions}
+            />
+          </motion.div>
+        )}
+
         {/* Footer info */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.5 }}
           className="text-center text-sm text-slate-400 py-4"
         >
           <p>

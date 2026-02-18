@@ -17,6 +17,7 @@
     "prebuild": "npm run security:http-check"
   },
   "dependencies": {
+    "@azure/data-tables": "^13.3.2",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -63,6 +64,7 @@
     "next-themes": "^0.3.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.394",
+    "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",

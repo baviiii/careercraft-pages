@@ -230,7 +230,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
             <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-purple-500 via-pink-500 to-purple-600 bg-clip-text text-transparent">
               Skills Intelligence
             </h2>
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <p className="text-sm text-slate-400 flex items-center gap-2">
               <span className="font-semibold text-purple-400">{filteredSkills.length}</span> skills in demand •
               <span className="font-semibold text-pink-400">AI-Powered ROI</span>
             </p>
@@ -263,7 +263,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
                 <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                   Skills ROI Intelligence
                 </h3>
-                <p className="text-xs text-pink-200/70 font-medium">Real-time skills analysis</p>
+                <p className="text-xs text-slate-300 font-medium">Real-time skills analysis</p>
               </div>
               <Badge className="bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
                 <Sparkles className="w-3 h-3 mr-1" />
@@ -294,7 +294,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
           >
             <div className="mb-5">
               <h4 className="text-2xl font-bold text-white mb-3">{skillsStories[activeStory].title}</h4>
-              <p className="text-pink-100/80 leading-relaxed">{skillsStories[activeStory].narrative}</p>
+              <p className="text-slate-200 leading-relaxed">{skillsStories[activeStory].narrative}</p>
             </div>
 
             {/* Metrics Grid - ENHANCED */}
@@ -317,7 +317,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
                     <p className="text-3xl font-bold text-white mb-1">
                       {metric.value}
                     </p>
-                    <p className="text-xs text-pink-200/70 font-medium">{metric.label}</p>
+                    <p className="text-xs text-slate-300 font-medium">{metric.label}</p>
                   </motion.div>
                 );
               })}
@@ -336,23 +336,23 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Investment</p>
+                  <p className="text-xs text-slate-400 mb-1">Investment</p>
                   <p className="text-lg font-bold text-foreground">{skillsStories[activeStory].roiCalculation.investment}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Duration</p>
+                  <p className="text-xs text-slate-400 mb-1">Duration</p>
                   <p className="text-lg font-bold text-foreground">{skillsStories[activeStory].roiCalculation.timeToComplete}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Salary Boost</p>
+                  <p className="text-xs text-slate-400 mb-1">Salary Boost</p>
                   <p className="text-lg font-bold text-emerald-600">+{skillsStories[activeStory].roiCalculation.salaryIncrease}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Break-Even</p>
+                  <p className="text-xs text-slate-400 mb-1">Break-Even</p>
                   <p className="text-lg font-bold text-blue-600">{skillsStories[activeStory].roiCalculation.breakEvenTime}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Lifetime Value</p>
+                  <p className="text-xs text-slate-400 mb-1">Lifetime Value</p>
                   <p className="text-lg font-bold text-purple-600">{skillsStories[activeStory].roiCalculation.lifetimeValue}</p>
                 </div>
               </div>
@@ -375,8 +375,8 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
                     className="group p-3 rounded-lg bg-muted/50 border border-border/50 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-left"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground/90 group-hover:text-purple-600 transition-colors">{question}</span>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-purple-500 transition-colors opacity-0 group-hover:opacity-100" />
+                      <span className="text-sm text-slate-100 group-hover:text-purple-600 transition-colors">{question}</span>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-500 transition-colors opacity-0 group-hover:opacity-100" />
                     </div>
                   </motion.button>
                 ))}
@@ -453,7 +453,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
       <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-lg p-4">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input placeholder="Search skills..." value={localSearch} onChange={(e) => setLocalSearch(e.target.value)} className="pl-10" />
           </div>
           <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v as FilterCategory)}>
@@ -498,7 +498,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
             {technicalSkills.slice(0, 6).map((skill, index) => (
               <SkillCard key={skill.name} skill={skill} index={index} color="blue" />
             ))}
-            {technicalSkills.length === 0 && <p className="text-sm text-pink-200/70 text-center py-4">No skills found</p>}
+            {technicalSkills.length === 0 && <p className="text-sm text-slate-300 text-center py-4">No skills found</p>}
           </div>
         </div>
 
@@ -515,7 +515,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
             {softSkills.slice(0, 6).map((skill, index) => (
               <SkillCard key={skill.name} skill={skill} index={index} color="purple" />
             ))}
-            {softSkills.length === 0 && <p className="text-sm text-pink-200/70 text-center py-4">No skills found</p>}
+            {softSkills.length === 0 && <p className="text-sm text-slate-300 text-center py-4">No skills found</p>}
           </div>
         </div>
 
@@ -532,7 +532,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
             {emergingSkills.slice(0, 6).map((skill, index) => (
               <SkillCard key={skill.name} skill={skill} index={index} color="green" isEmerging />
             ))}
-            {emergingSkills.length === 0 && <p className="text-sm text-pink-200/70 text-center py-4">No skills found</p>}
+            {emergingSkills.length === 0 && <p className="text-sm text-slate-300 text-center py-4">No skills found</p>}
           </div>
         </div>
       </div>
@@ -617,7 +617,7 @@ function SkillCard({ skill, index, color, isEmerging }: { skill: any; index: num
       </div>
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-pink-200/70">Demand</span>
+          <span className="text-slate-300">Demand</span>
           <span className="font-semibold text-white">{skill.demand}%</span>
         </div>
         <div className="h-2 w-full bg-pink-500/20 rounded-full overflow-hidden">

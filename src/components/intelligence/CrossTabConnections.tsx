@@ -1,387 +1,449 @@
 /**
- * CrossTabConnections - Visualizes connections between funding, careers, and skills
- * 
- * Shows how government investment decisions flow through to job creation and skill demand
+ * CrossTabConnections - Real intelligence: funding → careers → skills
+ * Queries the search index directly per sector. No placeholder data.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowRight,
-  DollarSign,
-  Briefcase,
-  Brain,
-  Sparkles,
-  ChevronRight,
-  TrendingUp,
-  TrendingDown,
-  Zap,
-  Link2,
-  Target,
-  Info,
+  BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
+  ResponsiveContainer, Cell,
+} from "recharts";
+import {
+  ArrowRight, DollarSign, Briefcase, Brain, Sparkles,
+  TrendingUp, Zap, Link2, Loader2, Building2,
+  GraduationCap, Leaf, Cpu, Heart, Wrench, Globe,
+  FileText, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { callRAGMetadata } from "@/lib/azureFunctions";
 
-interface ConnectionNode {
-  id: string;
-  type: "funding" | "career" | "skill";
-  label: string;
-  value: string;
-  trend: number;
-  connections: string[];
+// ─── Sector config ────────────────────────────────────────────────────────────
+
+interface SectorConfig {
+  key: string; label: string; icon: React.ElementType;
+  gradient: string; query: string;
 }
 
+const SECTORS: SectorConfig[] = [
+  { key: "infrastructure", label: "Infrastructure", icon: Building2,    gradient: "from-amber-500 to-orange-500",   query: "infrastructure transport roads construction capital investment budget" },
+  { key: "health",         label: "Health",         icon: Heart,         gradient: "from-red-500 to-pink-500",      query: "health hospital medical nursing workforce budget allocation" },
+  { key: "education",      label: "Education",      icon: GraduationCap, gradient: "from-violet-500 to-purple-500", query: "education schools TAFE training teachers budget workforce" },
+  { key: "energy",         label: "Energy",         icon: Zap,           gradient: "from-emerald-500 to-teal-500",  query: "energy renewable hydrogen electricity grid budget investment" },
+  { key: "technology",     label: "Technology",     icon: Cpu,           gradient: "from-cyan-500 to-blue-500",     query: "technology digital AI innovation cybersecurity budget workforce" },
+  { key: "environment",    label: "Environment",    icon: Leaf,          gradient: "from-lime-500 to-green-500",    query: "environment climate nature conservation parks budget" },
+  { key: "tourism",        label: "Tourism",        icon: Globe,         gradient: "from-orange-500 to-amber-500",  query: "tourism hospitality events arts culture budget" },
+  { key: "industry",       label: "Industry",       icon: Wrench,        gradient: "from-slate-400 to-gray-500",   query: "manufacturing industry trade business investment jobs" },
+];
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SectorIntelligence {
+  funding: Array<{ amount: string; label: string }>;
+  careers: Array<{ title: string; ctx: string }>;
+  skills: Array<{ name: string }>;
+  insight: string;
+  sources: string[];
+  chartData: Array<{ name: string; value: number }>;
+}
+
+const CHART_COLORS = ["#8b5cf6", "#ec4899", "#06b6d4", "#10b981", "#f59e0b"];
+
+// ─── Parsers ──────────────────────────────────────────────────────────────────
+
+function parseFunding(text: string): Array<{ amount: string; label: string }> {
+  const out: Array<{ amount: string; label: string }> = [];
+  const re = /(\$[\d,.]+\s*(?:billion|million|B|M)\b)/gi;
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const amt = m[1].trim();
+    if (seen.has(amt)) continue;
+    seen.add(amt);
+    const before = text.slice(Math.max(0, m.index - 50), m.index).replace(/\n/g, " ").trim();
+    const after = text.slice(m.index + amt.length, m.index + amt.length + 60).replace(/\n/g, " ").trim();
+    const label = (before.split(/[.!?]/).pop() || after.split(/[.!?]/)[0] || "allocation").trim().slice(0, 60);
+    out.push({ amount: amt, label: label || "allocation" });
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+function parseCareers(text: string): Array<{ title: string; ctx: string }> {
+  // Multi-word roles first (order matters — check longer phrases before single words)
+  const multiWord = [
+    "project manager", "program manager", "contract manager", "asset manager",
+    "registered nurse", "enrolled nurse", "clinical nurse",
+    "civil engineer", "structural engineer", "electrical engineer", "mechanical engineer", "software engineer",
+    "data scientist", "data analyst", "business analyst", "policy analyst",
+    "social worker", "case worker", "community worker",
+    "school principal", "early childhood educator",
+    "project officer", "program officer", "compliance officer", "safety officer",
+    "human resources", "HR manager",
+    "chief executive", "general manager", "operations manager", "finance manager",
+    "IT specialist", "cyber security", "network engineer",
+    "environmental officer", "planning officer",
+  ];
+  const singleWord = [
+    "manager", "director", "officer", "analyst", "engineer", "nurse", "doctor",
+    "teacher", "technician", "specialist", "coordinator", "developer", "scientist",
+    "planner", "inspector", "advisor", "consultant", "supervisor", "operator",
+    "worker", "administrator", "accountant", "architect", "paramedic", "pharmacist",
+    "psychologist", "counsellor", "librarian", "ranger", "electrician", "plumber",
+    "carpenter", "mechanic", "driver", "researcher", "lecturer", "professor",
+    "principal", "superintendent", "commissioner", "secretary",
+  ];
+  const seen = new Set<string>();
+  const out: Array<{ title: string; ctx: string }> = [];
+  const lower = text.toLowerCase();
+
+  // Check multi-word first
+  for (const phrase of multiWord) {
+    const idx = lower.indexOf(phrase);
+    if (idx < 0 || seen.has(phrase)) continue;
+    seen.add(phrase);
+    const ctx = text.slice(Math.max(0, idx - 40), idx + 120).replace(/\n/g, " ").trim();
+    out.push({ title: phrase.replace(/\b\w/g, c => c.toUpperCase()), ctx: ctx.slice(0, 110) });
+    if (out.length >= 8) return out;
+  }
+
+  // Then single words
+  for (const t of singleWord) {
+    if (seen.has(t)) continue;
+    const re = new RegExp(`\\b(${t}s?)\\b`, "gi");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      seen.add(t);
+      const ctx = text.slice(Math.max(0, m.index - 40), m.index + 120).replace(/\n/g, " ").trim();
+      out.push({ title: t.charAt(0).toUpperCase() + t.slice(1), ctx: ctx.slice(0, 110) });
+      break;
+    }
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+function parseSkills(text: string): Array<{ name: string }> {
+  const kws = [
+    // Technical
+    "project management", "program management", "contract management",
+    "data analysis", "data science", "data engineering",
+    "software development", "software engineering", "systems integration",
+    "cybersecurity", "network security", "cloud computing",
+    "machine learning", "artificial intelligence", "AI",
+    "GIS", "spatial analysis", "remote sensing",
+    "electrical engineering", "civil engineering", "structural engineering",
+    "renewable energy", "energy management", "hydrogen technology",
+    "procurement", "supply chain", "logistics",
+    "financial management", "budget management", "accounting",
+    "asset management", "facilities management",
+    // Soft / cross-sector
+    "leadership", "stakeholder engagement", "communication",
+    "policy development", "policy analysis", "regulatory compliance",
+    "research", "grant writing", "report writing",
+    "change management", "risk management", "governance",
+    "community engagement", "cultural competency",
+    // Health
+    "clinical skills", "patient care", "aged care", "mental health",
+    "nursing", "allied health", "emergency response",
+    // Education
+    "teaching", "curriculum development", "early childhood",
+    "training and development", "coaching", "mentoring",
+    // Construction / trades
+    "construction", "project delivery", "site management",
+    "drafting", "AutoCAD", "BIM",
+    // Digital
+    "digital literacy", "digital transformation", "UX design",
+    "web development", "database management", "ERP systems",
+  ];
+  const lower = text.toLowerCase();
+  return kws
+    .filter(kw => lower.includes(kw.toLowerCase()))
+    .map(kw => ({ name: kw.replace(/\b\w/g, c => c.toUpperCase()) }));
+}
+
+function amountToNumber(amt: string): number {
+  const n = parseFloat(amt.replace(/[^0-9.]/g, "")) || 0;
+  if (/billion/i.test(amt) || /\dB\b/.test(amt)) return n * 1000;
+  return n;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function CrossTabConnections() {
-  const {
-    fundingAllocations,
-    careerOpportunities,
-    skillsDemand,
-    crossTabInsights,
-    getRelatedData,
-  } = useIntelligence();
+  const [selectedSector, setSelectedSector] = useState<SectorConfig | null>(null);
+  const [intel, setIntel] = useState<SectorIntelligence | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const [selectedSector, setSelectedSector] = useState<string | null>(null);
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const fetchIntelligence = useCallback(async (sector: SectorConfig) => {
+    setLoading(true);
+    setIntel(null);
+    try {
+      const result = await callRAGMetadata<{ answer: string; sources: any[] }>("semantic-search", {
+        query: sector.query,
+        options: { topK: 20 },
+      });
+      if (result.success && result.data) {
+        const { answer, sources } = result.data;
+        const allText = [answer, ...sources.map((s: any) => s.content || s.snippet || "")].join(" ");
+        const funding = parseFunding(allText);
+        const careers = parseCareers(allText);
+        const skills = parseSkills(allText);
+        const chartData = funding
+          .map(f => ({ name: f.amount, value: amountToNumber(f.amount) }))
+          .filter(d => d.value > 0)
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5);
+        const srcSet = new Set<string>();
+        sources.forEach((s: any) => { if (s.documentId || s.title) srcSet.add(s.title || s.documentId); });
+        const firstTwo = answer.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ");
+        setIntel({ funding, careers, skills, insight: firstTwo, sources: Array.from(srcSet).slice(0, 5), chartData });
+      }
+    } catch { /* silent */ } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // Build connection graph
-  const connectionGraph = useMemo(() => {
-    const sectors = new Set<string>();
-    
-    fundingAllocations.forEach(f => sectors.add(f.sector.toLowerCase()));
-    careerOpportunities.forEach(c => sectors.add(c.sector.toLowerCase()));
-    skillsDemand.forEach(s => sectors.add(s.sector.toLowerCase()));
-
-    return Array.from(sectors).slice(0, 6).map(sector => {
-      const related = getRelatedData(sector);
-      return {
-        sector: sector.charAt(0).toUpperCase() + sector.slice(1),
-        funding: related.funding,
-        careers: related.careers,
-        skills: related.skills,
-        hasStrongConnection: !!related.funding && related.careers.length > 0 && related.skills.length > 0,
-      };
-    });
-  }, [fundingAllocations, careerOpportunities, skillsDemand, getRelatedData]);
-
-  const selectedData = useMemo(() => {
-    if (!selectedSector) return null;
-    return getRelatedData(selectedSector);
-  }, [selectedSector, getRelatedData]);
-
-  // Helper function to format amounts (billions or millions with one decimal)
-  const formatAmount = (amount: number): string => {
-    if (amount >= 1000000000) {
-      return `$${(amount / 1000000000).toFixed(1)}B`;
-    } else if (amount >= 1000000) {
-      return `$${(amount / 1000000).toFixed(1)}M`;
+  const handleSelect = (sector: SectorConfig) => {
+    if (selectedSector?.key === sector.key) {
+      setSelectedSector(null);
+      setIntel(null);
     } else {
-      return `$${amount.toLocaleString()}`;
+      setSelectedSector(sector);
+      fetchIntelligence(sector);
     }
   };
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 overflow-hidden">
+    <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-purple-950/30 to-slate-900 border border-purple-500/20 shadow-2xl overflow-hidden">
       {/* Header */}
-      <div className="p-6 border-b border-pink-400/30 bg-gradient-to-r from-pink-500/10 to-purple-500/10">
+      <div className="p-5 border-b border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-pink-500/10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center shadow-lg shadow-pink-500/30">
-              <Link2 className="w-6 h-6 text-white" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg">
+              <Link2 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-display font-semibold text-xl text-white drop-shadow-lg">
-                Cross-Sector Intelligence
-              </h3>
-              <p className="text-xs text-pink-200/80">
-                How funding flows to jobs and skills
-              </p>
+              <h3 className="font-semibold text-base text-white">Cross-Sector Intelligence</h3>
+              <p className="text-[11px] text-white/40">Click a sector — see real funding, careers & skills from SA government documents</p>
             </div>
           </div>
-          <Badge className="gap-1 bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-pink-200 border-pink-400/40 backdrop-blur-sm">
-            <Sparkles className="w-3 h-3" />
-            AI Connected
+          <Badge className="gap-1 bg-purple-500/20 text-purple-300 border-purple-400/30 text-[10px]">
+            <Sparkles className="w-3 h-3" />Live
           </Badge>
         </div>
       </div>
 
-      {/* Connection Visualization */}
-      <div className="p-6">
-        {/* Legend */}
-        <div className="flex items-center justify-center gap-6 mb-6 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-amber-500 to-orange-500" />
-            <span className="text-pink-200/90">Funding</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500" />
-            <span className="text-pink-200/90">Careers</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500" />
-            <span className="text-pink-200/90">Skills</span>
-          </div>
-        </div>
-
-        {/* Sector Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-          {connectionGraph.map((item, index) => (
-            <motion.button
-              key={item.sector}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              onClick={() => setSelectedSector(
-                selectedSector === item.sector ? null : item.sector
-              )}
-              className={cn(
-                "relative p-4 rounded-xl border text-left transition-all backdrop-blur-sm",
-                selectedSector === item.sector
-                  ? "bg-gradient-to-br from-pink-500/30 to-purple-500/25 border-pink-400/50 shadow-lg shadow-pink-500/20"
-                  : "bg-gradient-to-br from-pink-500/15 to-purple-500/10 border-pink-400/30 hover:border-pink-400/50 hover:bg-gradient-to-br hover:from-pink-500/20 hover:to-purple-500/15"
-              )}
-            >
-              {/* Connection Strength Indicator */}
-              {item.hasStrongConnection && (
-                <div className="absolute -top-1 -right-1">
-                  <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse shadow-lg" />
+      <div className="p-5 space-y-5">
+        {/* Sector grid */}
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+          {SECTORS.map((sector, i) => {
+            const Icon = sector.icon;
+            const active = selectedSector?.key === sector.key;
+            return (
+              <motion.button
+                key={sector.key}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                onClick={() => handleSelect(sector)}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 p-2.5 rounded-xl border text-center transition-all duration-200",
+                  active
+                    ? "border-purple-400/60 bg-purple-500/20 shadow-lg shadow-purple-500/20 scale-105"
+                    : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20"
+                )}
+              >
+                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br", sector.gradient)}>
+                  <Icon className="w-4 h-4 text-white" />
                 </div>
-              )}
-              
-              <h4 className="font-medium text-white text-sm mb-2 drop-shadow">
-                {item.sector}
-              </h4>
-              
-              <div className="flex items-center gap-2 flex-wrap">
-                {item.funding && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center cursor-help">
-                          <DollarSign className="w-3 h-3 text-amber-500" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{item.funding.amount && typeof item.funding.amount === 'number' ? formatAmount(item.funding.amount) : '$0'} allocated</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {item.careers.length > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center cursor-help">
-                          <Briefcase className="w-3 h-3 text-blue-500" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{item.careers.length} career opportunities</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                {item.skills.length > 0 && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center cursor-help">
-                          <Brain className="w-3 h-3 text-purple-500" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{item.skills.length} skills in demand</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-            </motion.button>
-          ))}
+                <span className={cn("text-[10px] font-medium leading-tight", active ? "text-white" : "text-white/60")}>
+                  {sector.label}
+                </span>
+              </motion.button>
+            );
+          })}
         </div>
 
-        {/* Selected Sector Details */}
+        {/* Intelligence panel */}
         <AnimatePresence mode="wait">
-          {selectedSector && selectedData && (
+          {selectedSector && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
+              key={selectedSector.key}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
             >
-              <div className="p-5 rounded-xl bg-gradient-to-r from-pink-500/20 via-purple-500/15 to-pink-500/20 border border-pink-400/40 backdrop-blur-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-display font-semibold text-white text-lg drop-shadow-lg">
-                    {selectedSector} Intelligence Flow
-                  </h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedSector(null)}
-                    className="text-xs text-pink-200 hover:text-white hover:bg-pink-500/20"
-                  >
-                    Close
-                  </Button>
+              {loading ? (
+                <div className="flex items-center justify-center gap-3 py-12 text-white/40">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Querying SA government documents for {selectedSector.label} intelligence...</span>
                 </div>
-
-                {/* Flow Visualization */}
-                <div className="flex items-center justify-between gap-4">
-                  {/* Funding */}
-                  <div className="flex-1 text-center">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25 mb-2">
-                      <DollarSign className="w-8 h-8 text-white" />
+              ) : intel ? (
+                <div className="space-y-4">
+                  {/* Flow header */}
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center bg-gradient-to-br", selectedSector.gradient)}>
+                      <selectedSector.icon className="w-3.5 h-3.5 text-white" />
                     </div>
-                    <p className="text-lg font-bold text-white drop-shadow-lg">
-                      {selectedData.funding && selectedData.funding.amount && typeof selectedData.funding.amount === 'number'
-                        ? formatAmount(selectedData.funding.amount)
-                        : "N/A"
-                      }
-                    </p>
-                    <p className="text-xs text-pink-200/80">Budget</p>
-                    {selectedData.funding && selectedData.funding.change !== undefined && typeof selectedData.funding.change === 'number' && selectedData.funding.change > 0 && (
-                      <Badge className="mt-1 text-[10px] bg-emerald-500/20 text-emerald-300 border-emerald-400/40 backdrop-blur-sm">
-                        +{selectedData.funding.change.toFixed(1)}% YoY
-                      </Badge>
-                    )}
+                    <h4 className="font-semibold text-white text-sm">{selectedSector.label} Intelligence Flow</h4>
+                    <Button variant="ghost" size="sm" onClick={() => { setSelectedSector(null); setIntel(null); }}
+                      className="ml-auto text-[11px] text-white/40 hover:text-white h-6 px-2">
+                      Close
+                    </Button>
                   </div>
 
-                  {/* Arrow */}
-                  <div className="flex-shrink-0">
-                    <motion.div
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                    >
-                      <ArrowRight className="w-6 h-6 text-pink-300/70" />
-                    </motion.div>
-                  </div>
-
-                  {/* Careers */}
-                  <div className="flex-1 text-center">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/25 mb-2">
-                      <Briefcase className="w-8 h-8 text-white" />
-                    </div>
-                    <p className="text-lg font-bold text-white drop-shadow-lg">
-                      {selectedData.careers.length > 0
-                        ? selectedData.careers.reduce((sum, c) => sum + (c.jobs && typeof c.jobs === 'number' ? c.jobs : 0), 0).toLocaleString()
-                        : "N/A"
-                      }
-                    </p>
-                    <p className="text-xs text-pink-200/80">Jobs</p>
-                    {selectedData.careers.length > 0 && (
-                      <Badge className="mt-1 text-[10px] bg-blue-500/20 text-blue-300 border-blue-400/40 backdrop-blur-sm">
-                        {selectedData.careers.length} roles
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Arrow */}
-                  <div className="flex-shrink-0">
-                    <motion.div
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}
-                    >
-                      <ArrowRight className="w-6 h-6 text-pink-300/70" />
-                    </motion.div>
-                  </div>
-
-                  {/* Skills */}
-                  <div className="flex-1 text-center">
-                    <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/25 mb-2">
-                      <Brain className="w-8 h-8 text-white" />
-                    </div>
-                    <p className="text-lg font-bold text-white drop-shadow-lg">
-                      {selectedData.skills.length}
-                    </p>
-                    <p className="text-xs text-pink-200/80">Skills Needed</p>
-                    {selectedData.skills.filter(s => s.category === "emerging").length > 0 && (
-                      <Badge className="mt-1 text-[10px] bg-purple-500/20 text-purple-300 border-purple-400/40 backdrop-blur-sm">
-                        {selectedData.skills.filter(s => s.category === "emerging").length} emerging
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Top Items */}
-                <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-pink-400/30">
-                  {/* Top Career */}
-                  {selectedData.careers[0] && (
-                    <div>
-                      <p className="text-xs font-medium text-pink-200/70 mb-1">
-                        Top Career
-                      </p>
-                      <p className="text-sm font-semibold text-white drop-shadow">
-                        {selectedData.careers[0].occupation}
-                      </p>
-                      {selectedData.careers[0].growth !== undefined && typeof selectedData.careers[0].growth === 'number' && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <TrendingUp className="w-3 h-3 text-emerald-300" />
-                          <span className="text-xs text-emerald-300">
-                            {selectedData.careers[0].growth > 0 ? '+' : ''}{selectedData.careers[0].growth.toFixed(1)}% growth
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Top Skill */}
-                  {selectedData.skills[0] && (
-                    <div>
-                      <p className="text-xs font-medium text-pink-200/70 mb-1">
-                        Top Skill
-                      </p>
-                      <p className="text-sm font-semibold text-white drop-shadow">
-                        {selectedData.skills[0].name}
-                      </p>
-                      {selectedData.skills[0].demand !== undefined && (
-                        <Badge className="text-[10px] mt-1 bg-purple-500/20 text-purple-300 border-purple-400/40 backdrop-blur-sm">
-                          {typeof selectedData.skills[0].demand === 'number' ? selectedData.skills[0].demand : selectedData.skills[0].demand}% demand
+                  {/* 3-column flow */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Funding */}
+                    <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <DollarSign className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs font-semibold text-amber-300">Budget Signals</span>
+                        <Badge className="ml-auto text-[10px] bg-amber-500/20 text-amber-300 border-amber-400/30">
+                          {intel.funding.length} found
                         </Badge>
+                      </div>
+                      {intel.funding.length > 0 ? (
+                        <div className="space-y-2">
+                          {intel.funding.map((f, i) => (
+                            <div key={i} className="flex items-start gap-2">
+                              <span className="text-amber-300 font-bold text-sm whitespace-nowrap">{f.amount}</span>
+                              <span className="text-white/50 text-[11px] leading-tight">{f.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-white/30 text-xs">No specific dollar amounts found in documents</p>
                       )}
+                    </div>
+
+                    {/* Careers */}
+                    <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Briefcase className="w-4 h-4 text-blue-400" />
+                        <span className="text-xs font-semibold text-blue-300">Career Roles</span>
+                        <Badge className="ml-auto text-[10px] bg-blue-500/20 text-blue-300 border-blue-400/30">
+                          {intel.careers.length} roles
+                        </Badge>
+                      </div>
+                      {intel.careers.length > 0 ? (
+                        <div className="space-y-2">
+                          {intel.careers.map((c, i) => (
+                            <div key={i}>
+                              <div className="flex items-center gap-1.5">
+                                <ChevronRight className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                                <span className="text-white text-xs font-medium">{c.title}</span>
+                              </div>
+                              <p className="text-white/40 text-[10px] pl-4 leading-tight">{c.ctx}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-white/30 text-xs">No specific roles mentioned in documents</p>
+                      )}
+                    </div>
+
+                    {/* Skills */}
+                    <div className="rounded-xl bg-purple-500/10 border border-purple-500/20 p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Brain className="w-4 h-4 text-purple-400" />
+                        <span className="text-xs font-semibold text-purple-300">Skills in Demand</span>
+                        <Badge className="ml-auto text-[10px] bg-purple-500/20 text-purple-300 border-purple-400/30">
+                          {intel.skills.length}
+                        </Badge>
+                      </div>
+                      {intel.skills.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {intel.skills.map((s, i) => (
+                            <Badge key={i} className="text-[10px] bg-purple-500/20 text-purple-200 border-purple-400/30">
+                              {s.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-white/30 text-xs">No specific skills mentioned in documents</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Flow arrows between columns */}
+                  <div className="flex items-center justify-center gap-4 -mt-2 mb-1">
+                    <div className="flex-1 h-px bg-gradient-to-r from-amber-500/30 to-blue-500/30" />
+                    <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                      <ArrowRight className="w-4 h-4 text-white/20" />
+                    </motion.div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-blue-500/30 to-purple-500/30" />
+                    <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.3 }}>
+                      <ArrowRight className="w-4 h-4 text-white/20" />
+                    </motion.div>
+                    <div className="flex-1 h-px bg-purple-500/30" />
+                  </div>
+
+                  {/* Chart — only if we have chart data */}
+                  {intel.chartData.length > 1 && (
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-4">
+                      <p className="text-xs font-medium text-white/60 mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
+                        Budget Allocation Comparison
+                      </p>
+                      <ResponsiveContainer width="100%" height={140}>
+                        <BarChart data={intel.chartData} margin={{ top: 4, right: 8, left: 0, bottom: 20 }}>
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} angle={-20} textAnchor="end" interval={0} />
+                          <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)" }} tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}B` : `$${v}M`} />
+                          <RechartsTooltip
+                            contentStyle={{ backgroundColor: "#1e1b4b", border: "1px solid rgba(139,92,246,0.4)", borderRadius: "8px", fontSize: "11px", color: "#fff" }}
+                            formatter={(v: any) => [v >= 1000 ? `$${(v/1000).toFixed(1)}B` : `$${v}M`, "Amount"]}
+                          />
+                          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                            {intel.chartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} fillOpacity={0.85} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
                   )}
 
-                  {/* Insight */}
-                  <div>
-                    <p className="text-xs font-medium text-pink-200/70 mb-1">
-                      AI Insight
-                    </p>
-                    <p className="text-xs text-white drop-shadow">
-                      {selectedData.funding && selectedData.careers.length > 0
-                        ? `Investment translating to ${selectedData.careers.length} career pathways`
-                        : "Analyzing sector connections..."
-                      }
-                    </p>
-                  </div>
+                  {/* AI Insight */}
+                  {intel.insight && (
+                    <div className="rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-400/20 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center flex-shrink-0">
+                          <Zap className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-semibold text-purple-300 mb-1">AI Intelligence Summary</p>
+                          <p className="text-xs text-white/70 leading-relaxed">{intel.insight}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Source documents */}
+                  {intel.sources.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <FileText className="w-3 h-3 text-white/30" />
+                      <span className="text-[10px] text-white/30">Sources:</span>
+                      {intel.sources.map((s, i) => (
+                        <Badge key={i} className="text-[10px] bg-white/5 text-white/40 border-white/10">{s}</Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="text-center py-8 text-white/30 text-sm">No intelligence found for this sector.</div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* AI Insights Summary */}
-        {crossTabInsights.length > 0 && !selectedSector && (
-          <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-pink-500/20 via-purple-500/15 to-pink-500/20 border border-pink-400/40 backdrop-blur-sm">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                <Zap className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white mb-1 drop-shadow">
-                  {crossTabInsights[0].title}
-                </p>
-                <p className="text-xs text-pink-200/80">
-                  {crossTabInsights[0].connection}
-                </p>
-              </div>
-            </div>
+        {/* Default state */}
+        {!selectedSector && (
+          <div className="text-center py-6">
+            <p className="text-white/30 text-sm">Select a sector above to see real intelligence from SA government documents</p>
+            <p className="text-white/20 text-xs mt-1">Funding amounts · Career roles · In-demand skills · AI summary</p>
           </div>
         )}
       </div>
@@ -390,4 +452,3 @@ export function CrossTabConnections() {
 }
 
 export default CrossTabConnections;
-

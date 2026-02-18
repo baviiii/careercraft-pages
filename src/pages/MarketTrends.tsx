@@ -1,9 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceContext";
-import { UnifiedLayout } from "@/components/layout/UnifiedLayout";
 import { useJobCounts } from "@/hooks/useJobCounts";
+import { useAgenticRAG, type Contradiction, type GraphConnection } from "@/hooks/useAgenticRAG";
+import { useRAGMetadata } from "@/hooks/useRAGMetadata";
+import { DocumentIntelligenceVisualizer, AIInsightsPanel } from "@/components/intelligence";
+import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
+import { UnifiedLayout } from "@/components/layout/UnifiedLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +32,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
 
 const container = {
@@ -64,6 +69,118 @@ function MarketTrendsContent() {
   }, [careerOpportunities]);
   
   const { getJobCount, getJobUrl } = useJobCounts(emergingSectors);
+
+  // ========================================================================
+  // AGENTIC RAG - Graph connections, intersection reasoning, contradictions
+  // ========================================================================
+  const { sendMessage: sendMarketMsg, messages: agenticMessages, isStreaming } = useAgenticRAG('market');
+  const { semanticSearch } = useRAGMetadata();
+  const agenticFetchDone = useRef(false);
+  
+  // State for agentic data
+  const [chartSources, setChartSources] = useState<any[]>([]);
+  const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
+  const [contradictions, setContradictions] = useState<Contradiction[]>([]);
+  const [graphConnections, setGraphConnections] = useState<GraphConnection[]>([]);
+  const [loadingCharts, setLoadingCharts] = useState(false);
+
+  // Fire agentic RAG query on mount to enrich market trends with graph data
+  useEffect(() => {
+    if (agenticFetchDone.current || dataLoading) return;
+    agenticFetchDone.current = true;
+    
+    const fetchAgenticData = async () => {
+      setLoadingCharts(true);
+      try {
+        // Semantic search for market trend documents
+        const searchResult = await semanticSearch(
+          "market trends workforce growth declining industries skills demand South Australia employment",
+          { category: "workforce" },
+          { topK: 20, timeAwareRanking: true }
+        );
+        
+        if (searchResult?.sources && searchResult.sources.length > 0) {
+          setChartSources(searchResult.sources);
+          
+          // Transform to visualization data
+          const vizData = transformSearchResultsToVisualizationData(searchResult.sources);
+          setChartVisualizationData(vizData);
+        }
+        
+        // Also send agentic query for deeper insights
+        await sendMarketMsg("What are the key market trends, emerging industries, and workforce shifts in South Australia? Include any contradictions or gaps in the data.");
+      } catch (error) {
+        console.error("[MarketTrends] Agentic fetch error:", error);
+      } finally {
+        setLoadingCharts(false);
+      }
+    };
+    
+    fetchAgenticData();
+  }, [dataLoading, semanticSearch, sendMarketMsg]);
+
+  // Extract contradictions and connections from agentic messages
+  useEffect(() => {
+    const lastMsg = agenticMessages[agenticMessages.length - 1];
+    if (lastMsg?.role === "assistant" && !lastMsg.isLoading) {
+      if (lastMsg.contradictions && lastMsg.contradictions.length > 0) {
+        setContradictions(lastMsg.contradictions);
+      }
+      if (lastMsg.graphConnections && lastMsg.graphConnections.length > 0) {
+        setGraphConnections(lastMsg.graphConnections);
+      }
+    }
+  }, [agenticMessages]);
+
+  // Fetch intersection reasoning when sources are available
+  useEffect(() => {
+    const fetchIntersections = async () => {
+      if (chartSources.length < 2) return;
+      
+      const intersectionUrl = import.meta.env.VITE_AZURE_INTERSECTION_REASONING_URL || '';
+      const functionKey = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
+      if (!intersectionUrl) return;
+      
+      try {
+        const queryResults = chartSources.slice(0, 10).map(s => ({
+          query: "market trends",
+          results: [{
+            documentId: s.documentId || s.id,
+            title: s.title,
+            content: s.content || s.snippet,
+            category: s.category,
+          }]
+        }));
+        
+        const response = await fetch(intersectionUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(functionKey && { 'x-functions-key': functionKey }),
+          },
+          body: JSON.stringify({
+            queryResults,
+            originalQuery: "market trends analysis",
+            saveFindings: false,
+          }),
+        });
+        
+        if (response.ok) {
+          const analysis = await response.json();
+          if (analysis.contradictions?.length > 0) {
+            setContradictions(prev => [...prev, ...analysis.contradictions]);
+          }
+          if (analysis.connections?.length > 0) {
+            setGraphConnections(prev => [...prev, ...analysis.connections]);
+          }
+        }
+      } catch (error) {
+        console.error("[MarketTrends] Intersection reasoning error:", error);
+      }
+    };
+    
+    fetchIntersections();
+  }, [chartSources]);
 
   // Check if data is available
   const hasData = careerOpportunities.length > 0 || skillsDemand.length > 0;
@@ -693,6 +810,28 @@ function MarketTrendsContent() {
             </TabsContent>
           </Tabs>
         </motion.div>
+
+        {/* AI Insights Panel - Agentic RAG powered */}
+        <motion.div variants={item}>
+          <AIInsightsPanel
+            tab="overview"
+            title="Market Intelligence Insights"
+            maxInsights={4}
+          />
+        </motion.div>
+
+        {/* Document Intelligence Visualizer - Graph connections & contradictions */}
+        {(chartSources.length > 0 || loadingCharts) && (
+          <motion.div variants={item}>
+            <DocumentIntelligenceVisualizer
+              sources={chartSources}
+              visualizationData={chartVisualizationData}
+              query="market trends workforce analysis"
+              isLoading={loadingCharts}
+              contradictions={contradictions}
+            />
+          </motion.div>
+        )}
 
         {/* Regional Shortages */}
         <motion.div variants={item}>

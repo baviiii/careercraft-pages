@@ -104,7 +104,7 @@ export function IntelligenceNav() {
               <span className="font-display font-bold text-lg text-foreground leading-tight">
                 Horus Intelligence
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-slate-400">
                 Intelligence Platform
               </span>
             </div>
@@ -114,7 +114,7 @@ export function IntelligenceNav() {
         {/* Primary Navigation */}
         <div className="flex-1 overflow-y-auto py-4 px-3">
           <div className="mb-6">
-            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <p className="px-3 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Intelligence
             </p>
             <div className="space-y-1">
@@ -126,7 +126,7 @@ export function IntelligenceNav() {
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-premium group relative",
                     isActive(item.href)
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "text-slate-400 hover:bg-muted hover:text-foreground"
                   )}
                 >
                   {isActive(item.href) && (
@@ -137,7 +137,7 @@ export function IntelligenceNav() {
                   )}
                   <span className={cn(
                     "flex-shrink-0 transition-colors",
-                    isActive(item.href) ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    isActive(item.href) ? "text-primary" : "text-slate-400 group-hover:text-foreground"
                   )}>
                     {item.icon}
                   </span>
@@ -154,7 +154,7 @@ export function IntelligenceNav() {
           </div>
 
           <div>
-            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <p className="px-3 mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Tools
             </p>
             <div className="space-y-1">
@@ -166,7 +166,7 @@ export function IntelligenceNav() {
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-premium group relative",
                     isActive(item.href)
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "text-slate-400 hover:bg-muted hover:text-foreground"
                   )}
                 >
                   {isActive(item.href) && (
@@ -177,7 +177,7 @@ export function IntelligenceNav() {
                   )}
                   <span className={cn(
                     "flex-shrink-0 transition-colors",
-                    isActive(item.href) ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    isActive(item.href) ? "text-primary" : "text-slate-400 group-hover:text-foreground"
                   )}>
                     {item.icon}
                   </span>
@@ -195,12 +195,12 @@ export function IntelligenceNav() {
               variant="ghost"
               size="sm"
               onClick={toggleTheme}
-              className="text-muted-foreground hover:text-foreground"
+              className="text-slate-400 hover:text-foreground"
             >
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
             <Link to="/settings">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" size="sm" className="text-slate-400 hover:text-foreground">
                 <Settings className="w-4 h-4" />
               </Button>
             </Link>
@@ -210,7 +210,7 @@ export function IntelligenceNav() {
               <Sparkles className="w-4 h-4 text-accent-gold" />
               <span className="text-xs font-semibold text-foreground">AI-Powered</span>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-slate-400">
               Backed by SA Government data & verified sources
             </p>
           </div>
@@ -277,14 +277,14 @@ export function IntelligenceNav() {
                       "flex items-center gap-3 px-4 py-3 rounded-lg transition-premium",
                       isActive(item.href)
                         ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        : "text-slate-400 hover:bg-muted hover:text-foreground"
                     )}
                   >
                     {item.icon}
                     <div className="flex-1">
                       <div className="font-medium text-sm">{item.label}</div>
                       {item.description && (
-                        <div className="text-xs text-muted-foreground">{item.description}</div>
+                        <div className="text-xs text-slate-400">{item.description}</div>
                       )}
                     </div>
                     <ChevronRight className="w-4 h-4 opacity-50" />

@@ -179,7 +179,7 @@ export function CareerPulse() {
       <div className="card-intelligence p-6">
         <div className="flex items-center justify-center h-32">
           <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading intelligence data...</span>
+          <span className="ml-2 text-sm text-slate-400">Loading intelligence data...</span>
         </div>
       </div>
     );
@@ -194,7 +194,7 @@ export function CareerPulse() {
           </div>
           <div>
             <h2 className="font-display text-lg font-bold text-foreground">Career Intelligence</h2>
-            <p className="text-sm text-muted-foreground">Initializing...</p>
+            <p className="text-sm text-slate-400">Initializing...</p>
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@ export function CareerPulse() {
         </div>
         <div className="flex-1">
           <h2 className="font-display text-lg font-bold text-foreground">Career Intelligence</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-slate-400">
             Powered by {totalDocs.toLocaleString()} documents • {totalChunks.toLocaleString()} indexed segments
           </p>
         </div>
@@ -227,7 +227,7 @@ export function CareerPulse() {
             <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">Indexed Documents</span>
           </div>
           <p className="text-3xl font-bold text-foreground">{totalDocs.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground">Government sources • AI-powered search</p>
+          <p className="text-xs text-slate-400">Government sources • AI-powered search</p>
         </div>
         <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20">
           <div className="flex items-center gap-2 mb-1">
@@ -235,7 +235,7 @@ export function CareerPulse() {
             <span className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Intelligence Chunks</span>
           </div>
           <p className="text-3xl font-bold text-foreground">{totalChunks.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground">Vector-embedded • Semantic search ready</p>
+          <p className="text-xs text-slate-400">Vector-embedded • Semantic search ready</p>
         </div>
       </div>
 
@@ -249,7 +249,7 @@ export function CareerPulse() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {topCareers.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">Top Growing Careers</p>
+                <p className="text-xs font-medium text-slate-400 mb-1">Top Growing Careers</p>
                 <div className="flex flex-wrap gap-1.5">
                   {topCareers.slice(0, 4).map((career: string, i: number) => (
                     <span key={i} className="text-xs px-2 py-1 rounded-full bg-purple-500/10 text-purple-600 border border-purple-500/20">
@@ -261,7 +261,7 @@ export function CareerPulse() {
             )}
             {topSkills.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">In-Demand Skills</p>
+                <p className="text-xs font-medium text-slate-400 mb-1">In-Demand Skills</p>
                 <div className="flex flex-wrap gap-1.5">
                   {topSkills.slice(0, 4).map((skill: string, i: number) => (
                     <span key={i} className="text-xs px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
@@ -278,7 +278,7 @@ export function CareerPulse() {
       {/* Metric Cards */}
       {metrics.length > 0 && (
         <>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Key Metrics</h3>
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Key Metrics</h3>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {metrics.map((metric, index) => (
               <motion.div
@@ -308,9 +308,9 @@ export function CareerPulse() {
                     <TrendingDown className="w-3 h-3 text-red-500" />
                   )}
                 </div>
-                <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                <p className="text-xs font-medium text-slate-400">{metric.label}</p>
                 {metric.subValue && (
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{metric.subValue}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{metric.subValue}</p>
                 )}
               </motion.div>
             ))}

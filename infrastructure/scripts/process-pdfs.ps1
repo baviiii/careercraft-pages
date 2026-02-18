@@ -2615,8 +2615,9 @@ foreach ($pdf in $pdfs) {
         Write-Host "   [PRIORITY] Processing $($tableChunks.Count) table row chunks first..." -ForegroundColor Magenta
         
         foreach ($tableChunk in $tableChunks) {
-            $tableDocId = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$pdfName-table-$($tableChunk.tableIndex)-row-$($tableChunk.rowIndex)")) -replace '[^a-zA-Z0-9]', ''
-            $tableDocId = $tableDocId.Substring(0, [Math]::Min(128, $tableDocId.Length))
+            $tableIdInput = "$pdfName-table-$($tableChunk.tableIndex)-row-$($tableChunk.rowIndex)"
+            $tableIdHash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($tableIdInput))
+            $tableDocId = ([System.Convert]::ToBase64String($tableIdHash) -replace '[^a-zA-Z0-9]', '').Substring(0, [Math]::Min(44, 44))
             
             # ELITE: Build table row chunk with structured metadata
             $tableMetadata = @{
@@ -2789,8 +2790,9 @@ foreach ($pdf in $pdfs) {
         
         # ELITE: Process text chunks with confidence scores
         foreach ($chunk in $textChunks) {
-            $docId = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$pdfName-text-chunk-$($chunk.index)")) -replace '[^a-zA-Z0-9]', ''
-            $docId = $docId.Substring(0, [Math]::Min(128, $docId.Length))
+            $textIdInput = "$pdfName-text-chunk-$($chunk.index)"
+            $textIdHash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($textIdInput))
+            $docId = ([System.Convert]::ToBase64String($textIdHash) -replace '[^a-zA-Z0-9]', '').Substring(0, [Math]::Min(44, 44))
             
             # Determine page number and confidence for this chunk
             $chunkPage = 1
@@ -3015,8 +3017,9 @@ foreach ($pdf in $pdfs) {
                 if ($chartIndex % 10 -eq 0 -or $chartIndex -eq 1) {
                     Write-Host "      [CHARTS] Progress: $chartIndex/$($chartExtractionResults.Count) charts processed..." -ForegroundColor Gray
                 }
-                $chartDocId = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$pdfName-chart-$($chart.figureIndex)")) -replace '[^a-zA-Z0-9]', ''
-                $chartDocId = $chartDocId.Substring(0, [Math]::Min(128, $chartDocId.Length))
+                $chartIdInput = "$pdfName-chart-$($chart.figureIndex)"
+                $chartIdHash = [System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($chartIdInput))
+                $chartDocId = ([System.Convert]::ToBase64String($chartIdHash) -replace '[^a-zA-Z0-9]', '').Substring(0, [Math]::Min(44, 44))
                 
                 # Build searchable content from chart data
                 $chartContent = @()

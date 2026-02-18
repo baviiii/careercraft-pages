@@ -144,7 +144,7 @@ export default function CareerCoach() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "insights">("chat");
   const [focusArea, setFocusArea] = useState<string>("careers");
-  const [ragMode, setRagMode] = useState<RAGMode>("hybrid");
+  const [ragMode, setRagMode] = useState<RAGMode>("agentic");
   const [promptOptions, setPromptOptions] = useState<PromptOption[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -856,8 +856,12 @@ export default function CareerCoach() {
                                   <ConfidenceIndicator
                                     confidence={message.confidence}
                                     avgRelevance={
-                                      message.sources
-                                        ? message.sources.reduce((sum, s) => sum + (s.relevance || 0), 0) / message.sources.length
+                                      message.sources && message.sources.length > 0
+                                        ? (() => {
+                                            const avg = message.sources.reduce((sum, s) => sum + (s.relevance || 0), 0) / message.sources.length;
+                                            // Normalize: if avg <= 1 it's a 0-1 score, multiply by 100
+                                            return avg <= 1 ? Math.round(avg * 100) : Math.round(avg);
+                                          })()
                                         : undefined
                                     }
                                     sourceCount={message.sources?.length}

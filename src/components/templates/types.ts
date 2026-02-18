@@ -29,12 +29,78 @@ export interface TemplateEducation {
   gpa?: string;
 }
 
+export interface TemplateCertification {
+  id: string;
+  name: string;
+  issuer?: string;
+  date?: string;
+  expiryDate?: string;
+}
+
+export interface TemplateReference {
+  id: string;
+  name: string;
+  title?: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+  relationship?: string;
+}
+
+export interface TemplateLanguage {
+  id: string;
+  language: string;
+  proficiency: string; // e.g., "Native", "Fluent", "Professional", "Limited"
+}
+
+export interface TemplateAward {
+  id: string;
+  title: string;
+  issuer?: string;
+  date?: string;
+  description?: string;
+}
+
+export interface TemplateVolunteer {
+  id: string;
+  role: string;
+  organization: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+}
+
+export interface TemplatePublication {
+  id: string;
+  title: string;
+  publisher?: string;
+  date?: string;
+  url?: string;
+  description?: string;
+}
+
 export interface TemplateData {
   contact: TemplateContact;
   summary: string;
   experience: TemplateExperience[];
   education: TemplateEducation[];
   skills: string[];
+  // Optional sections
+  certifications?: TemplateCertification[];
+  references?: TemplateReference[];
+  languages?: TemplateLanguage[];
+  awards?: TemplateAward[];
+  volunteer?: TemplateVolunteer[];
+  publications?: TemplatePublication[];
+  // Keep projects for backward compatibility
+  projects?: {
+    id: string;
+    name: string;
+    description: string;
+    technologies: string[];
+  }[];
 }
 
 export interface TemplateProps {

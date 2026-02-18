@@ -31,7 +31,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
   if (!log) {
     return (
       <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-slate-400">
           Extraction log not available for this allocation.
         </p>
       </div>
@@ -77,7 +77,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
         </div>
         <div>
           <h4 className="font-semibold text-foreground">Data Provenance & Audit Trail</h4>
-          <p className="text-xs text-muted-foreground">Full transparency for regulatory compliance</p>
+          <p className="text-xs text-slate-400">Full transparency for regulatory compliance</p>
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
                 {log.method.replace('_', ' ').toUpperCase()}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">{config.description}</p>
+            <p className="text-xs text-slate-400">{config.description}</p>
           </div>
         </div>
       </div>
@@ -103,7 +103,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
           <Calendar className="w-4 h-4 text-blue-500" />
           <span className="text-sm font-semibold text-foreground">Extraction Timeline</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-slate-400">
           <span>Extracted on:</span>
           <span className="font-medium text-foreground">
             {log.timestamp.toLocaleString('en-AU', {
@@ -142,7 +142,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
 
           {/* Arrow */}
           <div className="pl-3">
-            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            <ArrowRight className="w-4 h-4 text-slate-400" />
           </div>
 
           {/* Step 2: Normalization */}
@@ -154,14 +154,14 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
               <p className="text-sm font-medium text-foreground mb-1">Normalization Applied</p>
               <div className="p-2 rounded bg-muted/50 border border-border/50">
                 <div className="flex items-center gap-2">
-                  <Hash className="w-3 h-3 text-muted-foreground" />
+                  <Hash className="w-3 h-3 text-slate-400" />
                   <code className="text-xs font-mono text-foreground">
                     ${log.normalizedValue.toFixed(2)}M
                   </code>
                   <Badge variant="outline" className="text-xs ml-auto">Millions</Badge>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-slate-400 mt-1">
                 Converted to millions for consistency across dataset
               </p>
             </div>
@@ -169,7 +169,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
 
           {/* Arrow */}
           <div className="pl-3">
-            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            <ArrowRight className="w-4 h-4 text-slate-400" />
           </div>
 
           {/* Step 3: Validation */}
@@ -215,7 +215,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
         <div className="grid grid-cols-2 gap-3">
           {allocation.sources[0]?.documentType && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Document Type</p>
+              <p className="text-xs text-slate-400 mb-1">Document Type</p>
               <Badge variant="outline" className="text-xs">
                 {allocation.sources[0].documentType.toUpperCase()}
               </Badge>
@@ -223,7 +223,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
           )}
           {allocation.sources[0]?.category && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Category</p>
+              <p className="text-xs text-slate-400 mb-1">Category</p>
               <Badge variant="outline" className="text-xs">
                 {allocation.sources[0].category}
               </Badge>
@@ -231,7 +231,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
           )}
           {allocation.sources[0]?.pageNumber && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Page Number</p>
+              <p className="text-xs text-slate-400 mb-1">Page Number</p>
               <span className="text-sm font-medium text-foreground">
                 Page {allocation.sources[0].pageNumber}
               </span>
@@ -239,7 +239,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
           )}
           {allocation.sources[0]?.tableNumber && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Table Reference</p>
+              <p className="text-xs text-slate-400 mb-1">Table Reference</p>
               <span className="text-sm font-medium text-foreground">
                 Table {allocation.sources[0].tableNumber}
               </span>
@@ -247,7 +247,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
           )}
           {allocation.sources[0]?.extractionMethod && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Extraction Method</p>
+              <p className="text-xs text-slate-400 mb-1">Extraction Method</p>
               <Badge variant="outline" className="text-xs">
                 {allocation.sources[0].extractionMethod.toUpperCase()}
               </Badge>
@@ -262,7 +262,7 @@ export function DataProvenance({ allocation }: DataProvenanceProps) {
           <Shield className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-sm font-semibold text-emerald-600 mb-1">Audit Certification</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-xs text-slate-400 leading-relaxed">
               This data extraction has been logged with full provenance tracking. All validation
               steps have been recorded for regulatory compliance and audit purposes. Source
               documents, extraction method, transformation pipeline, and validation results are

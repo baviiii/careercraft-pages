@@ -220,3 +220,65 @@ export function createEmptyVisualizationData(): VisualizationData {
     hasVisualizations: false,
   };
 }
+
+// Transform Azure AI Search results to VisualizationData
+export function transformSearchResultsToVisualizationData(
+  searchResults: any[],
+  query?: string
+): VisualizationData {
+  const charts: ChartResult[] = [];
+  const metadataDistribution: MetadataDistribution = {
+    categories: {},
+    sectors: {},
+    documentTypes: {},
+    chunkTypes: {},
+  };
+  
+  // Process each search result
+  searchResults.forEach((result) => {
+    // Aggregate metadata
+    if (result.category) {
+      metadataDistribution.categories[result.category] = 
+        (metadataDistribution.categories[result.category] || 0) + 1;
+    }
+    if (result.sector) {
+      metadataDistribution.sectors[result.sector] = 
+        (metadataDistribution.sectors[result.sector] || 0) + 1;
+    }
+    if (result.documentType) {
+      metadataDistribution.documentTypes[result.documentType] = 
+        (metadataDistribution.documentTypes[result.documentType] || 0) + 1;
+    }
+    if (result.chunkType) {
+      metadataDistribution.chunkTypes[result.chunkType] = 
+        (metadataDistribution.chunkTypes[result.chunkType] || 0) + 1;
+    }
+    
+    // Extract chart data
+    if (result.hasChart || result.chunkType === 'chart') {
+      const chartData = parseChartData(result.chartData);
+      
+      charts.push({
+        id: result.id,
+        documentId: result.documentId,
+        pageNumber: result.pageNumber || 1,
+        chartType: result.chartType || 'other',
+        chartData: chartData,
+        chartImageUrl: result.chartImageUrl || null,
+        chartConfidence: result.chartConfidence || 0,
+        visualDescription: result.visualDescription || null,
+        title: result.title || 'Untitled Chart',
+        score: result.score || 0,
+      });
+    }
+  });
+  
+  return {
+    charts,
+    metadataDistribution,
+    relationships: [], // Relationships would come from graph queries
+    totalResults: searchResults.length,
+    chartCount: charts.length,
+    hasVisualizations: charts.length > 0 || Object.keys(metadataDistribution.categories).length > 0,
+  };
+}

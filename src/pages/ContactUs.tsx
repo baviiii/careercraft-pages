@@ -29,18 +29,18 @@ export default function ContactUs() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-sky-50">
-      <div className="container mx-auto px-4 py-20">
+      <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="max-w-6xl mx-auto"
         >
           {/* Header */}
-          <div className="text-center mb-16">
+          <div className="text-center mb-12 sm:mb-16">
             <Button
               variant="ghost"
               onClick={() => navigate("/")}
-              className="mb-6"
+              className="mb-4 sm:mb-6"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Home
@@ -49,7 +49,7 @@ export default function ContactUs() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 px-4 bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent"
             >
               Contact Us
             </motion.h1>
@@ -57,38 +57,38 @@ export default function ContactUs() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-xl text-slate-600 max-w-2xl mx-auto"
+              className="text-base sm:text-xl text-slate-600 max-w-2xl mx-auto px-4"
             >
               Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
             </motion.p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12">
+          <div className="grid md:grid-cols-2 gap-8 sm:gap-12">
             {/* Contact Information */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3 }}
-              className="space-y-8"
+              className="space-y-6 sm:space-y-8"
             >
               <div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-6">Get in Touch</h2>
-                <p className="text-slate-600 mb-8">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-4 sm:mb-6 px-2">Get in Touch</h2>
+                <p className="text-sm sm:text-base text-slate-600 mb-6 sm:mb-8 px-2">
                   We're here to help! Reach out to us through any of these channels.
                 </p>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <motion.div
                   whileHover={{ scale: 1.02 }}
-                  className="flex items-start gap-4 p-6 bg-white rounded-2xl shadow-lg border border-blue-100"
+                  className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-blue-100"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-800 mb-1">Email</h3>
-                    <a href="mailto:support@careercraft.com" className="text-blue-600 hover:text-blue-700">
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-1">Email</h3>
+                    <a href="mailto:support@careercraft.com" className="text-sm sm:text-base text-blue-600 hover:text-blue-700 break-all">
                       support@careercraft.com
                     </a>
                   </div>
@@ -96,14 +96,14 @@ export default function ContactUs() {
 
                 <motion.div
                   whileHover={{ scale: 1.02 }}
-                  className="flex items-start gap-4 p-6 bg-white rounded-2xl shadow-lg border border-blue-100"
+                  className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-blue-100"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-800 mb-1">Phone</h3>
-                    <a href="tel:+611300000000" className="text-blue-600 hover:text-blue-700">
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-1">Phone</h3>
+                    <a href="tel:+611300000000" className="text-sm sm:text-base text-blue-600 hover:text-blue-700">
                       +61 1300 000 000
                     </a>
                   </div>
@@ -111,14 +111,14 @@ export default function ContactUs() {
 
                 <motion.div
                   whileHover={{ scale: 1.02 }}
-                  className="flex items-start gap-4 p-6 bg-white rounded-2xl shadow-lg border border-blue-100"
+                  className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-blue-100"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-800 mb-1">Address</h3>
-                    <p className="text-slate-600">
+                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-1">Address</h3>
+                    <p className="text-sm sm:text-base text-slate-600">
                       Adelaide, South Australia<br />
                       Australia
                     </p>
@@ -126,9 +126,9 @@ export default function ContactUs() {
                 </motion.div>
               </div>
 
-              <div className="p-6 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border border-blue-200">
-                <h3 className="font-semibold text-slate-800 mb-2">Business Hours</h3>
-                <p className="text-slate-600 text-sm">
+              <div className="p-4 sm:p-6 bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl sm:rounded-2xl border border-blue-200">
+                <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-2">Business Hours</h3>
+                <p className="text-slate-600 text-xs sm:text-sm">
                   Monday - Friday: 9:00 AM - 5:00 PM AEST<br />
                   Saturday - Sunday: Closed
                 </p>
@@ -141,7 +141,7 @@ export default function ContactUs() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.4 }}
             >
-              <div className="bg-white rounded-2xl shadow-xl p-8 border border-blue-100">
+              <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-8 border border-blue-100">
                 {submitted ? (
                   <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}

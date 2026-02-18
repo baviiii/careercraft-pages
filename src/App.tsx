@@ -31,6 +31,7 @@ const ContactUs = lazy(() => import("./pages/ContactUs"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const TryUs = lazy(() => import("./pages/TryUs"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
@@ -96,6 +97,7 @@ const App = () => (
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/try" element={<TryUs />} />
             
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminLayout />}>

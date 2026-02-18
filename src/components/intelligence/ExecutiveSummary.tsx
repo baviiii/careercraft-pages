@@ -136,7 +136,7 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
                 {summary.urgency.toUpperCase()}
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">AI-generated intelligence brief</p>
+            <p className="text-xs text-slate-400 mt-0.5">AI-generated intelligence brief</p>
           </div>
         </div>
       </div>
@@ -157,7 +157,7 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
             className="flex items-start gap-2"
           >
             <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-muted-foreground leading-relaxed">{point}</p>
+            <p className="text-sm text-slate-400 leading-relaxed">{point}</p>
           </motion.div>
         ))}
       </div>
@@ -165,7 +165,7 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
       {/* HORUS Insights */}
       {topInsights.length > 0 && (
         <div className="pt-4 border-t border-border/50">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
             HORUS Intelligence Signals
           </p>
           <div className="space-y-2">
@@ -178,7 +178,7 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
                 className="p-3 rounded-lg bg-gradient-to-r from-purple-500/5 to-blue-500/5 border border-purple-500/10"
               >
                 <p className="text-sm font-medium text-foreground mb-1">{insight.title}</p>
-                <p className="text-xs text-muted-foreground line-clamp-2">{insight.whyItMatters}</p>
+                <p className="text-xs text-slate-400 line-clamp-2">{insight.whyItMatters}</p>
               </motion.div>
             ))}
           </div>

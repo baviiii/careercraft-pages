@@ -7,8 +7,9 @@
     "test": "echo \"No tests yet\""
   },
   "dependencies": {
+    "@azure/data-tables": "^13.3.2",
     "@azure/storage-blob": "^12.17.0",
-    "gremlin": "^3.7.1",
+    "gremlin": "^3.8.0",
     "neo4j-driver": "^5.15.0",
     "pdfjs-dist": "^4.0.189"
   },

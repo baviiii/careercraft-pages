@@ -57,7 +57,7 @@ import {
 import { parseResumeWithAI, parseResumeTextWithAI, AIResumeData } from "@/lib/resumeParser";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { runATSAIAnalysis, autoRewriteResume, rewriteExperienceSection, generateAchievements, generateSummaries, rewriteResumeStructured, ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
+import { runATSAIAnalysis, autoRewriteResume, rewriteExperienceSection, generateAchievements, generateSummaries, rewriteResumeStructured, ATSAIAnalysis, RewriteResult } from "@/lib/atsAIAnalyzer";
 import { generateCoverLetter } from "@/lib/aiRewriter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -380,23 +380,44 @@ export default function Analysis() {
       
       // For builder resumes with auto-rewrite, use structured rewrite
       if (type === "auto-rewrite" && isBuilderResume && parsedResumeData) {
-        const structuredResult = await rewriteResumeStructured(parsedResumeData, jobDescription, analysisContext);
-        setEnhancedResumeData(structuredResult as AIResumeData);
+        const structuredResponse = await rewriteResumeStructured(parsedResumeData, jobDescription, analysisContext);
+        setEnhancedResumeData(structuredResponse.result as AIResumeData);
         setEnhancementResult(""); // Clear text result since we have structured data
-        toast({ 
-          title: "✓ Resume optimized!", 
-          description: "View the enhanced version below or apply to builder" 
-        });
+        
+        // Show recovery warning if sections were preserved
+        if (structuredResponse.recoveredSections && structuredResponse.recoveredSections.length > 0) {
+          toast({ 
+            title: "✓ Resume optimized (some sections preserved)", 
+            description: `Preserved from original: ${structuredResponse.recoveredSections.join(", ")}. Please review.`,
+            duration: 6000
+          });
+        } else {
+          toast({ 
+            title: "✓ Resume optimized!", 
+            description: "View the enhanced version below or apply to builder" 
+          });
+        }
       } else {
         // Use text-based enhancement for uploaded resumes or other enhancement types
         let result = "";
+        let rewriteWarning = "";
+        let recovered: string[] = [];
+        
         switch (type) {
-          case "auto-rewrite":
-            result = await autoRewriteResume(resumeText, jobDescription, analysisContext);
+          case "auto-rewrite": {
+            const rewriteResponse = await autoRewriteResume(resumeText, jobDescription, analysisContext);
+            result = rewriteResponse.result;
+            rewriteWarning = rewriteResponse.warning || "";
+            recovered = rewriteResponse.recoveredSections || [];
             break;
-          case "rewrite-experience":
-            result = await rewriteExperienceSection(resumeText, jobDescription, analysisContext);
+          }
+          case "rewrite-experience": {
+            const rewriteResponse = await rewriteExperienceSection(resumeText, jobDescription, analysisContext);
+            result = rewriteResponse.result;
+            rewriteWarning = rewriteResponse.warning || "";
+            recovered = rewriteResponse.recoveredSections || [];
             break;
+          }
           case "generate-achievements":
             result = await generateAchievements(resumeText, jobDescription, analysisContext);
             break;
@@ -405,24 +426,33 @@ export default function Analysis() {
             break;
         }
         
-        // Post-rewrite validation for auto-rewrite
-        if (type === "auto-rewrite" && result) {
-          const validation = validateRewriteResult(result, resumeText);
-          
-          if (!validation.isComplete) {
+        // Post-rewrite validation and recovery feedback
+        if ((type === "auto-rewrite" || type === "rewrite-experience") && result) {
+          if (recovered.length > 0) {
+            // Sections were recovered from original
             toast({ 
-              title: "⚠️ Rewrite may be incomplete", 
-              description: validation.missingSections.length > 0 
-                ? `Missing sections: ${validation.missingSections.join(", ")}. Consider retrying.`
-                : "Response appears truncated. Consider retrying.",
-              variant: "default",
-              duration: 5000
+              title: "✓ Enhancement complete (sections preserved)", 
+              description: `Preserved from original: ${recovered.join(", ")}. Please review.`,
+              duration: 6000
             });
           } else {
-            toast({ 
-              title: "✓ Enhancement complete", 
-              description: "All sections rewritten successfully" 
-            });
+            const validation = validateRewriteResult(result, resumeText);
+            
+            if (!validation.isComplete) {
+              toast({ 
+                title: "⚠️ Rewrite may be incomplete", 
+                description: validation.missingSections.length > 0 
+                  ? `Missing sections: ${validation.missingSections.join(", ")}. Consider retrying.`
+                  : "Response appears truncated. Consider retrying.",
+                variant: "default",
+                duration: 5000
+              });
+            } else {
+              toast({ 
+                title: "✓ Enhancement complete", 
+                description: "All sections rewritten successfully" 
+              });
+            }
           }
         } else {
           toast({ title: "Enhancement complete" });
@@ -710,10 +740,10 @@ export default function Analysis() {
                 <Brain className="w-4 h-4" />
                 Enterprise-Grade AI Analysis
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 px-4">
                 <span className="bg-gradient-hero bg-clip-text text-transparent">ATS Resume Analyzer</span>
               </h1>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
                 Deep AI analysis with scoring, keyword extraction, red flags detection, writing quality assessment, and optimization tools
               </p>
             </div>
@@ -1014,7 +1044,7 @@ export default function Analysis() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-card border rounded-2xl p-8 shadow-2xl text-center max-w-md mx-4"
+              className="bg-card border rounded-2xl p-6 sm:p-8 shadow-2xl text-center max-w-md mx-4"
             >
               <div className="relative w-24 h-24 mx-auto mb-6">
                 <div className="absolute inset-0 rounded-full border-4 border-muted" />
@@ -1045,9 +1075,9 @@ export default function Analysis() {
               <div className="grid lg:grid-cols-12 gap-6 relative">
                 <div className="lg:col-span-4">
                   <p className="text-sm text-muted-foreground mb-1">{fileName}</p>
-                  <h1 className="text-xl font-bold mb-4">ATS Compatibility Score</h1>
-                  <div className="flex items-end gap-4">
-                    <div className={`text-6xl font-black bg-gradient-to-r ${getScoreGradient(analysis.overallScore)} bg-clip-text text-transparent`}>
+                  <h1 className="text-lg sm:text-xl font-bold mb-4">ATS Compatibility Score</h1>
+                  <div className="flex items-end gap-3 sm:gap-4">
+                    <div className={`text-5xl sm:text-6xl font-black bg-gradient-to-r ${getScoreGradient(analysis.overallScore)} bg-clip-text text-transparent`}>
                       {analysis.overallScore}
                     </div>
                     <div className="pb-1">
@@ -1352,10 +1382,10 @@ export default function Analysis() {
               {activeResultTab === "redflags" && (
                 <div className="space-y-4">
                   {analysis.redFlags.length === 0 ? (
-                    <Card className="p-12 text-center">
-                      <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                      <h3 className="text-2xl font-bold mb-2">No Red Flags!</h3>
-                      <p className="text-muted-foreground">Your resume passed all red flag checks.</p>
+                    <Card className="p-8 sm:p-12 text-center">
+                      <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-xl sm:text-2xl font-bold mb-2">No Red Flags!</h3>
+                      <p className="text-sm sm:text-base text-muted-foreground">Your resume passed all red flag checks.</p>
                     </Card>
                   ) : (
                     analysis.redFlags.map((flag, i) => (
@@ -1716,9 +1746,9 @@ export default function Analysis() {
                         />
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-border rounded-lg p-12 text-center">
-                        <FileOutput className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                        <p className="text-muted-foreground">
+                      <div className="border-2 border-dashed border-border rounded-lg p-8 sm:p-12 text-center">
+                        <FileOutput className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <p className="text-sm sm:text-base text-muted-foreground px-4">
                           Click "Generate Cover Letter" to create a tailored cover letter based on your resume and the job description.
                         </p>
                       </div>

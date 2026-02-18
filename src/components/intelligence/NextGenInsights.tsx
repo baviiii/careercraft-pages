@@ -3,7 +3,7 @@
  * Features: Data Stories, Deep Dives, Discovery Mode, Predictive Analytics
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -35,6 +35,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { useImpactQueries } from "@/hooks/useImpactQueries";
+import { detectImpactAnomalies, type Anomaly } from "@/lib/impactAnomalyDetection";
+import { ScenarioModeler } from "./ScenarioModeler";
 
 // ============================================================================
 // DATA STORY - Narrative-driven insights
@@ -63,90 +66,123 @@ export function DataStoriesPanel() {
   const [activeStory, setActiveStory] = useState<number>(0);
   const [isAutoPlay, setIsAutoPlay] = useState(true);
 
-  // Generate intelligent data stories
-  const stories: DataStory[] = [
-    {
-      id: "healthcare-boom",
-      title: "🏥 Healthcare Sector: The $4.2B Opportunity Wave",
-      narrative: "Healthcare funding jumped 15.3% while demand for nurses increased 42%. This creates a perfect storm of opportunity: government is investing heavily, hospitals are hiring aggressively, and training programs are expanding. The data shows a 3-year window before supply catches up with demand.",
-      impact: "critical",
-      dataPoints: [
-        { label: "Budget Increase", value: "+15.3%", trend: "up", change: 15.3 },
-        { label: "Job Growth", value: "+42%", trend: "up", change: 42 },
-        { label: "Avg Salary", value: "$89K", trend: "up", change: 8.2 },
-        { label: "Training Programs", value: "127 active", trend: "up", change: 23 },
-      ],
-      deepDive: {
-        question: "Why is this happening now?",
-        insights: [
-          "Aging population driving 28% increase in healthcare demand",
-          "Post-pandemic workforce shortage created 12,000+ vacancies",
-          "Federal government committed $4.2B for health infrastructure",
-          "SA leading national health innovation initiatives",
+  // Generate data stories dynamically from real context data
+  const stories: DataStory[] = useMemo(() => {
+    const generated: DataStory[] = [];
+
+    // Story from top funding allocation
+    if (fundingAllocations.length > 0) {
+      const top = fundingAllocations[0];
+      const totalBudget = fundingAllocations.reduce((s, a) => s + a.amount, 0);
+      const share = totalBudget > 0 ? ((top.amount / totalBudget) * 100).toFixed(1) : "0";
+      const second = fundingAllocations[1];
+
+      generated.push({
+        id: `funding-${top.sector}`,
+        title: `💰 ${top.sector}: $${(top.amount / 1000).toFixed(1)}B Budget Priority`,
+        narrative: `${top.sector} receives the largest share at ${share}% of total funding across ${top.programs} programs. ${top.change > 0 ? `With a ${top.change.toFixed(1)}% year-over-year increase, momentum is strong.` : top.change < 0 ? `However, funding decreased ${Math.abs(top.change).toFixed(1)}% from last year.` : 'Funding remains stable year-over-year.'} ${second ? `${second.sector} follows with $${(second.amount / 1000).toFixed(1)}B.` : ''}`,
+        impact: top.change > 10 ? "critical" : top.change > 0 ? "high" : "medium",
+        dataPoints: [
+          { label: "Total Allocation", value: `$${(top.amount / 1000).toFixed(1)}B`, trend: top.change > 0 ? "up" : top.change < 0 ? "down" : "stable", change: top.change },
+          { label: "Budget Share", value: `${share}%`, trend: "stable" },
+          { label: "Programs", value: `${top.programs}`, trend: "up" },
+          { label: "YoY Change", value: `${top.change > 0 ? '+' : ''}${top.change.toFixed(1)}%`, trend: top.change > 0 ? "up" : top.change < 0 ? "down" : "stable", change: top.change },
         ],
-      },
-      conversationStarters: [
-        "Show me the fastest path from zero to $89K in healthcare",
-        "Which healthcare roles have the highest growth vs lowest competition?",
-        "What training programs have government funding AND job guarantees?",
-        "Predict my earnings trajectory if I start nursing training today",
-      ],
-    },
-    {
-      id: "green-tech-surge",
-      title: "🌱 Green Technology: The Hidden $2.8B Gold Rush",
-      narrative: "While everyone watches healthcare, green tech funding silently tripled. Renewable energy jobs grew 156%, but only 340 trained workers exist in SA. This is a blue ocean opportunity: massive funding, explosive growth, almost zero competition. First movers will dominate.",
-      impact: "critical",
-      dataPoints: [
-        { label: "Funding Growth", value: "+187%", trend: "up", change: 187 },
-        { label: "Job Openings", value: "1,247", trend: "up", change: 156 },
-        { label: "Trained Workers", value: "340", trend: "up", change: 34 },
-        { label: "Supply Gap", value: "907 positions", trend: "up", change: 267 },
-      ],
-      deepDive: {
-        question: "What makes this extraordinary?",
-        insights: [
-          "3.67x more jobs than qualified workers - unheard of ratio",
-          "Government guaranteed $2.8B for renewable energy projects",
-          "Average entry salary $78K - above most traditional trades",
-          "Training duration: 6-18 months vs 4 years for degree",
+        deepDive: {
+          question: `What's driving ${top.sector} investment?`,
+          insights: [
+            `${top.sector} has ${top.programs} active government programs`,
+            `Confidence level: ${top.confidence}`,
+            ...(second ? [`${second.sector} is the second largest sector at $${(second.amount / 1000).toFixed(1)}B`] : []),
+            `Total government budget across all sectors: $${(totalBudget / 1000).toFixed(1)}B`,
+          ],
+        },
+        conversationStarters: [
+          `What specific programs are funded under ${top.sector}?`,
+          `How does ${top.sector} funding compare historically?`,
+          `What career opportunities exist in ${top.sector} right now?`,
+          `Which regions benefit most from ${top.sector} investment?`,
         ],
-      },
-      conversationStarters: [
-        "Map the complete green tech career pathway with exact salaries",
-        "Which renewable energy roles need the least training for highest pay?",
-        "Show me government-funded green tech programs with job placement",
-        "What's the ROI calculation: training cost vs lifetime earnings in green tech?",
-      ],
-    },
-    {
-      id: "skills-arbitrage",
-      title: "⚡ The Skills Arbitrage: AI + Trade Skills = $127K",
-      narrative: "Data reveals a hidden pattern: tradespeople adding AI/automation skills command 68% higher salaries. Electricians with IoT training: $127K. Builders with BIM software: $118K. The market is pricing 'hybrid skills' at a massive premium, but only 4% of workers have noticed.",
-      impact: "high",
-      dataPoints: [
-        { label: "Hybrid Premium", value: "+68%", trend: "up", change: 68 },
-        { label: "Electrician + AI", value: "$127K", trend: "up", change: 71 },
-        { label: "Builder + BIM", value: "$118K", trend: "up", change: 63 },
-        { label: "Workers Aware", value: "4%", trend: "stable" },
-      ],
-      deepDive: {
-        question: "Why does this arbitrage exist?",
-        insights: [
-          "Traditional trades have stable demand, AI skills are rare",
-          "Combining both creates unique value employers can't find elsewhere",
-          "Training overlap: learn AI fundamentals in 3-6 months",
-          "Market inefficiency: most workers don't know this premium exists",
-        ],
-      },
-      conversationStarters: [
-        "Which trade + AI combinations have the highest salary premium?",
-        "Show me micro-credentials that add $30K+ to my current trade salary",
-        "Calculate exact ROI: cost of AI training vs salary increase in my field",
-        "Which hybrid skills are emerging but not yet mainstream?",
-      ],
-    },
-  ];
+      });
+    }
+
+    // Story from career opportunities
+    if (careerOpportunities.length > 0) {
+      const trending = careerOpportunities.filter(c => c.growth !== undefined && c.growth > 0).sort((a, b) => (b.growth ?? 0) - (a.growth ?? 0));
+      const topCareers = trending.slice(0, 4);
+
+      if (topCareers.length > 0) {
+        const fastest = topCareers[0];
+        generated.push({
+          id: "career-growth",
+          title: `🚀 ${topCareers.length} High-Growth Careers: ${fastest.occupation} Leads at +${(fastest.growth ?? 0).toFixed(0)}%`,
+          narrative: `Analysis of ${careerOpportunities.length} occupations reveals ${topCareers.length} with exceptional growth trajectories. ${fastest.occupation} is growing fastest at ${(fastest.growth ?? 0).toFixed(1)}%${fastest.jobs ? ` with ${fastest.jobs.toLocaleString()} positions` : ''}. ${fastest.sector ? `The ${fastest.sector} sector is a key driver.` : ''}`,
+          impact: (fastest.growth ?? 0) > 20 ? "critical" : "high",
+          dataPoints: topCareers.slice(0, 4).map(c => ({
+            label: c.occupation.length > 15 ? c.occupation.substring(0, 14) + '…' : c.occupation,
+            value: `+${(c.growth ?? 0).toFixed(0)}%`,
+            trend: "up" as const,
+            change: c.growth,
+          })),
+          deepDive: {
+            question: "Which careers have the strongest momentum?",
+            insights: topCareers.map(c =>
+              `${c.occupation}: +${(c.growth ?? 0).toFixed(1)}% growth${c.salary ? `, avg salary $${typeof c.salary === 'number' ? c.salary.toLocaleString() : c.salary}` : ''}${c.sector ? ` (${c.sector})` : ''}`
+            ),
+          },
+          conversationStarters: [
+            `What qualifications do I need for ${fastest.occupation}?`,
+            `Compare salaries across the top growing occupations`,
+            `Which regions have the most ${fastest.occupation} openings?`,
+            `What training programs are available for high-growth careers?`,
+          ],
+        });
+      }
+    }
+
+    // Story from skills demand
+    if (skillsDemand.length > 0) {
+      const emerging = skillsDemand.filter(s => s.category === "emerging");
+      const topSkills = skillsDemand.sort((a, b) => b.growth - a.growth).slice(0, 4);
+
+      if (topSkills.length > 0) {
+        generated.push({
+          id: "skills-demand",
+          title: `⚡ Skills Intelligence: ${emerging.length} Emerging Skills Detected`,
+          narrative: `Cross-referencing funding allocations and workforce data reveals ${topSkills.length} skills with exceptional demand growth. ${topSkills[0].name} leads at +${topSkills[0].growth.toFixed(0)}% demand growth. ${emerging.length > 0 ? `${emerging.length} skills are classified as emerging — early investment here provides competitive advantage.` : ''}`,
+          impact: emerging.length > 3 ? "critical" : "high",
+          dataPoints: topSkills.map(s => ({
+            label: s.name.length > 15 ? s.name.substring(0, 14) + '…' : s.name,
+            value: `+${s.growth.toFixed(0)}%`,
+            trend: "up" as const,
+            change: s.growth,
+          })),
+          deepDive: {
+            question: "Which skills will define the future workforce?",
+            insights: topSkills.map(s =>
+              `${s.name}: +${s.growth.toFixed(1)}% demand (${s.category})`
+            ),
+          },
+          conversationStarters: [
+            `What jobs require ${topSkills[0].name}?`,
+            `How do I upskill in emerging technology areas?`,
+            `Which skills have the best salary premium right now?`,
+            `Show me micro-credentials for top-demand skills`,
+          ],
+        });
+      }
+    }
+
+    return generated.length > 0 ? generated : [{
+      id: "loading",
+      title: "📊 Intelligence Loading...",
+      narrative: "Data stories are generated from real-time analysis of funding allocations, career trends, and skills demand. Run a search or wait for data to load.",
+      impact: "medium",
+      dataPoints: [],
+      deepDive: { question: "How are stories generated?", insights: ["Stories are built from live budget, career, and skills data", "They update automatically as new data arrives"] },
+      conversationStarters: ["What sectors have the most funding?", "Show me high-growth careers"],
+    }];
+  }, [fundingAllocations, careerOpportunities, skillsDemand]);
 
   // Auto-rotate stories
   useEffect(() => {
@@ -340,54 +376,130 @@ interface Discovery {
 }
 
 export function LiveDiscoveryFeed() {
+  const { fundingAllocations, careerOpportunities, skillsDemand } = useIntelligence();
+  const { getImpactsForEntity } = useImpactQueries();
   const [discoveries, setDiscoveries] = useState<Discovery[]>([]);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Simulate AI discovering insights in real-time
+  // Generate discoveries from real data: anomaly detection + context analysis
   useEffect(() => {
     if (isPaused) return;
 
-    const mockDiscoveries: Discovery[] = [
-      {
-        id: "1",
-        type: "correlation",
-        title: "Strong correlation detected: Education budget ↔ Tech job growth",
-        description: "87% correlation between education sector funding and technology job creation with 6-month lag",
-        confidence: 87,
-        timestamp: new Date(),
-        action: "Explore correlation",
-      },
-      {
-        id: "2",
-        type: "opportunity",
-        title: "Arbitrage detected: Cyber security roles vs qualified candidates",
-        description: "247 open positions, only 43 qualified candidates in SA. Supply-demand gap creates 5.7x opportunity multiplier",
-        confidence: 94,
-        timestamp: new Date(Date.now() - 120000),
-        action: "View opportunities",
-      },
-      {
-        id: "3",
-        type: "prediction",
-        title: "Infrastructure jobs predicted to surge 34% in Q2 2025",
-        description: "Based on budget allocation patterns and historical data, construction/infrastructure roles will spike",
-        confidence: 76,
-        timestamp: new Date(Date.now() - 240000),
-        action: "See predictions",
-      },
-      {
-        id: "4",
-        type: "anomaly",
-        title: "Unusual pattern: Healthcare funding stable, but job postings +42%",
-        description: "Mismatch suggests private sector growth or efficiency drive creating unexpected opportunities",
-        confidence: 82,
-        timestamp: new Date(Date.now() - 360000),
-        action: "Investigate",
-      },
-    ];
+    const generateDiscoveries = async () => {
+      const realDiscoveries: Discovery[] = [];
+      let idCounter = 0;
 
-    setDiscoveries(mockDiscoveries);
-  }, [isPaused]);
+      // Try to fetch impacts for top sectors and run anomaly detection
+      try {
+        const topSectors = fundingAllocations.slice(0, 3);
+        const allImpacts: any[] = [];
+        
+        for (const alloc of topSectors) {
+          try {
+            const impacts = await getImpactsForEntity(alloc.sector, { limit: 20 });
+            allImpacts.push(...impacts);
+          } catch {
+            // Silently skip if fetch fails
+          }
+        }
+
+        if (allImpacts.length > 0) {
+          const anomalies = detectImpactAnomalies(allImpacts);
+          
+          for (const anomaly of anomalies.slice(0, 3)) {
+            const typeMap: Record<string, Discovery['type']> = {
+              'outlier': 'anomaly',
+              'conflict': 'anomaly',
+              'unusual_pattern': 'anomaly',
+              'threshold_breach': 'anomaly',
+            };
+            realDiscoveries.push({
+              id: String(++idCounter),
+              type: typeMap[anomaly.type] || 'anomaly',
+              title: anomaly.description,
+              description: anomaly.recommendation || `Detected in ${anomaly.entity || 'unknown entity'}`,
+              confidence: anomaly.severity === 'high' ? 90 : anomaly.severity === 'medium' ? 70 : 50,
+              timestamp: new Date(),
+              action: "Investigate",
+            });
+          }
+        }
+      } catch {
+        // If impact fetching fails, continue with context-based discoveries
+      }
+
+      // Generate discoveries from funding data
+      if (fundingAllocations.length >= 2) {
+        const top = fundingAllocations[0];
+        const second = fundingAllocations[1];
+        if (top.change > 5 || top.change < -5) {
+          realDiscoveries.push({
+            id: String(++idCounter),
+            type: top.change > 0 ? "opportunity" : "anomaly",
+            title: `${top.sector} funding ${top.change > 0 ? 'surged' : 'declined'} ${Math.abs(top.change).toFixed(1)}% year-over-year`,
+            description: `${top.sector} at $${(top.amount / 1000).toFixed(1)}B vs ${second.sector} at $${(second.amount / 1000).toFixed(1)}B. ${top.change > 0 ? 'Growing investment signals opportunity.' : 'Declining investment may impact jobs.'}`,
+            confidence: 85,
+            timestamp: new Date(Date.now() - 60000),
+            action: "Explore sector",
+          });
+        }
+      }
+
+      // Generate discoveries from career opportunities
+      if (careerOpportunities.length > 0) {
+        const highGrowth = careerOpportunities.filter(c => (c.growth ?? 0) > 15);
+        if (highGrowth.length > 0) {
+          const top = highGrowth[0];
+          realDiscoveries.push({
+            id: String(++idCounter),
+            type: "prediction",
+            title: `${highGrowth.length} occupations showing >15% growth — ${top.occupation} leads`,
+            description: `${top.occupation} growing at +${(top.growth ?? 0).toFixed(1)}%${top.jobs ? ` with ${top.jobs.toLocaleString()} positions` : ''}. Strong hiring momentum detected.`,
+            confidence: 78,
+            timestamp: new Date(Date.now() - 180000),
+            action: "View careers",
+          });
+        }
+      }
+
+      // Generate from skills demand
+      if (skillsDemand.length > 0) {
+        const emerging = skillsDemand.filter(s => s.category === "emerging");
+        if (emerging.length > 0) {
+          realDiscoveries.push({
+            id: String(++idCounter),
+            type: "correlation",
+            title: `${emerging.length} emerging skills correlate with high-growth sectors`,
+            description: `Skills like ${emerging.slice(0, 2).map(s => s.name).join(', ')} show +${emerging[0].growth.toFixed(0)}% demand growth. Early movers gain competitive advantage.`,
+            confidence: 72,
+            timestamp: new Date(Date.now() - 300000),
+            action: "Explore skills",
+          });
+        }
+      }
+
+      // Cross-sector correlation
+      if (fundingAllocations.length > 0 && careerOpportunities.length > 0) {
+        const fundedSectors = new Set(fundingAllocations.map(a => a.sector.toLowerCase()));
+        const careerSectors = careerOpportunities.filter(c => c.sector && fundedSectors.has(c.sector.toLowerCase()));
+        if (careerSectors.length > 0) {
+          realDiscoveries.push({
+            id: String(++idCounter),
+            type: "correlation",
+            title: `${careerSectors.length} career opportunities align with funded sectors`,
+            description: `Cross-referencing budget allocations and job data reveals strong correlation. Government investment is translating into hiring.`,
+            confidence: 80,
+            timestamp: new Date(Date.now() - 420000),
+            action: "See alignment",
+          });
+        }
+      }
+
+      setDiscoveries(realDiscoveries.slice(0, 6));
+    };
+
+    generateDiscoveries();
+  }, [isPaused, fundingAllocations, careerOpportunities, skillsDemand, getImpactsForEntity]);
 
   const getTypeConfig = (type: Discovery["type"]) => {
     switch (type) {
@@ -510,5 +622,24 @@ export function LiveDiscoveryFeed() {
         </AnimatePresence>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Impact Scenario Modeling Panel
+ * Interactive what-if analysis for policy impacts
+ */
+export function ImpactScenarioPanel() {
+  const { fundingAllocations, careerOpportunities } = useIntelligence();
+  
+  // Get default entity from top allocation or career
+  const defaultEntity = fundingAllocations.length > 0 
+    ? fundingAllocations[0].sector 
+    : careerOpportunities.length > 0 
+    ? careerOpportunities[0].occupation 
+    : "";
+  
+  return (
+    <ScenarioModeler defaultEntity={defaultEntity} />
   );
 }

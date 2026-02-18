@@ -77,26 +77,7 @@ const SingleChart: React.FC<SingleChartProps> = ({ chart }) => {
   const chartType = determineChartType(chart.chartType);
   
   if (!chartData && !chart.chartImageUrl) {
-    return (
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <FileText className="w-4 h-4 text-slate-400" />
-            <span className="text-slate-300">{chart.title || 'Chart'}</span>
-            <Badge variant="outline" className="text-xs ml-auto">
-              Page {chart.pageNumber}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {chart.visualDescription ? (
-            <p className="text-slate-400 text-sm">{chart.visualDescription}</p>
-          ) : (
-            <p className="text-slate-500 text-sm">Chart data not available</p>
-          )}
-        </CardContent>
-      </Card>
-    );
+    return null; // Skip charts with no data and no image
   }
 
   const rechartsData = chartData ? chartDataToRecharts(chartData) : [];
@@ -117,9 +98,21 @@ const SingleChart: React.FC<SingleChartProps> = ({ chart }) => {
     }
 
     if (!chartData || rechartsData.length === 0) {
+      // If we have an image, show it; otherwise show description
+      if (chart.chartImageUrl) {
+        return (
+          <div className="flex items-center justify-center bg-slate-900/50 rounded-lg overflow-hidden">
+            <img
+              src={chart.chartImageUrl}
+              alt={chart.title || 'Chart'}
+              className="max-w-full object-contain rounded-lg"
+            />
+          </div>
+        );
+      }
       return (
-        <div className="flex items-center justify-center h-64 bg-slate-900/50 rounded-lg">
-          <p className="text-slate-500">Unable to recreate chart</p>
+        <div className="flex items-center justify-center h-32 bg-slate-900/50 rounded-lg">
+          <p className="text-slate-500 text-sm text-center px-4">{chart.visualDescription || 'Chart data not available for recreation'}</p>
         </div>
       );
     }
@@ -328,6 +321,21 @@ const SingleChart: React.FC<SingleChartProps> = ({ chart }) => {
   );
 };
 
+// Keywords that indicate a non-data chart (cover pages, forewords, etc.)
+const NON_DATA_KEYWORDS = ['cover page', 'foreword', 'contents page', 'table of contents', 'title page', 'featuring police', 'featuring a child', 'premier and minister', 'minister of south australia'];
+
+function isDataChart(chart: ChartResult): boolean {
+  const desc = (chart.visualDescription || '').toLowerCase();
+  const title = (chart.title || '').toLowerCase();
+  // Has actual chart data → always show
+  if (chart.chartData) return true;
+  // Has image but description suggests it's a cover/foreword → skip
+  if (NON_DATA_KEYWORDS.some(kw => desc.includes(kw) || title.includes(kw))) return false;
+  // Has image → show
+  if (chart.chartImageUrl) return true;
+  return false;
+}
+
 export const PDFChartVisualizer: React.FC<PDFChartVisualizerProps> = ({
   charts,
   className = '',
@@ -336,14 +344,20 @@ export const PDFChartVisualizer: React.FC<PDFChartVisualizerProps> = ({
     return null;
   }
 
+  const dataCharts = charts.filter(isDataChart);
+
+  if (dataCharts.length === 0) {
+    return null;
+  }
+
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex items-center gap-2 text-slate-300">
         <BarChart3 className="w-5 h-5" />
-        <h3 className="font-medium">Extracted Charts ({charts.length})</h3>
+        <h3 className="font-medium">Extracted Charts ({dataCharts.length})</h3>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {charts.map((chart, index) => (
+        {dataCharts.map((chart, index) => (
           <SingleChart key={chart.id || index} chart={chart} />
         ))}
       </div>

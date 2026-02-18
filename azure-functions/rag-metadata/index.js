@@ -229,8 +229,9 @@ function calculateEvidenceScore(citationValidation, sources, query) {
   const avgSourceScore = sources.length > 0 
     ? sources.reduce((sum, s) => sum + (s.score || 0), 0) / sources.length 
     : 0;
-  // Azure Search scores typically range 0-100 for semantic search
-  const relevanceScore = Math.min(30, avgSourceScore * 0.3);
+  // Azure Search semantic scores are 0-1 (cosine similarity), normalize to 0-100 first
+  const normalizedScore = avgSourceScore <= 1 ? avgSourceScore * 100 : avgSourceScore;
+  const relevanceScore = Math.min(30, normalizedScore * 0.3);
   
   // Factor 3: Citation validity (0-20 points)
   const validityRatio = citationValidation.totalCitations > 0
@@ -239,24 +240,28 @@ function calculateEvidenceScore(citationValidation, sources, query) {
   const validityScore = validityRatio * 20;
   
   // Factor 4: Source diversity (0-10 points) - using multiple sources is better
-  const diversityScore = Math.min(10, citationValidation.uniqueSourcesCited * 2);
+  const diversityScore = Math.min(10, sources.length * 1.5); // Use total sources, not just cited
   
   // Calculate total score
   const totalScore = Math.round(coverageScore + relevanceScore + validityScore + diversityScore);
   
-  // Determine confidence level
+  // Determine confidence level - primarily based on source relevance and count
+  // (AI may not always use [Source X] format, so don't penalise heavily for that)
   let confidenceLevel;
   let confidenceDescription;
   
-  if (totalScore >= 75 && citationValidation.invalidCitations.length === 0) {
+  const hasGoodSources = sources.length >= 5 && normalizedScore >= 50;
+  const hasManySources = sources.length >= 8;
+  
+  if ((totalScore >= 60 || hasGoodSources) && citationValidation.invalidCitations.length === 0) {
     confidenceLevel = 'high';
-    confidenceDescription = 'All claims are well-supported by cited sources';
-  } else if (totalScore >= 50 && citationValidation.uncitedClaims.length <= 2) {
+    confidenceDescription = 'Supported by multiple authoritative sources';
+  } else if (totalScore >= 30 || hasManySources) {
     confidenceLevel = 'medium';
-    confidenceDescription = 'Most claims are supported, some may need verification';
+    confidenceDescription = 'Based on available government documents';
   } else {
     confidenceLevel = 'low';
-    confidenceDescription = 'Response contains unsupported claims or weak evidence';
+    confidenceDescription = 'Limited source coverage for this query';
   }
   
   // Build warnings for weak evidence
@@ -626,7 +631,7 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
     queryType: "semantic",
     semanticConfiguration: "default",
     top: topK,
-    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,chunkType,category,sector,tags,url,metadata,hasChart,chartType,chartData,chartImageUrl,chartConfidence,visualDescription,publicationYear,effectiveDate,expiryDate,version,supersedes,supersededBy,amendmentOf",
+    select: "id,content,title,documentId,documentType,pageNumber,chunkIndex,category,sector,tags,url,metadata,chunkType,hasChart,chartType,chartData,chartImageUrl,chartConfidence,visualDescription",
     captions: "extractive",
     answers: "extractive|count-3",
   };
@@ -647,8 +652,16 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
 
   let searchResults = [];
   let chartResults = [];  // NEW: Separate array for chart data
+  if (!searchResponse.ok) {
+    // CRITICAL: Log search failures instead of silently returning "No relevant information found"
+    const errorText = await searchResponse.text().catch(() => 'Unable to read error body');
+    console.error(`[semanticSearchWithAI] Azure AI Search FAILED with status ${searchResponse.status}: ${errorText.substring(0, 500)}`);
+    throw new Error(`Azure AI Search returned ${searchResponse.status}: ${errorText.substring(0, 200)}`);
+  }
+
   if (searchResponse.ok) {
     const searchData = await searchResponse.json();
+    console.log(`[semanticSearchWithAI] Azure AI Search returned ${(searchData.value || []).length} results for query: "${query.substring(0, 80)}"`);
     searchResults = (searchData.value || []).map((hit) => {
       const result = {
         id: hit.id,
@@ -665,36 +678,36 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
         url: hit.url,
         score: hit['@search.score'] || 0,
         metadata: hit.metadata,
-        // Chart-specific fields
+        // Optional chart fields (only present if chart extraction was run)
         hasChart: hit.hasChart || false,
-        chartType: hit.chartType,
-        chartData: hit.chartData,
-        chartImageUrl: hit.chartImageUrl,
-        chartConfidence: hit.chartConfidence,
-        visualDescription: hit.visualDescription,
-        // TEMPORAL FIELDS - Policy Version Awareness
-        publicationYear: hit.publicationYear,
-        effectiveDate: hit.effectiveDate,
-        expiryDate: hit.expiryDate,
-        version: hit.version,
-        supersedes: hit.supersedes,
-        supersededBy: hit.supersededBy,
-        amendmentOf: hit.amendmentOf,
-        // Computed temporal status
+        chartType: hit.chartType || null,
+        chartData: hit.chartData || null,
+        chartImageUrl: hit.chartImageUrl || null,
+        chartConfidence: hit.chartConfidence || null,
+        visualDescription: hit.visualDescription || null,
+        // Optional temporal fields (only present if index schema includes them)
+        publicationYear: hit.publicationYear || null,
+        effectiveDate: hit.effectiveDate || null,
+        expiryDate: hit.expiryDate || null,
+        version: hit.version || null,
+        supersedes: hit.supersedes || null,
+        supersededBy: hit.supersededBy || null,
+        amendmentOf: hit.amendmentOf || null,
+        // Computed temporal status (gracefully handles missing fields)
         temporalStatus: calculateTemporalStatus(hit),
       };
       
-      // Collect chart results separately for visualization
+      // Collect chart results separately for visualization (only if chart data exists)
       if (hit.hasChart || hit.chunkType === 'chart') {
         chartResults.push({
           id: hit.id,
           documentId: hit.documentId,
           pageNumber: hit.pageNumber,
-          chartType: hit.chartType,
+          chartType: hit.chartType || null,
           chartData: hit.chartData ? (typeof hit.chartData === 'string' ? JSON.parse(hit.chartData) : hit.chartData) : null,
-          chartImageUrl: hit.chartImageUrl,
-          chartConfidence: hit.chartConfidence,
-          visualDescription: hit.visualDescription,
+          chartImageUrl: hit.chartImageUrl || null,
+          chartConfidence: hit.chartConfidence || null,
+          visualDescription: hit.visualDescription || null,
           title: hit.title,
           score: hit['@search.score'] || 0,
         });
@@ -705,13 +718,18 @@ async function semanticSearchWithAI(endpoint, key, indexName, openAIEndpoint, op
   }
 
   if (searchResults.length === 0) {
+    console.warn(`[semanticSearchWithAI] Search returned 0 results for: "${query.substring(0, 100)}". Index: ${indexName}, Filters: ${filterExpr || 'none'}`);
     return {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        answer: "No relevant information found.",
+        answer: "I couldn't find specific information matching your query in the available documents. Try rephrasing with more specific terms (e.g., mention a sector like 'healthcare', 'education', or 'technology', or a specific topic like 'budget allocations' or 'job listings').",
         sources: [],
-        suggestedQuestions: [],
+        suggestedQuestions: [
+          "What healthcare jobs are available in South Australia?",
+          "What are the budget allocations for education?",
+          "What training programs are available for skilled migrants?",
+        ],
       }),
     };
   }
@@ -830,6 +848,9 @@ Cite sources using [Source X] notation.
     chunkType: result.chunkType,
     hasChart: result.hasChart,
     chartType: result.chartType,
+    chartData: result.chartData,
+    chartImageUrl: result.chartImageUrl,
+    chartConfidence: result.chartConfidence,
     visualDescription: result.visualDescription,
   }));
 
@@ -1120,6 +1141,216 @@ async function handleBulkOperations(endpoint, key, indexName, operations, filter
   };
 }
 
+async function fetchTableChunks(endpoint, key, indexName, query, filters, top) {
+  const filterParts = [];
+  if (filters?.category) filterParts.push(`category eq '${filters.category}'`);
+  if (filters?.sector) filterParts.push(`sector eq '${filters.sector}'`);
+  if (filters?.documentId) filterParts.push(`documentId eq '${filters.documentId}'`);
+
+  // Use a broad fetch - filter by chunkType client-side since it may not be filterable
+  // Fetch more than needed to account for client-side filtering
+  const fetchTop = Math.min(top * 5, 1000);
+  const searchBody = {
+    search: query && query !== '*' ? query : 'table',
+    queryType: 'simple',
+    top: fetchTop,
+    select: 'id,content,title,documentId,pageNumber,category,sector,chunkType,url',
+    orderby: 'documentId,pageNumber',
+  };
+  if (filterParts.length > 0) {
+    searchBody.filter = filterParts.join(' and ');
+  }
+
+  const response = await fetchWithRetry(
+    `${endpoint}/indexes/${indexName}/docs/search?api-version=2023-11-01`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'api-key': key },
+      body: JSON.stringify(searchBody),
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Azure Search table fetch failed (${response.status}): ${err.substring(0, 200)}`);
+  }
+
+  const data = await response.json();
+  // Filter client-side by chunkType (field may not be filterable in index schema)
+  const TABLE_CHUNK_TYPES = new Set(['table_row', 'table', 'table_header', 'table_cell']);
+  const allHits = data.value || [];
+  // Keep chunks that are table type, OR have no chunkType but content looks like a table row
+  const hits = allHits.filter(h => {
+    if (h.chunkType && TABLE_CHUNK_TYPES.has(h.chunkType)) return true;
+    if (!h.chunkType) {
+      const c = (h.content || '');
+      return c.includes('|') || c.includes('\t') || /^\s*[\w\s]+:\s+[\w\s$%,\.]+/.test(c);
+    }
+    return false;
+  }).slice(0, top * 3);
+
+  // Group rows by documentId + pageNumber
+  const tableMap = new Map();
+  for (const hit of hits) {
+    const tableKey = `${hit.documentId}__p${hit.pageNumber || 0}`;
+    if (!tableMap.has(tableKey)) {
+      tableMap.set(tableKey, {
+        id: tableKey,
+        documentId: hit.documentId,
+        title: hit.title || 'Table',
+        pageNumber: hit.pageNumber,
+        category: hit.category,
+        sector: hit.sector,
+        url: hit.url,
+        rows: [],
+        score: hit['@search.score'] || 0,
+      });
+    }
+    tableMap.get(tableKey).rows.push(hit.content || '');
+  }
+
+  // Parse each table's rows into headers + data
+  const tables = Array.from(tableMap.values()).map(table => {
+    const parsed = parseTableContent(table.rows);
+    return { ...table, ...parsed };
+  }).filter(t => t.headers && t.headers.length > 0 && t.data && t.data.length > 0);
+
+  return {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tables, total: tables.length }),
+  };
+}
+
+function cleanCell(cell) {
+  let s = cell
+    .replace(/:unselected:/g, '')
+    .replace(/:selected:/g, '✓')
+    .trim();
+  // Normalize numbers with internal spaces: "1 476.3" → "1476.3", "1 234 567" → "1234567"
+  // Pattern: digit(s), space, digit(s) where the space is just a thousands separator
+  s = s.replace(/(\d) (\d)/g, '$1$2');
+  // Collapse remaining whitespace
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+function splitPipeRow(line) {
+  // Handle "| A | B | C |" or "A | B | C" formats
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|')) s = s.slice(0, -1);
+  return s.split('|').map(cleanCell);
+}
+
+function isSeparatorRow(line) {
+  return /^[\|\s\-:]+$/.test(line.trim());
+}
+
+function isFootnoteRow(line) {
+  const t = line.trim();
+  return t.startsWith('(a)') || t.startsWith('(b)') || t.startsWith('(c)') ||
+         t.startsWith('Note:') || t.startsWith('Source:') ||
+         (t.length > 0 && !t.includes('|') && !/\d/.test(t) && t.length > 80);
+}
+
+function parseTableContent(rows) {
+  // Each chunk is stored as ONE row of the table, e.g.:
+  //   "Attorney-General's Department | 1 476.3 | 1 455.9 | 1 365.9"
+  // or with leading/trailing pipes:
+  //   "| Department | Budget | Actual |"
+  // Collect all non-empty, non-separator, non-footnote lines across all chunks
+  const allLines = [];
+  for (const row of rows) {
+    for (const line of row.split('\n')) {
+      const t = line.trim();
+      if (!t || isSeparatorRow(t) || isFootnoteRow(t)) continue;
+      allLines.push(t);
+    }
+  }
+
+  if (allLines.length === 0) return { headers: [], data: [] };
+
+  // Check if lines are pipe-delimited
+  const pipeLines = allLines.filter(l => l.includes('|'));
+  
+  if (pipeLines.length >= 1) {
+    // Split every line into cells
+    const splitRows = pipeLines.map(splitPipeRow);
+    
+    // Determine column count from the most common row width
+    const widths = splitRows.map(r => r.length);
+    const colCount = widths.sort((a, b) =>
+      widths.filter(v => v === b).length - widths.filter(v => v === a).length
+    )[0] || 1;
+
+    // Pad/trim all rows to colCount
+    const normalised = splitRows.map(r => {
+      while (r.length < colCount) r.push('');
+      return r.slice(0, colCount);
+    });
+
+    // Detect header row: first row where ALL cells are non-numeric (or year-like)
+    // Also accept a row where the first cell is text and remaining are year strings
+    const looksLikeHeader = (row) => {
+      if (!row || row.length === 0) return false;
+      return row.every(c => {
+        const trimmed = c.trim();
+        if (!trimmed) return true; // empty cells ok in header
+        // Year patterns like "2024-25", "2025-26", "2023-24" are valid header cells
+        if (/^\d{4}-\d{2,4}$/.test(trimmed)) return true;
+        if (/^\d{4}$/.test(trimmed)) return true;
+        // Pure numbers are NOT headers
+        const n = parseFloat(trimmed.replace(/[$,%]/g, ''));
+        return isNaN(n);
+      });
+    };
+
+    // Find the first row that looks like a header (may not be row 0 if there's a title row)
+    let headerRowIdx = -1;
+    for (let i = 0; i < Math.min(normalised.length, 3); i++) {
+      if (looksLikeHeader(normalised[i]) && normalised[i].some(c => c.trim().length > 0)) {
+        headerRowIdx = i;
+        break;
+      }
+    }
+
+    if (headerRowIdx >= 0 && normalised.length > headerRowIdx + 1) {
+      const headers = normalised[headerRowIdx].map((h, i) => h || `Column ${i + 1}`);
+      const data = normalised.slice(headerRowIdx + 1).filter(r => r.some(c => c.length > 0));
+      return { headers, data };
+    }
+
+    // No clear header row — infer column names from first data row content
+    // If first column looks like text labels and rest are numbers, name them generically
+    const firstDataRow = normalised[0];
+    const inferredHeaders = firstDataRow.map((cell, i) => {
+      if (i === 0) return 'Item';
+      // Try to infer from the cell value if it looks like a year
+      if (/^\d{4}-\d{2,4}$/.test(cell.trim())) return cell.trim();
+      if (/^\d{4}$/.test(cell.trim())) return cell.trim();
+      return `Value ${i}`;
+    });
+    return { headers: inferredHeaders, data: normalised.filter(r => r.some(c => c.length > 0)) };
+  }
+
+  // Tab-separated fallback
+  const tabLines = allLines.filter(l => l.includes('\t'));
+  if (tabLines.length >= 2) {
+    const headers = tabLines[0].split('\t').map(cleanCell);
+    const data = tabLines.slice(1).map(r => r.split('\t').map(cleanCell));
+    return { headers, data };
+  }
+
+  // Plain text fallback — single column
+  const nonEmpty = allLines.filter(l => l.length > 3).slice(0, 100);
+  if (nonEmpty.length > 0) {
+    return { headers: ['Content'], data: nonEmpty.map(l => [l.substring(0, 500)]) };
+  }
+
+  return { headers: [], data: [] };
+}
+
 module.exports = async function (context, req) {
   // Set default CORS headers for all responses
   const defaultHeaders = {
@@ -1248,6 +1479,10 @@ module.exports = async function (context, req) {
           throw new Error('Bulk operations array is required');
         }
         result = await handleBulkOperations(searchEndpoint, searchKey, searchIndex, operations, filters);
+        break;
+
+      case 'fetch-tables':
+        result = await fetchTableChunks(searchEndpoint, searchKey, searchIndex, query || '*', filters, top);
         break;
       
       default:

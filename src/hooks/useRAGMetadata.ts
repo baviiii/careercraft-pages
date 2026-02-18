@@ -77,8 +77,16 @@ const executeSemanticSearch = async (
           score?: number;
           url?: string;
           metadata?: any;
+          chunkType?: string;
+          hasChart?: boolean;
+          chartType?: string;
+          chartData?: any;
+          chartImageUrl?: string;
+          chartConfidence?: number;
+          visualDescription?: string;
         }>;
         suggestedQuestions?: string[];
+        visualizationData?: any;
       }>("semantic-search", {
         query,
         filters: filters || {},
@@ -451,8 +459,16 @@ export function useRAGMetadata() {
       score?: number;
       url?: string;
       metadata?: any;
+      chunkType?: string;
+      hasChart?: boolean;
+      chartType?: string;
+      chartData?: any;
+      chartImageUrl?: string;
+      chartConfidence?: number;
+      visualDescription?: string;
     }>;
     suggestedQuestions?: string[];
+    visualizationData?: any;
   } | null> => {
     setLoading(true);
     setError(null);

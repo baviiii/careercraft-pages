@@ -277,8 +277,8 @@ const planningTools = [
         properties: {
           strategy: {
             type: "string",
-            enum: ["single_query", "multi_step", "graph_traversal", "comparative", "temporal"],
-            description: "The overall retrieval strategy"
+            enum: ["single_query", "multi_step", "graph_traversal", "comparative", "temporal", "impact_analysis"],
+            description: "The overall retrieval strategy. Use 'impact_analysis' for queries about policy impacts on entities (jobs, sectors, organizations)."
           },
           intent: {
             type: "object",
@@ -314,8 +314,8 @@ const planningTools = [
                 purpose: { type: "string", description: "What this step retrieves" },
                 method: {
                   type: "string",
-                  enum: ["hybrid_search", "graph_traversal", "entity_lookup", "filter_search"],
-                  description: "Retrieval method"
+                  enum: ["hybrid_search", "graph_traversal", "entity_lookup", "filter_search", "get_impacts"],
+                  description: "Retrieval method. Use 'get_impacts' to query policy impacts affecting specific entities (jobs, sectors, organizations)."
                 },
                 query: { type: "string", description: "Search query for this step" },
                 filters: {
@@ -382,24 +382,33 @@ RETRIEVAL METHODS:
 2. graph_traversal: Follow entity relationships in graph. Best when query involves connections between entities.
 3. entity_lookup: SEMANTIC entity search - finds similar entities even with different names. Best when specific organizations/programs are mentioned. Uses semantic similarity to discover related entities (e.g., "SA Health" finds "Department of Health").
 4. filter_search: Filtered search by category/sector. Best for scoped queries.
+5. get_impacts: Query policy impacts affecting specific entities. Use for queries like "What impacts affect nurses?", "Show hiring impacts on healthcare", "What are the effects of Budget 2024 on IT sector?". Supports filtering by impact type (hiring, cost, compliance, etc.), severity (high, medium, low), and timeframe.
 
 PLANNING GUIDELINES:
 - For simple factual queries: Use single_query strategy with 1 step
 - For comparison queries: Use comparative strategy with parallel steps
 - For "how does X relate to Y" queries: Use graph_traversal strategy
 - For queries spanning time periods: Use temporal strategy
+- For queries about policy impacts: Use impact_analysis strategy with get_impacts method
 - For complex policy questions: Use multi_step with 2-4 steps
 
-IMPORTANT - USE GRAPH FOR RICHER RESULTS:
-- ALWAYS include at least one graph_traversal step when entities are mentioned (organizations, programs, sectors)
-- Combine document search WITH graph traversal for comprehensive answers
-- entity_lookup now uses SEMANTIC SEARCH - it will find similar entities automatically
-  Example: "SA Health" will also find "Department of Health", "Health SA", "South Australian Health"
-- Example plan for "renewable energy initiatives":
-  Step 1: filter_search for documents about renewable energy
-  Step 2: entity_lookup for "renewable energy" (semantic search finds related entities)
-  Step 3: graph_traversal starting from entities found in Step 2
-  Step 4: hybrid_search for documents about specific programs found
+**MANDATORY GRAPH USAGE - THIS IS CRITICAL:**
+- EVERY multi_step plan MUST include at least ONE of: entity_lookup OR graph_traversal
+- Graph data provides relationships, impacts, and connections that documents alone cannot provide
+- For ANY query mentioning: jobs, careers, sectors, organizations, programs, skills, funding → include entity_lookup or graph_traversal
+- entity_lookup uses SEMANTIC SEARCH - it finds similar entities automatically (e.g., "IT jobs" finds "Software Developer", "Data Analyst")
+
+PREFERRED PLAN STRUCTURE (for most queries):
+1. hybrid_search: Get relevant documents first
+2. entity_lookup: Find related entities semantically (ALWAYS include this for career/job/sector queries)
+3. graph_traversal: Discover relationships from entities found (include when entities are specific)
+4. get_impacts: Get policy impacts on entities (include for budget/policy/workforce queries)
+
+Example plan for "job market outlook for IT professionals":
+  Step 1: hybrid_search for "IT job market outlook South Australia"
+  Step 2: entity_lookup for "IT professionals" (finds Software Developer, Data Analyst, Cybersecurity Specialist)
+  Step 3: graph_traversal from "IT sector" to find related programs, employers, skills
+  Step 4: get_impacts for IT sector workforce impacts
 
 ENTITY TYPES TO RECOGNIZE:
 - Organizations: SA Health, TAFE SA, Department for Education, etc.
@@ -585,7 +594,7 @@ function estimateExecutionTime(plan) {
  */
 async function lookupEntities(entityNames) {
   try {
-    const graphQueryUrl = process.env.GRAPH_QUERY_URL || 'http://localhost:7071/api/graph-query';
+    const graphQueryUrl = process.env.GRAPH_QUERY_URL || process.env.GRAPH_QUERY_FUNCTION_URL || 'https://careercraft-functions-dev.azurewebsites.net/api/graph-query';
     const results = [];
     const semanticMetadata = {
       totalSearched: entityNames.length,

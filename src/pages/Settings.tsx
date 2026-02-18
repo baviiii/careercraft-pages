@@ -439,14 +439,14 @@ export default function Settings() {
       <div className="lg:pl-72 relative z-10">
         {/* Top Header */}
         <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-blue-100/50 dark:border-blue-900/30">
-          <div className="flex items-center justify-between px-4 md:px-8 py-4">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 sm:py-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
                 <Menu className="w-5 h-5" />
               </Button>
               <div>
-                <h2 className="text-xl font-bold capitalize">{activeSection}</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 className="text-lg sm:text-xl font-bold capitalize">{activeSection}</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
                   {SETTINGS_SECTIONS.find(s => s.id === activeSection)?.description}
                 </p>
               </div>
@@ -463,7 +463,7 @@ export default function Settings() {
         </header>
 
         {/* Content */}
-        <main className="p-4 md:p-8 max-w-4xl">
+        <main className="p-4 sm:p-6 md:p-8 max-w-4xl">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}

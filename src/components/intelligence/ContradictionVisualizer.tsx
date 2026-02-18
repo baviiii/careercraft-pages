@@ -43,6 +43,7 @@ interface ContradictionPair {
 interface ContradictionVisualizerProps {
   contradictions?: ContradictionPair[];
   className?: string;
+  useSampleData?: boolean;
 }
 
 const SEVERITY_COLORS = {
@@ -208,9 +209,10 @@ const ContradictionCard: React.FC<{ contradiction: ContradictionPair }> = ({
 export const ContradictionVisualizer: React.FC<ContradictionVisualizerProps> = ({
   contradictions,
   className = '',
+  useSampleData = false,
 }) => {
-  // Use provided contradictions or sample data for demo
-  const displayContradictions = contradictions || SAMPLE_CONTRADICTIONS;
+  // Use provided contradictions, or sample data only if explicitly requested
+  const displayContradictions = contradictions || (useSampleData ? SAMPLE_CONTRADICTIONS : []);
   
   const highSeverity = displayContradictions.filter(c => c.severity === 'high').length;
   const mediumSeverity = displayContradictions.filter(c => c.severity === 'medium').length;

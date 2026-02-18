@@ -44,6 +44,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { ImpactForecastCards } from "./ImpactForecastCards";
+import { useImpactQueries } from "@/hooks/useImpactQueries";
 import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
 
 interface AIInsightsPanelProps {
@@ -161,6 +163,10 @@ export function AIInsightsPanel({
     careerOpportunities,
     skillsDemand,
   } = useIntelligence();
+  
+  const { forecastImpacts } = useImpactQueries();
+  const [impactForecasts, setImpactForecasts] = useState<Record<string, any>>({});
+  const [loadingForecasts, setLoadingForecasts] = useState(false);
 
   const tabData = getTabData(tab);
   const config = tabConfig[tab];
@@ -170,6 +176,54 @@ export function AIInsightsPanel({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeCareerSlide, setActiveCareerSlide] = useState(0);
   const [isCareerAutoPlay, setIsCareerAutoPlay] = useState(true);
+  
+  // Fetch impact forecasts for relevant entities based on tab
+  useEffect(() => {
+    const fetchForecasts = async () => {
+      if (tabData.loading) return;
+      
+      setLoadingForecasts(true);
+      const forecasts: Record<string, any> = {};
+      
+      try {
+        if (tab === 'careers' && careerOpportunities.length > 0) {
+          // Forecast for top 3 careers
+          const topCareers = careerOpportunities.slice(0, 3);
+          for (const career of topCareers) {
+            try {
+              const forecast = await forecastImpacts(career.occupation, 12);
+              if (forecast && forecast.confidence > 0.3) {
+                forecasts[career.occupation] = forecast;
+              }
+            } catch (error) {
+              console.error(`Failed to forecast for ${career.occupation}:`, error);
+            }
+          }
+        } else if (tab === 'funding' && fundingAllocations.length > 0) {
+          // Forecast for top 3 sectors
+          const topSectors = fundingAllocations.slice(0, 3);
+          for (const allocation of topSectors) {
+            try {
+              const forecast = await forecastImpacts(allocation.sector, 12);
+              if (forecast && forecast.confidence > 0.3) {
+                forecasts[allocation.sector] = forecast;
+              }
+            } catch (error) {
+              console.error(`Failed to forecast for ${allocation.sector}:`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch forecasts:', error);
+      } finally {
+        setLoadingForecasts(false);
+      }
+      
+      setImpactForecasts(forecasts);
+    };
+    
+    fetchForecasts();
+  }, [tab, careerOpportunities, fundingAllocations, tabData.loading, forecastImpacts]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -415,11 +469,11 @@ export function AIInsightsPanel({
               <p className="text-sm font-semibold text-foreground line-clamp-1">
                 {insight.title}
               </p>
-              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+              <p className="text-xs text-slate-400 line-clamp-2 mt-1">
                 {insight.explanation}
               </p>
             </div>
-            <ArrowUpRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <ArrowUpRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
           </motion.div>
         ))}
       </div>
@@ -484,7 +538,7 @@ export function AIInsightsPanel({
 
           <div className="flex items-center gap-2">
             {/* Timestamp */}
-            <div className="hidden sm:flex items-center gap-1 text-xs text-pink-200/70 font-mono">
+            <div className="hidden sm:flex items-center gap-1 text-xs text-slate-300 font-mono">
               <Clock className="w-3 h-3" />
               {timestamp}
             </div>
@@ -562,7 +616,7 @@ export function AIInsightsPanel({
                           </div>
                         </div>
                         {/* Slide counter */}
-                        <div className="text-xs text-muted-foreground font-mono">
+                        <div className="text-xs text-slate-400 font-mono">
                           {activeCareerSlide + 1} / {careerSlides.length}
                         </div>
                       </div>
@@ -629,7 +683,7 @@ export function AIInsightsPanel({
                             <BookOpen className="w-4 h-4 text-blue-400" />
                             <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Evidence Signal</p>
                           </div>
-                          <p className="text-sm text-muted-foreground leading-relaxed italic">
+                          <p className="text-sm text-slate-400 leading-relaxed italic">
                             Based on indexed document analysis across {careerSlides.length} career opportunities showing consistent demand patterns.
                           </p>
                         </div>
@@ -895,7 +949,7 @@ export function AIInsightsPanel({
                           <motion.div
                             animate={{ y: [0, 4, 0] }}
                             transition={{ duration: 2, repeat: Infinity }}
-                            className="flex items-center gap-1 text-xs text-muted-foreground"
+                            className="flex items-center gap-1 text-xs text-slate-400"
                           >
                             <span className="opacity-60">Expand for details</span>
                             <ChevronDown className="w-3 h-3" />
@@ -918,10 +972,10 @@ export function AIInsightsPanel({
                   )}>
                     <Icon className="w-10 h-10 text-foreground" />
                   </div>
-                  <p className="text-sm font-medium text-muted-foreground">
+                  <p className="text-sm font-medium text-slate-400">
                     No intelligence insights available
                   </p>
-                  <p className="text-xs text-muted-foreground/70 mt-2 max-w-sm mx-auto">
+                  <p className="text-xs text-slate-400/70 mt-2 max-w-sm mx-auto">
                     Analysis is in progress or no relevant patterns were detected for this context.
                   </p>
                   <Button variant="outline" size="sm" onClick={handleRefresh} className="mt-4">
@@ -931,6 +985,26 @@ export function AIInsightsPanel({
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
+        )}
+
+        {/* Impact Forecast Cards */}
+        {(loadingForecasts || Object.keys(impactForecasts).length > 0) && (
+          <div className="px-6 pb-6 space-y-4">
+            <div className="border-t border-pink-400/20 pt-4">
+              {loadingForecasts ? (
+                <ImpactForecastCards forecast={null} loading={true} compact={compact} />
+              ) : (
+                Object.entries(impactForecasts).map(([entity, forecast]) => (
+                  <ImpactForecastCards
+                    key={entity}
+                    forecast={forecast}
+                    loading={false}
+                    compact={compact}
+                  />
+                ))
+              )}
+            </div>
           </div>
         )}
     </div>
@@ -975,7 +1049,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
                 {career.occupation}
               </h5>
               {career.sector && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-sm text-slate-400">
                   <Building2 className="w-3.5 h-3.5" />
                   <span>{career.sector}</span>
                 </div>
@@ -996,7 +1070,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
             <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
               <div className="flex items-center gap-1.5 mb-1">
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="text-xs font-medium text-muted-foreground">Growth</span>
+                <span className="text-xs font-medium text-slate-400">Growth</span>
               </div>
               <p className="text-base font-bold text-emerald-600">{career.growth}</p>
             </div>
@@ -1006,7 +1080,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
             <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
               <div className="flex items-center gap-1.5 mb-1">
                 <Briefcase className="w-3.5 h-3.5 text-blue-500" />
-                <span className="text-xs font-medium text-muted-foreground">Positions</span>
+                <span className="text-xs font-medium text-slate-400">Positions</span>
               </div>
               <p className="text-base font-bold text-blue-600">{career.jobs}</p>
             </div>
@@ -1016,7 +1090,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
             <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
               <div className="flex items-center gap-1.5 mb-1">
                 <DollarSign className="w-3.5 h-3.5 text-amber-500" />
-                <span className="text-xs font-medium text-muted-foreground">Salary</span>
+                <span className="text-xs font-medium text-slate-400">Salary</span>
               </div>
               <p className="text-base font-bold text-amber-600">{career.salary}</p>
             </div>
@@ -1026,7 +1100,7 @@ function CareerCard({ career, index }: { career: ParsedCareer; index: number }) 
             <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
               <div className="flex items-center gap-1.5 mb-1">
                 <MapPin className="w-3.5 h-3.5 text-purple-500" />
-                <span className="text-xs font-medium text-muted-foreground">Region</span>
+                <span className="text-xs font-medium text-slate-400">Region</span>
               </div>
               <p className="text-base font-bold text-purple-600 truncate">{career.region}</p>
             </div>

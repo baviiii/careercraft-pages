@@ -34,7 +34,7 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
           </div>
           <div>
             <h3 className="font-display text-lg font-bold text-foreground">Budget Distribution</h3>
-            <p className="text-xs text-muted-foreground">Top {sortedAllocations.length} sector allocations</p>
+            <p className="text-xs text-slate-400">Top {sortedAllocations.length} sector allocations</p>
           </div>
         </div>
         <Badge variant="outline" className="text-xs">
@@ -114,7 +114,7 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
               </div>
 
               {/* Source Count */}
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>{alloc.programs} programs tracked</span>
                 <span>{alloc.sources.length} source{alloc.sources.length !== 1 ? "s" : ""}</span>
               </div>
@@ -126,17 +126,17 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
       {/* Summary Stats */}
       <div className="mt-6 pt-6 border-t border-border/50 grid grid-cols-3 gap-4">
         <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-1">Total Tracked</p>
+          <p className="text-xs text-slate-400 mb-1">Total Tracked</p>
           <p className="text-lg font-bold text-foreground">${(totalBudget / 1000).toFixed(1)}B</p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-1">Avg Allocation</p>
+          <p className="text-xs text-slate-400 mb-1">Avg Allocation</p>
           <p className="text-lg font-bold text-foreground">
             ${(totalBudget / allocations.length / 1000).toFixed(2)}B
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-1">Sectors</p>
+          <p className="text-xs text-slate-400 mb-1">Sectors</p>
           <p className="text-lg font-bold text-foreground">{allocations.length}</p>
         </div>
       </div>
@@ -153,7 +153,7 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
             <p className="text-2xl font-bold text-emerald-600">
               {allocations.filter(a => a.change > 10).length}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">High Growth (&gt;10%)</p>
+            <p className="text-xs text-slate-400 mt-1">High Growth (&gt;10%)</p>
           </div>
 
           {/* Moderate Growth */}
@@ -161,7 +161,7 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
             <p className="text-2xl font-bold text-blue-600">
               {allocations.filter(a => a.change > 0 && a.change <= 10).length}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Moderate (0-10%)</p>
+            <p className="text-xs text-slate-400 mt-1">Moderate (0-10%)</p>
           </div>
 
           {/* Decline */}
@@ -169,7 +169,7 @@ export function FundingCharts({ allocations, totalBudget }: FundingChartsProps) 
             <p className="text-2xl font-bold text-red-600">
               {allocations.filter(a => a.change < 0).length}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Decline (&lt;0%)</p>
+            <p className="text-xs text-slate-400 mt-1">Decline (&lt;0%)</p>
           </div>
         </div>
       </div>

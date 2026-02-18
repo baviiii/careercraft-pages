@@ -165,8 +165,29 @@ export default function Dashboard() {
   }, [session]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
+    try {
+      // Clear any local session tokens first
+      localStorage.removeItem('horus_session_token');
+      
+      // Sign out with global scope to clear all sessions
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      
+      if (error) {
+        console.error('Sign out error:', error);
+      }
+      
+      // Clear session state immediately
+      setSession(null);
+      
+      // Navigate after a brief delay to ensure state is cleared
+      setTimeout(() => {
+        navigate("/auth", { replace: true });
+      }, 100);
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Navigate anyway on error
+      navigate("/auth", { replace: true });
+    }
   };
 
   const quickActions = [

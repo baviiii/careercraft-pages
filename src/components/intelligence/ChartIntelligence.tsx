@@ -297,8 +297,8 @@ export function ChartIntelligence({ type, className, compact = false }: ChartInt
     return (
       <div className={cn("card-intelligence p-6", className)}>
         <div className="text-center py-8">
-          <BarChart3 className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-sm text-muted-foreground">No data available for visualization</p>
+          <BarChart3 className="w-12 h-12 text-slate-400/30 mx-auto mb-4" />
+          <p className="text-sm text-slate-400">No data available for visualization</p>
         </div>
       </div>
     );
@@ -327,7 +327,7 @@ export function ChartIntelligence({ type, className, compact = false }: ChartInt
                 {type === "skills" && "Capability Demand"}
                 {type === "overview" && "Budget Composition"}
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-400">
                 Visual intelligence with AI interpretation
               </p>
             </div>
@@ -362,7 +362,7 @@ export function ChartIntelligence({ type, className, compact = false }: ChartInt
                   <p className="text-lg font-bold text-foreground">
                     ${(fundingAllocations.reduce((s, f) => s + f.amount, 0) / 1000).toFixed(1)}B
                   </p>
-                  <p className="text-[10px] text-muted-foreground">TOTAL</p>
+                  <p className="text-[10px] text-slate-400">TOTAL</p>
                 </div>
               </div>
             </div>
@@ -382,7 +382,7 @@ export function ChartIntelligence({ type, className, compact = false }: ChartInt
                     <div className={cn("w-3 h-3 rounded-full", segment.color.replace("text-", "bg-"))} />
                     <span className={cn(
                       "text-xs transition-colors",
-                      hoveredIndex === i ? "text-foreground font-medium" : "text-muted-foreground"
+                      hoveredIndex === i ? "text-foreground font-medium" : "text-slate-400"
                     )}>
                       {segment.label}
                     </span>
@@ -431,10 +431,10 @@ export function ChartIntelligence({ type, className, compact = false }: ChartInt
               <p className="text-sm font-semibold text-foreground mb-2">
                 {interpretation.headline}
               </p>
-              <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+              <p className="text-xs text-slate-400 leading-relaxed mb-2">
                 {interpretation.insight}
               </p>
-              <p className="text-xs font-mono text-muted-foreground/80">
+              <p className="text-xs font-mono text-slate-400/80">
                 {interpretation.signal}
               </p>
             </div>
@@ -448,18 +448,18 @@ export function ChartIntelligence({ type, className, compact = false }: ChartInt
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               <TrendingUp className="w-3 h-3 text-emerald-500" />
-              <span className="text-muted-foreground">
+              <span className="text-slate-400">
                 {chartData.filter(d => (d.change || 0) > 0).length} growing
               </span>
             </div>
             <div className="flex items-center gap-1">
               <TrendingDown className="w-3 h-3 text-red-500" />
-              <span className="text-muted-foreground">
+              <span className="text-slate-400">
                 {chartData.filter(d => (d.change || 0) < 0).length} declining
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-muted-foreground">
+          <div className="flex items-center gap-1 text-slate-400">
             <Info className="w-3 h-3" />
             <span className="font-mono">{chartData.length} sectors tracked</span>
           </div>

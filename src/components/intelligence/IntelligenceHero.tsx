@@ -29,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { ProactiveImpactAlerts } from "./ProactiveImpactAlerts";
 
 const container = {
   hidden: { opacity: 0 },
@@ -476,6 +477,14 @@ export function IntelligenceHero() {
               </div>
             </motion.div>
           )}
+
+          {/* Proactive Impact Alerts */}
+          <motion.div 
+            variants={item}
+            className="mt-6"
+          >
+            <ProactiveImpactAlerts compact={true} maxAlerts={3} />
+          </motion.div>
 
           {/* Emerging Trends Ticker */}
           {emergingTrends.length > 0 && (

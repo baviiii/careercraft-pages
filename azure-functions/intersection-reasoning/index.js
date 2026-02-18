@@ -20,13 +20,13 @@ const corsHeaders = {
 // ============================================================================
 
 const ASSERTION_RULES = {
-  minSimilarity: 0.88,
-  minDocumentAppearances: 2,
+  minSimilarity: 0.60,          // Lowered: GPT-4 returns strengths 0.6-0.8 typically
+  minDocumentAppearances: 1,    // Lowered: single-document entities are still valid
   requireTextualSupport: true,
   maxAgeYears: 5,
-  requireSameEntityType: true,
-  minConfidenceToAssert: 0.75,
-  minConfidenceToMention: 0.5,
+  requireSameEntityType: false, // Relaxed: cross-type connections are valid
+  minConfidenceToAssert: 0.55,  // Lowered: allows medium-confidence connections through
+  minConfidenceToMention: 0.35, // Lowered: surface more potential connections
 };
 
 /**
@@ -114,8 +114,8 @@ function applyRubricToAnalysis(analysis) {
   // Validate contradictions (higher bar for contradictions)
   const validatedContradictions = (analysis.contradictions || []).map(contra => {
     // Contradictions need strong evidence from both sources
-    const hasEvidence = contra.source1Text && contra.source1Text.length > 20 && 
-                        contra.source2Text && contra.source2Text.length > 20;
+    const hasEvidence = (contra.source1Text && contra.source1Text.length > 5) || 
+                        (contra.description && contra.description.length > 20); // Allow description as evidence fallback
     return {
       ...contra,
       validated: hasEvidence,

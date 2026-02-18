@@ -11,6 +11,7 @@ export interface GraphNode {
   label: string;
   type: 'document' | 'category' | 'sector' | 'topic' | 'entity' | 'chart';
   data?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   position?: { x: number; y: number };
   style?: Record<string, unknown>;
 }
@@ -21,7 +22,8 @@ export interface GraphEdge {
   source: string;
   target: string;
   label?: string;
-  type?: 'related' | 'references' | 'contradicts' | 'supports' | 'contains';
+  type?: 'related' | 'references' | 'contradicts' | 'supports' | 'contains' | 'funds' | 'employs' | 'impacts' | 'relationship' | string;
+  weight?: number;
   animated?: boolean;
   style?: Record<string, unknown>;
 }

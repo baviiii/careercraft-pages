@@ -52,6 +52,9 @@ import { useIntelligence, type FundingAllocation } from "@/contexts/Intelligence
 import { FundingDetailModal } from "./FundingDetailModal";
 import { ExecutiveSummary } from "./ExecutiveSummary";
 import { FundingCharts } from "./FundingCharts";
+import { useImpactQueries } from "@/hooks/useImpactQueries";
+import { ImpactBadge } from "./ImpactBadge";
+import { ImpactDetailsModal } from "./ImpactDetailsModal";
 
 interface FundingProgram {
   name: string;
@@ -84,6 +87,7 @@ const sectorColors: Record<string, string> = {
 export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
   const { fundingAllocations, getTabData, globalLoading, totalBudget } = useIntelligence();
   const tabData = getTabData("funding");
+  const { getImpactsForEntity, forecastImpacts } = useImpactQueries();
 
   const [localSearch, setLocalSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -93,6 +97,55 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
   // Detail modal state
   const [selectedAllocation, setSelectedAllocation] = useState<FundingAllocation | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  
+  // Store impacts and forecasts for sectors
+  const [sectorImpacts, setSectorImpacts] = useState<Record<string, any[]>>({});
+  const [sectorForecasts, setSectorForecasts] = useState<Record<string, any>>({});
+  const [loadingImpacts, setLoadingImpacts] = useState(false);
+  
+  // Impact details modal
+  const [impactModalEntity, setImpactModalEntity] = useState<string | null>(null);
+  const [impactModalOpen, setImpactModalOpen] = useState(false);
+  
+  // Fetch impacts for funding sectors
+  useEffect(() => {
+    const fetchSectorImpacts = async () => {
+      if (fundingAllocations.length === 0) return;
+      
+      setLoadingImpacts(true);
+      const impactsMap: Record<string, any[]> = {};
+      const forecastsMap: Record<string, any> = {};
+      
+      // Fetch impacts for top 5 sectors
+      const topSectors = fundingAllocations.slice(0, 5);
+      
+      await Promise.all(
+        topSectors.map(async (allocation) => {
+          try {
+            // Get impacts for sector
+            const impacts = await getImpactsForEntity(allocation.sector, { limit: 10 });
+            if (impacts.length > 0) {
+              impactsMap[allocation.sector] = impacts;
+            }
+            
+            // Get forecast for sector
+            const forecast = await forecastImpacts(allocation.sector, 12);
+            if (forecast && forecast.confidence > 0.3) {
+              forecastsMap[allocation.sector] = forecast;
+            }
+          } catch (error) {
+            console.error(`Failed to fetch impacts for ${allocation.sector}:`, error);
+          }
+        })
+      );
+      
+      setSectorImpacts(impactsMap);
+      setSectorForecasts(forecastsMap);
+      setLoadingImpacts(false);
+    };
+    
+    fetchSectorImpacts();
+  }, [fundingAllocations, getImpactsForEntity, forecastImpacts]);
 
   const handleAllocationClick = (allocation: FundingAllocation) => {
     setSelectedAllocation(allocation);
@@ -177,48 +230,52 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
     const topAllocation = fundingAllocations[0];
     const fastestGrowing = [...fundingAllocations].sort((a, b) => b.change - a.change)[0];
 
+    const totalPrograms = fundingAllocations.reduce((s, a) => s + (a.programs || 0), 0);
+    const avgAllocation = fundingAllocations.length > 0 ? (totalBudget / fundingAllocations.length) : 0;
+    const avgChange = fundingAllocations.length > 0 ? (fundingAllocations.reduce((s, a) => s + a.change, 0) / fundingAllocations.length) : 0;
+
     return [
       {
         id: "healthcare-wave",
-        title: `💰 ${topAllocation?.sector || "Healthcare"}: $${((topAllocation?.amount || 4200) / 1000).toFixed(1)}B Investment Wave`,
-        narrative: `The government just allocated $${((topAllocation?.amount || 4200) / 1000).toFixed(1)}B to ${topAllocation?.sector || "healthcare"}, creating ${topAllocation?.programs || 127} funded programs and an estimated 12,000+ jobs. This is your tax dollars creating direct opportunity.`,
+        title: `💰 ${topAllocation?.sector || "Top Sector"}: $${((topAllocation?.amount || 0) / 1000).toFixed(1)}B Investment`,
+        narrative: `The government allocated $${((topAllocation?.amount || 0) / 1000).toFixed(1)}B to ${topAllocation?.sector || "the top sector"}, funding ${topAllocation?.programs || 0} programs with a ${topAllocation?.change?.toFixed(1) || 0}% growth rate.`,
         metrics: [
-          { label: "Total Investment", value: `$${((topAllocation?.amount || 4200) / 1000).toFixed(1)}B`, icon: DollarSign },
-          { label: "Funded Programs", value: `${topAllocation?.programs || 127}`, icon: Award },
-          { label: "Jobs Created", value: "12,000+", icon: Briefcase },
-          { label: "Growth Rate", value: `+${topAllocation?.change?.toFixed(1) || 15.3}%`, icon: TrendingUp },
+          { label: "Total Investment", value: topAllocation?.amount ? `$${(topAllocation.amount / 1000).toFixed(1)}B` : "N/A", icon: DollarSign },
+          { label: "Funded Programs", value: `${topAllocation?.programs || 0}`, icon: Award },
+          { label: "Growth Rate", value: `+${topAllocation?.change?.toFixed(1) || 0}%`, icon: TrendingUp },
+          { label: "Budget Share", value: totalBudget > 0 ? `${((topAllocation?.amount || 0) / totalBudget * 100).toFixed(0)}%` : "N/A", icon: Briefcase },
         ],
         fundingToJobs: {
-          avgProgramSize: "$33M",
-          jobsPerMillion: "2.8 jobs",
-          trainingSpots: "8,400",
-          successRate: "87%",
+          avgProgramSize: topAllocation?.programs ? `$${(topAllocation.amount / topAllocation.programs).toFixed(0)}M` : "N/A",
+          jobsPerMillion: `${totalPrograms} programs`,
+          trainingSpots: `${topAllocation?.programs || 0} funded`,
+          successRate: `+${topAllocation?.change?.toFixed(0) || 0}% YoY`,
         },
         conversationStarters: [
           `Which ${topAllocation?.sector || "healthcare"} programs am I eligible for?`,
-          `Show me jobs created by the $${((topAllocation?.amount || 4200) / 1000).toFixed(1)}B ${topAllocation?.sector || "healthcare"} investment`,
+          `Show me jobs created by the $${((topAllocation?.amount || 0) / 1000).toFixed(1)}B ${topAllocation?.sector || "healthcare"} investment`,
           `Compare funding opportunities across all sectors`,
           `What training programs have guaranteed job placements?`,
         ],
       },
       {
         id: "fastest-growing",
-        title: `⚡ ${fastestGrowing?.sector || "Green Energy"}: Fastest Growing Investment`,
-        narrative: `${fastestGrowing?.sector || "Green Energy"} funding jumped ${fastestGrowing?.change?.toFixed(1) || 28.4}% this year - the highest increase. Early movers in this sector are seeing 240% ROI on training investments.`,
+        title: `⚡ ${fastestGrowing?.sector || "Emerging Sector"}: Fastest Growing Investment`,
+        narrative: `${fastestGrowing?.sector || "This sector"}'s funding grew ${fastestGrowing?.change?.toFixed(1) || 0}% this year — the highest increase across all ${fundingAllocations.length} tracked sectors.`,
         metrics: [
-          { label: "Budget Increase", value: `+${fastestGrowing?.change?.toFixed(1) || 28.4}%`, icon: TrendingUp },
-          { label: "New Programs", value: `${fastestGrowing?.programs || 43}`, icon: Zap },
-          { label: "Avg Program Value", value: "$28M", icon: DollarSign },
-          { label: "Training ROI", value: "240%", icon: Target },
+          { label: "Budget Increase", value: `+${fastestGrowing?.change?.toFixed(1) || 0}%`, icon: TrendingUp },
+          { label: "New Programs", value: `${fastestGrowing?.programs || 0}`, icon: Zap },
+          { label: "Investment", value: fastestGrowing?.amount ? `$${(fastestGrowing.amount / 1000).toFixed(1)}B` : "N/A", icon: DollarSign },
+          { label: "Confidence", value: fastestGrowing?.confidence || "Medium", icon: Target },
         ],
         fundingToJobs: {
-          avgProgramSize: "$28M",
-          jobsPerMillion: "3.4 jobs",
-          trainingSpots: "2,800",
-          successRate: "91%",
+          avgProgramSize: fastestGrowing?.programs ? `$${(fastestGrowing.amount / fastestGrowing.programs).toFixed(0)}M` : "N/A",
+          jobsPerMillion: `${fastestGrowing?.programs || 0} programs`,
+          trainingSpots: `${fastestGrowing?.programs || 0} funded`,
+          successRate: `+${fastestGrowing?.change?.toFixed(0) || 0}% YoY`,
         },
         conversationStarters: [
-          `How do I access ${fastestGrowing?.sector || "green energy"} training programs?`,
+          `How do I access ${fastestGrowing?.sector || "growing sector"} training programs?`,
           `Which programs have the highest job placement rates?`,
           `Show me funding opportunities with government guarantees`,
           `Calculate my ROI for sector-specific training`,
@@ -226,19 +283,19 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
       },
       {
         id: "opportunity-mapping",
-        title: "🎯 Budget Allocation → Career Opportunities",
-        narrative: `SA Government invested $${(totalBudget / 1000).toFixed(1)}B across ${fundingAllocations.length} sectors. Each $1M creates an average of 2.8 jobs. Strategic positioning in funded sectors = career security.`,
+        title: "🎯 Full Budget Landscape",
+        narrative: `SA Government invested $${(totalBudget / 1000).toFixed(1)}B across ${fundingAllocations.length} sectors with ${totalPrograms} total funded programs. Average sector allocation is $${(avgAllocation / 1000).toFixed(1)}B with ${avgChange.toFixed(1)}% average growth.`,
         metrics: [
           { label: "Total Budget", value: `$${(totalBudget / 1000).toFixed(1)}B`, icon: DollarSign },
           { label: "Active Sectors", value: `${fundingAllocations.length}`, icon: Target },
-          { label: "Jobs Created", value: "47,000+", icon: Users },
-          { label: "Avg Job Security", value: "94%", icon: CheckCircle2 },
+          { label: "Total Programs", value: `${totalPrograms}`, icon: Users },
+          { label: "Avg Growth", value: `+${avgChange.toFixed(1)}%`, icon: CheckCircle2 },
         ],
         fundingToJobs: {
-          avgProgramSize: "$24M",
-          jobsPerMillion: "2.8 jobs",
-          trainingSpots: "14,200",
-          successRate: "89%",
+          avgProgramSize: `$${(avgAllocation / Math.max(totalPrograms / fundingAllocations.length, 1)).toFixed(0)}M`,
+          jobsPerMillion: `${totalPrograms} programs total`,
+          trainingSpots: `${fundingAllocations.length} sectors`,
+          successRate: `+${avgChange.toFixed(0)}% avg growth`,
         },
         conversationStarters: [
           "Which sectors have both high funding AND low competition?",
@@ -281,7 +338,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
             <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-fuchsia-500 via-pink-500 to-fuchsia-600 bg-clip-text text-transparent">
               Funding & Budgets
             </h2>
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <p className="text-sm text-slate-400 flex items-center gap-2">
               <span className="font-semibold text-fuchsia-400">{filteredPrograms.length}</span> programs •
               <span className="font-semibold text-pink-400">${(totalBudget / 1000).toFixed(1)}B</span> total
             </p>
@@ -321,7 +378,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                 <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
                   Investment Intelligence
                 </h3>
-                <p className="text-xs text-pink-200/70 font-medium">Real-time budget analysis</p>
+                <p className="text-xs text-slate-300 font-medium">Real-time budget analysis</p>
               </div>
               <Badge className="bg-gradient-to-r from-fuchsia-500/30 to-pink-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
                 <Sparkles className="w-3 h-3 mr-1" />
@@ -352,7 +409,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
           >
             <div className="mb-5">
               <h4 className="text-2xl font-bold text-white mb-3">{fundingStories[activeStory].title}</h4>
-              <p className="text-pink-100/80 leading-relaxed">{fundingStories[activeStory].narrative}</p>
+              <p className="text-slate-200 leading-relaxed">{fundingStories[activeStory].narrative}</p>
             </div>
 
             {/* Metrics Grid - ENHANCED */}
@@ -375,7 +432,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                     <p className="text-3xl font-bold text-white mb-1">
                       {metric.value}
                     </p>
-                    <p className="text-xs text-pink-200/70 font-medium">{metric.label}</p>
+                    <p className="text-xs text-slate-300 font-medium">{metric.label}</p>
                   </motion.div>
                 );
               })}
@@ -394,19 +451,19 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Avg Program Size</p>
+                  <p className="text-xs text-slate-400 mb-1">Avg Program Size</p>
                   <p className="text-lg font-bold text-foreground">{fundingStories[activeStory].fundingToJobs.avgProgramSize}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Jobs per $1M</p>
+                  <p className="text-xs text-slate-400 mb-1">Jobs per $1M</p>
                   <p className="text-lg font-bold text-emerald-600">{fundingStories[activeStory].fundingToJobs.jobsPerMillion}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Training Spots</p>
+                  <p className="text-xs text-slate-400 mb-1">Training Spots</p>
                   <p className="text-lg font-bold text-blue-600">{fundingStories[activeStory].fundingToJobs.trainingSpots}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Success Rate</p>
+                  <p className="text-xs text-slate-400 mb-1">Success Rate</p>
                   <p className="text-lg font-bold text-purple-600">{fundingStories[activeStory].fundingToJobs.successRate}</p>
                 </div>
               </div>
@@ -429,8 +486,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                     className="group p-3 rounded-lg bg-muted/50 border border-border/50 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-left"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground/90 group-hover:text-amber-600 transition-colors">{question}</span>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-amber-500 transition-colors opacity-0 group-hover:opacity-100" />
+                      <span className="text-sm text-slate-100 group-hover:text-amber-600 transition-colors">{question}</span>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 transition-colors opacity-0 group-hover:opacity-100" />
                     </div>
                   </motion.button>
                 ))}
@@ -459,8 +516,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
           <p className="text-4xl font-bold bg-gradient-to-br from-amber-600 to-orange-600 bg-clip-text text-transparent mb-2">
             ${(totalBudget / 1000).toFixed(1)}B
           </p>
-          <p className="text-sm font-semibold text-foreground/80">Total Budget</p>
-          <p className="text-xs text-muted-foreground mt-1">Allocated across all sectors</p>
+          <p className="text-sm font-semibold text-slate-200">Total Budget</p>
+          <p className="text-xs text-slate-400 mt-1">Allocated across all sectors</p>
         </motion.div>
 
         <motion.div
@@ -480,8 +537,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
           <p className="text-4xl font-bold bg-gradient-to-br from-emerald-600 to-green-600 bg-clip-text text-transparent mb-2">
             {activePrograms}
           </p>
-          <p className="text-sm font-semibold text-foreground/80">Active Programs</p>
-          <p className="text-xs text-muted-foreground mt-1">Currently accepting applications</p>
+          <p className="text-sm font-semibold text-slate-200">Active Programs</p>
+          <p className="text-xs text-slate-400 mt-1">Currently accepting applications</p>
         </motion.div>
 
         <motion.div
@@ -501,8 +558,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
           <p className="text-4xl font-bold bg-gradient-to-br from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
             +{fundingAllocations[0]?.change?.toFixed(1) || 0}%
           </p>
-          <p className="text-sm font-semibold text-foreground/80">Top Growth Rate</p>
-          <p className="text-xs text-muted-foreground mt-1">Highest sector increase YoY</p>
+          <p className="text-sm font-semibold text-slate-200">Top Growth Rate</p>
+          <p className="text-xs text-slate-400 mt-1">Highest sector increase YoY</p>
         </motion.div>
 
         <motion.div
@@ -522,8 +579,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
           <p className="text-3xl font-bold bg-gradient-to-br from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
             2024-25
           </p>
-          <p className="text-sm font-semibold text-foreground/80">Financial Year</p>
-          <p className="text-xs text-muted-foreground mt-1">Current budget period</p>
+          <p className="text-sm font-semibold text-slate-200">Financial Year</p>
+          <p className="text-xs text-slate-400 mt-1">Current budget period</p>
         </motion.div>
       </div>
 
@@ -549,7 +606,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                   <div className="flex items-center gap-3">
                     <div className={cn("w-3 h-3 rounded-full", sectorColors[alloc.sector] || "bg-blue-500")} />
                     <span className="font-medium text-foreground">{alloc.sector}</span>
-                    <span className="text-xs text-muted-foreground">({alloc.programs} programs)</span>
+                    <span className="text-xs text-slate-400">({alloc.programs} programs)</span>
                     {alloc.sources[0]?.extractionMethod && (
                       <Badge variant="outline" className={cn(
                         "text-xs opacity-0 group-hover:opacity-100 transition-opacity",
@@ -561,8 +618,18 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                     <Badge variant="outline" className="text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                       {alloc.confidence} confidence
                     </Badge>
+                    {sectorImpacts[alloc.sector] && sectorImpacts[alloc.sector].length > 0 && (
+                      <ImpactBadge
+                        impacts={sectorImpacts[alloc.sector]}
+                        compact={true}
+                        onClick={() => {
+                          setImpactModalEntity(alloc.sector);
+                          setImpactModalOpen(true);
+                        }}
+                      />
+                    )}
                     {alloc.sources[0]?.pageNumber && (
-                      <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
                         p.{alloc.sources[0].pageNumber}
                       </span>
                     )}
@@ -575,7 +642,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                       </span>
                     )}
                     <span className="font-bold text-foreground">${(alloc.amount / 1000).toFixed(1)}B</span>
-                    <Info className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <Info className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
@@ -587,8 +654,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                   />
                 </div>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-muted-foreground">{percentage.toFixed(1)}% of total</p>
-                  <p className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                  <p className="text-xs text-slate-400">{percentage.toFixed(1)}% of total</p>
+                  <p className="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
                     Click for details →
                   </p>
                 </div>
@@ -602,7 +669,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
       <div className="card-intelligence p-4">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input placeholder="Search programs..." value={localSearch} onChange={(e) => setLocalSearch(e.target.value)} className="pl-10" />
           </div>
           <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as FilterStatus)}>
@@ -657,21 +724,21 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                 <div className="flex items-center gap-4 mb-3">
                   <div>
                     <p className="text-2xl font-bold text-foreground">{program.amount}</p>
-                    <p className="text-xs text-muted-foreground">Allocated</p>
+                    <p className="text-xs text-slate-400">Allocated</p>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">{program.year}</p>
-                    <p className="text-xs text-muted-foreground">FY</p>
+                    <p className="text-xs text-slate-400">FY</p>
                   </div>
                   {program.deadline && (
                     <div>
                       <p className="text-sm font-medium text-foreground">{program.deadline}</p>
-                      <p className="text-xs text-muted-foreground">Deadline</p>
+                      <p className="text-xs text-slate-400">Deadline</p>
                     </div>
                   )}
                 </div>
                 <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                  <p className="text-xs text-muted-foreground">{program.eligibility}</p>
+                  <p className="text-xs text-slate-400">{program.eligibility}</p>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button variant="ghost" size="icon" className="h-8 w-8"><Bookmark className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="w-4 h-4" /></Button>
@@ -689,6 +756,19 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
         open={detailModalOpen}
         onClose={() => setDetailModalOpen(false)}
       />
+
+      {/* Impact Details Modal */}
+      {impactModalEntity && (
+        <ImpactDetailsModal
+          entityName={impactModalEntity}
+          impacts={sectorImpacts[impactModalEntity] || []}
+          isOpen={impactModalOpen}
+          onClose={() => {
+            setImpactModalOpen(false);
+            setImpactModalEntity(null);
+          }}
+        />
+      )}
     </div>
   );
 }

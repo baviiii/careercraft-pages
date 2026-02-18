@@ -194,10 +194,17 @@ export function UnifiedLayout({
   }, [loading, location.pathname]);
 
   const handleSignOut = async () => {
-    // Track logout event
-    await trackEvent('logout');
-    await supabase.auth.signOut();
-    navigate("/");
+    try {
+      await trackEvent('logout');
+    } catch (_) {
+      // don't block sign out if tracking fails
+    }
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+    navigate("/auth");
   };
 
   const handleSearch = (query: string) => {

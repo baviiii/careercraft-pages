@@ -201,7 +201,7 @@ $indexSchema = @{
             @{
                 name = "entity-semantic"
                 prioritizedFields = @{
-                    contentFields = @(
+                    prioritizedContentFields = @(
                         @{
                             fieldName = "description"
                         }
@@ -209,11 +209,6 @@ $indexSchema = @{
                     titleField = @{
                         fieldName = "name"
                     }
-                    keywordsFields = @(
-                        @{
-                            fieldName = "aliases"
-                        }
-                    )
                 }
             }
         )

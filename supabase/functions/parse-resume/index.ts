@@ -60,6 +60,40 @@ interface ParsedResume {
     technologies: string[]
     url: string | null
   }[]
+  // References
+  references: {
+    name: string
+    title: string | null
+    company: string | null
+    phone: string | null
+    email: string | null
+    relationship: string | null
+  }[]
+  // Awards & Honors
+  awards: {
+    title: string
+    issuer: string | null
+    date: string | null
+    description: string | null
+  }[]
+  // Volunteer Experience
+  volunteer: {
+    role: string
+    organization: string
+    location: string | null
+    startDate: string | null
+    endDate: string | null
+    current: boolean
+    description: string | null
+  }[]
+  // Publications
+  publications: {
+    title: string
+    publisher: string | null
+    date: string | null
+    url: string | null
+    description: string | null
+  }[]
   // Raw text for reference
   rawText: string
   // Confidence score
@@ -263,6 +297,10 @@ serve(async (req) => {
             certifications: [],
             languages: [],
             projects: [],
+            references: [],
+            awards: [],
+            volunteer: [],
+            publications: [],
             rawText,
             confidence: 0.5,
             sourceFile: { name: fileName, type: fileType, pages: pageCount }
@@ -352,6 +390,44 @@ Extract and return a JSON object with this exact structure. Include ALL data fou
       "url": "project URL or null"
     }
   ],
+  "references": [
+    {
+      "name": "reference full name",
+      "title": "job title or null",
+      "company": "company/organization or null",
+      "phone": "phone number or null",
+      "email": "email or null",
+      "relationship": "relationship description or null"
+    }
+  ],
+  "awards": [
+    {
+      "title": "award/honor title",
+      "issuer": "issuing organization or null",
+      "date": "date received or null",
+      "description": "description or null"
+    }
+  ],
+  "volunteer": [
+    {
+      "role": "volunteer role/position",
+      "organization": "organization name",
+      "location": "location or null",
+      "startDate": "YYYY-MM or YYYY or null",
+      "endDate": "YYYY-MM or YYYY or null",
+      "current": true/false,
+      "description": "description of volunteer work or null"
+    }
+  ],
+  "publications": [
+    {
+      "title": "publication title",
+      "publisher": "publisher/journal or null",
+      "date": "publication date or null",
+      "url": "URL or null",
+      "description": "brief description or null"
+    }
+  ],
   "confidence": 0.0-1.0 (how confident you are in the extraction quality)
 }
 
@@ -366,6 +442,10 @@ EXTRACTION GUIDELINES:
 - Extract projects with ALL details (name, description, technologies, URL if present)
 - Extract certifications with issuer and dates if available
 - Extract languages with proficiency levels if mentioned
+- Extract references if present (may be labeled "References", "Professional References")
+- Extract awards/honors if present (may be labeled "Awards", "Honors", "Achievements", "Recognition")
+- Extract volunteer experience if present (may be labeled "Volunteer Work", "Community Service", "Volunteer Experience")
+- Extract publications if present (may be labeled "Publications", "Research", "Articles", "Papers")
 - For contact info: Extract full name from header, email (look for @), phone (various formats), location (city, state/country)
 - Set confidence score (0.0-1.0) based on:
   * How complete the extraction is (all sections found = higher score)

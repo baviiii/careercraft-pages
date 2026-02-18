@@ -97,12 +97,12 @@ export function FundingDetailModal({
           <div className="p-4 rounded-xl bg-muted/50 border border-border/50">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4 text-amber-500" />
-              <span className="text-xs text-muted-foreground">Allocation</span>
+              <span className="text-xs text-slate-400">Allocation</span>
             </div>
             <p className="text-2xl font-bold text-foreground">
               ${(allocation.amount / 1000).toFixed(2)}B
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               {allocation.amount.toFixed(0)} million
             </p>
           </div>
@@ -110,12 +110,12 @@ export function FundingDetailModal({
           <div className="p-4 rounded-xl bg-muted/50 border border-border/50">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className={cn("w-4 h-4", allocation.change >= 0 ? "text-emerald-500" : "text-red-500")} />
-              <span className="text-xs text-muted-foreground">Year-over-Year</span>
+              <span className="text-xs text-slate-400">Year-over-Year</span>
             </div>
             <p className={cn("text-2xl font-bold", allocation.change >= 0 ? "text-emerald-600" : "text-red-600")}>
               {allocation.change > 0 ? "+" : ""}{allocation.change.toFixed(1)}%
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               Change from prior year
             </p>
           </div>
@@ -123,10 +123,10 @@ export function FundingDetailModal({
           <div className="p-4 rounded-xl bg-muted/50 border border-border/50">
             <div className="flex items-center gap-2 mb-1">
               <FileText className="w-4 h-4 text-blue-500" />
-              <span className="text-xs text-muted-foreground">Programs</span>
+              <span className="text-xs text-slate-400">Programs</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{allocation.programs}</p>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-slate-400 mt-1">
               Funding programs identified
             </p>
           </div>
@@ -140,7 +140,7 @@ export function FundingDetailModal({
               "px-4 py-2 text-sm font-medium transition-colors relative",
               activeTab === "overview"
                 ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-slate-400 hover:text-foreground"
             )}
           >
             Overview
@@ -157,7 +157,7 @@ export function FundingDetailModal({
               "px-4 py-2 text-sm font-medium transition-colors relative",
               activeTab === "sources"
                 ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-slate-400 hover:text-foreground"
             )}
           >
             Source Citations
@@ -177,7 +177,7 @@ export function FundingDetailModal({
               "px-4 py-2 text-sm font-medium transition-colors relative",
               activeTab === "provenance"
                 ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-slate-400 hover:text-foreground"
             )}
           >
             Data Provenance
@@ -233,7 +233,7 @@ export function FundingDetailModal({
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-slate-400 mt-2">
               ✓ Extracted from structured table data for maximum accuracy
             </p>
           </div>
@@ -297,7 +297,7 @@ export function FundingDetailModal({
                       <p className="font-medium text-foreground truncate">
                         {source.title}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                      <p className="text-xs text-slate-400 mt-1 line-clamp-1">
                         {source.excerpt}
                       </p>
                     </div>
@@ -317,9 +317,9 @@ export function FundingDetailModal({
                       </Button>
                     )}
                     {expandedSources.has(index) ? (
-                      <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                      <ChevronUp className="w-4 h-4 text-slate-400" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      <ChevronDown className="w-4 h-4 text-slate-400" />
                     )}
                   </div>
                 </button>

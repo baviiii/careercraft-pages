@@ -814,12 +814,12 @@ export default function MyResumes() {
 
         {/* Resumes Grid/List */}
         {filteredResumes.length === 0 ? (
-          <Card className="p-12 text-center">
-            <FolderOpen className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-xl font-semibold mb-2">
+          <Card className="p-8 sm:p-12 text-center">
+            <FolderOpen className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold mb-2">
               {resumes.length === 0 ? "No resumes yet" : "No matching resumes"}
             </h3>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-sm sm:text-base text-muted-foreground mb-6 px-4">
               {resumes.length === 0 
                 ? "Create your first resume to get started"
                 : "Try adjusting your filters or search query"

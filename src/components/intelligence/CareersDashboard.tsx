@@ -57,6 +57,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { useImpactQueries } from "@/hooks/useImpactQueries";
+import { ImpactBadge } from "./ImpactBadge";
+import { ImpactDetailsModal } from "./ImpactDetailsModal";
+import { detectImpactAnomalies } from "@/lib/impactAnomalyDetection";
 
 type SortField = "growth" | "jobs" | "occupation";
 type SortDirection = "asc" | "desc";
@@ -77,6 +81,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
   const { careerOpportunities, getTabData, globalLoading, totalJobs } = useIntelligence();
   const tabData = getTabData("careers");
   const navigate = useNavigate();
+  const { getImpactsForEntity } = useImpactQueries();
   
   const [localSearch, setLocalSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("growth");
@@ -88,7 +93,15 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"table" | "chart" | "cards">("cards");
   const itemsPerPage = 5;
-
+  
+  // Store impacts for each career
+  const [careerImpacts, setCareerImpacts] = useState<Record<string, any[]>>({});
+  const [loadingImpacts, setLoadingImpacts] = useState(false);
+  
+  // Impact details modal
+  const [impactModalEntity, setImpactModalEntity] = useState<string | null>(null);
+  const [impactModalOpen, setImpactModalOpen] = useState(false);
+  
   const effectiveSearch = searchQuery || localSearch;
 
   // Derive sector stats from data
@@ -162,6 +175,36 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     currentPage * itemsPerPage
   );
 
+  // Fetch impacts for top careers (lazy load)
+  useEffect(() => {
+    const fetchImpacts = async () => {
+      if (paginatedCareers.length === 0) return;
+      
+      setLoadingImpacts(true);
+      const impactsMap: Record<string, any[]> = {};
+      
+      const careersToFetch = paginatedCareers.slice(0, 10);
+      
+      await Promise.all(
+        careersToFetch.map(async (career) => {
+          try {
+            const impacts = await getImpactsForEntity(career.occupation, { limit: 5 });
+            if (impacts.length > 0) {
+              impactsMap[career.occupation] = impacts;
+            }
+          } catch (error) {
+            console.error(`Failed to fetch impacts for ${career.occupation}:`, error);
+          }
+        })
+      );
+      
+      setCareerImpacts(impactsMap);
+      setLoadingImpacts(false);
+    };
+    
+    fetchImpacts();
+  }, [paginatedCareers, getImpactsForEntity]);
+
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -199,13 +242,15 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       },
       {
         id: "salary-optimization",
-        title: "💰 High-Salary, Low-Competition Careers",
-        narrative: `These careers offer $85K+ starting salaries with less than 50 applicants per position. Strategic positioning beats mass competition.`,
+        title: `💰 Top-Paying Careers: ${highestPayingCareers[0]?.occupation || "Specialist Roles"}`,
+        narrative: highestPayingCareers.length > 0
+          ? `Careers like ${highestPayingCareers.map(c => c.occupation).join(", ")} offer strong salaries with growing demand. Strategic upskilling can fast-track entry.`
+          : `High-salary career paths are available across multiple sectors with growing demand.`,
         metrics: [
-          { label: "Avg Salary", value: "$89K", icon: DollarSign },
-          { label: "Competition", value: "Low (3.2:1)", icon: Users },
-          { label: "Training Cost", value: "$2-8K", icon: Award },
-          { label: "ROI", value: "1100%", icon: Sparkles },
+          { label: "Top Salary", value: highestPayingCareers[0]?.salary || "Competitive", icon: DollarSign },
+          { label: "High-Pay Roles", value: `${highestPayingCareers.length}`, icon: Users },
+          { label: "Avg Growth", value: `+${highestPayingCareers.length > 0 ? (highestPayingCareers.reduce((s, c) => s + (c.growth || 0), 0) / highestPayingCareers.length).toFixed(1) : "0"}%`, icon: TrendingUp },
+          { label: "Total Positions", value: highestPayingCareers.reduce((s, c) => s + (c.jobs || 0), 0).toLocaleString(), icon: Briefcase },
         ],
         conversationStarters: [
           "Which high-paying careers have the lowest competition?",
@@ -216,13 +261,15 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       },
       {
         id: "career-switcher",
-        title: "🔄 Career Switcher Success Paths",
-        narrative: `Professional career switchers are seeing 40% salary increases within 18 months. Government-funded retraining programs reduce the risk to near-zero.`,
+        title: "🔄 Career Transition Opportunities",
+        narrative: careerOpportunities.length > 2
+          ? `With ${careerOpportunities.filter(c => (c.growth || 0) > 10).length} high-growth roles and ${new Set(careerOpportunities.map(c => c.sector)).size} sectors hiring, career transitions are well-supported by government-funded retraining programs.`
+          : `Career transition pathways are available across growing sectors with government support.`,
         metrics: [
-          { label: "Avg Increase", value: "+40%", icon: TrendingUp },
-          { label: "Time to Switch", value: "12-18 months", icon: Clock },
-          { label: "Success Rate", value: "78%", icon: Target },
-          { label: "Funded Programs", value: "127", icon: Award },
+          { label: "Growing Roles", value: `${careerOpportunities.filter(c => (c.growth || 0) > 10).length}`, icon: TrendingUp },
+          { label: "Sectors Hiring", value: `${new Set(careerOpportunities.map(c => c.sector)).size}`, icon: Clock },
+          { label: "Total Openings", value: careerOpportunities.reduce((s, c) => s + (c.jobs || 0), 0).toLocaleString(), icon: Target },
+          { label: "Avg Growth", value: `+${careerOpportunities.length > 0 ? (careerOpportunities.reduce((s, c) => s + (c.growth || 0), 0) / careerOpportunities.length).toFixed(1) : "0"}%`, icon: Award },
         ],
         conversationStarters: [
           "Show me career switch paths from my current industry",
@@ -272,9 +319,9 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 bg-clip-text text-transparent">
               Career Opportunities
             </h2>
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <span className="font-semibold text-pink-500">{filteredCareers.length}</span> careers •
-              <span className="font-semibold text-rose-500">{(totalJobs ?? 0).toLocaleString()}</span> jobs
+            <p className="text-sm text-slate-300 flex items-center gap-2">
+              <span className="font-semibold text-pink-400">{filteredCareers.length}</span> careers •
+              <span className="font-semibold text-rose-400">{(totalJobs ?? 0).toLocaleString()}</span> jobs
             </p>
           </div>
         </div>
@@ -305,7 +352,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                 <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-pink-400 to-rose-400 bg-clip-text text-transparent">
                   Career Intelligence
                 </h3>
-                <p className="text-xs text-pink-200/70 font-medium">Real-time AI Analysis</p>
+                <p className="text-xs text-pink-200 font-medium">Real-time AI Analysis</p>
               </div>
               <Badge className="bg-gradient-to-r from-pink-500/30 to-rose-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
                 <Sparkles className="w-3 h-3 mr-1" />
@@ -336,8 +383,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           >
             <div className="mb-5">
               <h4 className="text-2xl font-bold text-white mb-3">{careerStories[activeStory].title}</h4>
-              <p className="text-pink-100/80 leading-relaxed">{careerStories[activeStory].narrative}</p>
-              <p className="text-muted-foreground leading-relaxed">{careerStories[activeStory].narrative}</p>
+              <p className="text-slate-100 leading-relaxed">{careerStories[activeStory].narrative}</p>
             </div>
 
             {/* Metrics Grid - ENHANCED */}
@@ -360,7 +406,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                       <p className="text-3xl font-bold text-white mb-1">
                         {metric.value}
                       </p>
-                      <p className="text-xs text-pink-200/70 font-medium">{metric.label}</p>
+                      <p className="text-xs text-pink-200 font-medium">{metric.label}</p>
                     </motion.div>
                 );
               })}
@@ -383,8 +429,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                     className="group p-3 rounded-lg bg-muted/50 border border-border/50 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all text-left"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground/90 group-hover:text-blue-600 transition-colors">{question}</span>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
+                      <span className="text-sm text-slate-100 group-hover:text-blue-600 transition-colors">{question}</span>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
                     </div>
                   </motion.button>
                 ))}
@@ -444,7 +490,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-lg p-4">
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input placeholder="Search careers..." value={localSearch} onChange={(e) => setLocalSearch(e.target.value)} className="pl-10" />
           </div>
           <Select value={filterSector} onValueChange={setFilterSector}>
@@ -484,8 +530,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           <p className="text-4xl font-bold bg-gradient-to-br from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
             {(totalJobs ?? 0).toLocaleString()}
           </p>
-          <p className="text-sm font-semibold text-foreground/80">Total Opportunities</p>
-          <p className="text-xs text-muted-foreground mt-1">Active job postings across all sectors</p>
+          <p className="text-sm font-semibold text-slate-200">Total Opportunities</p>
+          <p className="text-xs text-slate-400 mt-1">Active job postings across all sectors</p>
         </motion.div>
 
         <motion.div
@@ -505,8 +551,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           <p className="text-4xl font-bold bg-gradient-to-br from-emerald-600 to-green-600 bg-clip-text text-transparent mb-2">
             +{avgGrowth.toFixed(1)}%
           </p>
-          <p className="text-sm font-semibold text-foreground/80">Average Growth</p>
-          <p className="text-xs text-muted-foreground mt-1">Year-over-year job growth rate</p>
+          <p className="text-sm font-semibold text-slate-200">Average Growth</p>
+          <p className="text-xs text-slate-400 mt-1">Year-over-year job growth rate</p>
         </motion.div>
 
         <motion.div
@@ -526,8 +572,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           <p className="text-2xl font-bold bg-gradient-to-br from-amber-600 to-orange-600 bg-clip-text text-transparent mb-2">
             {sectorGrowth[0]?.sector || "N/A"}
           </p>
-          <p className="text-sm font-semibold text-foreground/80">Top Growth Sector</p>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-sm font-semibold text-slate-200">Top Growth Sector</p>
+          <p className="text-xs text-slate-400 mt-1">
             {(sectorGrowth[0]?.jobs ?? 0).toLocaleString()} jobs • +{(sectorGrowth[0]?.growth ?? 0).toFixed(1)}% growth
           </p>
         </motion.div>
@@ -540,7 +586,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             <Briefcase className="w-5 h-5 text-pink-300" />
             <h3 className="font-display text-lg font-semibold text-white drop-shadow-lg">
               Career Opportunities
-              <span className="ml-2 text-sm font-normal text-pink-200/70">
+              <span className="ml-2 text-sm font-normal text-pink-200">
                 ({filteredCareers.length} total)
               </span>
             </h3>
@@ -633,7 +679,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                   <div className="pl-4">
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           {career.trending && <Star className="w-4 h-4 text-amber-400 fill-amber-400" />}
                           <h4 className="font-semibold text-lg text-white">{career.occupation}</h4>
                           {career.demand && (
@@ -646,8 +692,18 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                               {career.demand.toUpperCase()}
                             </Badge>
                           )}
+                          {careerImpacts[career.occupation] && careerImpacts[career.occupation].length > 0 && (
+                            <ImpactBadge 
+                              impacts={careerImpacts[career.occupation]} 
+                              compact={true}
+                              onClick={() => {
+                                setImpactModalEntity(career.occupation);
+                                setImpactModalOpen(true);
+                              }}
+                            />
+                          )}
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-pink-200/70">
+                        <div className="flex items-center gap-4 text-sm text-pink-200">
                           <Badge className="bg-purple-500/30 text-purple-200 border-purple-400/40">
                             {career.sector}
                           </Badge>
@@ -728,7 +784,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                         {career.sector}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-pink-200/70">
+                    <div className="flex items-center gap-3 text-xs text-pink-200">
                       {career.growth !== undefined && (
                         <span className="text-emerald-300 font-semibold">+{career.growth.toFixed(1)}%</span>
                       )}
@@ -810,7 +866,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                         {career.demand === "high" && <Badge className="text-[10px] px-1.5 py-0 bg-pink-500/30 text-pink-200 border-pink-400/50">Hot</Badge>}
                       </div>
                       {career.location && (
-                        <p className="text-xs text-pink-200/70 mt-1 flex items-center gap-1">
+                        <p className="text-xs text-pink-200 mt-1 flex items-center gap-1">
                           <MapPin className="w-3 h-3" />{career.location}
                         </p>
                       )}
@@ -871,7 +927,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
         {/* Pagination Controls */}
         {filteredCareers.length > 0 && totalPages > 1 && (
           <div className="mt-6 flex items-center justify-between">
-            <p className="text-sm text-pink-200/70">
+            <p className="text-sm text-pink-200">
               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredCareers.length)} of {filteredCareers.length} careers
             </p>
 
@@ -920,6 +976,19 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           </div>
         )}
       </div>
+
+      {/* Impact Details Modal */}
+      {impactModalEntity && (
+        <ImpactDetailsModal
+          entityName={impactModalEntity}
+          impacts={careerImpacts[impactModalEntity] || []}
+          isOpen={impactModalOpen}
+          onClose={() => {
+            setImpactModalOpen(false);
+            setImpactModalEntity(null);
+          }}
+        />
+      )}
     </div>
   );
 }

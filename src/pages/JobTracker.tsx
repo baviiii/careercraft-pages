@@ -641,12 +641,12 @@ export default function JobTracker() {
           {/* Applications List */}
           <div className="space-y-4">
             {filteredApplications.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Briefcase className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-xl font-semibold mb-2">
+              <Card className="p-8 sm:p-12 text-center">
+                <Briefcase className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-lg sm:text-xl font-semibold mb-2">
                   {applications.length === 0 ? "No applications yet" : "No matching applications"}
                 </h3>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-sm sm:text-base text-muted-foreground mb-4 px-4">
                   {applications.length === 0 
                     ? "Start tracking your job applications to stay organized"
                     : "Try adjusting your search or filters"}

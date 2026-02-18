@@ -125,13 +125,16 @@ export interface AgentStep {
   step: number;
   query: string;
   purpose?: string;
-  method: "graph_traversal" | "hybrid_search" | "entity_lookup" | "filter_search";
+  method: "graph_traversal" | "hybrid_search" | "entity_lookup" | "filter_search" | "get_impacts";
   startNode?: string;
   traverse?: string[];
   filters?: {
     category?: string;
     sector?: string;
     documentType?: string;
+    impactType?: string;
+    severity?: string;
+    timeframe?: string;
   };
   graphParams?: {
     startEntity?: string;
@@ -201,6 +204,117 @@ interface StepResult {
 
 interface AgenticRAGOptions {
   graphBackend?: 'cosmos' | 'neo4j';
+}
+
+// Normalize Azure AI Search @search.score to a 0-100 relevance percentage
+// BM25/hybrid scores are typically 0-50+, semantic reranker scores are 0-4
+function normalizeSearchScore(score: number): number {
+  if (score >= 1) {
+    // BM25 score (typically 1-50+), normalize with diminishing returns
+    return Math.min(Math.round(50 + (score / (score + 5)) * 50), 99);
+  }
+  // Vector/semantic score (0-1 range), scale to percentage
+  return Math.max(Math.round(score * 100), 10);
+}
+
+// Build a text summary of agentic retrieval results to inject as LLM context
+function buildAgenticContext(
+  plan: AgentPlan,
+  stepResults: StepResult[],
+  uniqueSources: any[],
+  analysis: IntersectionAnalysis
+): string | null {
+  const parts: string[] = [];
+
+  // Summarize graph entities found
+  const graphResults = stepResults.filter(sr => sr.method === 'entity_lookup' || sr.method === 'graph_traversal');
+  if (graphResults.some(gr => gr.results.length > 0)) {
+    parts.push('**Graph Entities & Relationships Found:**');
+    for (const gr of graphResults) {
+      if (gr.results.length === 0) continue;
+      parts.push(`- Step "${gr.query}" (${gr.method}): ${gr.results.length} results`);
+      for (const entity of gr.results.slice(0, 10)) {
+        const name = entity.name || entity.label || entity.id || JSON.stringify(entity).substring(0, 100);
+        const type = entity.type || entity.category || '';
+        const desc = entity.description || entity.snippet || '';
+        parts.push(`  * ${name}${type ? ` [${type}]` : ''}${desc ? `: ${desc.substring(0, 200)}` : ''}`);
+      }
+    }
+  }
+
+  // Summarize impact results
+  const impactResults = stepResults.filter(sr => sr.method === 'get_impacts' && sr.results.length > 0);
+  if (impactResults.length > 0) {
+    parts.push('\n**Policy Impacts Found:**');
+    for (const ir of impactResults) {
+      for (const impact of ir.results.slice(0, 8)) {
+        parts.push(`- ${impact.title || impact.description || JSON.stringify(impact).substring(0, 150)}`);
+      }
+    }
+  }
+
+  // Summarize document search results
+  const searchResults = stepResults.filter(sr => (sr.method === 'hybrid_search' || sr.method === 'filter_search') && sr.results.length > 0);
+  if (searchResults.length > 0) {
+    parts.push('\n**Relevant Documents from Agentic Search:**');
+    for (const sr of searchResults) {
+      parts.push(`- Query "${sr.query}": ${sr.results.length} documents found`);
+      for (const doc of sr.results.slice(0, 5)) {
+        const title = doc.title || doc.documentId || 'Untitled';
+        const snippet = doc.content || doc.snippet || '';
+        parts.push(`  * ${title}${snippet ? `: ${snippet.substring(0, 200)}` : ''}`);
+      }
+    }
+  }
+
+  // Summarize connections/contradictions from intersection analysis
+  if (analysis.connections.length > 0) {
+    parts.push(`\n**Discovered Connections:** ${analysis.connections.length} relationships found between documents/entities`);
+    for (const conn of analysis.connections.slice(0, 5)) {
+      parts.push(`- ${conn.source} → ${conn.target} (${conn.type}, strength: ${conn.strength})`);
+    }
+  }
+
+  if (analysis.contradictions.length > 0) {
+    parts.push(`\n**Contradictions Detected:** ${analysis.contradictions.length}`);
+    for (const c of analysis.contradictions) {
+      parts.push(`- [${c.severity}] ${c.description}`);
+    }
+  }
+
+  if (analysis.themes && analysis.themes.length > 0) {
+    parts.push(`\n**Key Themes:** ${analysis.themes.map(t => t.theme).join(', ')}`);
+  }
+
+  if (parts.length === 0) return null;
+
+  return parts.join('\n');
+}
+
+// Merge sources from semantic search and agentic steps, deduplicating by documentId
+function mergeAndDeduplicateSources(
+  semanticSources: any[],
+  agenticSources: any[]
+): any[] {
+  const seen = new Map<string, any>();
+
+  // Semantic search sources take priority (they have the answer context)
+  for (const s of semanticSources) {
+    const key = (s.documentId || s.id || '') + (s.pageNumber || '');
+    if (!seen.has(key)) {
+      seen.set(key, s);
+    }
+  }
+
+  // Add agentic sources that aren't already included
+  for (const s of agenticSources) {
+    const key = (s.documentId || s.id || s.name || '') + (s.pageNumber || '');
+    if (key && !seen.has(key)) {
+      seen.set(key, s);
+    }
+  }
+
+  return Array.from(seen.values());
 }
 
 export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAGOptions = {}) {
@@ -325,6 +439,7 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       }
 
       // Use Azure Function for graph queries (Cosmos DB or Neo4j)
+      // action:'traverse' does semantic lookup first then traverses - handles natural language entity names
       const response = await fetch(GRAPH_QUERY_URL, {
         method: 'POST',
         headers: {
@@ -332,11 +447,11 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
           ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
         },
         body: JSON.stringify({
-          action: 'related',
+          action: 'traverse',
           entityName: startEntityId,
-          relationshipType: relationships[0] || null,
-          limit: 20,
-          backend: graphBackend, // 'cosmos' or 'neo4j'
+          depth: depth,
+          limit: 25,
+          backend: graphBackend,
         }),
       });
 
@@ -487,6 +602,7 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     };
 
     setMessages(prev => [...prev, userMessage, loadingMessage]);
+    setIsStreaming(true);
     conversationHistory.current.push(content);
 
     try {
@@ -533,17 +649,24 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       // Step 4: Combine results and generate response
       const allSources = queryResults.flatMap(qr => qr.results);
       const uniqueSources = Array.from(
-        new Map(allSources.map(s => [s.documentId + s.pageNumber, s])).values()
+        new Map(allSources.map(s => [(s.documentId || s.id || s.name) + (s.pageNumber || ''), s])).values()
       );
 
-      // Generate response using GPT-4 with all context
-      // For now, use semanticSearch to generate answer
+      // Build enriched context from agentic step results to feed into the final LLM call
+      const agenticContext = buildAgenticContext(plan, stepResults, uniqueSources, analysis);
+
+      // Generate response using semanticSearch with agentic context injected as system prompt supplement
+      const agenticSystemPrompt = agenticContext
+        ? `You have access to additional context from an agentic retrieval pipeline. Use this alongside the retrieved documents to give a comprehensive answer.\n\n### Agentic Context\n${agenticContext}`
+        : undefined;
+
       const finalResult = await semanticSearch(
         content,
         {},
         {
           topK: 30,
           timeAwareRanking: true,
+          systemPrompt: agenticSystemPrompt,
         }
       );
 
@@ -551,18 +674,36 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         throw new Error("No response from semantic search");
       }
 
+      // Merge agentic sources with semantic search sources (deduplicate)
+      const mergedSources = mergeAndDeduplicateSources(
+        finalResult.sources || [],
+        uniqueSources
+      );
+
       const responseTime = Date.now() - startTime;
 
-      // Format sources
-      const enhancedSources: EnhancedSource[] = (finalResult.sources || []).map(s => ({
-        ...s,
-        relevance: s.relevance || 85,
+      // Format sources from merged results (agentic + semantic)
+      const enhancedSources: EnhancedSource[] = mergedSources.map(s => ({
+        title: s.title || s.name || s.documentId || 'Unknown',
+        documentId: s.documentId || s.id || '',
+        pageNumber: s.pageNumber,
+        url: s.url,
+        snippet: s.content || s.snippet || s.description || '',
+        relevance: s.relevance
+          ? (typeof s.relevance === 'number' ? s.relevance : 70)
+          : s.score
+            ? normalizeSearchScore(s.score)
+            : 70,
+        category: s.category || s.type,
+        extractionMethod: s.extractionMethod,
       }));
 
-      // Determine confidence
-      const avgRelevance = enhancedSources.reduce((sum, s) => sum + s.relevance, 0) / enhancedSources.length;
+      // Determine confidence (guard against divide-by-zero when no sources)
+      const avgRelevance = enhancedSources.length > 0
+        ? enhancedSources.reduce((sum, s) => sum + s.relevance, 0) / enhancedSources.length
+        : 0;
       const confidence: "high" | "medium" | "low" =
-        avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
+        enhancedSources.length === 0 ? "low" : avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
 
       // Remove loading, add response
       setMessages(prev => prev.filter(m => !m.isLoading));
@@ -609,6 +750,8 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         timestamp: new Date(),
         confidence: "low",
       }]);
+    } finally {
+      setIsStreaming(false);
     }
   }, [planQuery, traverseGraph, analyzeIntersections, semanticSearch]);
 
@@ -684,18 +827,27 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     let error: string | undefined;
 
     try {
-      console.log(`[AgenticRAG] 🛠️ Executing step ${step.step}: ${step.method} - "${step.query.substring(0, 50)}..."`);
+      console.log(`[AgenticRAG] 🛠️ Executing step ${step.step}: ${step.method} - "${(step.query || '').substring(0, 50)}..."`);
 
       switch (step.method) {
-        case 'graph_traversal':
-          if (step.graphParams?.startEntityId || step.startNode) {
+        case 'graph_traversal': {
+          const startEntity =
+            step.graphParams?.startEntity ||
+            step.graphParams?.startEntityId ||
+            step.startNode ||
+            step.query; // fallback: use the step query as entity name
+          if (startEntity) {
+            console.log(`[AgenticRAG] 🔗 Graph traversal from entity: "${startEntity}"`);
             results = await traverseGraph(
-              step.graphParams?.startEntityId || step.startNode || '',
-              step.graphParams?.relationships || [step.traverse?.[0] || 'related_to'],
+              startEntity,
+              step.graphParams?.relationships || ['related_to'],
               step.graphParams?.depth || 2
             );
+          } else {
+            console.warn('[AgenticRAG] ⚠️ graph_traversal step has no startEntity, skipping');
           }
           break;
+        }
 
         case 'entity_lookup':
           // Search for entities by name via Azure Function
@@ -724,9 +876,45 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
           }
           break;
 
+        case 'get_impacts':
+          // Query policy impacts via graph-query Azure Function
+          if (GRAPH_QUERY_URL) {
+            try {
+              const impactResponse = await fetch(GRAPH_QUERY_URL, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
+                },
+                body: JSON.stringify({
+                  action: 'get_impacts',
+                  entityName: step.query, // Entity name from query
+                  impactType: step.filters?.impactType,
+                  severity: step.filters?.severity,
+                  timeframe: step.filters?.timeframe,
+                  limit: 50,
+                  backend: graphBackend,
+                }),
+              });
+              if (impactResponse.ok) {
+                const impactResult = await impactResponse.json();
+                results = impactResult?.data || [];
+                console.log(`[AgenticRAG] ✅ Found ${results.length} impacts for ${step.query}`);
+              } else {
+                console.error("[AgenticRAG] Impact query error:", impactResponse.status);
+              }
+            } catch (impactErr) {
+              console.error("[AgenticRAG] Impact query error:", impactErr);
+            }
+          } else {
+            console.warn("[AgenticRAG] ⚠️ Graph query URL not configured for impact queries");
+          }
+          break;
+
         case 'filter_search':
         case 'hybrid_search':
         default:
+          console.log(`[AgenticRAG] 🔍 Running ${step.method} for: "${step.query.substring(0, 80)}"`);
           const searchResult = await semanticSearch(
             step.query,
             {
@@ -739,6 +927,11 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
               timeAwareRanking: true,
             }
           );
+          console.log(`[AgenticRAG] 🔍 Search result:`, {
+            hasResult: !!searchResult,
+            answerPreview: searchResult?.answer?.substring(0, 100),
+            sourceCount: searchResult?.sources?.length || 0,
+          });
           if (searchResult) {
             results = searchResult.sources || [];
           }
@@ -755,7 +948,7 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
 
     return {
       step: step.step,
-      query: step.query,
+      query: step.query || '',
       method: step.method,
       results,
       success,

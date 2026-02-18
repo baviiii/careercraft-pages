@@ -161,13 +161,13 @@ const extractionTools = [
                 },
                 affectedEntityType: {
                   type: "string",
-                  enum: ["occupation", "sector", "organization", "location", "demographic", "skill", "service", "budget"],
-                  description: "Type of the affected entity"
+                  enum: ["occupation", "sector", "organization", "location", "demographic", "skill", "service", "budget", "outcome", "goal", "capability", "community", "economy"],
+                  description: "Type of the affected entity (includes strategy outcomes and goals)"
                 },
                 impactType: {
                   type: "string",
-                  enum: ["cost", "compliance", "hiring", "skills", "service", "funding", "workforce", "training", "regulation", "opportunity"],
-                  description: "Category of impact"
+                  enum: ["cost", "compliance", "hiring", "skills", "service", "funding", "workforce", "training", "regulation", "opportunity", "outcome", "goal", "growth", "capability", "support", "transformation"],
+                  description: "Category of impact (includes strategy outcomes and transformations)"
                 },
                 direction: {
                   type: "string",
@@ -282,7 +282,7 @@ CANONICALIZATION GUIDELINES:
 IMPACT EXTRACTION (CRITICAL FOR GOVERNMENT INTELLIGENCE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Extract POLICY IMPACTS - how policies, budgets, and programs affect entities:
+Extract POLICY & STRATEGY IMPACTS - how policies, budgets, programs, AND strategies affect entities, outcomes, and goals:
 
 IMPACT TYPES:
 - cost: Financial impact on budgets, prices, fees
@@ -295,6 +295,12 @@ IMPACT TYPES:
 - training: Education/training program changes
 - regulation: Rule changes, policy requirements
 - opportunity: New opportunities created
+- outcome: Strategic outcomes, expected results from strategies/plans
+- goal: Strategic goals, objectives, targets
+- growth: Growth targets, expansion, scaling
+- capability: Capability building, capacity development
+- support: Support mechanisms, enabling actions
+- transformation: Transformational changes, reforms
 
 DIRECTION:
 - increase: More of something (jobs, funding, requirements)
@@ -317,7 +323,7 @@ IMPACT EXTRACTION RULES:
 5. Link impacts to specific policies/programs when possible
 6. Identify the timeframe when mentioned
 
-EXAMPLE IMPACT:
+EXAMPLE IMPACT (BUDGET/POLICY STYLE):
 {
   "policyId": "state_budget_2024-25",
   "policyName": "State Budget 2024-25",
@@ -332,13 +338,62 @@ EXAMPLE IMPACT:
   "timeframe": "2024-2025"
 }
 
+EXAMPLE IMPACT (STRATEGY/OUTCOME STYLE):
+{
+  "policyId": "skills_workforce_strategy_2024",
+  "policyName": "SA Skills and Workforce Strategy 2024",
+  "affectedEntity": "workforce_participation",
+  "affectedEntityType": "outcome",
+  "impactType": "growth",
+  "direction": "increase",
+  "severity": "high",
+  "confidence": 0.85,
+  "evidenceText": "The strategy aims to increase workforce participation by 15% through targeted skills programs",
+  "quantitativeValue": "15% increase",
+  "timeframe": "2024-2028"
+}
+
+EXAMPLE IMPACT (GOAL/CAPABILITY STYLE):
+{
+  "policyId": "defence_industry_plan",
+  "policyName": "SA Defence Industry Development Plan",
+  "affectedEntity": "defence_sector_employment",
+  "affectedEntityType": "goal",
+  "impactType": "outcome",
+  "direction": "enable",
+  "severity": "high",
+  "confidence": 0.8,
+  "evidenceText": "The plan will support the creation of 4,000 new defence industry jobs by 2030",
+  "quantitativeValue": "4,000 jobs",
+  "timeframe": "by 2030"
+}
+
+STRATEGY DOCUMENT TRIGGERS (EXTRACT AS IMPACTS):
+- "aims to" / "will aim to" → Extract as impact with direction based on intent
+- "will support" / "supports" → Use impactType: "support", direction: "enable"
+- "outcomes include" / "expected outcomes" → Use affectedEntityType: "outcome"
+- "goals" / "objectives" / "targets" → Use affectedEntityType: "goal"
+- "will enable" / "enabling" → Use direction: "enable"
+- "will create" / "creation of" → Use direction: "increase"
+- "workforce growth" / "job creation" → Use impactType: "growth" or "hiring"
+- "capability building" / "capacity" → Use impactType: "capability"
+- "transformation" / "reform" → Use impactType: "transformation"
+
+For strategy documents, use policyId for the strategy/plan name (e.g., "skills_workforce_strategy").
+Do NOT skip strategy outcomes just because they lack dollar amounts - extract them!
+
 EXTRACTION GUIDELINES:
 1. Only extract entities clearly mentioned in the text
 2. Use high confidence (>0.8) only when entity is unambiguous
 3. Extract relationships only when explicitly stated or strongly implied
 4. Mark entities as primary topics if they are the main subject of the text
 5. Prefer specific entities over generic ones
-6. ALWAYS extract impacts when policies affect jobs, budgets, skills, or services`;
+6. ALWAYS extract impacts when policies affect jobs, budgets, skills, or services
+7. ALWAYS extract strategy outcomes, goals, and "aims to" statements as impacts
+8. For strategies without exact numbers, still extract the impact with available evidence
+
+REQUIRED OUTPUT:
+- You MUST return the "impacts" array in your response. Use an empty array [] ONLY when the chunk has no policy, strategy, outcome, or goal language (e.g. pure data tables, chart labels, numbers only). For any narrative that mentions aims, outcomes, goals, support, growth, or program effects, populate impacts with at least one entry. Do not omit the impacts key.`;
 
 /**
  * Generate embedding for an entity
@@ -392,7 +447,7 @@ async function extractEntities(openAIEndpoint, openAIKey, text, documentId, chun
         tools: extractionTools,
         tool_choice: { type: "function", function: { name: "extract_entities" } },
         temperature: 0.2,
-        max_tokens: 2000,
+        max_tokens: 12000,
       }),
     }
   );
@@ -408,7 +463,36 @@ async function extractEntities(openAIEndpoint, openAIKey, text, documentId, chun
     throw new Error('GPT-4 did not return valid extraction');
   }
 
-  return JSON.parse(toolCall.function.arguments);
+  let extraction;
+  try {
+    extraction = JSON.parse(toolCall.function.arguments);
+  } catch (parseErr) {
+    throw new Error(`GPT returned malformed JSON: ${parseErr.message}. Raw: ${toolCall.function.arguments.substring(0, 200)}`);
+  }
+
+  // Validate required arrays exist
+  extraction.entities = Array.isArray(extraction.entities) ? extraction.entities : [];
+  extraction.relationships = Array.isArray(extraction.relationships) ? extraction.relationships : [];
+  extraction.primaryTopics = Array.isArray(extraction.primaryTopics) ? extraction.primaryTopics : [];
+
+  // Robust impacts: accept multiple keys and stringified JSON so we never drop impacts
+  let rawImpacts = extraction.impacts ?? extraction.Impacts ?? extraction.policy_impacts;
+  if (typeof rawImpacts === 'string') {
+    try {
+      rawImpacts = JSON.parse(rawImpacts);
+    } catch {
+      rawImpacts = [];
+    }
+  }
+  extraction.impacts = Array.isArray(rawImpacts) ? rawImpacts : [];
+  // Always log counts so we can see what the model returned (0 impacts = model chose not to extract)
+  console.log(`Extraction: ${extraction.entities.length} entities, ${extraction.relationships.length} relationships, ${extraction.impacts.length} impacts`);
+  if (extraction.impacts.length === 0 && (extraction.entities.length > 0 || extraction.relationships.length > 0)) {
+    const keys = Object.keys(extraction).filter(k => !['entities', 'relationships', 'primaryTopics', 'impacts'].includes(k));
+    if (keys.length > 0) console.log(`Extraction top-level keys (check for alternate impact key): ${keys.join(', ')}`);
+  }
+
+  return extraction;
 }
 
 // ============================================================================
@@ -502,6 +586,13 @@ async function saveEntitiesToCosmos(entities, documentId, chunkId) {
   const client = getGremlinClient();
   const savedEntities = [];
   const processedCanonicals = new Set();
+  
+  // Get credentials for semantic search
+  const searchEndpoint = process.env.AZURE_SEARCH_ENDPOINT;
+  const searchKey = process.env.AZURE_SEARCH_KEY;
+  const openAIEndpoint = process.env.AZURE_OPENAI_ENDPOINT;
+  const openAIKey = process.env.AZURE_OPENAI_KEY;
+  const useSemanticCheck = !!(searchEndpoint && searchKey && openAIEndpoint && openAIKey);
 
   for (const entity of entities) {
     try {
@@ -522,34 +613,90 @@ async function saveEntitiesToCosmos(entities, documentId, chunkId) {
       }
       processedCanonicals.add(vertexId);
       
-      // Check if vertex exists, if not create it
+      // Check if vertex exists (exact match)
       const checkQuery = `g.V('${escapeGremlin(vertexId)}')`;
       const existing = await client.submit(checkQuery);
       
-      // Store all names/aliases seen for this entity
-      const aliasesJson = JSON.stringify(entity.aliases || [entity.name]);
+      let finalVertexId = vertexId;
+      let mergedWithSimilar = false;
+      let existingAliases = [];
       
-      if (existing._items && existing._items.length > 0) {
-        // Update existing vertex - add document to source list and merge aliases
+      // If exact match not found, check semantic similarity
+      if ((!existing._items || existing._items.length === 0) && useSemanticCheck) {
+        try {
+          // Search for similar entities in the entity index
+          const semanticResult = await searchSimilarEntities(entity.name, entity.entityType, 5);
+          
+          if (semanticResult.similar && semanticResult.similar.length > 0) {
+            const bestMatch = semanticResult.similar[0];
+            
+            // If similarity is high enough (>= 0.88), merge with existing
+            if (bestMatch.similarity >= 0.88 && bestMatch.graphVertexId) {
+              // Verify the vertex still exists in Cosmos
+              const verifyQuery = `g.V('${escapeGremlin(bestMatch.graphVertexId)}')`;
+              const verifyExisting = await client.submit(verifyQuery);
+              
+              if (verifyExisting._items && verifyExisting._items.length > 0) {
+                // Use existing vertex ID
+                finalVertexId = bestMatch.graphVertexId;
+                mergedWithSimilar = true;
+                
+                // Get existing aliases
+                const existingVertex = verifyExisting._items[0];
+                if (existingVertex.properties && existingVertex.properties.aliases) {
+                  try {
+                    existingAliases = JSON.parse(existingVertex.properties.aliases[0].value || '[]');
+                  } catch (e) {
+                    existingAliases = [];
+                  }
+                }
+                
+                console.log(`Merging "${entity.name}" with existing similar entity "${bestMatch.name}" (similarity: ${(bestMatch.similarity * 100).toFixed(1)}%)`);
+              }
+            }
+          }
+        } catch (semanticError) {
+          // If semantic search fails, continue with creating new entity
+          console.warn(`Semantic similarity check failed for ${entity.name}:`, semanticError.message);
+        }
+      }
+      
+      // Store all names/aliases seen for this entity
+      const newAliases = entity.aliases || [entity.name];
+      const allAliases = Array.from(new Set([...existingAliases, entity.name, ...newAliases]));
+      const aliasesJson = JSON.stringify(allAliases);
+      
+      // Check if final vertex exists
+      const finalCheckQuery = `g.V('${escapeGremlin(finalVertexId)}')`;
+      const finalExisting = await client.submit(finalCheckQuery);
+      
+      if (finalExisting._items && finalExisting._items.length > 0) {
+        // Update existing vertex - merge aliases and increment mention count
+        const existingVertex = finalExisting._items[0];
+        const existingCanonical = existingVertex.properties?.canonical_name?.[0]?.value || resolvedCanonical;
+        
         const updateQuery = `
-          g.V('${escapeGremlin(vertexId)}')
-            .property('mention_count', g.V('${escapeGremlin(vertexId)}').values('mention_count').fold().coalesce(unfold(), constant(0)).math('_ + 1'))
+          g.V('${escapeGremlin(finalVertexId)}')
+            .property('mention_count', g.V('${escapeGremlin(finalVertexId)}').values('mention_count').fold().coalesce(unfold(), constant(0)).math('_ + 1'))
+            .property('aliases', '${escapeGremlin(aliasesJson)}')
             .property('last_seen_document', '${escapeGremlin(documentId)}')
             .property('last_updated', '${new Date().toISOString()}')
         `;
         await client.submit(updateQuery);
+        
         savedEntities.push({
-          id: vertexId,
-          canonical_name: resolvedCanonical,
+          id: finalVertexId,
+          canonical_name: existingCanonical,
           entity_type: entity.entityType,
           name: entity.name,
-          wasResolved: resolvedCanonical !== entity.canonicalName
+          wasResolved: resolvedCanonical !== entity.canonicalName,
+          mergedWithSimilar: mergedWithSimilar
         });
       } else {
         // Create new vertex with aliases
         const createQuery = `
           g.addV('${escapeGremlin(entity.entityType)}')
-            .property('id', '${escapeGremlin(vertexId)}')
+            .property('id', '${escapeGremlin(finalVertexId)}')
             .property('partitionKey', '${escapeGremlin(entity.entityType)}')
             .property('entity_type', '${escapeGremlin(entity.entityType)}')
             .property('name', '${escapeGremlin(entity.name)}')
@@ -564,12 +711,14 @@ async function saveEntitiesToCosmos(entities, documentId, chunkId) {
             .property('created_at', '${new Date().toISOString()}')
         `;
         await client.submit(createQuery);
+        
         savedEntities.push({
-          id: vertexId,
+          id: finalVertexId,
           canonical_name: resolvedCanonical,
           entity_type: entity.entityType,
           name: entity.name,
-          wasResolved: resolvedCanonical !== entity.canonicalName
+          wasResolved: resolvedCanonical !== entity.canonicalName,
+          mergedWithSimilar: false
         });
       }
     } catch (error) {
@@ -580,10 +729,99 @@ async function saveEntitiesToCosmos(entities, documentId, chunkId) {
   return savedEntities;
 }
 
-// Escape special characters for Gremlin
+// Escape special characters for Gremlin (backslash first, then single-quote)
 function escapeGremlin(str) {
   if (!str) return '';
-  return String(str).replace(/'/g, "\\'").replace(/\\/g, '\\\\');
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/**
+ * Merge quantitative values from two impacts
+ * Handles dollar amounts, job counts, percentages
+ */
+function mergeQuantitativeValues(value1, value2, direction1, direction2) {
+  // If directions are the same, sum the values
+  // If directions are opposite, calculate net difference
+  
+  // Extract dollar amounts
+  const dollarMatch1 = value1.match(/\$[\d,]+(?:\.\d+)?\s*(?:million|billion|M|B|k|thousand)?/i);
+  const dollarMatch2 = value2.match(/\$[\d,]+(?:\.\d+)?\s*(?:million|billion|M|B|k|thousand)?/i);
+  
+  if (dollarMatch1 && dollarMatch2) {
+    let amount1 = parseFloat(dollarMatch1[0].replace(/[$,]/g, ''));
+    let amount2 = parseFloat(dollarMatch2[0].replace(/[$,]/g, ''));
+    
+    const multiplier1 = dollarMatch1[0].toLowerCase();
+    const multiplier2 = dollarMatch2[0].toLowerCase();
+    
+    if (multiplier1.includes('billion') || multiplier1.includes('b')) amount1 *= 1000000000;
+    else if (multiplier1.includes('million') || multiplier1.includes('m')) amount1 *= 1000000;
+    else if (multiplier1.includes('thousand') || multiplier1.includes('k')) amount1 *= 1000;
+    
+    if (multiplier2.includes('billion') || multiplier2.includes('b')) amount2 *= 1000000000;
+    else if (multiplier2.includes('million') || multiplier2.includes('m')) amount2 *= 1000000;
+    else if (multiplier2.includes('thousand') || multiplier2.includes('k')) amount2 *= 1000;
+    
+    // Apply direction
+    if (direction1 === 'decrease') amount1 = -amount1;
+    if (direction2 === 'decrease') amount2 = -amount2;
+    
+    const netAmount = amount1 + amount2;
+    const absAmount = Math.abs(netAmount);
+    
+    // Format result
+    let formatted;
+    if (absAmount >= 1000000000) {
+      formatted = `$${(absAmount / 1000000000).toFixed(2)} billion`;
+    } else if (absAmount >= 1000000) {
+      formatted = `$${(absAmount / 1000000).toFixed(2)} million`;
+    } else if (absAmount >= 1000) {
+      formatted = `$${(absAmount / 1000).toFixed(2)} thousand`;
+    } else {
+      formatted = `$${absAmount.toFixed(2)}`;
+    }
+    
+    return formatted;
+  }
+  
+  // Extract job counts
+  const jobMatch1 = value1.match(/(\d+(?:,\d+)?)\s*(?:jobs?|positions?|workers?|employees?)/i);
+  const jobMatch2 = value2.match(/(\d+(?:,\d+)?)\s*(?:jobs?|positions?|workers?|employees?)/i);
+  
+  if (jobMatch1 && jobMatch2) {
+    let jobs1 = parseInt(jobMatch1[1].replace(/,/g, ''), 10);
+    let jobs2 = parseInt(jobMatch2[1].replace(/,/g, ''), 10);
+    
+    // Apply direction
+    if (direction1 === 'decrease') jobs1 = -jobs1;
+    if (direction2 === 'decrease') jobs2 = -jobs2;
+    
+    const netJobs = jobs1 + jobs2;
+    const absJobs = Math.abs(netJobs);
+    
+    return `${absJobs.toLocaleString()} jobs`;
+  }
+  
+  // Extract percentages
+  const percentMatch1 = value1.match(/(\d+(?:\.\d+)?)\s*%/);
+  const percentMatch2 = value2.match(/(\d+(?:\.\d+)?)\s*%/);
+  
+  if (percentMatch1 && percentMatch2) {
+    let percent1 = parseFloat(percentMatch1[1]);
+    let percent2 = parseFloat(percentMatch2[1]);
+    
+    // Apply direction
+    if (direction1 === 'decrease') percent1 = -percent1;
+    if (direction2 === 'decrease') percent2 = -percent2;
+    
+    const netPercent = percent1 + percent2;
+    const absPercent = Math.abs(netPercent);
+    
+    return `${absPercent.toFixed(1)}%`;
+  }
+  
+  // If can't parse, return combined string
+  return `${value1} + ${value2}`;
 }
 
 // ============================================================================
@@ -595,56 +833,88 @@ function escapeGremlin(str) {
  * Index entities to Azure AI Search for semantic discovery
  * This creates the "sidecar" semantic index alongside the graph
  * Enables finding similar entities without automatic graph edges
+ *
+ * Returns detailed stats including skip reasons and embedding retries.
  */
 async function indexEntitiesToSearch(entities, savedEntities, documentId, openAIEndpoint, openAIKey) {
   const searchEndpoint = process.env.AZURE_SEARCH_ENDPOINT;
   const searchKey = process.env.AZURE_SEARCH_KEY;
   const entityIndex = process.env.AZURE_SEARCH_ENTITY_INDEX || 'entities';
-  
+
+  const skippedEntities = [];
+  let totalEmbeddingRetries = 0;
+
   if (!searchEndpoint || !searchKey) {
     console.warn('Azure Search credentials not configured - skipping entity indexing');
-    return { indexed: 0, skipped: entities.length };
+    return { indexed: 0, skipped: entities.length, skippedDetails: [{ name: '*', reason: 'search_creds_missing' }], embeddingRetries: 0 };
   }
-  
+
   const embeddingDeployment = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-large';
   const indexedEntities = [];
-  
+
   // Create a map of saved entities for lookup
   const savedEntityMap = new Map(savedEntities.map(e => [e.canonical_name, e]));
-  
+
   for (const entity of entities) {
     try {
-      const savedEntity = savedEntityMap.get(entity.canonicalName) || 
+      const savedEntity = savedEntityMap.get(entity.canonicalName) ||
                           savedEntityMap.get(resolveCanonicalEntity(entity.canonicalName, entity.entityType));
-      
-      if (!savedEntity) continue;
-      
-      // Generate embedding for entity (name + description)
-      const textToEmbed = `${entity.name}. ${entity.description || ''}. Type: ${entity.entityType}`;
-      
-      const embeddingResponse = await fetch(
-        `${openAIEndpoint}/openai/deployments/${embeddingDeployment}/embeddings?api-version=2024-02-15-preview`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'api-key': openAIKey,
-          },
-          body: JSON.stringify({
-            input: textToEmbed.substring(0, 8000),
-            model: embeddingDeployment,
-          }),
-        }
-      );
-      
-      if (!embeddingResponse.ok) {
-        console.warn(`Failed to generate embedding for entity ${entity.name}`);
+
+      if (!savedEntity) {
+        console.warn(`Skipping entity indexing: "${entity.name}" (canonical: ${entity.canonicalName}) not found in savedEntityMap. Map keys: ${[...savedEntityMap.keys()].slice(0, 10).join(', ')}`);
+        skippedEntities.push({ name: entity.name, canonical: entity.canonicalName, reason: 'not_in_saved_map' });
         continue;
       }
-      
+
+      // Generate embedding for entity (name + description) with retry
+      const textToEmbed = `${entity.name}. ${entity.description || ''}. Type: ${entity.entityType}`;
+      const embeddingUrl = `${openAIEndpoint}/openai/deployments/${embeddingDeployment}/embeddings?api-version=2024-02-15-preview`;
+      const embeddingBody = JSON.stringify({
+        input: textToEmbed.substring(0, 8000),
+        model: embeddingDeployment,
+      });
+
+      let embeddingResponse = null;
+      const maxEmbeddingRetries = 3;
+      for (let attempt = 0; attempt < maxEmbeddingRetries; attempt++) {
+        try {
+          embeddingResponse = await fetch(embeddingUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'api-key': openAIKey },
+            body: embeddingBody,
+          });
+          if (embeddingResponse.ok) break;
+
+          // Retry on 429 (rate limit) or 5xx
+          if (embeddingResponse.status === 429 || embeddingResponse.status >= 500) {
+            totalEmbeddingRetries++;
+            const backoffMs = 1000 * Math.pow(2, attempt);
+            console.warn(`Embedding attempt ${attempt + 1}/${maxEmbeddingRetries} failed for "${entity.name}" (HTTP ${embeddingResponse.status}), retrying in ${backoffMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+          } else {
+            // Non-retryable error (4xx other than 429)
+            break;
+          }
+        } catch (fetchErr) {
+          totalEmbeddingRetries++;
+          console.warn(`Embedding fetch error for "${entity.name}" (attempt ${attempt + 1}): ${fetchErr.message}`);
+          if (attempt < maxEmbeddingRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
+          }
+        }
+      }
+
+      if (!embeddingResponse || !embeddingResponse.ok) {
+        let errDetail = 'unknown';
+        try { errDetail = embeddingResponse ? `HTTP ${embeddingResponse.status}: ${await embeddingResponse.text()}` : 'no response'; } catch (_) {}
+        console.warn(`Embedding failed for "${entity.name}" after ${maxEmbeddingRetries} attempts: ${errDetail}`);
+        skippedEntities.push({ name: entity.name, reason: 'embedding_failed', status: embeddingResponse?.status, detail: errDetail.substring(0, 200) });
+        continue;
+      }
+
       const embeddingData = await embeddingResponse.json();
       const embedding = embeddingData.data[0].embedding;
-      
+
       // Create entity document for Azure Search
       const entityDoc = {
         id: savedEntity.id.replace(/[^a-zA-Z0-9_-]/g, '_'), // Sanitize ID for Azure Search
@@ -663,23 +933,25 @@ async function indexEntitiesToSearch(entities, savedEntities, documentId, openAI
         graphVertexId: savedEntity.id,
         relatedEntityIds: []
       };
-      
+
       // Detect sector from entity type or name
       if (entity.entityType === 'sector') {
         entityDoc.sector = entity.canonicalName;
       }
-      
+
       indexedEntities.push(entityDoc);
-      
+
     } catch (error) {
       console.warn(`Failed to index entity ${entity.name}:`, error.message);
+      skippedEntities.push({ name: entity.name, reason: 'exception', detail: error.message.substring(0, 200) });
     }
   }
-  
+
   if (indexedEntities.length === 0) {
-    return { indexed: 0, skipped: entities.length };
+    console.warn(`Entity indexing: 0/${entities.length} entities prepared for indexing. Skipped: ${JSON.stringify(skippedEntities.slice(0, 10))}`);
+    return { indexed: 0, skipped: entities.length, skippedDetails: skippedEntities, embeddingRetries: totalEmbeddingRetries };
   }
-  
+
   // Batch upload to Azure Search
   try {
     const searchUrl = `${searchEndpoint}/indexes/${entityIndex}/docs/index?api-version=2023-11-01`;
@@ -689,7 +961,7 @@ async function indexEntitiesToSearch(entities, savedEntities, documentId, openAI
         ...doc
       }))
     };
-    
+
     const response = await fetch(searchUrl, {
       method: 'POST',
       headers: {
@@ -698,25 +970,32 @@ async function indexEntitiesToSearch(entities, savedEntities, documentId, openAI
       },
       body: JSON.stringify(batch),
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.warn(`Failed to index entities to Azure Search: ${errorText}`);
-      return { indexed: 0, skipped: entities.length, error: errorText };
+      return { indexed: 0, skipped: entities.length, skippedDetails: skippedEntities, embeddingRetries: totalEmbeddingRetries, error: errorText };
     }
-    
+
     const result = await response.json();
     const successCount = result.value?.filter(r => r.status === true || r.statusCode === 200 || r.statusCode === 201).length || 0;
-    
-    return { 
-      indexed: successCount, 
+
+    // Log summary
+    if (skippedEntities.length > 0) {
+      console.log(`Entity indexing: ${successCount}/${entities.length} indexed, ${skippedEntities.length} skipped, ${totalEmbeddingRetries} embedding retries`);
+    }
+
+    return {
+      indexed: successCount,
       skipped: entities.length - successCount,
+      skippedDetails: skippedEntities,
+      embeddingRetries: totalEmbeddingRetries,
       results: result.value?.slice(0, 5) // First 5 for debugging
     };
-    
+
   } catch (error) {
     console.warn('Entity indexing to Azure Search failed:', error.message);
-    return { indexed: 0, skipped: entities.length, error: error.message };
+    return { indexed: 0, skipped: entities.length, skippedDetails: skippedEntities, embeddingRetries: totalEmbeddingRetries, error: error.message };
   }
 }
 
@@ -844,22 +1123,238 @@ async function saveDocumentEntityMappings(savedEntities, documentId, chunkId, pr
 }
 
 /**
+ * Consolidate relationships after merging entities
+ * Redirects all edges from duplicate entity to canonical entity
+ */
+async function consolidateRelationshipsAfterMerge(duplicateVertexId, canonicalVertexId) {
+  const client = getGremlinClient();
+  
+  try {
+    // Find all incoming edges (edges pointing TO the duplicate) with their sources
+    const incomingQuery = `
+      g.V('${escapeGremlin(duplicateVertexId)}')
+        .inE()
+        .project('edgeId', 'label', 'sourceId')
+        .by(id)
+        .by(label)
+        .by(outV().id())
+    `;
+    const incomingResult = await client.submit(incomingQuery);
+    const incomingEdges = incomingResult._items || [];
+    
+    // Find all outgoing edges (edges FROM the duplicate) with their targets
+    const outgoingQuery = `
+      g.V('${escapeGremlin(duplicateVertexId)}')
+        .outE()
+        .project('edgeId', 'label', 'targetId')
+        .by(id)
+        .by(label)
+        .by(inV().id())
+    `;
+    const outgoingResult = await client.submit(outgoingQuery);
+    const outgoingEdges = outgoingResult._items || [];
+    
+    let incomingRedirected = 0;
+    let outgoingRedirected = 0;
+    
+    // Process incoming edges - redirect to canonical
+    for (const edge of incomingEdges) {
+      try {
+        const edgeId = edge.edgeId;
+        const edgeLabel = edge.label;
+        const sourceVertexId = edge.sourceId;
+        
+        if (!edgeId || !edgeLabel || !sourceVertexId) continue;
+        
+        // Check if edge already exists from source to canonical
+        const checkQuery = `
+          g.V('${escapeGremlin(sourceVertexId)}')
+            .outE('${escapeGremlin(edgeLabel)}')
+            .where(inV().hasId('${escapeGremlin(canonicalVertexId)}'))
+        `;
+        const existing = await client.submit(checkQuery);
+        
+        if (!existing._items || existing._items.length === 0) {
+          // Create new edge from source to canonical
+          const createQuery = `
+            g.V('${escapeGremlin(sourceVertexId)}')
+              .addE('${escapeGremlin(edgeLabel)}')
+              .to(g.V('${escapeGremlin(canonicalVertexId)}'))
+          `;
+          await client.submit(createQuery);
+          incomingRedirected++;
+        }
+        
+        // Delete old edge
+        const deleteQuery = `g.E('${escapeGremlin(edgeId)}').drop()`;
+        await client.submit(deleteQuery);
+      } catch (edgeError) {
+        console.warn(`Failed to redirect incoming edge:`, edgeError.message);
+      }
+    }
+    
+    // Process outgoing edges - redirect to canonical
+    for (const edge of outgoingEdges) {
+      try {
+        const edgeId = edge.edgeId;
+        const edgeLabel = edge.label;
+        const targetVertexId = edge.targetId;
+        
+        if (!edgeId || !edgeLabel || !targetVertexId) continue;
+        
+        // Check if edge already exists from canonical to target
+        const checkQuery = `
+          g.V('${escapeGremlin(canonicalVertexId)}')
+            .outE('${escapeGremlin(edgeLabel)}')
+            .where(inV().hasId('${escapeGremlin(targetVertexId)}'))
+        `;
+        const existing = await client.submit(checkQuery);
+        
+        if (!existing._items || existing._items.length === 0) {
+          // Create new edge from canonical to target
+          const createQuery = `
+            g.V('${escapeGremlin(canonicalVertexId)}')
+              .addE('${escapeGremlin(edgeLabel)}')
+              .to(g.V('${escapeGremlin(targetVertexId)}'))
+          `;
+          await client.submit(createQuery);
+          outgoingRedirected++;
+        }
+        
+        // Delete old edge
+        const deleteQuery = `g.E('${escapeGremlin(edgeId)}').drop()`;
+        await client.submit(deleteQuery);
+      } catch (edgeError) {
+        console.warn(`Failed to redirect outgoing edge:`, edgeError.message);
+      }
+    }
+    
+    return {
+      incomingRedirected,
+      outgoingRedirected
+    };
+  } catch (error) {
+    console.warn(`Failed to consolidate relationships:`, error.message);
+    return { incomingRedirected: 0, outgoingRedirected: 0 };
+  }
+}
+
+/**
+ * Normalize display/canonical name to form used as map key (e.g. "SA Health" -> "sa_health").
+ */
+function normalizeNameToCanonicalForm(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
+/**
+ * Resolve an entity name to a graph vertex ID.
+ * 1. Chunk-local map (exact + normalized + alias-resolved name).
+ * 2. Graph lookup by canonical_name and name (so "SA Health" matches vertices).
+ * 3. Semantic search fallback. Returns { id, method } or null.
+ */
+async function resolveEntityId(entityName, entityMap, client) {
+  if (!entityName || !String(entityName).trim()) return null;
+
+  const normalized = normalizeNameToCanonicalForm(entityName);
+  const aliasResolved = resolveCanonicalEntity(normalized || entityName, null);
+
+  // 1. Chunk-local map: try exact, normalized, and alias-resolved
+  const localId = entityMap.get(entityName) || entityMap.get(normalized) || entityMap.get(aliasResolved);
+  if (localId) return { id: localId, method: 'local' };
+
+  // 2. Graph lookup: try canonical_name and name (display name on vertex)
+  const candidates = [entityName, normalized, aliasResolved].filter(Boolean);
+  const seen = new Set();
+  for (const c of candidates) {
+    if (!c || seen.has(c)) continue;
+    seen.add(c);
+    try {
+      const graphQuery = `g.V().or(has('canonical_name', '${escapeGremlin(c)}'), has('name', '${escapeGremlin(c)}')).id()`;
+      const graphResult = await client.submit(graphQuery);
+      if (graphResult._items && graphResult._items.length > 0) {
+        return { id: graphResult._items[0], method: 'graph' };
+      }
+    } catch (err) {
+      console.warn(`Graph lookup failed for "${c}": ${err.message}`);
+    }
+  }
+
+  // 3. Semantic search fallback
+  try {
+    const semanticResult = await searchSimilarEntities(entityName, null, 3);
+    if (semanticResult.similar && semanticResult.similar.length > 0) {
+      const best = semanticResult.similar[0];
+      if (best.similarity >= 0.88 && best.graphVertexId) {
+        const verifyQuery = `g.V('${escapeGremlin(best.graphVertexId)}').id()`;
+        const verifyResult = await client.submit(verifyQuery);
+        if (verifyResult._items && verifyResult._items.length > 0) {
+          return { id: best.graphVertexId, method: 'semantic' };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`Semantic entity resolution failed for "${entityName}": ${err.message}`);
+  }
+
+  return null;
+}
+
+/**
  * Save relationships as edges in Cosmos DB
+ * Resolves missing entities via graph lookup and semantic search before skipping.
+ * Returns resolution stats for audit logging.
  */
 async function saveRelationshipsToCosmos(relationships, savedEntities, documentId, chunkId) {
   const client = getGremlinClient();
   const entityMap = new Map(savedEntities.map(e => [e.canonical_name, e.id]));
 
+  const stats = {
+    created: 0,
+    resolvedViaGraph: 0,
+    resolvedViaSemantic: 0,
+    skipped: 0,
+    skippedDetails: [],
+    duplicatesSkipped: 0,
+    errors: 0
+  };
+
   for (const rel of relationships) {
-    const sourceId = entityMap.get(rel.sourceEntity);
-    const targetId = entityMap.get(rel.targetEntity);
-
-    if (!sourceId || !targetId) {
-      console.warn(`Skipping relationship: entity not found (${rel.sourceEntity} -> ${rel.targetEntity})`);
-      continue;
-    }
-
     try {
+      // Resolve both sides
+      const sourceResolution = await resolveEntityId(rel.sourceEntity, entityMap, client);
+      const targetResolution = await resolveEntityId(rel.targetEntity, entityMap, client);
+
+      if (!sourceResolution || !targetResolution) {
+        const missingSide = !sourceResolution && !targetResolution ? 'both'
+          : !sourceResolution ? 'source' : 'target';
+        const missingNames = !sourceResolution && !targetResolution
+          ? `${rel.sourceEntity}, ${rel.targetEntity}`
+          : !sourceResolution ? rel.sourceEntity : rel.targetEntity;
+
+        console.warn(`Skipping relationship: unresolvable ${missingSide} entity (${rel.sourceEntity} -[${rel.relationshipType}]-> ${rel.targetEntity}). Missing: ${missingNames}. Attempted: local map, graph lookup, semantic search.`);
+        stats.skipped++;
+        stats.skippedDetails.push({
+          source: rel.sourceEntity,
+          target: rel.targetEntity,
+          type: rel.relationshipType,
+          missingSide,
+          missingNames
+        });
+        continue;
+      }
+
+      const sourceId = sourceResolution.id;
+      const targetId = targetResolution.id;
+
+      // Track resolution methods
+      if (sourceResolution.method === 'graph' || targetResolution.method === 'graph') {
+        stats.resolvedViaGraph++;
+      }
+      if (sourceResolution.method === 'semantic' || targetResolution.method === 'semantic') {
+        stats.resolvedViaSemantic++;
+      }
+
       // Check if edge already exists
       const checkQuery = `
         g.V('${escapeGremlin(sourceId)}')
@@ -867,24 +1362,173 @@ async function saveRelationshipsToCosmos(relationships, savedEntities, documentI
           .where(inV().hasId('${escapeGremlin(targetId)}'))
       `;
       const existing = await client.submit(checkQuery);
-      
-      if (!existing._items || existing._items.length === 0) {
-        // Create new edge
-        const createQuery = `
-          g.V('${escapeGremlin(sourceId)}')
-            .addE('${escapeGremlin(rel.relationshipType)}')
-            .to(g.V('${escapeGremlin(targetId)}'))
-            .property('strength', ${rel.strength || 0.8})
-            .property('evidence', '${escapeGremlin(rel.evidence || '')}')
-            .property('source_document', '${escapeGremlin(documentId)}')
-            .property('source_chunk', '${escapeGremlin(chunkId)}')
-            .property('created_at', '${new Date().toISOString()}')
-        `;
-        await client.submit(createQuery);
+
+      if (existing._items && existing._items.length > 0) {
+        stats.duplicatesSkipped++;
+        continue;
       }
+
+      // Create new edge
+      const createQuery = `
+        g.V('${escapeGremlin(sourceId)}')
+          .addE('${escapeGremlin(rel.relationshipType)}')
+          .to(g.V('${escapeGremlin(targetId)}'))
+          .property('strength', ${rel.strength || 0.8})
+          .property('evidence', '${escapeGremlin(rel.evidence || '')}')
+          .property('source_document', '${escapeGremlin(documentId)}')
+          .property('source_chunk', '${escapeGremlin(chunkId)}')
+          .property('created_at', '${new Date().toISOString()}')
+      `;
+      await client.submit(createQuery);
+      stats.created++;
     } catch (error) {
-      console.warn(`Failed to save relationship:`, error.message);
+      console.warn(`Failed to save relationship (${rel.sourceEntity} -> ${rel.targetEntity}):`, error.message);
+      stats.errors++;
     }
+  }
+
+  // Summary log
+  console.log(`Relationships: ${stats.created} created, ${stats.resolvedViaGraph} resolved via graph, ${stats.resolvedViaSemantic} resolved via semantic, ${stats.skipped} skipped, ${stats.duplicatesSkipped} duplicates, ${stats.errors} errors`);
+
+  return stats;
+}
+
+/**
+ * Aggregate impacts after merging entities
+ * Merges impacts from duplicate entity into canonical entity
+ */
+async function aggregateImpactsAfterMerge(duplicateVertexId, canonicalVertexId) {
+  const client = getGremlinClient();
+  
+  try {
+    // Find all impacts linked to duplicate entity (via 'affects' edge)
+    const impactsQuery = `
+      g.V('${escapeGremlin(duplicateVertexId)}')
+        .inE('affects')
+        .outV()
+        .hasLabel('impact')
+        .valueMap(true)
+    `;
+    const impactsResult = await client.submit(impactsQuery);
+    const impacts = impactsResult._items || [];
+    
+    let impactsRedirected = 0;
+    const processedImpacts = new Set();
+    
+    for (const impact of impacts) {
+      try {
+        const impactId = impact.id;
+        if (!impactId || processedImpacts.has(impactId)) continue;
+        processedImpacts.add(impactId);
+        
+        // Get impact properties
+        const policyId = impact.properties?.policy_id?.[0]?.value || '';
+        const affectedEntity = impact.properties?.affected_entity?.[0]?.value || '';
+        const impactType = impact.properties?.impact_type?.[0]?.value || '';
+        
+        // Check if similar impact already exists for canonical entity
+        const checkQuery = `
+          g.V('${escapeGremlin(canonicalVertexId)}')
+            .inE('affects')
+            .outV()
+            .hasLabel('impact')
+            .has('policy_id', '${escapeGremlin(policyId)}')
+            .has('impact_type', '${escapeGremlin(impactType)}')
+        `;
+        const existing = await client.submit(checkQuery);
+        
+        if (existing._items && existing._items.length > 0) {
+          // Similar impact exists - merge quantitative values
+          const existingImpact = existing._items[0];
+          const existingImpactId = existingImpact.id;
+          
+          // Get quantitative values from both impacts
+          const duplicateQuantValue = impact.properties?.quantitative_value?.[0]?.value || '';
+          const existingQuantValue = existingImpact.properties?.quantitative_value?.[0]?.value || '';
+          const duplicateDirection = impact.properties?.direction?.[0]?.value || '';
+          const existingDirection = existingImpact.properties?.direction?.[0]?.value || '';
+          
+          // Merge quantitative values if both have them
+          if (duplicateQuantValue && existingQuantValue) {
+            const mergedValue = mergeQuantitativeValues(
+              duplicateQuantValue,
+              existingQuantValue,
+              duplicateDirection,
+              existingDirection
+            );
+            
+            // Update existing impact with merged value
+            if (mergedValue !== existingQuantValue) {
+              const updateQuery = `
+                g.V('${escapeGremlin(existingImpactId)}')
+                  .property('quantitative_value', '${escapeGremlin(mergedValue)}')
+                  .property('updated_at', '${new Date().toISOString()}')
+              `;
+              await client.submit(updateQuery);
+            }
+          } else if (duplicateQuantValue && !existingQuantValue) {
+            // Use duplicate's value if existing doesn't have one
+            const updateQuery = `
+              g.V('${escapeGremlin(existingImpactId)}')
+                .property('quantitative_value', '${escapeGremlin(duplicateQuantValue)}')
+                .property('updated_at', '${new Date().toISOString()}')
+            `;
+            await client.submit(updateQuery);
+          }
+          
+          // Delete old edge from impact to duplicate
+          const deleteOldEdge = `
+            g.V('${escapeGremlin(impactId)}')
+              .outE('affects')
+              .where(inV().hasId('${escapeGremlin(duplicateVertexId)}'))
+              .drop()
+          `;
+          await client.submit(deleteOldEdge);
+          
+          // Create edge from impact to canonical (if not exists)
+          const checkNewEdge = `
+            g.V('${escapeGremlin(impactId)}')
+              .outE('affects')
+              .where(inV().hasId('${escapeGremlin(canonicalVertexId)}'))
+          `;
+          const newEdgeExists = await client.submit(checkNewEdge);
+          
+          if (!newEdgeExists._items || newEdgeExists._items.length === 0) {
+            const createEdge = `
+              g.V('${escapeGremlin(impactId)}')
+                .addE('affects')
+                .to(g.V('${escapeGremlin(canonicalVertexId)}'))
+            `;
+            await client.submit(createEdge);
+            impactsRedirected++;
+          }
+        } else {
+          // No similar impact - redirect edge to canonical
+          const deleteOldEdge = `
+            g.V('${escapeGremlin(impactId)}')
+              .outE('affects')
+              .where(inV().hasId('${escapeGremlin(duplicateVertexId)}'))
+              .drop()
+          `;
+          await client.submit(deleteOldEdge);
+          
+          const createEdge = `
+            g.V('${escapeGremlin(impactId)}')
+              .addE('affects')
+              .to(g.V('${escapeGremlin(canonicalVertexId)}'))
+          `;
+          await client.submit(createEdge);
+          impactsRedirected++;
+        }
+      } catch (impactError) {
+        console.warn(`Failed to redirect impact:`, impactError.message);
+      }
+    }
+    
+    return { impactsRedirected };
+  } catch (error) {
+    console.warn(`Failed to aggregate impacts:`, error.message);
+    return { impactsRedirected: 0 };
   }
 }
 
@@ -893,18 +1537,30 @@ async function saveRelationshipsToCosmos(relationships, savedEntities, documentI
  * Each impact is stored as a vertex with edges to the policy and affected entity
  */
 async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) {
-  if (!impacts || impacts.length === 0) return [];
-  
+  const emptyResult = { savedImpacts: [], stats: { policyEdgesCreated: 0, affectsEdgesCreated: 0, policyEdgesSkipped: 0, affectsEdgesSkipped: 0, resolvedViaGraph: 0, resolvedViaSemantic: 0, skippedDetails: [], errors: 0 } };
+  if (!impacts || impacts.length === 0) return emptyResult;
+
   const client = getGremlinClient();
   const savedImpacts = [];
   const entityMap = new Map(savedEntities.map(e => [e.canonical_name, e.id]));
-  
+
+  const stats = {
+    policyEdgesCreated: 0,
+    affectsEdgesCreated: 0,
+    policyEdgesSkipped: 0,
+    affectsEdgesSkipped: 0,
+    resolvedViaGraph: 0,
+    resolvedViaSemantic: 0,
+    skippedDetails: [],
+    errors: 0
+  };
+
   for (const impact of impacts) {
     try {
       // Generate unique impact ID
       const impactId = `impact_${impact.policyId}_${impact.affectedEntity}_${impact.impactType}_${Date.now()}`.substring(0, 100);
-      
-      // Create impact vertex
+
+      // Create impact vertex (always created -- data is never lost)
       const createQuery = `
         g.addV('impact')
           .property('id', '${escapeGremlin(impactId)}')
@@ -924,34 +1580,46 @@ async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) 
           .property('source_chunk', '${escapeGremlin(chunkId)}')
           .property('created_at', '${new Date().toISOString()}')
       `;
-      
+
       await client.submit(createQuery);
-      
-      // Create edge from policy to impact if policy exists as entity
-      const policyEntityId = entityMap.get(impact.policyId);
-      if (policyEntityId) {
+
+      // Resolve policy entity (local map -> graph -> semantic search)
+      const policyResolution = impact.policyId ? await resolveEntityId(impact.policyId, entityMap, client) : null;
+
+      if (policyResolution) {
+        if (policyResolution.method === 'graph') stats.resolvedViaGraph++;
+        if (policyResolution.method === 'semantic') stats.resolvedViaSemantic++;
         try {
           const policyEdgeQuery = `
-            g.V('${escapeGremlin(policyEntityId)}')
+            g.V('${escapeGremlin(policyResolution.id)}')
               .addE('has_impact')
               .to(g.V('${escapeGremlin(impactId)}'))
               .property('source_document', '${escapeGremlin(documentId)}')
               .property('created_at', '${new Date().toISOString()}')
           `;
           await client.submit(policyEdgeQuery);
+          stats.policyEdgesCreated++;
         } catch (edgeErr) {
-          console.warn(`Failed to create policy->impact edge:`, edgeErr.message);
+          console.warn(`Failed to create policy->impact edge (${impact.policyId} -> ${impactId}):`, edgeErr.message);
+          stats.errors++;
         }
+      } else if (impact.policyId) {
+        console.warn(`Impact edge skipped: policy "${impact.policyId}" unresolvable (tried: local map, graph lookup, semantic search). Impact: ${impactId}`);
+        stats.policyEdgesSkipped++;
+        stats.skippedDetails.push({ impactId, edgeType: 'has_impact', missingEntity: impact.policyId, side: 'policy' });
       }
-      
-      // Create edge from impact to affected entity if it exists
-      const affectedEntityId = entityMap.get(impact.affectedEntity);
-      if (affectedEntityId) {
+
+      // Resolve affected entity (local map -> graph -> semantic search)
+      const affectedResolution = impact.affectedEntity ? await resolveEntityId(impact.affectedEntity, entityMap, client) : null;
+
+      if (affectedResolution) {
+        if (affectedResolution.method === 'graph') stats.resolvedViaGraph++;
+        if (affectedResolution.method === 'semantic') stats.resolvedViaSemantic++;
         try {
           const affectedEdgeQuery = `
             g.V('${escapeGremlin(impactId)}')
               .addE('affects')
-              .to(g.V('${escapeGremlin(affectedEntityId)}'))
+              .to(g.V('${escapeGremlin(affectedResolution.id)}'))
               .property('impact_type', '${escapeGremlin(impact.impactType || '')}')
               .property('direction', '${escapeGremlin(impact.direction || '')}')
               .property('severity', '${escapeGremlin(impact.severity || '')}')
@@ -959,11 +1627,17 @@ async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) 
               .property('created_at', '${new Date().toISOString()}')
           `;
           await client.submit(affectedEdgeQuery);
+          stats.affectsEdgesCreated++;
         } catch (edgeErr) {
-          console.warn(`Failed to create impact->affected edge:`, edgeErr.message);
+          console.warn(`Failed to create impact->affected edge (${impactId} -> ${impact.affectedEntity}):`, edgeErr.message);
+          stats.errors++;
         }
+      } else if (impact.affectedEntity) {
+        console.warn(`Impact edge skipped: affected entity "${impact.affectedEntity}" unresolvable (tried: local map, graph lookup, semantic search). Impact: ${impactId}`);
+        stats.affectsEdgesSkipped++;
+        stats.skippedDetails.push({ impactId, edgeType: 'affects', missingEntity: impact.affectedEntity, side: 'affected' });
       }
-      
+
       savedImpacts.push({
         id: impactId,
         policyId: impact.policyId,
@@ -972,13 +1646,464 @@ async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) 
         direction: impact.direction,
         severity: impact.severity
       });
-      
+
     } catch (error) {
       console.warn(`Failed to save impact:`, error.message);
+      stats.errors++;
     }
   }
+
+  // Summary log
+  const totalEdgesCreated = stats.policyEdgesCreated + stats.affectsEdgesCreated;
+  const totalEdgesSkipped = stats.policyEdgesSkipped + stats.affectsEdgesSkipped;
+  if (impacts.length > 0) {
+    console.log(`Impact edges: ${totalEdgesCreated} created (${stats.policyEdgesCreated} policy, ${stats.affectsEdgesCreated} affects), ${totalEdgesSkipped} skipped, ${stats.resolvedViaGraph} resolved via graph, ${stats.resolvedViaSemantic} resolved via semantic`);
+  }
+
+  return { savedImpacts, stats };
+}
+
+/**
+ * Get all entities from Cosmos DB for post-processing
+ */
+async function getAllEntitiesFromCosmos(limit = 10000) {
+  const client = getGremlinClient();
+  const entities = [];
   
-  return savedImpacts;
+  try {
+    const query = `g.V().has('entity_type').valueMap(true).limit(${limit})`;
+    const result = await client.submit(query);
+    
+    for (const item of result._items || []) {
+      const entity = {
+        id: item.id,
+        entityType: item.properties?.entity_type?.[0]?.value || '',
+        name: item.properties?.name?.[0]?.value || '',
+        canonicalName: item.properties?.canonical_name?.[0]?.value || '',
+        aliases: item.properties?.aliases?.[0]?.value || '[]',
+        description: item.properties?.description?.[0]?.value || '',
+        mentionCount: parseInt(item.properties?.mention_count?.[0]?.value || '0', 10)
+      };
+      
+      try {
+        entity.aliases = JSON.parse(entity.aliases);
+      } catch (e) {
+        entity.aliases = [];
+      }
+      
+      entities.push(entity);
+    }
+  } catch (error) {
+    console.warn(`Failed to get all entities:`, error.message);
+  }
+  
+  return entities;
+}
+
+/**
+ * Merge two entities - consolidate duplicate into canonical
+ */
+async function mergeEntities(duplicateVertexId, canonicalVertexId) {
+  const client = getGremlinClient();
+  
+  try {
+    // Get duplicate entity properties
+    const duplicateQuery = `g.V('${escapeGremlin(duplicateVertexId)}').valueMap(true)`;
+    const duplicateResult = await client.submit(duplicateQuery);
+    const duplicateEntity = duplicateResult._items?.[0];
+    
+    if (!duplicateEntity) {
+      return { success: false, error: 'Duplicate entity not found' };
+    }
+    
+    // Get canonical entity properties
+    const canonicalQuery = `g.V('${escapeGremlin(canonicalVertexId)}').valueMap(true)`;
+    const canonicalResult = await client.submit(canonicalQuery);
+    const canonicalEntity = canonicalResult._items?.[0];
+    
+    if (!canonicalEntity) {
+      return { success: false, error: 'Canonical entity not found' };
+    }
+    
+    // Merge aliases
+    const duplicateAliases = JSON.parse(duplicateEntity.properties?.aliases?.[0]?.value || '[]');
+    const canonicalAliases = JSON.parse(canonicalEntity.properties?.aliases?.[0]?.value || '[]');
+    const mergedAliases = Array.from(new Set([...canonicalAliases, ...duplicateAliases]));
+    
+    // Update canonical entity with merged aliases and increment mention count
+    const duplicateMentionCount = parseInt(duplicateEntity.properties?.mention_count?.[0]?.value || '0', 10);
+    const canonicalMentionCount = parseInt(canonicalEntity.properties?.mention_count?.[0]?.value || '0', 10);
+    
+    const updateQuery = `
+      g.V('${escapeGremlin(canonicalVertexId)}')
+        .property('aliases', '${escapeGremlin(JSON.stringify(mergedAliases))}')
+        .property('mention_count', ${canonicalMentionCount + duplicateMentionCount})
+        .property('last_updated', '${new Date().toISOString()}')
+    `;
+    await client.submit(updateQuery);
+    
+    // Consolidate relationships
+    const relationshipResult = await consolidateRelationshipsAfterMerge(duplicateVertexId, canonicalVertexId);
+    
+    // Aggregate impacts
+    const impactResult = await aggregateImpactsAfterMerge(duplicateVertexId, canonicalVertexId);
+    
+    // Delete duplicate vertex
+    const deleteQuery = `g.V('${escapeGremlin(duplicateVertexId)}').drop()`;
+    await client.submit(deleteQuery);
+    
+    return {
+      success: true,
+      relationshipsRedirected: relationshipResult.incomingRedirected + relationshipResult.outgoingRedirected,
+      impactsRedirected: impactResult.impactsRedirected
+    };
+  } catch (error) {
+    console.warn(`Failed to merge entities:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Find potential duplicates (similarity 0.75-0.88) for manual review
+ */
+async function findPotentialDuplicates() {
+  const client = getGremlinClient();
+  const potentialDuplicates = [];
+  
+  try {
+    const allEntities = await getAllEntitiesFromCosmos();
+    const processed = new Set();
+    const entityMap = new Map();
+    
+    // Build entity map
+    for (const entity of allEntities) {
+      entityMap.set(entity.id, entity);
+    }
+    
+    for (const entity of allEntities) {
+      if (processed.has(entity.id)) continue;
+      
+      try {
+        // Search for similar entities
+        const semanticResult = await searchSimilarEntities(entity.name, entity.entityType, 10);
+        
+        if (semanticResult.similar && semanticResult.similar.length > 0) {
+          for (const match of semanticResult.similar) {
+            // Skip if same entity or already processed
+            if (match.graphVertexId === entity.id || processed.has(match.graphVertexId)) {
+              continue;
+            }
+            
+            // Track potential duplicates (similarity 0.75-0.88)
+            if (match.similarity >= 0.75 && match.similarity < 0.88) {
+              const matchEntity = entityMap.get(match.graphVertexId);
+              if (!matchEntity) continue;
+              
+              potentialDuplicates.push({
+                entity1: {
+                  id: entity.id,
+                  name: entity.name,
+                  canonicalName: entity.canonicalName,
+                  entityType: entity.entityType,
+                  mentionCount: entity.mentionCount
+                },
+                entity2: {
+                  id: match.graphVertexId,
+                  name: match.name,
+                  canonicalName: match.canonicalName,
+                  entityType: match.entityType,
+                  mentionCount: match.mentionCount || 0
+                },
+                similarity: match.similarity,
+                similarityPercent: Math.round(match.similarity * 100),
+                recommendation: match.similarity >= 0.85 ? 'likely_duplicate' : 'possible_duplicate'
+              });
+            }
+          }
+        }
+        
+        processed.add(entity.id);
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (error) {
+        console.warn(`Error checking potential duplicates for ${entity.id}:`, error.message);
+      }
+    }
+    
+    // Sort by similarity (highest first)
+    potentialDuplicates.sort((a, b) => b.similarity - a.similarity);
+    
+    return potentialDuplicates;
+  } catch (error) {
+    console.error(`Failed to find potential duplicates:`, error);
+    return [];
+  }
+}
+
+/**
+ * Post-processing deduplication pass
+ * Queries all entities and merges duplicates found via semantic similarity
+ */
+async function postProcessDeduplication() {
+  const client = getGremlinClient();
+  const stats = {
+    totalEntities: 0,
+    duplicatesFound: 0,
+    duplicatesMerged: 0,
+    relationshipsRedirected: 0,
+    impactsRedirected: 0,
+    potentialDuplicates: [], // NEW: Track potential duplicates for review
+    errors: []
+  };
+  
+  try {
+    // Get all entities from Cosmos DB
+    const allEntities = await getAllEntitiesFromCosmos();
+    stats.totalEntities = allEntities.length;
+    
+    const processed = new Set();
+    const entityMap = new Map(); // Map entity ID to entity object
+    
+    // Build entity map
+    for (const entity of allEntities) {
+      entityMap.set(entity.id, entity);
+    }
+    
+    console.log(`Post-processing deduplication: Checking ${allEntities.length} entities...`);
+    
+    // Process each entity
+    for (const entity of allEntities) {
+      if (processed.has(entity.id)) continue;
+      
+      try {
+        // Search for similar entities
+        const semanticResult = await searchSimilarEntities(entity.name, entity.entityType, 10);
+        
+        if (semanticResult.similar && semanticResult.similar.length > 0) {
+          for (const match of semanticResult.similar) {
+            // Skip if same entity or already processed
+            if (match.graphVertexId === entity.id || processed.has(match.graphVertexId)) {
+              continue;
+            }
+            
+            // Track potential duplicates (0.75-0.88) for manual review
+            if (match.similarity >= 0.75 && match.similarity < 0.88) {
+              const matchEntity = entityMap.get(match.graphVertexId);
+              if (matchEntity) {
+                stats.potentialDuplicates.push({
+                  entity1: {
+                    id: entity.id,
+                    name: entity.name,
+                    canonicalName: entity.canonicalName,
+                    mentionCount: entity.mentionCount
+                  },
+                  entity2: {
+                    id: match.graphVertexId,
+                    name: match.name,
+                    canonicalName: match.canonicalName,
+                    mentionCount: matchEntity.mentionCount
+                  },
+                  similarity: match.similarity,
+                  similarityPercent: Math.round(match.similarity * 100),
+                  recommendation: match.similarity >= 0.85 ? 'likely_duplicate' : 'possible_duplicate'
+                });
+              }
+            }
+            
+            // If similarity is high enough (>= 0.88), merge
+            if (match.similarity >= 0.88) {
+              stats.duplicatesFound++;
+              
+              // Determine which is canonical (use the one with more mentions)
+              const matchEntity = entityMap.get(match.graphVertexId);
+              if (!matchEntity) continue;
+              
+              const canonicalId = entity.mentionCount >= matchEntity.mentionCount 
+                ? entity.id 
+                : match.graphVertexId;
+              const duplicateId = canonicalId === entity.id 
+                ? match.graphVertexId 
+                : entity.id;
+              
+              // Merge entities
+              const mergeResult = await mergeEntities(duplicateId, canonicalId);
+              
+              if (mergeResult.success) {
+                stats.duplicatesMerged++;
+                stats.relationshipsRedirected += mergeResult.relationshipsRedirected || 0;
+                stats.impactsRedirected += mergeResult.impactsRedirected || 0;
+                
+                // Mark both as processed
+                processed.add(duplicateId);
+                processed.add(canonicalId);
+                
+                console.log(`Merged duplicate: ${duplicateId} -> ${canonicalId} (similarity: ${(match.similarity * 100).toFixed(1)}%)`);
+              } else {
+                stats.errors.push({
+                  duplicateId,
+                  canonicalId,
+                  error: mergeResult.error
+                });
+              }
+              
+              // Break after first merge to avoid multiple merges
+              break;
+            }
+          }
+        }
+        
+        // Mark as processed if not merged
+        if (!processed.has(entity.id)) {
+          processed.add(entity.id);
+        }
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        stats.errors.push({
+          entityId: entity.id,
+          error: error.message
+        });
+        console.warn(`Error processing entity ${entity.id}:`, error.message);
+      }
+    }
+    
+    // Sort potential duplicates by similarity (highest first)
+    stats.potentialDuplicates.sort((a, b) => b.similarity - a.similarity);
+    
+    console.log(`Post-processing complete: ${stats.duplicatesMerged} duplicates merged, ${stats.potentialDuplicates.length} potential duplicates found for review`);
+    return stats;
+  } catch (error) {
+    console.error(`Post-processing deduplication failed:`, error);
+    stats.errors.push({ error: error.message });
+    return stats;
+  }
+}
+
+/**
+ * Refine canonical names - use most common alias as canonical name
+ */
+async function refineCanonicalNames() {
+  const client = getGremlinClient();
+  const stats = {
+    entitiesProcessed: 0,
+    canonicalNamesUpdated: 0,
+    errors: []
+  };
+  
+  try {
+    const allEntities = await getAllEntitiesFromCosmos();
+    stats.entitiesProcessed = allEntities.length;
+    
+    for (const entity of allEntities) {
+      try {
+        const aliases = Array.isArray(entity.aliases) ? entity.aliases : [];
+        if (aliases.length === 0) continue;
+        
+        // Count mentions of each alias (simplified - use alias as key)
+        const aliasCounts = new Map();
+        for (const alias of aliases) {
+          // Normalize alias for counting
+          const normalized = alias.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+          aliasCounts.set(normalized, (aliasCounts.get(normalized) || 0) + 1);
+        }
+        
+        // Find most common alias
+        let mostCommonAlias = entity.canonicalName;
+        let maxCount = 0;
+        
+        for (const [alias, count] of aliasCounts.entries()) {
+          if (count > maxCount) {
+            maxCount = count;
+            mostCommonAlias = alias;
+          }
+        }
+        
+        // Update if different
+        if (mostCommonAlias !== entity.canonicalName) {
+          const newVertexId = `${entity.entityType}_${mostCommonAlias}`;
+          
+          // Check if new vertex ID already exists
+          const checkQuery = `g.V('${escapeGremlin(newVertexId)}')`;
+          const existing = await client.submit(checkQuery);
+          
+          if (!existing._items || existing._items.length === 0) {
+            // Update canonical name
+            const updateQuery = `
+              g.V('${escapeGremlin(entity.id)}')
+                .property('canonical_name', '${escapeGremlin(mostCommonAlias)}')
+                .property('last_updated', '${new Date().toISOString()}')
+            `;
+            await client.submit(updateQuery);
+            stats.canonicalNamesUpdated++;
+          }
+        }
+      } catch (error) {
+        stats.errors.push({
+          entityId: entity.id,
+          error: error.message
+        });
+        console.warn(`Failed to refine canonical name for ${entity.id}:`, error.message);
+      }
+    }
+    
+    return stats;
+  } catch (error) {
+    console.error(`Canonical name refinement failed:`, error);
+    stats.errors.push({ error: error.message });
+    return stats;
+  }
+}
+
+/**
+ * Validate entities appearing in multiple documents
+ */
+async function validateCrossDocumentEntities() {
+  const client = getGremlinClient();
+  const stats = {
+    entitiesProcessed: 0,
+    entitiesVerified: 0,
+    errors: []
+  };
+  
+  try {
+    const allEntities = await getAllEntitiesFromCosmos();
+    stats.entitiesProcessed = allEntities.length;
+    
+    for (const entity of allEntities) {
+      try {
+        // Count documents this entity appears in
+        // This is simplified - in reality, we'd track source_document properties
+        const documentCount = entity.mentionCount; // Use mention count as proxy
+        
+        if (documentCount >= 3) {
+          // Mark as verified
+          const updateQuery = `
+            g.V('${escapeGremlin(entity.id)}')
+              .property('is_verified', true)
+              .property('verification_date', '${new Date().toISOString()}')
+              .property('document_count', ${documentCount})
+              .property('last_updated', '${new Date().toISOString()}')
+          `;
+          await client.submit(updateQuery);
+          stats.entitiesVerified++;
+        }
+      } catch (error) {
+        stats.errors.push({
+          entityId: entity.id,
+          error: error.message
+        });
+        console.warn(`Failed to validate entity ${entity.id}:`, error.message);
+      }
+    }
+    
+    return stats;
+  } catch (error) {
+    console.error(`Cross-document validation failed:`, error);
+    stats.errors.push({ error: error.message });
+    return stats;
+  }
 }
 
 /**
@@ -1042,21 +2167,23 @@ async function processBatch(openAIEndpoint, openAIKey, searchEndpoint, searchKey
         extraction.entities
       );
 
-      // Save relationships to Cosmos DB
-      await saveRelationshipsToCosmos(
+      // Save relationships to Cosmos DB (with cross-chunk resolution)
+      const relStats = await saveRelationshipsToCosmos(
         extraction.relationships,
         savedEntities,
         chunk.documentId,
         chunk.id
       );
 
-      // Save impacts to Cosmos DB
-      const savedImpacts = await saveImpactsToCosmos(
+      // Save impacts to Cosmos DB (with cross-chunk edge resolution)
+      const impactResult = await saveImpactsToCosmos(
         extraction.impacts || [],
         savedEntities,
         chunk.documentId,
         chunk.id
       );
+      const savedImpacts = impactResult.savedImpacts;
+      const impactStats = impactResult.stats;
 
       // Index entities to Azure Search for semantic discovery
       const indexResult = await indexEntitiesToSearch(
@@ -1072,8 +2199,22 @@ async function processBatch(openAIEndpoint, openAIKey, searchEndpoint, searchKey
         documentId: chunk.documentId,
         entitiesExtracted: extraction.entities.length,
         relationshipsExtracted: extraction.relationships.length,
+        relationshipsCreated: relStats.created,
+        relationshipsResolved: relStats.resolvedViaGraph + relStats.resolvedViaSemantic,
+        relationshipsResolvedViaGraph: relStats.resolvedViaGraph,
+        relationshipsResolvedViaSemantic: relStats.resolvedViaSemantic,
+        relationshipsSkipped: relStats.skipped,
+        relationshipsSkippedDetails: relStats.skippedDetails,
         impactsExtracted: savedImpacts.length,
+        impactEdgesCreated: impactStats.policyEdgesCreated + impactStats.affectsEdgesCreated,
+        impactEdgesSkipped: impactStats.policyEdgesSkipped + impactStats.affectsEdgesSkipped,
+        impactEdgesResolvedViaGraph: impactStats.resolvedViaGraph,
+        impactEdgesResolvedViaSemantic: impactStats.resolvedViaSemantic,
+        impactEdgesSkippedDetails: impactStats.skippedDetails,
         entitiesIndexed: indexResult.indexed,
+        entitiesIndexSkipped: indexResult.skipped || 0,
+        entitiesIndexSkippedDetails: indexResult.skippedDetails || [],
+        entitiesIndexEmbeddingRetries: indexResult.embeddingRetries || 0,
         success: true,
       });
 
@@ -1126,7 +2267,7 @@ module.exports = async function (context, req) {
     }
 
     const { 
-      mode = 'single', // 'single' or 'batch'
+      mode = 'single', // 'single', 'batch', 'deduplicate', or 'backfill_relationships'
       text,
       documentId,
       chunkId,
@@ -1146,10 +2287,222 @@ module.exports = async function (context, req) {
     }
 
     if (!process.env.COSMOS_GREMLIN_ENDPOINT || !process.env.COSMOS_PRIMARY_KEY) {
-      throw new Error('Cosmos DB credentials not configured');
+      context.res = {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: 'Cosmos DB not configured - entity extraction unavailable', entities: [], relationships: [] }),
+      };
+      return;
     }
 
     const startTime = Date.now();
+
+    if (mode === 'deduplicate') {
+      // Post-processing deduplication mode
+      context.log('Starting post-processing deduplication...');
+      
+      const results = {
+        deduplication: null,
+        canonicalRefinement: null,
+        validation: null,
+        executionTime: 0
+      };
+      
+      try {
+        // Step 1: Post-processing deduplication
+        context.log('Step 1: Running deduplication pass...');
+        results.deduplication = await postProcessDeduplication();
+        
+        // Step 2: Canonical name refinement
+        context.log('Step 2: Refining canonical names...');
+        results.canonicalRefinement = await refineCanonicalNames();
+        
+        // Step 3: Cross-document validation
+        context.log('Step 3: Validating cross-document entities...');
+        results.validation = await validateCrossDocumentEntities();
+        
+        results.executionTime = Date.now() - startTime;
+        
+        context.log(`Post-processing complete in ${results.executionTime}ms`);
+        
+        context.res = {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: true,
+            ...results,
+            summary: {
+              duplicatesMerged: results.deduplication.duplicatesMerged,
+              canonicalNamesUpdated: results.canonicalRefinement.canonicalNamesUpdated,
+              entitiesVerified: results.validation.entitiesVerified,
+              potentialDuplicatesFound: results.deduplication.potentialDuplicates?.length || 0,
+              totalErrors: (results.deduplication.errors?.length || 0) + 
+                          (results.canonicalRefinement.errors?.length || 0) + 
+                          (results.validation.errors?.length || 0)
+            },
+            // Include potential duplicates for review (top 50 by similarity)
+            potentialDuplicates: (results.deduplication.potentialDuplicates || []).slice(0, 50)
+          }),
+        };
+        return;
+      } catch (error) {
+        context.log('Post-processing error:', error);
+        context.res = {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: false,
+            error: error.message,
+            partialResults: results,
+            executionTime: Date.now() - startTime
+          }),
+        };
+        return;
+      }
+    }
+
+    if (mode === 'backfill_relationships') {
+      // Backfill skipped relationships after all entities are in the graph.
+      // Accepts an array of { source, target, type, strength, evidence, documentId, chunkId }
+      // and retries resolution via graph lookup + semantic search.
+      context.log('Starting relationship backfill pass...');
+
+      const relationships = request.relationships || [];
+      const impactEdges = request.impactEdges || [];
+
+      if (relationships.length === 0 && impactEdges.length === 0) {
+        context.res = {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            success: true,
+            message: 'No skipped relationships or impact edges to backfill',
+            stats: { backfilled: 0, stillUnresolvable: 0, duplicatesSkipped: 0, errors: 0 },
+            impactStats: { backfilled: 0, stillUnresolvable: 0, errors: 0 },
+            executionTime: Date.now() - startTime,
+          }),
+        };
+        return;
+      }
+
+      const client = getGremlinClient();
+      const emptyEntityMap = new Map(); // no local map for backfill, rely on graph + semantic
+
+      const stats = {
+        total: relationships.length,
+        backfilled: 0,
+        stillUnresolvable: 0,
+        stillUnresolvableDetails: [],
+        duplicatesSkipped: 0,
+        errors: 0,
+      };
+
+      for (const rel of relationships) {
+        try {
+          const sourceResolution = await resolveEntityId(rel.source, emptyEntityMap, client);
+          const targetResolution = await resolveEntityId(rel.target, emptyEntityMap, client);
+
+          if (!sourceResolution || !targetResolution) {
+            const missingSide = !sourceResolution && !targetResolution ? 'both'
+              : !sourceResolution ? 'source' : 'target';
+            stats.stillUnresolvable++;
+            stats.stillUnresolvableDetails.push({
+              source: rel.source,
+              target: rel.target,
+              type: rel.type,
+              missingSide,
+            });
+            continue;
+          }
+
+          // Check for existing edge (avoid duplicates)
+          const checkQuery = `
+            g.V('${escapeGremlin(sourceResolution.id)}')
+              .outE('${escapeGremlin(rel.type)}')
+              .where(inV().hasId('${escapeGremlin(targetResolution.id)}'))
+          `;
+          const existing = await client.submit(checkQuery);
+
+          if (existing._items && existing._items.length > 0) {
+            stats.duplicatesSkipped++;
+            continue;
+          }
+
+          // Create the edge
+          const createQuery = `
+            g.V('${escapeGremlin(sourceResolution.id)}')
+              .addE('${escapeGremlin(rel.type)}')
+              .to(g.V('${escapeGremlin(targetResolution.id)}'))
+              .property('strength', ${rel.strength || 0.8})
+              .property('evidence', '${escapeGremlin(rel.evidence || '')}')
+              .property('source_document', '${escapeGremlin(rel.documentId || '')}')
+              .property('source_chunk', '${escapeGremlin(rel.chunkId || '')}')
+              .property('created_at', '${new Date().toISOString()}')
+              .property('backfilled', true)
+          `;
+          await client.submit(createQuery);
+          stats.backfilled++;
+        } catch (error) {
+          context.log(`Backfill error for ${rel.source} -> ${rel.target}: ${error.message}`);
+          stats.errors++;
+        }
+      }
+
+      // Backfill impact edges
+      const impactBackfillStats = {
+        total: impactEdges.length,
+        backfilled: 0,
+        stillUnresolvable: 0,
+        errors: 0,
+      };
+
+      for (const ie of impactEdges) {
+        try {
+          const entityResolution = await resolveEntityId(ie.missingEntity, emptyEntityMap, client);
+          if (!entityResolution) {
+            impactBackfillStats.stillUnresolvable++;
+            continue;
+          }
+
+          // Impact edges connect impact vertex <-> entity vertex
+          // The impact vertex ID and edge type come from the skipped details
+          if (ie.impactId && ie.edgeType) {
+            const impactCheckQuery = `g.V('${escapeGremlin(ie.impactId)}').id()`;
+            const impactExists = await client.submit(impactCheckQuery);
+
+            if (impactExists._items && impactExists._items.length > 0) {
+              const edgeQuery = ie.edgeType === 'has_impact'
+                ? `g.V('${escapeGremlin(entityResolution.id)}').addE('has_impact').to(g.V('${escapeGremlin(ie.impactId)}')).property('backfilled', true).property('created_at', '${new Date().toISOString()}')`
+                : `g.V('${escapeGremlin(ie.impactId)}').addE('affects').to(g.V('${escapeGremlin(entityResolution.id)}')).property('backfilled', true).property('created_at', '${new Date().toISOString()}')`;
+              await client.submit(edgeQuery);
+              impactBackfillStats.backfilled++;
+            } else {
+              impactBackfillStats.stillUnresolvable++;
+            }
+          } else {
+            impactBackfillStats.stillUnresolvable++;
+          }
+        } catch (error) {
+          context.log(`Impact backfill error for ${ie.missingEntity}: ${error.message}`);
+          impactBackfillStats.errors++;
+        }
+      }
+
+      context.log(`Backfill complete: ${stats.backfilled} relationships recovered, ${stats.stillUnresolvable} still unresolvable, ${stats.duplicatesSkipped} duplicates, ${stats.errors} errors`);
+      context.log(`Impact backfill: ${impactBackfillStats.backfilled} recovered, ${impactBackfillStats.stillUnresolvable} still unresolvable, ${impactBackfillStats.errors} errors`);
+
+      context.res = {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          success: true,
+          stats,
+          impactStats: impactBackfillStats,
+          executionTime: Date.now() - startTime,
+        }),
+      };
+      return;
+    }
 
     if (mode === 'batch') {
       // Batch processing mode
@@ -1209,12 +2562,33 @@ module.exports = async function (context, req) {
     );
 
     // Save relationships to Cosmos DB
-    await saveRelationshipsToCosmos(
+    const relationshipStats = await saveRelationshipsToCosmos(
       extraction.relationships,
       savedEntities,
       documentId,
       chunkId || 'manual'
     );
+
+    // Save impacts to Cosmos DB (was previously missing from single mode)
+    const emptyImpactStats = { policyEdgesCreated: 0, affectsEdgesCreated: 0, policyEdgesSkipped: 0, affectsEdgesSkipped: 0, resolvedViaGraph: 0, resolvedViaSemantic: 0, skippedDetails: [], errors: 0 };
+    let impactStats = emptyImpactStats;
+    if (extraction.impacts && extraction.impacts.length > 0) {
+      const impactResult = await saveImpactsToCosmos(
+        extraction.impacts,
+        savedEntities,
+        documentId,
+        chunkId || 'manual'
+      );
+      impactStats = impactResult.stats;
+    }
+
+    // Index entities to Azure AI Search for semantic discovery (was previously missing from single mode)
+    let indexedCount = 0;
+    try {
+      indexedCount = await indexEntitiesToSearch(extraction.entities, savedEntities, documentId);
+    } catch (indexErr) {
+      context.log(`Warning: Entity indexing failed (non-fatal): ${indexErr.message}`);
+    }
 
     context.res = {
       status: 200,
@@ -1222,8 +2596,12 @@ module.exports = async function (context, req) {
       body: JSON.stringify({
         entities: extraction.entities,
         relationships: extraction.relationships,
+        impacts: extraction.impacts || [],
         primaryTopics: extraction.primaryTopics,
         savedCount: savedEntities.length,
+        relationshipStats,
+        impactStats,
+        indexedCount,
         executionTime: Date.now() - startTime,
       }),
     };

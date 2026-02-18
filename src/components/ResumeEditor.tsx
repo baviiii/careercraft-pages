@@ -31,6 +31,10 @@ import {
   GripVertical,
   Award,
   Link as LinkIcon,
+  Languages,
+  Heart,
+  BookOpen,
+  Users,
 } from 'lucide-react';
 import { createPDFFromText, downloadPDF } from '@/lib/pdfService';
 
@@ -64,14 +68,72 @@ interface Education {
   highlights?: string[];
 }
 
+interface Certification {
+  id: string;
+  name: string;
+  issuer?: string;
+  date?: string;
+  expiryDate?: string;
+}
+
+interface Reference {
+  id: string;
+  name: string;
+  title?: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+  relationship?: string;
+}
+
+interface Language {
+  id: string;
+  language: string;
+  proficiency: string;
+}
+
+interface AwardType {
+  id: string;
+  title: string;
+  issuer?: string;
+  date?: string;
+  description?: string;
+}
+
+interface Volunteer {
+  id: string;
+  role: string;
+  organization: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+}
+
+interface Publication {
+  id: string;
+  title: string;
+  publisher?: string;
+  date?: string;
+  url?: string;
+  description?: string;
+}
+
 interface ResumeData {
   contact: ContactInfo;
   summary: string;
   experience: Experience[];
   education: Education[];
   skills: string[];
-  certifications?: string[];
+  // Optional sections
   projects?: { id: string; name: string; description: string; technologies: string[] }[];
+  certifications?: Certification[];
+  references?: Reference[];
+  languages?: Language[];
+  awards?: AwardType[];
+  volunteer?: Volunteer[];
+  publications?: Publication[];
 }
 
 interface ResumeEditorProps {
@@ -354,6 +416,192 @@ export function ResumeEditor({ initialContent, originalPdfData, resumeName, onSa
     }));
   };
 
+  // Certifications CRUD
+  const addCertification = () => {
+    const newCert: Certification = {
+      id: Date.now().toString(),
+      name: '',
+      issuer: '',
+      date: '',
+    };
+    setResumeData(prev => ({
+      ...prev,
+      certifications: [...(prev.certifications || []), newCert]
+    }));
+  };
+
+  const updateCertification = (id: string, field: keyof Certification, value: any) => {
+    setResumeData(prev => ({
+      ...prev,
+      certifications: (prev.certifications || []).map(cert =>
+        cert.id === id ? { ...cert, [field]: value } : cert
+      )
+    }));
+  };
+
+  const removeCertification = (id: string) => {
+    setResumeData(prev => ({
+      ...prev,
+      certifications: (prev.certifications || []).filter(cert => cert.id !== id)
+    }));
+  };
+
+  // References CRUD
+  const addReference = () => {
+    const newRef: Reference = {
+      id: Date.now().toString(),
+      name: '',
+      title: '',
+      company: '',
+      phone: '',
+      email: '',
+      relationship: '',
+    };
+    setResumeData(prev => ({
+      ...prev,
+      references: [...(prev.references || []), newRef]
+    }));
+  };
+
+  const updateReference = (id: string, field: keyof Reference, value: any) => {
+    setResumeData(prev => ({
+      ...prev,
+      references: (prev.references || []).map(ref =>
+        ref.id === id ? { ...ref, [field]: value } : ref
+      )
+    }));
+  };
+
+  const removeReference = (id: string) => {
+    setResumeData(prev => ({
+      ...prev,
+      references: (prev.references || []).filter(ref => ref.id !== id)
+    }));
+  };
+
+  // Languages CRUD
+  const addLanguage = () => {
+    const newLang: Language = {
+      id: Date.now().toString(),
+      language: '',
+      proficiency: 'Professional',
+    };
+    setResumeData(prev => ({
+      ...prev,
+      languages: [...(prev.languages || []), newLang]
+    }));
+  };
+
+  const updateLanguage = (id: string, field: keyof Language, value: any) => {
+    setResumeData(prev => ({
+      ...prev,
+      languages: (prev.languages || []).map(lang =>
+        lang.id === id ? { ...lang, [field]: value } : lang
+      )
+    }));
+  };
+
+  const removeLanguage = (id: string) => {
+    setResumeData(prev => ({
+      ...prev,
+      languages: (prev.languages || []).filter(lang => lang.id !== id)
+    }));
+  };
+
+  // Awards CRUD
+  const addAward = () => {
+    const newAward: AwardType = {
+      id: Date.now().toString(),
+      title: '',
+      issuer: '',
+      date: '',
+    };
+    setResumeData(prev => ({
+      ...prev,
+      awards: [...(prev.awards || []), newAward]
+    }));
+  };
+
+  const updateAward = (id: string, field: keyof AwardType, value: any) => {
+    setResumeData(prev => ({
+      ...prev,
+      awards: (prev.awards || []).map(award =>
+        award.id === id ? { ...award, [field]: value } : award
+      )
+    }));
+  };
+
+  const removeAward = (id: string) => {
+    setResumeData(prev => ({
+      ...prev,
+      awards: (prev.awards || []).filter(award => award.id !== id)
+    }));
+  };
+
+  // Volunteer CRUD
+  const addVolunteer = () => {
+    const newVol: Volunteer = {
+      id: Date.now().toString(),
+      role: '',
+      organization: '',
+      location: '',
+      startDate: '',
+      endDate: '',
+      current: false,
+    };
+    setResumeData(prev => ({
+      ...prev,
+      volunteer: [...(prev.volunteer || []), newVol]
+    }));
+  };
+
+  const updateVolunteer = (id: string, field: keyof Volunteer, value: any) => {
+    setResumeData(prev => ({
+      ...prev,
+      volunteer: (prev.volunteer || []).map(vol =>
+        vol.id === id ? { ...vol, [field]: value } : vol
+      )
+    }));
+  };
+
+  const removeVolunteer = (id: string) => {
+    setResumeData(prev => ({
+      ...prev,
+      volunteer: (prev.volunteer || []).filter(vol => vol.id !== id)
+    }));
+  };
+
+  // Publications CRUD
+  const addPublication = () => {
+    const newPub: Publication = {
+      id: Date.now().toString(),
+      title: '',
+      publisher: '',
+      date: '',
+      url: '',
+    };
+    setResumeData(prev => ({
+      ...prev,
+      publications: [...(prev.publications || []), newPub]
+    }));
+  };
+
+  const updatePublication = (id: string, field: keyof Publication, value: any) => {
+    setResumeData(prev => ({
+      ...prev,
+      publications: (prev.publications || []).map(pub =>
+        pub.id === id ? { ...pub, [field]: value } : pub
+      )
+    }));
+  };
+
+  const removePublication = (id: string) => {
+    setResumeData(prev => ({
+      ...prev,
+      publications: (prev.publications || []).filter(pub => pub.id !== id)
+    }));
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -443,28 +691,54 @@ export function ResumeEditor({ initialContent, originalPdfData, resumeName, onSa
         {/* Editor Panel */}
         <div className={`flex-1 overflow-y-auto p-4 ${showPreview ? 'border-r' : ''}`}>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-5 w-full mb-4">
-              <TabsTrigger value="contact" className="gap-2">
-                <User className="w-4 h-4" />
-                <span className="hidden sm:inline">Contact</span>
-              </TabsTrigger>
-              <TabsTrigger value="summary" className="gap-2">
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">Summary</span>
-              </TabsTrigger>
-              <TabsTrigger value="experience" className="gap-2">
-                <Briefcase className="w-4 h-4" />
-                <span className="hidden sm:inline">Experience</span>
-              </TabsTrigger>
-              <TabsTrigger value="education" className="gap-2">
-                <GraduationCap className="w-4 h-4" />
-                <span className="hidden sm:inline">Education</span>
-              </TabsTrigger>
-              <TabsTrigger value="skills" className="gap-2">
-                <Wrench className="w-4 h-4" />
-                <span className="hidden sm:inline">Skills</span>
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto mb-4">
+              <TabsList className="inline-flex flex-nowrap w-max min-w-full">
+                <TabsTrigger value="contact" className="gap-2 flex-shrink-0">
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">Contact</span>
+                </TabsTrigger>
+                <TabsTrigger value="summary" className="gap-2 flex-shrink-0">
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">Summary</span>
+                </TabsTrigger>
+                <TabsTrigger value="experience" className="gap-2 flex-shrink-0">
+                  <Briefcase className="w-4 h-4" />
+                  <span className="hidden sm:inline">Experience</span>
+                </TabsTrigger>
+                <TabsTrigger value="education" className="gap-2 flex-shrink-0">
+                  <GraduationCap className="w-4 h-4" />
+                  <span className="hidden sm:inline">Education</span>
+                </TabsTrigger>
+                <TabsTrigger value="skills" className="gap-2 flex-shrink-0">
+                  <Wrench className="w-4 h-4" />
+                  <span className="hidden sm:inline">Skills</span>
+                </TabsTrigger>
+                <TabsTrigger value="certifications" className="gap-2 flex-shrink-0">
+                  <Award className="w-4 h-4" />
+                  <span className="hidden sm:inline">Certifications</span>
+                </TabsTrigger>
+                <TabsTrigger value="references" className="gap-2 flex-shrink-0">
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">References</span>
+                </TabsTrigger>
+                <TabsTrigger value="languages" className="gap-2 flex-shrink-0">
+                  <Languages className="w-4 h-4" />
+                  <span className="hidden sm:inline">Languages</span>
+                </TabsTrigger>
+                <TabsTrigger value="awards" className="gap-2 flex-shrink-0">
+                  <Award className="w-4 h-4" />
+                  <span className="hidden sm:inline">Awards</span>
+                </TabsTrigger>
+                <TabsTrigger value="volunteer" className="gap-2 flex-shrink-0">
+                  <Heart className="w-4 h-4" />
+                  <span className="hidden sm:inline">Volunteer</span>
+                </TabsTrigger>
+                <TabsTrigger value="publications" className="gap-2 flex-shrink-0">
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">Publications</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Contact Tab */}
             <TabsContent value="contact" className="space-y-4">
@@ -792,6 +1066,541 @@ export function ResumeEditor({ initialContent, originalPdfData, resumeName, onSa
                   Click on a skill to remove it. Press Enter to add new skills.
                 </p>
               </Card>
+            </TabsContent>
+
+            {/* Certifications Tab */}
+            <TabsContent value="certifications" className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Award className="w-4 h-4" />
+                  Certifications
+                </h3>
+                <Button onClick={addCertification} size="sm" variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Certification
+                </Button>
+              </div>
+
+              <AnimatePresence>
+                {(resumeData.certifications || []).map((cert) => (
+                  <motion.div
+                    key={cert.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-medium">Certification</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeCertification(cert.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium mb-1 block">Certification Name *</label>
+                          <Input
+                            value={cert.name}
+                            onChange={(e) => updateCertification(cert.id, 'name', e.target.value)}
+                            placeholder="AWS Certified Solutions Architect"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Issuing Organization</label>
+                          <Input
+                            value={cert.issuer || ''}
+                            onChange={(e) => updateCertification(cert.id, 'issuer', e.target.value)}
+                            placeholder="Amazon Web Services"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Date Obtained</label>
+                          <Input
+                            value={cert.date || ''}
+                            onChange={(e) => updateCertification(cert.id, 'date', e.target.value)}
+                            placeholder="January 2024"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Expiry Date (Optional)</label>
+                          <Input
+                            value={cert.expiryDate || ''}
+                            onChange={(e) => updateCertification(cert.id, 'expiryDate', e.target.value)}
+                            placeholder="January 2027"
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {(resumeData.certifications || []).length === 0 && (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <Award className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No certifications added yet</p>
+                  <p className="text-sm">Click "Add Certification" to get started</p>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* References Tab */}
+            <TabsContent value="references" className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Professional References
+                </h3>
+                <Button onClick={addReference} size="sm" variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Reference
+                </Button>
+              </div>
+
+              <AnimatePresence>
+                {(resumeData.references || []).map((ref) => (
+                  <motion.div
+                    key={ref.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-medium">Reference</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeReference(ref.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Full Name *</label>
+                          <Input
+                            value={ref.name}
+                            onChange={(e) => updateReference(ref.id, 'name', e.target.value)}
+                            placeholder="John Smith"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Job Title</label>
+                          <Input
+                            value={ref.title || ''}
+                            onChange={(e) => updateReference(ref.id, 'title', e.target.value)}
+                            placeholder="Senior Manager"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Company</label>
+                          <Input
+                            value={ref.company || ''}
+                            onChange={(e) => updateReference(ref.id, 'company', e.target.value)}
+                            placeholder="Tech Corp"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Phone</label>
+                          <Input
+                            value={ref.phone || ''}
+                            onChange={(e) => updateReference(ref.id, 'phone', e.target.value)}
+                            placeholder="(555) 123-4567"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Email</label>
+                          <Input
+                            value={ref.email || ''}
+                            onChange={(e) => updateReference(ref.id, 'email', e.target.value)}
+                            placeholder="john@example.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Relationship</label>
+                          <Input
+                            value={ref.relationship || ''}
+                            onChange={(e) => updateReference(ref.id, 'relationship', e.target.value)}
+                            placeholder="Former supervisor"
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {(resumeData.references || []).length === 0 && (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No references added yet</p>
+                  <p className="text-sm">Click "Add Reference" to get started</p>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Languages Tab */}
+            <TabsContent value="languages" className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Languages className="w-4 h-4" />
+                  Languages
+                </h3>
+                <Button onClick={addLanguage} size="sm" variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Language
+                </Button>
+              </div>
+
+              <AnimatePresence>
+                {(resumeData.languages || []).map((lang) => (
+                  <motion.div
+                    key={lang.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-medium">Language</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeLanguage(lang.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Language *</label>
+                          <Input
+                            value={lang.language}
+                            onChange={(e) => updateLanguage(lang.id, 'language', e.target.value)}
+                            placeholder="Spanish"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Proficiency Level</label>
+                          <select
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                            value={lang.proficiency}
+                            onChange={(e) => updateLanguage(lang.id, 'proficiency', e.target.value)}
+                          >
+                            <option value="Native">Native</option>
+                            <option value="Fluent">Fluent</option>
+                            <option value="Professional">Professional Working Proficiency</option>
+                            <option value="Intermediate">Intermediate</option>
+                            <option value="Basic">Basic</option>
+                          </select>
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {(resumeData.languages || []).length === 0 && (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <Languages className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No languages added yet</p>
+                  <p className="text-sm">Click "Add Language" to get started</p>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Awards Tab */}
+            <TabsContent value="awards" className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Award className="w-4 h-4" />
+                  Awards & Honors
+                </h3>
+                <Button onClick={addAward} size="sm" variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Award
+                </Button>
+              </div>
+
+              <AnimatePresence>
+                {(resumeData.awards || []).map((award) => (
+                  <motion.div
+                    key={award.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-medium">Award</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAward(award.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium mb-1 block">Award Title *</label>
+                          <Input
+                            value={award.title}
+                            onChange={(e) => updateAward(award.id, 'title', e.target.value)}
+                            placeholder="Employee of the Year"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Issuing Organization</label>
+                          <Input
+                            value={award.issuer || ''}
+                            onChange={(e) => updateAward(award.id, 'issuer', e.target.value)}
+                            placeholder="Company Name"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Date Received</label>
+                          <Input
+                            value={award.date || ''}
+                            onChange={(e) => updateAward(award.id, 'date', e.target.value)}
+                            placeholder="December 2023"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium mb-1 block">Description (Optional)</label>
+                          <Textarea
+                            value={award.description || ''}
+                            onChange={(e) => updateAward(award.id, 'description', e.target.value)}
+                            placeholder="Brief description of the award and why it was received"
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {(resumeData.awards || []).length === 0 && (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <Award className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No awards added yet</p>
+                  <p className="text-sm">Click "Add Award" to get started</p>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Volunteer Tab */}
+            <TabsContent value="volunteer" className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Heart className="w-4 h-4" />
+                  Volunteer Experience
+                </h3>
+                <Button onClick={addVolunteer} size="sm" variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Volunteer Work
+                </Button>
+              </div>
+
+              <AnimatePresence>
+                {(resumeData.volunteer || []).map((vol) => (
+                  <motion.div
+                    key={vol.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-medium">Volunteer Position</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeVolunteer(vol.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Role *</label>
+                          <Input
+                            value={vol.role}
+                            onChange={(e) => updateVolunteer(vol.id, 'role', e.target.value)}
+                            placeholder="Volunteer Coordinator"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Organization *</label>
+                          <Input
+                            value={vol.organization}
+                            onChange={(e) => updateVolunteer(vol.id, 'organization', e.target.value)}
+                            placeholder="Local Food Bank"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Location</label>
+                          <Input
+                            value={vol.location || ''}
+                            onChange={(e) => updateVolunteer(vol.id, 'location', e.target.value)}
+                            placeholder="San Francisco, CA"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={vol.current || false}
+                            onChange={(e) => updateVolunteer(vol.id, 'current', e.target.checked)}
+                            className="rounded"
+                          />
+                          <label className="text-sm font-medium">Currently volunteering here</label>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Start Date</label>
+                          <Input
+                            value={vol.startDate || ''}
+                            onChange={(e) => updateVolunteer(vol.id, 'startDate', e.target.value)}
+                            placeholder="January 2022"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">End Date</label>
+                          <Input
+                            value={vol.endDate || ''}
+                            onChange={(e) => updateVolunteer(vol.id, 'endDate', e.target.value)}
+                            placeholder="Present"
+                            disabled={vol.current}
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium mb-1 block">Description</label>
+                          <Textarea
+                            value={vol.description || ''}
+                            onChange={(e) => updateVolunteer(vol.id, 'description', e.target.value)}
+                            placeholder="Describe your volunteer work and impact"
+                            rows={3}
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {(resumeData.volunteer || []).length === 0 && (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <Heart className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No volunteer experience added yet</p>
+                  <p className="text-sm">Click "Add Volunteer Work" to get started</p>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Publications Tab */}
+            <TabsContent value="publications" className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  Publications
+                </h3>
+                <Button onClick={addPublication} size="sm" variant="outline">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Publication
+                </Button>
+              </div>
+
+              <AnimatePresence>
+                {(resumeData.publications || []).map((pub) => (
+                  <motion.div
+                    key={pub.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                  >
+                    <Card className="p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-medium">Publication</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removePublication(pub.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium mb-1 block">Title *</label>
+                          <Input
+                            value={pub.title}
+                            onChange={(e) => updatePublication(pub.id, 'title', e.target.value)}
+                            placeholder="Research Paper Title"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Publisher/Journal</label>
+                          <Input
+                            value={pub.publisher || ''}
+                            onChange={(e) => updatePublication(pub.id, 'publisher', e.target.value)}
+                            placeholder="Journal Name"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Publication Date</label>
+                          <Input
+                            value={pub.date || ''}
+                            onChange={(e) => updatePublication(pub.id, 'date', e.target.value)}
+                            placeholder="March 2024"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium mb-1 block">URL (Optional)</label>
+                          <Input
+                            value={pub.url || ''}
+                            onChange={(e) => updatePublication(pub.id, 'url', e.target.value)}
+                            placeholder="https://doi.org/..."
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-sm font-medium mb-1 block">Description (Optional)</label>
+                          <Textarea
+                            value={pub.description || ''}
+                            onChange={(e) => updatePublication(pub.id, 'description', e.target.value)}
+                            placeholder="Brief description of the publication"
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {(resumeData.publications || []).length === 0 && (
+                <Card className="p-8 text-center text-muted-foreground">
+                  <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No publications added yet</p>
+                  <p className="text-sm">Click "Add Publication" to get started</p>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>

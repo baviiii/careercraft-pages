@@ -104,11 +104,17 @@ export async function runATSAIAnalysis(
   return data.analysis;
 }
 
+export interface RewriteResult {
+  result: string;
+  warning?: string;
+  recoveredSections?: string[];
+}
+
 export async function autoRewriteResume(
   resumeText: string,
   jobDescription: string,
   analysisContext?: ATSAIAnalysis
-): Promise<string> {
+): Promise<RewriteResult> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
@@ -132,14 +138,18 @@ export async function autoRewriteResume(
   }
 
   const data = await response.json();
-  return data.result;
+  return {
+    result: data.result,
+    warning: data.warning,
+    recoveredSections: data.recoveredSections,
+  };
 }
 
 export async function rewriteExperienceSection(
   resumeText: string,
   jobDescription: string,
   analysisContext?: ATSAIAnalysis
-): Promise<string> {
+): Promise<RewriteResult> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
@@ -163,7 +173,11 @@ export async function rewriteExperienceSection(
   }
 
   const data = await response.json();
-  return data.result;
+  return {
+    result: data.result,
+    warning: data.warning,
+    recoveredSections: data.recoveredSections,
+  };
 }
 
 export async function generateAchievements(
@@ -228,12 +242,18 @@ export async function generateSummaries(
   return data.result;
 }
 
+export interface StructuredRewriteResult {
+  result: any;
+  warning?: string;
+  recoveredSections?: string[];
+}
+
 // Enhanced rewrite that returns structured data for builder resumes
 export async function rewriteResumeStructured(
   resumeData: any,
   jobDescription: string,
   analysisContext?: ATSAIAnalysis
-): Promise<any> {
+): Promise<StructuredRewriteResult> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
@@ -257,5 +277,9 @@ export async function rewriteResumeStructured(
   }
 
   const data = await response.json();
-  return data.result;
+  return {
+    result: data.result,
+    warning: data.warning,
+    recoveredSections: data.recoveredSections,
+  };
 }

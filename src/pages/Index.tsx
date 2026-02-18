@@ -386,9 +386,9 @@ const Index = memo(() => {
   const { scrollY } = useScroll();
   const deferredSession = useDeferredValue(session);
   
-  // Parallax transforms - optimized
-  const heroY = useTransform(scrollY, [0, 500], [0, 150]);
-  const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
+  // Parallax transforms - dead zone before any effect kicks in
+  const heroY = useTransform(scrollY, [150, 700], [0, 150]);
+  const heroOpacity = useTransform(scrollY, [250, 650], [1, 0]);
   const navBg = useTransform(scrollY, [0, 100], ["rgba(255,255,255,0)", "rgba(255,255,255,0.9)"]);
 
   useEffect(() => {
@@ -861,6 +861,23 @@ const Index = memo(() => {
                       />
                       <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                       Get Started Free
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </motion.div>
+
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      onClick={() => navigate("/try")}
+                      className="w-full sm:w-auto relative bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 bg-[length:200%_100%] hover:bg-[position:100%_0] text-white shadow-2xl shadow-purple-500/30 px-6 sm:px-10 py-5 sm:py-7 text-base sm:text-lg rounded-2xl transition-all duration-500 group overflow-hidden font-bold"
+                    >
+                      <motion.span
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                        animate={{ x: ['-100%', '100%'] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
+                      />
+                      <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                      Try Us Free
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                     </Button>
                   </motion.div>

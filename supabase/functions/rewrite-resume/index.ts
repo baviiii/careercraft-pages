@@ -33,15 +33,19 @@ serve(async (req) => {
     let userPrompt = "";
 
     if (type === "bullet") {
-      systemPrompt = `You are an expert ATS resume writer. Your task is to rewrite resume bullet points to be ATS-friendly and achievement-focused. 
+      systemPrompt = `You are a human job applicant rewriting a single bullet point on your own resume.
+You write plainly and specifically, like a real person describing work they actually did.
 
-Key requirements:
-- Start with strong action verbs (Led, Developed, Increased, Reduced, etc.)
-- Include quantifiable metrics and results (%, $, numbers)
-- Use keywords from the job description naturally
-- Keep it concise (1-2 lines max)
-- Focus on impact and achievements, not just duties
-- Use past tense for previous roles`;
+Rules:
+- 8-22 words max. Max one comma.
+- Start with what was done, then the tool/tech used, then result (optional).
+- Prefer natural verbs: "set up", "worked on", "built", "helped with", "maintained", "wrote", "configured"
+- Avoid: architected, spearheaded, orchestrated, leveraged, revolutionized, cutting-edge
+- Include at least one concrete noun (language, framework, service, database, platform).
+- Results can be approximate: "~20 users", "around 30%"
+- Use past tense for previous roles.
+- Do NOT make it sound like marketing copy. Plain and specific.
+- FORBIDDEN: results-driven, passionate about, proven track record, innovative solutions, synergy`;
 
       userPrompt = `Job Description Keywords: ${jobDescription.split(/\s+/).slice(0, 50).join(" ")}
 
@@ -130,15 +134,23 @@ ${jobDescription}
 Write a tailored cover letter for this job application. Use specific achievements and metrics from the resume. Make it compelling and unique. Maximum 400 words.`;
     } else {
       // Full resume optimization
-      systemPrompt = `You are an expert ATS resume optimizer. Rewrite the entire resume to be ATS-friendly while maintaining the person's unique voice and achievements.
+      systemPrompt = `You are a human job applicant rewriting your own resume.
+You are NOT a career coach, NOT a marketer, and NOT an AI assistant.
+You write plainly, conservatively, and slightly imperfectly, like a real person describing work they actually did.
 
-Key requirements:
-- Use keywords from the job description naturally throughout
-- Quantify all achievements with metrics
-- Start bullets with strong action verbs
-- Optimize section headers for ATS
-- Keep format simple and clean
-- Focus on impact and results`;
+WRITING RULES:
+- Bullet points only in experience section. Each bullet: 8-22 words max. Max one comma.
+- No two consecutive bullets may start with the same verb.
+- Every bullet must include at least one concrete noun (language, framework, cloud service, database, platform).
+- Prefer: "worked on", "helped build", "maintained", "set up", "handled", "wrote", "configured"
+- Avoid: architected, spearheaded, enterprise-grade, world-class, cutting-edge, orchestrated, revolutionized
+- Use approximate numbers: "~20 users", "around 30%"
+- Not every bullet should sound equally strong. Some should be shorter and simpler.
+- Do NOT use: results-driven, passionate about, proven track record, dynamic team player, innovative solutions, synergy
+- Use keywords from the job description naturally but only where truthful.
+- Keep all sections from the original. Do NOT drop certifications, projects, references, languages, or awards.
+- Do NOT fabricate achievements, metrics, certifications, or skills.
+- Use standard section headers for ATS: Experience, Education, Skills, Certifications, Projects.`;
 
       userPrompt = `Job Description:
 ${jobDescription}
@@ -146,7 +158,7 @@ ${jobDescription}
 Current Resume:
 ${text}
 
-Optimize this entire resume for the job description. Maintain the structure but enhance content with keywords and quantifiable achievements.`;
+Rewrite this resume with plain, human language. Keep every section from the original. Use job description keywords where they fit naturally. Do not add fake information. Return the complete rewritten resume.`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

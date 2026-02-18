@@ -204,7 +204,7 @@ async function callAzureFunction<T = unknown>(
 }
 
 export async function callRAGMetadata<T = unknown>(
-  type: 'stats' | 'documents' | 'categories' | 'search' | 'bulk' | 'semantic-search',
+  type: 'stats' | 'documents' | 'categories' | 'search' | 'bulk' | 'semantic-search' | 'fetch-tables',
   options: {
     filters?: {
       category?: string;
