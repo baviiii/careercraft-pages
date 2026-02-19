@@ -214,12 +214,15 @@ function GuestIntelligenceDashboard() {
         }
       }
 
-      // Ingest agentic answer + sources into context — deduplicate by message fingerprint
+      // Ingest agentic answer + sources into context — deduplicate by content fingerprint
+      // The ingestAgenticResult merge logic handles inflation prevention:
+      //   - Same confidence: keeps existing value (no inflation)
+      //   - Higher confidence: upgrades (table data replacing text data)
       const answer = typeof last.content === 'string' ? last.content : '';
       const rawSources = last.sources || [];
-      const msgKey = `${tab}:${answer.length}:${rawSources.length}`;
-      if ((answer || rawSources.length > 0) && !ingestedMsgs.current.has(msgKey)) {
-        ingestedMsgs.current.add(msgKey);
+      const contentKey = `${tab}:${answer.substring(0, 200)}:${rawSources.length}`;
+      if ((answer || rawSources.length > 0) && !ingestedMsgs.current.has(contentKey)) {
+        ingestedMsgs.current.add(contentKey);
         ingestAgenticResult(tab as IntelligenceTab, { answer, sources: rawSources });
       }
     }

@@ -20,9 +20,6 @@
 
 const gremlin = require('gremlin');
 
-// Request context for logging (set by HTTP handler so context.log appears in Azure Log stream)
-let _requestContext = null;
-
 // Cosmos DB Gremlin connection
 let gremlinClient = null;
 
@@ -433,15 +430,6 @@ async function generateEmbedding(openAIEndpoint, openAIKey, text) {
  */
 async function extractEntities(openAIEndpoint, openAIKey, text, documentId, chunkId) {
   const chatDeployment = process.env.AZURE_OPENAI_CHAT_DEPLOYMENT || 'gpt-4o-mini';
-  // #region agent log
-  (function () {
-    const preview = (text && typeof text === 'string') ? text.substring(0, 150).replace(/\s+/g, ' ') : '';
-    const payload = { location: 'entity-extraction/index.js:extractEntities', message: 'chunk content', data: { textLength: (text && text.length) || 0, textPreview: preview, documentId: documentId, chunkId: chunkId }, timestamp: Date.now(), hypothesisId: 'H5' };
-    const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
-    if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
-    fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
-  })();
-  // #endregion
 
   const response = await fetch(
     `${openAIEndpoint}/openai/deployments/${chatDeployment}/chat/completions?api-version=2024-02-15-preview`,
@@ -503,17 +491,6 @@ async function extractEntities(openAIEndpoint, openAIKey, text, documentId, chun
     const keys = Object.keys(extraction).filter(k => !['entities', 'relationships', 'primaryTopics', 'impacts'].includes(k));
     if (keys.length > 0) console.log(`Extraction top-level keys (check for alternate impact key): ${keys.join(', ')}`);
   }
-
-  // #region agent log
-  (function () {
-    const rawKey = extraction.impacts?.length > 0 ? 'impacts' : (extraction.Impacts ? 'Impacts' : (extraction.policy_impacts ? 'policy_impacts' : 'none'));
-    const argsPreview = (toolCall && toolCall.function && toolCall.function.arguments) ? toolCall.function.arguments.substring(0, 400) : '';
-    const payload = { location: 'entity-extraction/index.js:extractEntities', message: 'extraction impacts after normalize', data: { impactCount: extraction.impacts.length, rawKeyFound: rawKey, allTopLevelKeys: Object.keys(extraction), toolArgsPreview: argsPreview }, timestamp: Date.now(), hypothesisId: 'H1_H4' };
-    const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
-    if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
-    fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
-  })();
-  // #endregion
 
   return extraction;
 }
@@ -1561,14 +1538,6 @@ async function aggregateImpactsAfterMerge(duplicateVertexId, canonicalVertexId) 
  */
 async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) {
   const emptyResult = { savedImpacts: [], stats: { policyEdgesCreated: 0, affectsEdgesCreated: 0, policyEdgesSkipped: 0, affectsEdgesSkipped: 0, resolvedViaGraph: 0, resolvedViaSemantic: 0, skippedDetails: [], errors: 0 } };
-  // #region agent log
-  (function () {
-    const payload = { location: 'entity-extraction/index.js:saveImpactsToCosmos', message: 'entry', data: { impactsLength: (impacts && impacts.length) || 0, documentId: documentId, chunkId: chunkId }, timestamp: Date.now(), hypothesisId: 'H3' };
-    const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
-    if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
-    fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
-  })();
-  // #endregion
   if (!impacts || impacts.length === 0) return emptyResult;
 
   const client = getGremlinClient();
@@ -1591,10 +1560,12 @@ async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) 
       // Generate unique impact ID
       const impactId = `impact_${impact.policyId}_${impact.affectedEntity}_${impact.impactType}_${Date.now()}`.substring(0, 100);
 
-      // Create impact vertex (always created -- data is never lost)
+      // Create impact vertex (always created -- data is never lost).
+      // Cosmos graph partition key is /entity_type (see cosmos-graph.bicep); must set entity_type so partition key is non-null.
       const createQuery = `
         g.addV('impact')
           .property('id', '${escapeGremlin(impactId)}')
+          .property('entity_type', 'impact')
           .property('partitionKey', 'impact')
           .property('policy_id', '${escapeGremlin(impact.policyId || '')}')
           .property('policy_name', '${escapeGremlin(impact.policyName || impact.policyId || '')}')
@@ -1681,14 +1652,6 @@ async function saveImpactsToCosmos(impacts, savedEntities, documentId, chunkId) 
     } catch (error) {
       console.warn(`Failed to save impact:`, error.message);
       stats.errors++;
-      // #region agent log
-      (function () {
-        const payload = { location: 'entity-extraction/index.js:saveImpactsToCosmos', message: 'per-impact catch', data: { errorMessage: (error && error.message) || String(error), impactPolicyId: (impact && impact.policyId) || null }, timestamp: Date.now(), hypothesisId: 'H3' };
-        const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
-        if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
-        fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
-      })();
-      // #endregion
     }
   }
 
@@ -2227,14 +2190,6 @@ async function processBatch(openAIEndpoint, openAIKey, searchEndpoint, searchKey
       );
 
       // Save impacts to Cosmos DB (with cross-chunk edge resolution)
-      // #region agent log
-      (function () {
-        const payload = { location: 'entity-extraction/index.js:processBatch', message: 'before saveImpactsToCosmos', data: { extractionImpactsLength: (extraction.impacts || []).length, chunkId: chunk.id, documentId: chunk.documentId }, timestamp: Date.now(), hypothesisId: 'H2' };
-        const msg = '[IMPACT_DEBUG] ' + JSON.stringify(payload);
-        if (_requestContext && _requestContext.log) _requestContext.log(msg); else console.log(msg);
-        fetch('http://127.0.0.1:7242/ingest/707c8159-fd06-4bc7-bd8b-5aef67d915f9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(function () {});
-      })();
-      // #endregion
       const impactResult = await saveImpactsToCosmos(
         extraction.impacts || [],
         savedEntities,
@@ -2315,7 +2270,6 @@ module.exports = async function (context, req) {
   }
 
   context.log('Entity Extraction request received');
-  _requestContext = context;
 
   let requestMode = 'single'; // so outer catch can return 200 for deduplicate
   try {
@@ -2698,7 +2652,5 @@ module.exports = async function (context, req) {
         error: errMsg,
       }),
     };
-  } finally {
-    _requestContext = null;
   }
 };

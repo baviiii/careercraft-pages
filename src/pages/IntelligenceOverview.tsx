@@ -68,14 +68,15 @@ const item = {
 };
 
 // Sector keyword map for extracting sector from document content/titles
+// Infrastructure first (includes transport) so it matches budget sector; Construction is building/housing only
 const SECTOR_KEYWORDS: Record<string, string[]> = {
+  'Infrastructure': ['infrastructure', 'transport', 'roads', 'rail', 'capital works', 'corridor', 'logistics', 'aviation', 'shipping'],
   'Healthcare': ['health', 'hospital', 'medical', 'nursing', 'pharmaceutical', 'clinical', 'doctor'],
   'Education': ['education', 'school', 'university', 'teacher', 'training', 'learning', 'academic', 'student'],
   'Technology': ['technology', 'software', 'digital', 'IT', 'cyber', 'data science', 'artificial intelligence', 'tech'],
-  'Construction': ['construction', 'building', 'infrastructure', 'housing', 'property'],
+  'Construction': ['construction', 'building', 'housing', 'property'],
   'Energy': ['energy', 'renewable', 'solar', 'wind', 'electricity', 'mining', 'oil', 'gas'],
   'Agriculture': ['agriculture', 'farming', 'agri', 'food production', 'livestock'],
-  'Transport': ['transport', 'logistics', 'rail', 'road', 'shipping', 'aviation'],
   'Defence': ['defence', 'defense', 'military', 'security', 'naval'],
   'Government': ['government', 'public service', 'administration', 'budget', 'policy', 'treasury'],
   'Social Services': ['social', 'welfare', 'community', 'disability', 'aged care', 'childcare'],

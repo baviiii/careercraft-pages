@@ -169,32 +169,69 @@ Produce 3-5 strategic insights with cross-cutting relevance.`,
 🟩 FISCAL INTELLIGENCE — FUNDING ANALYSIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Act as a fiscal intelligence analyst.
+You are a government fiscal intelligence analyst working strictly with real source material.
 
-ANALYSE funding data to identify:
-• Year-over-year changes (growth, decline, flat)
-• Reallocations between sectors
-• Concentration vs dispersion of spending
-• Real vs nominal growth where possible
-• Program funding cycles (new, ongoing, sunset)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 ABSOLUTE RULES (NON-NEGOTIABLE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-INFER from funding movements:
-• Policy intent behind allocations
-• Trade-offs being made
-• Areas under future pressure
-• Emerging priority signals
+1. DO NOT invent, infer, estimate, or assume any dollar amounts.
+2. DO NOT fabricate missing fields — omit them instead.
+3. Extract data from BOTH structured formats (tables) AND natural language text.
+4. If you see phrases like "allocated $1.9 billion" or "investment of $453 million", extract that data.
+5. Include ALL sectors mentioned with funding amounts, even if only one field is available.
+6. Use the CURRENT YEAR allocation, not multi-year totals, when both are stated.
 
-SURFACE:
-• Which areas are quietly being prioritized
-• Where funding is being reduced or flattened
-• Pressure points and risk areas
-• Programs with sunset clauses or one-off funding
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 SIGNALS TO EXTRACT (ANY that exist)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Frame funding as a SIGNAL of government priorities, not just numbers.
+- Sector name (e.g. Health, Infrastructure, Education, Defence, Energy, Housing, Transport, Technology, Environment, Tourism, Arts, Sport, Justice, Agriculture, Skills)
+- Budget allocation amount (exact dollar figure — e.g. $1.9 billion, $453 million)
+- Year-on-year change percentage (e.g. +5.2%, -3.1%)
+- Number of programs or initiatives mentioned for this sector
+- Key programs (names of specific funded programs)
+- Whether funding is new, ongoing, or ending (sunset)
 
-Extract specific amounts where available (millions/billions).
-Identify year-over-year percentage changes.
-Note any funding tied to federal initiatives.`,
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 EXTRACTION STRATEGY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pass 1: Sectors with explicit dollar allocations in tables
+Pass 2: Sectors with dollar amounts mentioned in text
+Pass 3: Sectors with percentage changes or growth figures
+Pass 4: Any additional sectors with at least ONE quantitative signal
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 TARGET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Extract EVERY sector with a dollar amount from the sources.
+- Aim for 8+ sectors minimum.
+- Include sectors even with partial data (amount only, or change only).
+- Prioritize the 2024-25 budget year allocation over multi-year totals.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📤 OUTPUT FORMAT (STRICT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Budget allocations (if any):**
+First, output structured sector records in this EXACT format:
+
+Sector: Health | Amount: $1.9 billion | Change: +5.2% | Programs: 4 | Status: ongoing
+Sector: Infrastructure | Amount: $6.8 billion | Change: +12.1% | Programs: 8 | Status: ongoing
+Sector: Education | Amount: $453 million | Change: +3.1% | Programs: 3 | Status: new
+Sector: Defence | Amount: $2.4 billion | Programs: 2 | Status: ongoing
+
+(One line per sector. Omit any field not found in sources. Omit the entire block if no budget data found.)
+
+**After the structured records**, provide your fiscal intelligence analysis:
+• What do the funding movements signal about government priorities?
+• Which areas are being quietly prioritized or defunded?
+• What are the key trade-offs and pressure points?
+• Note any funding tied to federal initiatives.
+
+Frame funding as a SIGNAL of government priorities, not just numbers.`,
 
   careers: `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -369,13 +406,14 @@ export const SEMANTIC_QUERIES: Record<IntelligenceTab, {
     filters: { documentType: "all" },
   },
   funding: {
-    primary: `Provide fiscal intelligence on South Australia government budgets 2024-25: Analyze budget allocations, funding programs, year-over-year changes, and sector reallocations. Extract specific dollar amounts in millions or billions, percentage changes, program names, and funding cycles. Identify priority shifts, sunset programs, new investments, and emerging investment areas across Health, Infrastructure, Education, Energy, Housing, Defence, and Technology.`,
+    primary: `Extract South Australia government budget allocations 2024-25 by sector. From SA budget papers, agency statements, and fiscal documents: identify EVERY sector with a dollar amount. Cover Health, Infrastructure (including Transport in SA budget), Education, Energy, Housing, Defence, Technology, Environment, Tourism, Arts, Sport, Justice, Agriculture, Skills/Training. Extract ONLY explicitly stated amounts — do not estimate. For each sector found, output ONE structured record: "Sector: [name] | Amount: $[X] [billion/million] | Change: [+/-X%] | Programs: [N] | Status: [new/ongoing/sunset]" — omit any field not explicitly stated. Then provide fiscal intelligence analysis of funding movements, priority shifts, and strategic signals.`,
     secondary: [
-      "Which SA sectors received the largest funding increases or decreases in 2024-25?",
-      "What new programs launched and what programs are ending or receiving one-off funding in SA?",
-      "Where is SA government funding being quietly reduced or flattened compared to prior years?",
+      "What are the exact dollar allocations for Health, Infrastructure, Education, Defence, Energy, and Housing in the SA 2024-25 budget?",
+      "Which SA sectors received the largest funding increases or decreases in 2024-25 and by what percentage?",
+      "What new programs launched and what programs are ending or receiving one-off funding in SA 2024-25?",
     ],
-    filters: { category: "budget" },
+    // No category filter — budget tables live in agency statements, fiscal docs, etc.; category eq 'budget' was too restrictive and returned too few chunks (~$7.9B). Search across all docs so we get full allocation tables.
+    filters: { documentType: "all" },
   },
   careers: {
     primary: `Extract South Australia workforce and employment data 2024-25. From SA government workforce reports, budget papers, skills shortage lists, and TAFE SA documents: identify occupations with explicit growth percentages, job vacancy counts, salary ranges, and demand levels. Cover Healthcare, Technology/ICT, Construction, Education, Energy, Defence, Agriculture, Engineering, Finance, and Public Administration. Extract ONLY explicitly stated numbers — do not estimate or infer. Output structured records: "Occupation: [name]\nSector: [sector]\nGrowth: [%]\nJob Count: [number]\nDemand: [High/Medium/Low]\nSalary: [range]\nRegion: [location]" — omit any field not explicitly stated in source. Target 30+ occupations.`,

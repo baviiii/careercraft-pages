@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 /**
@@ -26,8 +23,6 @@ import {
 import { exportConversationToPDF } from "@/lib/pdfExport";
 import {
   Send,
-  Bot,
-  User,
   Sparkles,
   FileText,
   ExternalLink,
@@ -37,7 +32,6 @@ import {
   Check,
   Loader2,
   MessageSquare,
-  Lightbulb,
   RefreshCw,
   ChevronDown,
   Brain,
@@ -45,7 +39,6 @@ import {
   Download,
   TrendingUp,
   BarChart3,
-  Clock,
   Star,
   AlertCircle,
   CheckCircle2,
@@ -56,13 +49,8 @@ import {
   GraduationCap,
   Target,
   Briefcase,
+  Lightbulb,
 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -115,12 +103,6 @@ interface SuggestedQuestion {
   popular?: boolean;
 }
 
-interface ConversationStats {
-  totalMessages: number;
-  totalTokens: number;
-  avgResponseTime: number;
-  helpfulCount: number;
-}
 
 interface PromptOption {
   id: string;
@@ -367,6 +349,7 @@ export default function CareerCoach() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSources, setShowSources] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [viewMode, setViewMode] = useState<"chat" | "insights">("chat");
   const [focusArea, setFocusArea] = useState<string>("careers");
   const [ragMode, setRagMode] = useState<RAGMode>("agentic");
   const [promptOptions, setPromptOptions] = useState<PromptOption[]>([]);
@@ -451,15 +434,6 @@ export default function CareerCoach() {
     return persona.getFollowUps(lastAssistant.content);
   }, [messages, persona]);
 
-  const conversationStats: ConversationStats = useMemo(() => {
-    const totalMessages = messages.filter(m => !m.isLoading && !m.isStreaming).length;
-    const totalTokens = messages.reduce((sum, m) => sum + (m.tokens || 0), 0);
-    const avgResponseTime = analytics.avgResponseTime;
-    const helpfulCount = messages.filter(m => m.rating === "helpful").length;
-
-    return { totalMessages, totalTokens, avgResponseTime, helpfulCount };
-  }, [messages, analytics]);
-
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -535,530 +509,523 @@ export default function CareerCoach() {
   return (
     <div className={cn(
       "flex flex-col transition-all duration-300",
-      isExpanded ? "h-[calc(100vh-100px)]" : "h-[calc(100vh-200px)] min-h-[600px]"
+      isExpanded ? "h-[calc(100vh-40px)]" : "h-[calc(100vh-80px)] min-h-[780px]"
     )}>
-      {/* Premium Header — persona-aware */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <motion.div 
-              key={focusArea}
-              className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl", `bg-gradient-to-br ${persona.gradient}`)}
-              initial={{ scale: 0.8, rotate: -10 }}
-              animate={{ scale: 1, rotate: 0 }}
-              whileHover={{ scale: 1.05, rotate: 3 }}
-              transition={{ type: "spring", stiffness: 400 }}
-            >
-              <PersonaIcon className="w-6 h-6 text-white" />
-            </motion.div>
-            <motion.div 
-              className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              <Zap className="w-3 h-3 text-white" />
-            </motion.div>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white">Horus</h2>
-              <motion.div key={persona.name} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }}>
-                <Badge className={cn("text-[10px] font-semibold", `bg-gradient-to-r ${persona.gradient} bg-clip-padding border-white/20 text-white`)}>
-                  <PersonaIcon className="w-3 h-3 mr-1 inline" />
-                  {persona.name}
-                </Badge>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          GOD-TIER CHAT CONTAINER
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col bg-black rounded-2xl border border-white/10 overflow-hidden min-h-0 shadow-2xl">
+
+        {/* ── Command Bar ── */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/8">
+          {/* Left: Identity */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <motion.div
+                key={focusArea}
+                className={cn("w-10 h-10 rounded-xl flex items-center justify-center", `bg-gradient-to-br ${persona.gradient}`)}
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 400 }}
+              >
+                <PersonaIcon className="w-5 h-5 text-white" />
               </motion.div>
-              {isStreaming && (
-                <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] animate-pulse">
-                  Thinking...
-                </Badge>
-              )}
+              {/* Pulse ring */}
+              <motion.div
+                className={cn("absolute inset-0 rounded-xl", `bg-gradient-to-br ${persona.gradient}`)}
+                animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0, 0.3] }}
+                transition={{ duration: 3, repeat: Infinity }}
+                style={{ zIndex: -1 }}
+              />
             </div>
-            <motion.p key={persona.subtitle} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-slate-400 mt-0.5">
-              {persona.subtitle}
-            </motion.p>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold text-white tracking-tight">HORUS</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Online
-              </span>
-              <span className="text-xs text-slate-500">54+ documents</span>
-              {analytics.cacheHitRate > 0 && (
-                <span className="text-xs text-slate-500">{Math.round(analytics.cacheHitRate * 100)}% cached</span>
-              )}
-            </div>
-            {/* Focus Area Selector */}
-            {promptOptions.length > 1 && (
-              <div className="mt-2">
-                <Select
-                  value={focusArea}
-                  onValueChange={setFocusArea}
-                  disabled={loadingPrompts || isStreaming}
-                >
-                  <SelectTrigger className="w-[200px] h-8 bg-white/5 backdrop-blur-xl border border-white/10 text-white text-xs rounded-lg hover:bg-white/10 hover:border-purple-400/40 transition-all">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-3 h-3 text-purple-400" />
-                      <SelectValue>
-                        {promptOptions.find(p => p.focus_area === focusArea)?.name || 'Focus area...'}
-                      </SelectValue>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl">
-                    {promptOptions.map((prompt) => (
-                      <SelectItem 
-                        key={prompt.id} 
-                        value={prompt.focus_area}
-                        className="text-white hover:bg-purple-500/20 focus:bg-purple-500/20 rounded-lg mx-1 my-0.5 cursor-pointer text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{prompt.name}</span>
-                          {prompt.is_default && (
-                            <Badge className="bg-purple-500/20 text-purple-300 border-0 text-[9px] px-1.5 py-0">default</Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
+              <p className="text-[11px] text-white/40">{persona.subtitle}</p>
+            </div>
+          </div>
+
+          {/* Center: Persona pill tabs */}
+          <div className="hidden md:flex items-center gap-1 bg-white/5 rounded-xl p-1">
+            {promptOptions.length > 1 ? (
+              promptOptions.map((p) => {
+                const pPersona = getPersona(p.focus_area);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setFocusArea(p.focus_area)}
+                    disabled={isStreaming}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                      focusArea === p.focus_area
+                        ? cn("text-white shadow-md", `bg-gradient-to-r ${pPersona.gradient}`)
+                        : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                    )}
+                  >
+                    {p.name}
+                  </button>
+                );
+              })
+            ) : (
+              ['careers', 'analyst', 'funding', 'skills'].map((key) => {
+                const pPersona = getPersona(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setFocusArea(key)}
+                    disabled={isStreaming}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
+                      focusArea === key
+                        ? cn("text-white shadow-md", `bg-gradient-to-r ${pPersona.gradient}`)
+                        : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                    )}
+                  >
+                    {pPersona.name}
+                  </button>
+                );
+              })
             )}
           </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {/* RAG Mode Selector - Compare Cosmos vs Neo4j */}
-          <Select value={ragMode} onValueChange={(value: RAGMode) => setRagMode(value)} disabled={isStreaming || loadingPrompts}>
-            <SelectTrigger className={cn(
-              "w-[160px] h-9 text-xs font-medium transition-all",
-              ragMode === "neo4j"
-                ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-400/50 text-green-300"
-                : ragMode === "agentic"
-                  ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-400/50 text-purple-300"
-                  : "bg-blue-500/10 border-blue-400/30 text-blue-300"
-            )}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700">
-              <SelectItem value="hybrid" className="text-blue-300 focus:bg-blue-500/20">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-3 h-3" />
-                  <span>Hybrid RAG</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="agentic" className="text-purple-300 focus:bg-purple-500/20">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-3 h-3" />
-                  <span>Agentic (Cosmos)</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="neo4j" className="text-green-300 focus:bg-green-500/20">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-3 h-3" />
-                  <span>Neo4j Graph</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
 
-          {messages.length > 0 && (
-            <>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleExportPDF}
-                      className="text-slate-400 hover:text-white"
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Export conversation</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearChat}
-                      className="text-slate-400 hover:text-white"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      New Chat
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Start new conversation</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </>
-          )}
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-slate-400 hover:text-white"
+          {/* Right: View toggle + Actions */}
+          <div className="flex items-center gap-1">
+            {/* Chat / Insights toggle */}
+            {messages.length > 0 && (
+              <div className="flex items-center bg-white/5 rounded-lg p-0.5 mr-2">
+                <button
+                  onClick={() => setViewMode("chat")}
+                  className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all", viewMode === "chat" ? "bg-white/10 text-white" : "text-white/35 hover:text-white/60")}
                 >
-                  {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isExpanded ? "Minimize" : "Expand"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+                  Chat
+                </button>
+                <button
+                  onClick={() => setViewMode("insights")}
+                  className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all", viewMode === "insights" ? "bg-white/10 text-white" : "text-white/35 hover:text-white/60")}
+                >
+                  Insights
+                </button>
+              </div>
+            )}
+            {messages.length > 0 && (
+              <>
+                <button onClick={handleExportPDF} className="p-2 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/5 transition-all" title="Export PDF">
+                  <Download className="w-4 h-4" />
+                </button>
+                <button onClick={clearChat} className="p-2 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/5 transition-all" title="New chat">
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            <button onClick={() => setIsExpanded(!isExpanded)} className="p-2 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/5 transition-all" title={isExpanded ? "Minimize" : "Expand"}>
+              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Sleek Stats Strip */}
-      {messages.length > 0 && (
-        <div className="flex items-center gap-4 mb-3 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
-            <MessageSquare className="w-3 h-3 text-blue-400" />
-            {conversationStats.totalMessages} msgs
-          </span>
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
-            <Clock className="w-3 h-3 text-teal-400" />
-            {Math.round(conversationStats.avgResponseTime)}ms avg
-          </span>
-          {conversationStats.helpfulCount > 0 && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <ThumbsUp className="w-3 h-3" />
-              {conversationStats.helpfulCount}
-            </span>
-          )}
-          {conversationStats.totalTokens > 0 && (
-            <span className="text-xs text-slate-500 ml-auto">{conversationStats.totalTokens.toLocaleString()} tokens</span>
-          )}
-        </div>
-      )}
-
-      {/* Chat Container */}
-      <Card className="flex-1 flex flex-col bg-gradient-to-br from-pink-950/60 via-purple-950/50 to-fuchsia-950/40 backdrop-blur-xl border border-pink-500/20 rounded-2xl overflow-hidden min-h-0 shadow-2xl shadow-pink-500/10">
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 flex flex-col min-h-0">
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 min-h-0">
-              {messages.length === 0 ? (
-                /* Premium Welcome State */
-                <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                  {/* Animated Hero — persona-aware */}
-                  <motion.div
-                    key={focusArea + "-hero"}
-                    initial={{ scale: 0, rotate: -10 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                    className="relative mb-6"
-                  >
-                    <div className={cn("w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl", `bg-gradient-to-br ${persona.gradient}`)}>
-                      <PersonaIcon className="w-10 h-10 text-white" />
-                    </div>
-                    <motion.div
-                      className="absolute inset-0 rounded-3xl border-2 border-white/20"
-                      animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
-                      transition={{ duration: 2.5, repeat: Infinity }}
-                    />
-                  </motion.div>
-
-                  <motion.h3
-                    key={persona.welcomeTitle}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-2xl font-bold text-white mb-1"
-                  >
-                    {persona.welcomeTitle}
-                  </motion.h3>
-                  <motion.p
-                    key={persona.welcomeDescription}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-sm text-slate-400 max-w-lg mb-6"
-                  >
-                    {persona.welcomeDescription}
-                  </motion.p>
-
-                  {/* Capability Pills */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="flex flex-wrap items-center justify-center gap-2 mb-8"
-                  >
-                    {[
-                      { icon: FileText, label: "Document Analysis", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
-                      { icon: Brain, label: "Multi-step Reasoning", color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
-                      { icon: AlertCircle, label: "Contradiction Detection", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-                      { icon: TrendingUp, label: "Career Insights", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-                    ].map((cap, i) => (
-                      <motion.span
-                        key={cap.label}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.5 + i * 0.08 }}
-                        className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border", cap.color)}
-                      >
-                        <cap.icon className="w-3 h-3" />
-                        {cap.label}
-                      </motion.span>
-                    ))}
-                  </motion.div>
-                  
-                  {/* Suggested Questions */}
-                  <div className="w-full max-w-3xl">
-                    <p className="text-xs text-pink-300/60 mb-4 uppercase tracking-widest font-semibold">Suggested questions</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {persona.suggestedQuestions.map((q, i) => (
-                        <motion.button
-                          key={i}
-                          initial={{ opacity: 0, y: 15 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.6 + i * 0.07 }}
-                          onClick={() => sendMessage(q.text)}
-                          className="group flex items-center gap-3.5 p-4 rounded-2xl bg-gradient-to-br from-pink-500/10 via-purple-500/8 to-fuchsia-500/10 hover:from-pink-500/20 hover:via-purple-500/15 hover:to-fuchsia-500/20 border border-pink-400/20 hover:border-pink-400/40 text-left transition-all hover:shadow-lg hover:shadow-pink-500/10 hover:scale-[1.02]"
-                        >
-                          {q.icon && (
-                            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-pink-500/25 to-purple-500/25 flex items-center justify-center shrink-0 group-hover:from-pink-500/40 group-hover:to-purple-500/40 transition-all shadow-inner">
-                              <q.icon className="w-5 h-5 text-pink-300" />
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[15px] leading-snug text-white/90 group-hover:text-white transition-colors line-clamp-2 font-medium">
-                              {q.text}
-                            </span>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className="text-[11px] text-pink-300/50 font-medium">{q.category}</span>
-                              {q.popular && (
-                                <span className="text-[11px] text-amber-300/80 flex items-center gap-0.5">
-                                  <Star className="w-3 h-3 fill-amber-300/80" />
-                                  Popular
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronDown className="w-5 h-5 text-pink-400/40 -rotate-90 group-hover:text-pink-300 transition-colors shrink-0" />
-                        </motion.button>
-                      ))}
-                    </div>
+        {viewMode === "insights" && messages.length > 0 ? (
+          /* ═══ INSIGHTS PANEL ═══ */
+          <div className="flex-1 overflow-y-auto min-h-0 p-6 space-y-6">
+            {/* Conversation Overview */}
+            <div>
+              <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-4">Conversation Overview</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: "Messages", value: messages.filter(m => !m.isLoading).length, color: "text-blue-400" },
+                  { label: "Sources Cited", value: messages.reduce((sum, m) => sum + (m.sources?.length || 0), 0), color: "text-purple-400" },
+                  { label: "Avg Response", value: `${Math.round(analytics.avgResponseTime)}ms`, color: "text-emerald-400" },
+                  { label: "Tokens Used", value: messages.reduce((sum, m) => sum + (m.tokens || 0), 0).toLocaleString(), color: "text-amber-400" },
+                ].map((stat) => (
+                  <div key={stat.label} className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <p className={cn("text-2xl font-bold", stat.color)}>{stat.value}</p>
+                    <p className="text-xs text-white/30 mt-1">{stat.label}</p>
                   </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Topics Discussed */}
+            <div>
+              <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">Topics Discussed</h3>
+              <div className="flex flex-wrap gap-2">
+                {(() => {
+                  const userMsgs = messages.filter(m => m.role === "user").map(m => m.content.toLowerCase());
+                  const topics = new Set<string>();
+                  const keywords = [
+                    ["career", "job", "employment", "occupation"], ["salary", "pay", "wage", "income"],
+                    ["health", "hospital", "medical", "nursing"], ["education", "training", "tafe", "university"],
+                    ["budget", "funding", "allocation", "investment"], ["infrastructure", "transport", "road", "construction"],
+                    ["skill", "workforce", "demand"], ["interview", "application", "resume"],
+                    ["energy", "renewable", "hydrogen"], ["housing", "affordable", "home"],
+                    ["technology", "digital", "cyber", "ai"], ["defence", "naval", "shipbuilding"],
+                  ];
+                  const labels = ["Careers", "Salaries", "Healthcare", "Education", "Budget", "Infrastructure", "Skills", "Interviews", "Energy", "Housing", "Technology", "Defence"];
+                  userMsgs.forEach(msg => {
+                    keywords.forEach((kws, i) => { if (kws.some(k => msg.includes(k))) topics.add(labels[i]); });
+                  });
+                  if (topics.size === 0) topics.add("General");
+                  return Array.from(topics).map(topic => (
+                    <span key={topic} className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/[0.05] border border-white/[0.08] text-white/60">{topic}</span>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* Sources Used */}
+            <div>
+              <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">Sources Referenced</h3>
+              <div className="space-y-2">
+                {(() => {
+                  const sourceMap = new Map<string, { count: number; pages: Set<number> }>();
+                  messages.forEach(m => {
+                    m.sources?.forEach(s => {
+                      const key = s.title || "Unknown";
+                      const existing = sourceMap.get(key) || { count: 0, pages: new Set() };
+                      existing.count++;
+                      if (s.pageNumber) existing.pages.add(s.pageNumber);
+                      sourceMap.set(key, existing);
+                    });
+                  });
+                  const sorted = Array.from(sourceMap.entries()).sort((a, b) => b[1].count - a[1].count);
+                  if (sorted.length === 0) return <p className="text-xs text-white/20">No sources cited yet.</p>;
+                  return sorted.slice(0, 10).map(([title, data]) => (
+                    <div key={title} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                      <FileText className="w-4 h-4 text-white/20 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white/70 truncate">{title}</p>
+                        <p className="text-[11px] text-white/25">
+                          Referenced {data.count}x{data.pages.size > 0 ? ` · Pages: ${Array.from(data.pages).sort((a,b) => a-b).join(", ")}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+
+            {/* Key Findings */}
+            <div>
+              <h3 className="text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">Key Findings</h3>
+              <div className="space-y-2">
+                {messages.filter(m => m.role === "assistant" && !m.isLoading && m.content.length > 50).slice(-5).map((m, i) => {
+                  const firstSentence = m.content.replace(/\*\*/g, "").split(/[.!?]\s/)[0];
+                  return (
+                    <div key={i} className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                      <p className="text-sm text-white/60 line-clamp-2">{firstSentence}.</p>
+                      {m.confidence && (
+                        <span className={cn("text-[10px] mt-1 inline-block px-2 py-0.5 rounded",
+                          m.confidence === "high" ? "bg-emerald-500/10 text-emerald-400" :
+                          m.confidence === "medium" ? "bg-blue-500/10 text-blue-400" :
+                          "bg-amber-500/10 text-amber-400"
+                        )}>{m.confidence} confidence</span>
+                      )}
+                    </div>
+                  );
+                })}
+                {messages.filter(m => m.role === "assistant" && !m.isLoading && m.content.length > 50).length === 0 && (
+                  <p className="text-xs text-white/20">No findings yet. Start a conversation to see insights.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+        <>
+        {/* ── Messages / Welcome ── */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {messages.length === 0 ? (
+            /* ═══ CINEMATIC WELCOME STATE ═══ */
+            <div className="h-full flex flex-col items-center justify-center px-6 py-10">
+              {/* Orbital hero */}
+              <motion.div
+                key={focusArea + "-orb"}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 150, damping: 20 }}
+                className="relative mb-8"
+              >
+                {/* Outer ring */}
+                <motion.div
+                  className="absolute inset-[-20px] rounded-full border border-white/5"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+                >
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-pink-500/60" />
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-1.5 h-1.5 rounded-full bg-purple-500/40" />
+                </motion.div>
+                {/* Middle ring */}
+                <motion.div
+                  className="absolute inset-[-12px] rounded-full border border-white/8"
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                >
+                  <div className="absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-cyan-500/50" />
+                </motion.div>
+                {/* Core icon */}
+                <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl relative z-10", `bg-gradient-to-br ${persona.gradient}`)}>
+                  <PersonaIcon className="w-8 h-8 text-white" />
                 </div>
-              ) : (
-                /* Enhanced Messages */
-                <div className="space-y-6 pb-4">
-                  <AnimatePresence mode="popLayout">
-                    {messages.map((message, msgIdx) => (
-                      <motion.div
-                        key={message.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                      >
-                        {message.role === "assistant" && (
-                          <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-lg mt-1", `bg-gradient-to-br ${persona.gradient}`)}>
-                            <PersonaIcon className="w-4 h-4 text-white" />
-                          </div>
-                        )}
-                        
-                        <div className={`max-w-[80%] ${message.role === "user" ? "order-first" : ""}`}>
-                          <div
-                            className={cn(
-                              "rounded-2xl px-5 py-4",
-                              message.role === "user"
-                                ? cn("text-white shadow-lg", `bg-gradient-to-r ${persona.gradient}`)
-                                : "bg-gradient-to-br from-pink-500/10 via-purple-500/8 to-fuchsia-500/10 border border-pink-400/20 text-white/95"
-                            )}
-                          >
-                            {message.isLoading ? (
-                              <div className="flex items-center gap-3 py-1">
-                                <div className="flex gap-1.5">
-                                  <motion.span className="w-2.5 h-2.5 rounded-full bg-purple-400" animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0 }} />
-                                  <motion.span className="w-2.5 h-2.5 rounded-full bg-pink-400" animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }} />
-                                  <motion.span className="w-2.5 h-2.5 rounded-full bg-fuchsia-400" animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }} />
+              </motion.div>
+
+              {/* Title */}
+              <motion.h2
+                key={persona.welcomeTitle}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="text-3xl font-bold text-white mb-2 tracking-tight text-center"
+              >
+                {persona.welcomeTitle}
+              </motion.h2>
+
+              {/* Live stats ticker */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="flex items-center gap-4 mb-8 text-white/30 text-xs"
+              >
+                <span className="flex items-center gap-1.5">
+                  <FileText className="w-3 h-3" />
+                  54 documents analyzed
+                </span>
+                <span className="w-1 h-1 rounded-full bg-white/20" />
+                <span className="flex items-center gap-1.5">
+                  <Brain className="w-3 h-3" />
+                  Multi-step reasoning
+                </span>
+                <span className="w-1 h-1 rounded-full bg-white/20" />
+                <span className="flex items-center gap-1.5">
+                  <Zap className="w-3 h-3" />
+                  Real-time analysis
+                </span>
+              </motion.div>
+
+              {/* 3 Large prompt cards */}
+              <div className="w-full max-w-2xl space-y-3">
+                {persona.suggestedQuestions.slice(0, 3).map((q, i) => (
+                  <motion.button
+                    key={q.text}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 + i * 0.1 }}
+                    onClick={() => sendMessage(q.text)}
+                    className="group w-full flex items-center gap-4 p-5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-white/15 text-left transition-all duration-200"
+                  >
+                    {q.icon && (
+                      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all", `bg-gradient-to-br ${persona.gradient} shadow-lg`)}>
+                        <q.icon className="w-5 h-5 text-white" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[17px] text-white font-medium leading-snug">{q.text}</p>
+                      <p className="text-xs text-white/30 mt-1">{q.category}{q.popular ? ' · Popular' : ''}</p>
+                    </div>
+                    <ChevronDown className="w-5 h-5 text-white/15 -rotate-90 group-hover:text-white/40 group-hover:translate-x-1 transition-all shrink-0" />
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* More questions — smaller pills */}
+              {persona.suggestedQuestions.length > 3 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.8 }}
+                  className="flex flex-wrap justify-center gap-2 mt-5 max-w-2xl"
+                >
+                  {persona.suggestedQuestions.slice(3).map((q, i) => (
+                    <button
+                      key={q.text}
+                      onClick={() => sendMessage(q.text)}
+                      className="px-4 py-2 rounded-full text-xs text-white/40 hover:text-white/70 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/10 transition-all"
+                    >
+                      {q.text}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </div>
+          ) : (
+            /* ═══ MESSAGES ═══ */
+            <div className="px-6 py-6 space-y-1">
+              <AnimatePresence mode="popLayout">
+                {messages.map((message) => (
+                  <motion.div
+                    key={message.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="py-4"
+                  >
+                    {message.role === "user" ? (
+                      /* ── User message ── */
+                      <div className="flex justify-end">
+                        <div className={cn("max-w-[75%] rounded-2xl px-5 py-3.5 text-white text-[15px] leading-relaxed shadow-lg", `bg-gradient-to-r ${persona.gradient}`)}>
+                          {message.content}
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Assistant message ── */
+                      <div className="flex gap-3">
+                        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-1", `bg-gradient-to-br ${persona.gradient}`)}>
+                          <PersonaIcon className="w-3.5 h-3.5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {message.isLoading ? (
+                            /* Thinking indicator */
+                            <div className="py-2">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="h-[2px] w-32 rounded-full bg-white/5 overflow-hidden">
+                                  <motion.div
+                                    className={cn("h-full rounded-full", `bg-gradient-to-r ${persona.gradient}`)}
+                                    animate={{ x: ["-100%", "100%"] }}
+                                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                                    style={{ width: "50%" }}
+                                  />
                                 </div>
-                                <span className="text-sm text-pink-200/70">{persona.name} is reasoning...</span>
                               </div>
-                            ) : (
+                              <div className="flex items-center gap-2 text-xs text-white/30">
+                                <Brain className="w-3 h-3" />
+                                <motion.span
+                                  animate={{ opacity: [0.3, 1, 0.3] }}
+                                  transition={{ duration: 2, repeat: Infinity }}
+                                >
+                                  Analyzing documents...
+                                </motion.span>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Message content — clean, no box */}
                               <div
-                                className="prose prose-invert prose-sm max-w-none [&_strong]:text-pink-200 [&_strong]:font-semibold [&_li]:text-white/85 [&_p]:text-white/85 leading-relaxed text-[15px]"
+                                className="prose prose-invert max-w-none text-[15px] leading-[1.75] text-white/90 [&_strong]:text-white [&_strong]:font-semibold [&_li]:text-white/80 [&_p]:text-white/85"
                                 dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
                               />
-                            )}
-                          </div>
-                          
-                          {/* Source Citations */}
-                          {message.sources && message.sources.length > 0 && (
-                            <div className="mt-2">
-                              <button
-                                onClick={() => setShowSources(showSources === message.id ? null : message.id)}
-                                className="flex items-center gap-2 text-xs text-pink-300/50 hover:text-pink-200 transition-colors group"
-                              >
-                                <FileText className="w-3.5 h-3.5 group-hover:text-pink-300" />
-                                <span>{message.sources.length} source{message.sources.length > 1 ? "s" : ""} cited</span>
-                                <ChevronDown className={cn(
-                                  "w-3 h-3 transition-transform",
-                                  showSources === message.id && "rotate-180"
-                                )} />
-                              </button>
-                              
+
+                              {/* Inline source chips */}
+                              {message.sources && message.sources.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-3">
+                                  {message.sources.slice(0, 4).map((source, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() => setShowSources(showSources === message.id ? null : message.id)}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-[11px] text-white/40 hover:text-white/60 transition-all"
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      <span className="truncate max-w-[150px]">{source.title}</span>
+                                      {source.pageNumber && <span className="text-white/25">p.{source.pageNumber}</span>}
+                                    </button>
+                                  ))}
+                                  {message.sources.length > 4 && (
+                                    <button
+                                      onClick={() => setShowSources(showSources === message.id ? null : message.id)}
+                                      className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-[11px] text-white/40 hover:text-white/60 transition-all"
+                                    >
+                                      +{message.sources.length - 4} more
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Expanded sources */}
                               <AnimatePresence>
-                                {showSources === message.id && (
+                                {showSources === message.id && message.sources && (
                                   <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: "auto" }}
                                     exit={{ opacity: 0, height: 0 }}
-                                    className="mt-2 space-y-2 overflow-hidden"
+                                    className="mt-3 space-y-2 overflow-hidden"
                                   >
                                     {message.sources.map((source, idx) => {
                                       const relevance = source.relevance ? (source.relevance <= 1 ? Math.round(source.relevance * 100) : Math.round(source.relevance)) : 0;
                                       return (
-                                        <motion.div
-                                          key={idx}
-                                          initial={{ opacity: 0, x: -10 }}
-                                          animate={{ opacity: 1, x: 0 }}
-                                          transition={{ delay: idx * 0.05 }}
-                                          className="p-3 rounded-xl bg-pink-500/5 border border-pink-400/15 hover:border-pink-400/30 transition-all group/src"
-                                        >
-                                          <div className="flex items-start gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500/25 to-purple-500/25 flex items-center justify-center shrink-0">
-                                              <FileText className="w-3.5 h-3.5 text-pink-300" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                              <div className="flex items-center gap-2">
-                                                <p className="text-sm font-medium text-white truncate">{source.title}</p>
-                                                {source.url && (
-                                                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 shrink-0 opacity-0 group-hover/src:opacity-100 transition-opacity">
-                                                    <ExternalLink className="w-3.5 h-3.5" />
-                                                  </a>
-                                                )}
-                                              </div>
-                                              <div className="flex items-center gap-2 mt-1">
-                                                {source.pageNumber && (
-                                                  <span className="text-[10px] text-pink-300/80 bg-pink-500/15 px-1.5 py-0.5 rounded">p.{source.pageNumber}</span>
-                                                )}
-                                                {relevance > 0 && (
-                                                  <div className="flex items-center gap-1.5 flex-1">
-                                                    <div className="h-1 flex-1 max-w-[80px] rounded-full bg-pink-500/10 overflow-hidden">
-                                                      <motion.div
-                                                        className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
-                                                        initial={{ width: 0 }}
-                                                        animate={{ width: `${relevance}%` }}
-                                                        transition={{ delay: idx * 0.05 + 0.2, duration: 0.5 }}
-                                                      />
-                                                    </div>
-                                                    <span className="text-[10px] text-slate-500">{relevance}%</span>
-                                                  </div>
-                                                )}
-                                              </div>
-                                              {source.snippet && (
-                                                <p className="text-xs text-pink-100/40 mt-1.5 line-clamp-2 leading-relaxed">{source.snippet}</p>
+                                        <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                                          <FileText className="w-4 h-4 text-white/20 shrink-0 mt-0.5" />
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <p className="text-sm font-medium text-white/80 truncate">{source.title}</p>
+                                              {source.pageNumber && <span className="text-[10px] text-white/30 bg-white/5 px-1.5 py-0.5 rounded">p.{source.pageNumber}</span>}
+                                              {relevance > 0 && <span className="text-[10px] text-white/25">{relevance}% match</span>}
+                                              {source.url && (
+                                                <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-white/20 hover:text-white/50 ml-auto shrink-0">
+                                                  <ExternalLink className="w-3 h-3" />
+                                                </a>
                                               )}
                                             </div>
+                                            {source.snippet && <p className="text-xs text-white/30 mt-1 line-clamp-2">{source.snippet}</p>}
                                           </div>
-                                        </motion.div>
+                                        </div>
                                       );
                                     })}
                                   </motion.div>
                                 )}
                               </AnimatePresence>
-                            </div>
-                          )}
 
-                          {/* FERRARI FEATURES: Confidence, Charts, Insights, Follow-ups */}
-                          {message.role === "assistant" && !message.isLoading && (
-                            <>
-                              {/* AGENTIC MODE: Agent Plan Display */}
+                              {/* Agent Plan */}
                               {ragMode === "agentic" && (message as any).agentPlan && (
-                                <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-400/30">
+                                <div className="mt-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                                   <div className="flex items-center gap-2 mb-2">
-                                    <Brain className="w-4 h-4 text-purple-400" />
-                                    <span className="text-xs font-semibold text-purple-300">Agent Plan</span>
+                                    <Brain className="w-3.5 h-3.5 text-purple-400" />
+                                    <span className="text-xs font-semibold text-white/50">Reasoning Steps</span>
                                   </div>
                                   <div className="space-y-1">
                                     {(message as any).agentPlan.steps.map((step: any, idx: number) => (
-                                      <div key={idx} className="text-xs text-slate-400 flex items-center gap-2">
-                                        <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center text-[10px] font-semibold">
-                                          {step.step}
-                                        </span>
-                                        <span>{step.query}</span>
-                                        <Badge className="bg-purple-500/20 text-purple-300 border-0 text-[9px] ml-auto">
-                                          {step.method}
-                                        </Badge>
+                                      <div key={idx} className="text-xs text-white/40 flex items-center gap-2">
+                                        <span className="w-4 h-4 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center text-[9px] font-bold">{step.step}</span>
+                                        <span className="flex-1">{step.query}</span>
+                                        <span className="text-[9px] text-white/20 bg-white/5 px-1.5 py-0.5 rounded">{step.method}</span>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
                               )}
 
-                              {/* AGENTIC MODE: Graph Connections */}
+                              {/* Graph Connections */}
                               {ragMode === "agentic" && (message as any).graphConnections && (message as any).graphConnections.length > 0 && (
-                                <div className="mt-3 p-3 rounded-xl bg-blue-500/10 border border-blue-400/30">
+                                <div className="mt-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                                   <div className="flex items-center gap-2 mb-2">
-                                    <Zap className="w-4 h-4 text-blue-400" />
-                                    <span className="text-xs font-semibold text-blue-300">Graph Connections</span>
-                                    <Badge className="bg-blue-500/20 text-blue-300 border-0 text-[9px]">
-                                      {(message as any).graphConnections.length}
-                                    </Badge>
+                                    <Zap className="w-3.5 h-3.5 text-blue-400" />
+                                    <span className="text-xs font-semibold text-white/50">Graph Connections</span>
+                                    <span className="text-[9px] text-white/20 bg-white/5 px-1.5 py-0.5 rounded">{(message as any).graphConnections.length}</span>
                                   </div>
                                   <div className="space-y-1">
                                     {(message as any).graphConnections.slice(0, 3).map((conn: any, idx: number) => (
-                                      <div key={idx} className="text-xs text-slate-400">
-                                        <span className="text-blue-300">{conn.source}</span>
-                                        <span className="mx-2">→</span>
-                                        <span className="text-blue-300">{conn.target}</span>
-                                        <Badge className="bg-blue-500/20 text-blue-300 border-0 text-[9px] ml-2">
-                                          {conn.type}
-                                        </Badge>
+                                      <div key={idx} className="text-xs text-white/40">
+                                        <span className="text-blue-300/70">{conn.source}</span>
+                                        <span className="mx-2 text-white/15">→</span>
+                                        <span className="text-blue-300/70">{conn.target}</span>
+                                        <span className="text-[9px] text-white/20 ml-2">{conn.type}</span>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
                               )}
 
-                              {/* AGENTIC MODE: Contradictions */}
+                              {/* Contradictions */}
                               {ragMode === "agentic" && (message as any).contradictions && (message as any).contradictions.length > 0 && (
-                                <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-400/30">
+                                <div className="mt-3 p-3 rounded-xl bg-red-500/5 border border-red-500/15">
                                   <div className="flex items-center gap-2 mb-2">
-                                    <AlertCircle className="w-4 h-4 text-red-400" />
-                                    <span className="text-xs font-semibold text-red-300">Contradictions Detected</span>
-                                    <Badge className="bg-red-500/20 text-red-300 border-0 text-[9px]">
-                                      {(message as any).contradictions.length}
-                                    </Badge>
+                                    <AlertCircle className="w-3.5 h-3.5 text-red-400/70" />
+                                    <span className="text-xs font-semibold text-red-300/70">Contradictions</span>
                                   </div>
                                   <div className="space-y-2">
                                     {(message as any).contradictions.map((contra: any, idx: number) => (
-                                      <div key={idx} className="text-xs text-slate-400">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <Badge className={cn(
-                                            "text-[9px] border-0",
-                                            contra.severity === "high" ? "bg-red-500/30 text-red-300" :
-                                            contra.severity === "medium" ? "bg-yellow-500/30 text-yellow-300" :
-                                            "bg-orange-500/30 text-orange-300"
-                                          )}>
-                                            {contra.severity.toUpperCase()}
-                                          </Badge>
-                                          <span className="text-slate-500">{contra.type}</span>
-                                        </div>
-                                        <p className="text-slate-300">{contra.description}</p>
+                                      <div key={idx} className="text-xs text-white/40">
+                                        <span className={cn("text-[9px] px-1.5 py-0.5 rounded mr-2",
+                                          contra.severity === "high" ? "bg-red-500/20 text-red-300" :
+                                          contra.severity === "medium" ? "bg-yellow-500/20 text-yellow-300" :
+                                          "bg-orange-500/20 text-orange-300"
+                                        )}>{contra.severity.toUpperCase()}</span>
+                                        <span className="text-white/50">{contra.description}</span>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
                               )}
 
-                              {/* Confidence Indicator */}
+                              {/* Confidence */}
                               {message.confidence && (
                                 <div className="mt-3">
                                   <ConfidenceIndicator
@@ -1067,7 +1034,6 @@ export default function CareerCoach() {
                                       message.sources && message.sources.length > 0
                                         ? (() => {
                                             const avg = message.sources.reduce((sum, s) => sum + (s.relevance || 0), 0) / message.sources.length;
-                                            // Normalize: if avg <= 1 it's a 0-1 score, multiply by 100
                                             return avg <= 1 ? Math.round(avg * 100) : Math.round(avg);
                                           })()
                                         : undefined
@@ -1077,20 +1043,12 @@ export default function CareerCoach() {
                                 </div>
                               )}
 
-                              {/* Embedded Chart */}
-                              {message.visualData && (
-                                <EmbeddedChart visualData={message.visualData} />
-                              )}
+                              {/* Chart */}
+                              {message.visualData && <EmbeddedChart visualData={message.visualData} />}
 
-                              {/* Follow-up Questions */}
+                              {/* Follow-ups from RAG */}
                               {message.followUpQuestions && message.followUpQuestions.length > 0 && (
-                                <FollowUpQuestions
-                                  questions={message.followUpQuestions}
-                                  onSelect={(q) => {
-                                    setInput(q);
-                                    sendMessage(q);
-                                  }}
-                                />
+                                <FollowUpQuestions questions={message.followUpQuestions} onSelect={(q) => { setInput(q); sendMessage(q); }} />
                               )}
 
                               {/* Proactive Insight */}
@@ -1105,182 +1063,109 @@ export default function CareerCoach() {
                                   }}
                                 />
                               )}
+
+                              {/* Actions row */}
+                              <div className="flex items-center gap-1 mt-3 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                <button onClick={() => copyToClipboard(message.content, message.id)} className={cn("p-1.5 rounded-lg transition-all", copiedId === message.id ? "text-emerald-400" : "text-white/20 hover:text-white/50 hover:bg-white/5")}>
+                                  {copiedId === message.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                                <button onClick={() => rateMessage(message.id, "helpful")} className={cn("p-1.5 rounded-lg transition-all", message.rating === "helpful" ? "text-emerald-400" : "text-white/20 hover:text-white/50 hover:bg-white/5")}>
+                                  <ThumbsUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => rateMessage(message.id, "not-helpful")} className={cn("p-1.5 rounded-lg transition-all", message.rating === "not-helpful" ? "text-red-400" : "text-white/20 hover:text-white/50 hover:bg-white/5")}>
+                                  <ThumbsDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </>
                           )}
-
-                          {/* Enhanced Actions */}
-                          {message.role === "assistant" && !message.isLoading && (
-                            <div className="flex items-center gap-2 mt-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => copyToClipboard(message.content, message.id)}
-                                      className={cn(
-                                        "p-1.5 rounded-lg transition-all",
-                                        copiedId === message.id
-                                          ? "text-green-400 bg-green-500/10"
-                                          : "text-slate-500 hover:text-white hover:bg-slate-800"
-                                      )}
-                                    >
-                                      {copiedId === message.id ? (
-                                        <Check className="w-3.5 h-3.5" />
-                                      ) : (
-                                        <Copy className="w-3.5 h-3.5" />
-                                      )}
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Copy response</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => rateMessage(message.id, "helpful")}
-                                      className={cn(
-                                        "p-1.5 rounded-lg transition-all",
-                                        message.rating === "helpful"
-                                          ? "text-green-400 bg-green-500/10"
-                                          : "text-slate-500 hover:text-green-400 hover:bg-slate-800"
-                                      )}
-                                    >
-                                      <ThumbsUp className="w-3.5 h-3.5" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Mark as helpful</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => rateMessage(message.id, "not-helpful")}
-                                      className={cn(
-                                        "p-1.5 rounded-lg transition-all",
-                                        message.rating === "not-helpful"
-                                          ? "text-red-400 bg-red-500/10"
-                                          : "text-slate-500 hover:text-red-400 hover:bg-slate-800"
-                                      )}
-                                    >
-                                      <ThumbsDown className="w-3.5 h-3.5" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Mark as not helpful</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              
-                              {message.tokens && (
-                                <span className="text-[10px] text-slate-500 ml-auto">
-                                  {message.tokens.toLocaleString()} tokens
-                                </span>
-                              )}
-                            </div>
-                          )}
                         </div>
-                        
-                        {message.role === "user" && (
-                          <div className="w-8 h-8 rounded-xl bg-slate-700 flex items-center justify-center shrink-0 mt-1">
-                            <User className="w-4 h-4 text-slate-300" />
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-
-                  {/* Smart Follow-up Pills — shown after last assistant message */}
-                  {smartFollowUps.length > 0 && !isStreaming && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
-                      className="mt-4 ml-11"
-                    >
-                      <p className="text-[11px] text-slate-500 mb-2 flex items-center gap-1.5">
-                        <Lightbulb className="w-3 h-3 text-amber-400" />
-                        Continue exploring
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {smartFollowUps.map((q, i) => (
-                          <motion.button
-                            key={q}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.4 + i * 0.1 }}
-                            onClick={() => sendMessage(q)}
-                            className={cn(
-                              "px-3.5 py-2.5 rounded-xl text-[13px] font-medium text-left transition-all",
-                              "bg-pink-500/8 border border-pink-400/20 text-pink-100/80",
-                              "hover:bg-pink-500/15 hover:text-white hover:border-pink-400/40"
-                            )}
-                          >
-                            {q}
-                          </motion.button>
-                        ))}
                       </div>
-                    </motion.div>
-                  )}
+                    )}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
 
-                  <div ref={messagesEndRef} />
-                </div>
+              {/* Smart follow-ups */}
+              {smartFollowUps.length > 0 && !isStreaming && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="pt-2 pb-4 ml-10"
+                >
+                  <div className="flex flex-wrap gap-2">
+                    {smartFollowUps.map((q, i) => (
+                      <motion.button
+                        key={q}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 + i * 0.08 }}
+                        onClick={() => sendMessage(q)}
+                        className="px-4 py-2.5 rounded-xl text-sm text-white/50 hover:text-white/80 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/10 transition-all text-left"
+                      >
+                        {q}
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
               )}
-            </div>
 
-            {/* Input Area */}
-            <div className="p-5 border-t border-pink-500/15 bg-gradient-to-t from-pink-950/30 to-transparent">
-              <form onSubmit={handleSubmit} className="relative">
-                <div className={cn(
-                  "flex items-center gap-2 rounded-2xl border transition-all duration-300",
-                  input.trim()
-                    ? "bg-pink-500/10 border-pink-400/40 shadow-lg shadow-pink-500/15"
-                    : "bg-pink-500/5 border-pink-400/20"
-                )}>
-                  <Input
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder={isStreaming ? `${persona.name} is reasoning...` : `Ask ${persona.name.toLowerCase()} anything...`}
-                    disabled={isStreaming}
-                    className="flex-1 border-0 bg-transparent py-7 px-6 text-base text-white placeholder:text-pink-200/40 focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                  <Button
-                    type="submit"
-                    disabled={!input.trim() || isStreaming}
-                    size="sm"
-                    className={cn(
-                      "mr-3 rounded-xl px-5 py-6 transition-all duration-300",
-                      input.trim() && !isStreaming
-                        ? "bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white shadow-lg shadow-pink-500/30"
-                        : "bg-pink-500/10 text-pink-300/40 border border-pink-400/20"
-                    )}
-                  >
-                    {isStreaming ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Send className="w-5 h-5" />
-                    )}
-                  </Button>
-                </div>
-              </form>
-              
-              <div className="flex items-center justify-between mt-2.5 px-2">
-                <p className="text-[11px] text-pink-200/30">
-                  Based on SA Government documents · Always verify important information
-                </p>
-                <span className="text-[11px] text-pink-200/30">⏎ to send</span>
-              </div>
+              <div ref={messagesEndRef} />
             </div>
+          )}
+        </div>
+
+        {/* ── Input Area ── */}
+        <div className="p-4 border-t border-white/[0.06]">
+          <form onSubmit={handleSubmit}>
+            <div className={cn(
+              "flex items-center gap-3 rounded-2xl border transition-all duration-300 px-2",
+              input.trim()
+                ? "bg-white/[0.04] border-white/15 shadow-lg shadow-black/20"
+                : "bg-white/[0.02] border-white/[0.08]"
+            )}>
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={isStreaming ? `${persona.name} is analyzing...` : `Message ${persona.name}...`}
+                disabled={isStreaming}
+                className="flex-1 border-0 bg-transparent py-7 px-4 text-[16px] text-white placeholder:text-white/25 focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+              {/* RAG mode — tiny toggle */}
+              <Select value={ragMode} onValueChange={(v: RAGMode) => setRagMode(v)} disabled={isStreaming}>
+                <SelectTrigger className="w-auto h-8 px-2.5 bg-white/5 border-white/10 text-white/40 text-[10px] rounded-lg hover:bg-white/10 transition-all gap-1 shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black border-white/10 rounded-xl">
+                  <SelectItem value="hybrid" className="text-white/60 focus:bg-white/10 text-xs">Hybrid</SelectItem>
+                  <SelectItem value="agentic" className="text-white/60 focus:bg-white/10 text-xs">Agentic</SelectItem>
+                  <SelectItem value="neo4j" className="text-white/60 focus:bg-white/10 text-xs">Neo4j</SelectItem>
+                </SelectContent>
+              </Select>
+              <motion.button
+                type="submit"
+                disabled={!input.trim() || isStreaming}
+                whileTap={{ scale: 0.92 }}
+                className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200",
+                  input.trim() && !isStreaming
+                    ? cn("text-white shadow-lg", `bg-gradient-to-r ${persona.gradient}`)
+                    : "bg-white/5 text-white/20"
+                )}
+              >
+                {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </motion.button>
+            </div>
+          </form>
+          <div className="flex items-center justify-between mt-2 px-2">
+            <p className="text-[11px] text-white/15">Based on SA Government documents · Always verify important information</p>
+            <span className="text-[11px] text-white/15">⏎ to send</span>
           </div>
         </div>
-      </Card>
+        </>
+        )}
+      </div>
     </div>
   );
 }

@@ -28,6 +28,7 @@ const formatAmount = (amount: number): string => {
 };
 
 const sectorColors: Record<string, { bg: string; text: string; gradient: string }> = {
+  "Infrastructure": { bg: "bg-amber-500/20", text: "text-amber-600", gradient: "from-amber-500 to-orange-600" },
   "Healthcare": { bg: "bg-red-500/20", text: "text-red-600", gradient: "from-red-500 to-rose-600" },
   "Technology": { bg: "bg-blue-500/20", text: "text-blue-600", gradient: "from-blue-500 to-cyan-600" },
   "Education": { bg: "bg-purple-500/20", text: "text-purple-600", gradient: "from-purple-500 to-violet-600" },
@@ -35,33 +36,46 @@ const sectorColors: Record<string, { bg: string; text: string; gradient: string 
   "Renewable Energy": { bg: "bg-green-500/20", text: "text-green-600", gradient: "from-green-500 to-emerald-600" },
   "Regional Development": { bg: "bg-cyan-500/20", text: "text-cyan-600", gradient: "from-cyan-500 to-teal-600" },
   "Skills & Training": { bg: "bg-indigo-500/20", text: "text-indigo-600", gradient: "from-indigo-500 to-blue-600" },
+  "Transport & Logistics": { bg: "bg-amber-500/20", text: "text-amber-600", gradient: "from-amber-500 to-orange-600" },
 };
+
+// Align with funding: Transport and Infrastructure are one budget line; merge for heatmap
+function heatmapSectorKey(sector: string): string {
+  const t = sector.trim().toLowerCase();
+  if (t.includes("transport") || t.includes("infrastructure") || t.includes("logistics") || t.includes("roads") || t.includes("rail")) {
+    return "Infrastructure";
+  }
+  return sector.trim();
+}
 
 export function SectorHeatmap() {
   const { fundingAllocations, careerOpportunities, globalLoading, totalBudget } = useIntelligence();
 
-  // Build heatmap data from context
+  // Build heatmap data from context (canonical keys so Transport + Infrastructure merge)
   const heatmapData = useMemo(() => {
     const sectorMap = new Map<string, { funding: number; jobs: number; growth: number; change: number }>();
 
     fundingAllocations.forEach(alloc => {
-      // Use lowercase key to prevent "Infrastructure" vs "infrastructure" duplicates summing
-      const key = alloc.sector.trim();
+      const key = heatmapSectorKey(alloc.sector);
       const existing = sectorMap.get(key) || { funding: 0, jobs: 0, growth: 0, change: 0 };
       sectorMap.set(key, {
         ...existing,
-        // Take max, never sum — prevents double-counting if canonical dedup misses a variant
         funding: Math.max(existing.funding, alloc.amount),
         change: alloc.change,
       });
     });
 
     careerOpportunities.forEach(career => {
-      const existing = sectorMap.get(career.sector) || { funding: 0, jobs: 0, growth: 0, change: 0 };
-      sectorMap.set(career.sector, {
+      const key = heatmapSectorKey(career.sector || "");
+      const existing = sectorMap.get(key) || { funding: 0, jobs: 0, growth: 0, change: 0 };
+      const newJobs = existing.jobs + (career.jobs || 0);
+      const newGrowth = existing.jobs && (career.jobs != null)
+        ? (existing.growth * existing.jobs + (career.growth ?? 0) * (career.jobs || 0)) / newJobs
+        : (existing.growth ?? career.growth ?? 0);
+      sectorMap.set(key, {
         ...existing,
-        jobs: existing.jobs + career.jobs,
-        growth: (existing.growth + career.growth) / 2 || career.growth,
+        jobs: newJobs,
+        growth: newGrowth,
       });
     });
 

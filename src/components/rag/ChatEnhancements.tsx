@@ -38,25 +38,21 @@ export function FollowUpQuestions({ questions, onSelect }: FollowUpQuestionsProp
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mt-3 space-y-2"
+      className="mt-4 space-y-2"
     >
-      <div className="flex items-center gap-2 mb-2">
-        <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
-        <span className="text-xs text-slate-400 font-medium">You might want to ask:</span>
-      </div>
-      <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-2">
         {questions.map((question, idx) => (
           <motion.button
             key={idx}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: idx * 0.1 }}
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.08 }}
             onClick={() => onSelect(question)}
-            className="group w-full flex items-center gap-2 p-2.5 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-purple-500/30 text-left transition-all text-sm text-slate-300 hover:text-white"
+            className="group flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/12 text-left transition-all text-sm text-white/50 hover:text-white/80"
           >
-            <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-purple-400 transition-colors flex-shrink-0" />
+            <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 transition-colors flex-shrink-0" />
             <span className="flex-1">{question}</span>
           </motion.button>
         ))}
@@ -87,16 +83,12 @@ export function ProactiveInsightCard({ insight, onClickAction }: ProactiveInsigh
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
+      initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      className={cn(
-        "mt-4 p-4 rounded-xl border",
-        config.bg,
-        config.border
-      )}
+      className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]"
     >
       <div className="flex items-start gap-3">
-        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", config.bg)}>
+        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center bg-white/5")}>
           <Icon className={cn("w-4 h-4", config.color)} />
         </div>
         <div className="flex-1">
@@ -104,19 +96,13 @@ export function ProactiveInsightCard({ insight, onClickAction }: ProactiveInsigh
             <p className={cn("font-semibold text-sm", config.color)}>
               {insight.title}
             </p>
-            <Badge variant="outline" className={cn("text-[10px]", config.color, config.border)}>
-              AI INSIGHT
-            </Badge>
+            <span className="text-[9px] text-white/20 bg-white/5 px-1.5 py-0.5 rounded">AI INSIGHT</span>
           </div>
-          <p className="text-xs text-slate-300 mb-2">{insight.description}</p>
+          <p className="text-xs text-white/50 mb-2">{insight.description}</p>
           {insight.actionable && (
             <button
               onClick={onClickAction}
-              className={cn(
-                "text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all",
-                config.bg,
-                "hover:opacity-80"
-              )}
+              className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
             >
               <Target className={cn("w-3 h-3", config.color)} />
               <span className={config.color}>{insight.actionable}</span>
@@ -173,17 +159,17 @@ export function ConfidenceIndicator({
   const { icon: Icon, color, bg, border, label, description } = config[confidence];
 
   return (
-    <div className={cn("inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border", bg, border)}>
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
       <Icon className={cn("w-3.5 h-3.5", color)} />
       <div className="flex items-center gap-2">
         <span className={cn("text-xs font-medium", color)}>{label}</span>
         {avgRelevance && (
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[10px] text-white/25">
             {Math.round(avgRelevance)}% match
           </span>
         )}
         {sourceCount && (
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[10px] text-white/25">
             • {sourceCount} sources
           </span>
         )}
