@@ -55,3 +55,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Large binaries (exceed GitHub 100MB limit)
+claude.exe
+**/claude.exe
