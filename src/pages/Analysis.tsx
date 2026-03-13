@@ -669,7 +669,7 @@ export default function Analysis() {
       // Store parsed data and redirect to builder
       sessionStorage.setItem('atsResumeData', JSON.stringify(parsedData));
       sessionStorage.setItem('atsResumeName', saveName);
-      sessionStorage.setItem('atsJobDescription', jobDescription);
+      sessionStorage.setItem('rewriteJobDescription', jobDescription); // Use consistent key with ResumeBuilder
       
       toast({ 
         title: "✓ Resume parsed!", 
@@ -1012,7 +1012,7 @@ export default function Analysis() {
             </Button>
             <Button variant="outline" size="sm" onClick={() => {
               sessionStorage.setItem('atsResumeText', resumeText);
-              sessionStorage.setItem('atsJobDescription', jobDescription);
+              sessionStorage.setItem('rewriteJobDescription', jobDescription);
               if (selectedResumeId) {
                 sessionStorage.setItem('atsResumeId', selectedResumeId);
                 const resume = savedResumes.find(r => r.id === selectedResumeId);
@@ -1901,7 +1901,7 @@ export default function Analysis() {
                 onClick={() => {
                   // Store data and navigate to cover letter
                   sessionStorage.setItem('atsResumeText', resumeText);
-                  sessionStorage.setItem('atsJobDescription', jobDescription);
+                  sessionStorage.setItem('rewriteJobDescription', jobDescription);
                   if (selectedResumeId) {
                     sessionStorage.setItem('atsResumeId', selectedResumeId);
                     const resume = savedResumes.find(r => r.id === selectedResumeId);

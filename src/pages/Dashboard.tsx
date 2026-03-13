@@ -1,10 +1,14 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { gsap } from "gsap";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { CardSpotlight } from "@/components/ui/card-spotlight";
+import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card";
+import { NotificationCenter, type Notification } from "@/components/ui/NotificationCenter";
 import {
   FileText,
   Upload,
@@ -25,17 +29,20 @@ import {
   Newspaper,
   Settings,
   X,
-  Crown,
-  Bell,
-  Award,
+  ArrowRight,
+  ChevronDown,
+  MessageSquare,
+  Search,
+  Building2,
   Star,
-  Flame,
+  Rocket,
 } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
 interface ResumeStats {
   totalResumes: number;
   totalCoverLetters: number;
+  totalApplications: number;
   recentActivity: { type: string; name: string; date: string }[];
 }
 
@@ -47,64 +54,70 @@ export default function Dashboard() {
   const [stats, setStats] = useState<ResumeStats>({
     totalResumes: 0,
     totalCoverLetters: 0,
+    totalApplications: 0,
     recentActivity: [],
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>("resume");
+  const [notifications, setNotifications] = useState<Notification[]>([
+    {
+      id: "1",
+      type: "insight",
+      title: "Career Insight Ready",
+      message: "Your resume has been analyzed. Check out personalized recommendations.",
+      timestamp: new Date(Date.now() - 300000),
+      read: false,
+      actionLabel: "View Insights",
+      actionPath: "/intelligence",
+    },
+    {
+      id: "2",
+      type: "success",
+      title: "Resume Updated",
+      message: "Your resume 'Senior Software Engineer' was successfully saved.",
+      timestamp: new Date(Date.now() - 3600000),
+      read: false,
+    },
+  ]);
+
+  // Respect user's motion preferences
+  const prefersReducedMotion = useReducedMotion();
 
   // GSAP Animation refs
-  const navItemsRef = useRef<HTMLButtonElement[]>([]);
-  const statsCardsRef = useRef<HTMLDivElement[]>([]);
-  const quickActionsRef = useRef<HTMLDivElement[]>([]);
-  const toolsRef = useRef<HTMLDivElement[]>([]);
-  const mainContentRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const statsRef = useRef<HTMLDivElement>(null);
+  const categoriesRef = useRef<HTMLDivElement[]>([]);
 
   // GSAP animations on mount
   useEffect(() => {
     if (loading) return;
-    
+
     const ctx = gsap.context(() => {
-      // Stagger animation for nav items
-      if (navItemsRef.current.length > 0) {
+      // Hero animation with bounce
+      if (heroRef.current) {
         gsap.fromTo(
-          navItemsRef.current.filter(Boolean),
-          { x: -20, opacity: 0 },
-          { x: 0, opacity: 1, duration: 0.4, stagger: 0.06, ease: "power2.out", delay: 0.1 }
+          heroRef.current,
+          { y: 40, opacity: 0, scale: 0.95 },
+          { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: "back.out(1.2)" }
         );
       }
 
-      // Stats cards animation
-      if (statsCardsRef.current.length > 0) {
+      // Stats animation with stagger
+      if (statsRef.current) {
+        const cards = statsRef.current.querySelectorAll('.stat-card');
         gsap.fromTo(
-          statsCardsRef.current.filter(Boolean),
-          { y: 20, opacity: 0, scale: 0.95 },
-          { y: 0, opacity: 1, scale: 1, duration: 0.5, stagger: 0.08, ease: "power2.out", delay: 0.2 }
+          cards,
+          { y: 30, opacity: 0, scale: 0.9 },
+          { y: 0, opacity: 1, scale: 1, duration: 0.6, stagger: 0.1, delay: 0.2, ease: "back.out(1.4)" }
         );
       }
 
-      // Quick actions animation
-      if (quickActionsRef.current.length > 0) {
+      // Categories stagger
+      if (categoriesRef.current.length > 0) {
         gsap.fromTo(
-          quickActionsRef.current.filter(Boolean),
-          { y: 30, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.5, stagger: 0.1, ease: "power3.out", delay: 0.4 }
-        );
-      }
-
-      // Tools grid animation
-      if (toolsRef.current.length > 0) {
-        gsap.fromTo(
-          toolsRef.current.filter(Boolean),
-          { y: 20, opacity: 0, scale: 0.98 },
-          { y: 0, opacity: 1, scale: 1, duration: 0.4, stagger: 0.05, ease: "power2.out", delay: 0.5 }
-        );
-      }
-
-      // Main content fade in
-      if (mainContentRef.current) {
-        gsap.fromTo(
-          mainContentRef.current,
-          { opacity: 0 },
-          { opacity: 1, duration: 0.3, ease: "power2.out" }
+          categoriesRef.current.filter(Boolean),
+          { y: 20, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.5, stagger: 0.12, delay: 0.4, ease: "power3.out" }
         );
       }
     });
@@ -137,19 +150,22 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       if (!session?.user) return;
-      
+
       try {
-        const [resumesRes, coverLettersRes] = await Promise.all([
-          supabase.from('resumes').select('id, name, created_at').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(5),
+        const [resumesRes, coverLettersRes, applicationsRes] = await Promise.all([
+          supabase.from('resumes').select('id, name, created_at').eq('user_id', session.user.id).order('created_at', { ascending: false }),
           supabase.from('cover_letters').select('id, created_at').eq('user_id', session.user.id),
+          supabase.from('job_applications').select('id').eq('user_id', session.user.id),
         ]);
 
         const resumes = resumesRes.data || [];
         const coverLetters = coverLettersRes.data || [];
+        const applications = applicationsRes.data || [];
 
         setStats({
           totalResumes: resumes.length,
           totalCoverLetters: coverLetters.length,
+          totalApplications: applications.length,
           recentActivity: resumes.slice(0, 3).map(r => ({
             type: 'resume',
             name: r.name,
@@ -164,142 +180,212 @@ export default function Dashboard() {
     fetchStats();
   }, [session]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     try {
-      // Clear any local session tokens first
       localStorage.removeItem('horus_session_token');
-      
-      // Sign out with global scope to clear all sessions
       const { error } = await supabase.auth.signOut({ scope: 'global' });
-      
+
       if (error) {
         console.error('Sign out error:', error);
       }
-      
-      // Clear session state immediately
+
       setSession(null);
-      
-      // Navigate after a brief delay to ensure state is cleared
+
       setTimeout(() => {
         navigate("/auth", { replace: true });
       }, 100);
     } catch (error) {
       console.error('Sign out error:', error);
-      // Navigate anyway on error
       navigate("/auth", { replace: true });
     }
-  };
+  }, [navigate]);
 
-  const quickActions = [
-    {
-      id: "build",
-      icon: Zap,
-      title: "Build Resume",
-      description: "Create a polished resume",
-      path: "/builder",
-      gradient: "from-primary to-primary-glow",
-      primary: true,
-    },
-    {
-      id: "manage",
-      icon: Upload,
-      title: "My Resumes",
-      description: "Manage your saved resumes",
-      path: "/my-resumes",
-      gradient: "from-blue-500 to-cyan-500",
-    },
-    {
-      id: "analysis",
-      icon: BarChart3,
-      title: "ATS Analysis",
-      description: "Check ATS compatibility",
-      path: "/analysis",
-      gradient: "from-purple-500 to-pink-500",
-    },
-  ];
+  const handleMarkAsRead = useCallback((id: string) => {
+    setNotifications(prev =>
+      prev.map(n => n.id === id ? { ...n, read: true } : n)
+    );
+  }, []);
 
-  const tools = [
+  const handleClearAllNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const handleNotificationAction = useCallback((notification: Notification) => {
+    if (notification.actionPath) {
+      navigate(notification.actionPath);
+    }
+  }, [navigate]);
+
+  // Optimized animation configs (memoized)
+  const springConfig = useMemo(() => ({
+    type: "spring" as const,
+    stiffness: prefersReducedMotion ? 500 : 300,
+    damping: prefersReducedMotion ? 30 : 20,
+  }), [prefersReducedMotion]);
+
+  const fastSpring = useMemo(() => ({
+    type: "spring" as const,
+    stiffness: 400,
+    damping: 17,
+  }), []);
+
+  const smoothEase = useMemo(() => ({
+    duration: prefersReducedMotion ? 0.2 : 0.5,
+    ease: [0.4, 0, 0.2, 1] as [number, number, number, number],
+  }), [prefersReducedMotion]);
+
+  // Memoize tool categories to prevent re-renders
+  const toolCategories = useMemo(() => [
     {
-      icon: Zap,
-      title: "Resume Builder",
-      description: "Create professional resumes with templates",
-      path: "/builder",
-      gradient: "from-primary to-primary-glow",
-      featured: true,
+      id: "resume",
+      title: "Resume Tools",
+      icon: FileText,
+      gradient: "from-blue-500 via-blue-600 to-indigo-600",
+      glowColor: "blue",
+      tools: [
+        {
+          icon: Zap,
+          title: "Resume Builder",
+          description: "Create professional resumes with templates",
+          path: "/builder",
+          gradient: "from-yellow-400 to-orange-500",
+        },
+        {
+          icon: Upload,
+          title: "My Resumes",
+          description: "Manage your resume library",
+          path: "/my-resumes",
+          badge: stats.totalResumes > 0 ? `${stats.totalResumes}` : undefined,
+          gradient: "from-blue-500 to-cyan-500",
+        },
+        {
+          icon: BarChart3,
+          title: "ATS Analysis",
+          description: "Check job compatibility score",
+          path: "/analysis",
+          gradient: "from-purple-500 to-pink-500",
+        },
+        {
+          icon: Sparkles,
+          title: "AI Rewrite",
+          description: "Enhance bullets with AI",
+          path: "/rewrite",
+          gradient: "from-orange-500 to-red-500",
+        },
+        {
+          icon: Layout,
+          title: "Template Builder",
+          description: "Create custom resume templates",
+          path: "/templates",
+          gradient: "from-teal-500 to-emerald-500",
+        },
+      ],
     },
     {
-      icon: Upload,
-      title: "Resume Manager",
-      description: "Upload, organize, and manage all your resumes",
-      path: "/my-resumes",
-      gradient: "from-blue-500 to-cyan-500",
-      stats: `${stats.totalResumes} resumes`,
-    },
-    {
-      icon: BarChart3,
-      title: "ATS Analysis",
-      description: "Analyze resume compatibility with job postings",
-      path: "/analysis",
-      gradient: "from-purple-500 to-pink-500",
-    },
-    {
-      icon: Sparkles,
-      title: "AI Rewrite",
-      description: "Transform bullet points with AI suggestions",
-      path: "/rewrite",
-      gradient: "from-orange-500 to-amber-500",
-    },
-    {
-      icon: Mail,
-      title: "Cover Letter",
-      description: "Generate tailored cover letters instantly",
-      path: "/cover-letter",
-      gradient: "from-indigo-500 to-blue-500",
-      stats: `${stats.totalCoverLetters} letters`,
-    },
-    {
-      icon: Briefcase,
-      title: "Job Tracker",
-      description: "Track your job applications and status",
-      path: "/tracker",
-      gradient: "from-pink-500 to-rose-500",
-    },
-    {
-      icon: Layout,
-      title: "Template Builder",
-      description: "Create and customize resume templates",
-      path: "/templates",
-      gradient: "from-teal-500 to-cyan-500",
-    },
-    {
-      icon: Briefcase,
-      title: "🇦🇺 Australian Jobs",
-      description: "Browse jobs from SEEK, Indeed & more - Free!",
-      path: "/au-jobs",
-      gradient: "from-emerald-500 to-teal-500",
-      featured: true,
-    },
-    {
-      icon: Newspaper,
-      title: "📊 Market News",
-      description: "AU job market trends, news & insights",
-      path: "/job-market-news",
-      gradient: "from-blue-500 to-indigo-500",
-    },
-    {
+      id: "career",
+      title: "Career Intelligence",
       icon: Brain,
-      title: "Career Hub",
-      description: "AI coach & career resources",
-      path: "/sa-career-hub",
-      gradient: "from-purple-500 to-pink-500",
-      featured: true,
+      gradient: "from-purple-500 via-violet-600 to-indigo-600",
+      glowColor: "purple",
+      tools: [
+        {
+          icon: Brain,
+          title: "Career Hub",
+          description: "AI coach & career guidance",
+          path: "/sa-career-hub",
+          gradient: "from-indigo-500 to-purple-600",
+        },
+        {
+          icon: TrendingUp,
+          title: "Intelligence Dashboard",
+          description: "Skills, funding & insights",
+          path: "/intelligence",
+          gradient: "from-blue-600 to-indigo-600",
+        },
+        {
+          icon: Newspaper,
+          title: "Market News",
+          description: "Job market trends & analysis",
+          path: "/job-market-news",
+          gradient: "from-cyan-500 to-blue-600",
+        },
+      ],
     },
-  ];
+    {
+      id: "applications",
+      title: "Job Applications",
+      icon: Briefcase,
+      gradient: "from-emerald-500 via-teal-600 to-cyan-600",
+      glowColor: "emerald",
+      tools: [
+        {
+          icon: Mail,
+          title: "Cover Letters",
+          description: "Generate tailored cover letters",
+          path: "/cover-letter",
+          badge: stats.totalCoverLetters > 0 ? `${stats.totalCoverLetters}` : undefined,
+          gradient: "from-pink-500 to-rose-500",
+        },
+        {
+          icon: Briefcase,
+          title: "Job Tracker",
+          description: "Track application status",
+          path: "/tracker",
+          badge: stats.totalApplications > 0 ? `${stats.totalApplications}` : undefined,
+          gradient: "from-green-500 to-emerald-600",
+        },
+        {
+          icon: Search,
+          title: "Australian Jobs",
+          description: "Browse SEEK, Indeed & more",
+          path: "/au-jobs",
+          gradient: "from-amber-500 to-orange-500",
+        },
+      ],
+    },
+  ], [stats.totalResumes, stats.totalCoverLetters, stats.totalApplications]);
+
+  // Memoize stat cards data
+  const statCards = useMemo(() => [
+    {
+      label: "Resumes",
+      value: stats.totalResumes,
+      icon: FileText,
+      gradient: "from-blue-500 via-cyan-500 to-blue-600",
+      path: "/my-resumes",
+      shadowColor: "blue",
+      iconBg: "from-blue-400 to-cyan-400",
+      delay: 0
+    },
+    {
+      label: "Cover Letters",
+      value: stats.totalCoverLetters,
+      icon: Mail,
+      gradient: "from-purple-500 via-pink-500 to-purple-600",
+      path: "/cover-letter",
+      shadowColor: "purple",
+      iconBg: "from-purple-400 to-pink-400",
+      delay: 0.1
+    },
+    {
+      label: "Applications",
+      value: stats.totalApplications,
+      icon: Briefcase,
+      gradient: "from-emerald-500 via-teal-500 to-emerald-600",
+      path: "/tracker",
+      shadowColor: "emerald",
+      iconBg: "from-emerald-400 to-teal-400",
+      delay: 0.2
+    },
+  ], [stats.totalResumes, stats.totalCoverLetters, stats.totalApplications]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 flex items-center justify-center">
-        <div className="w-12 h-12 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+          <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-purple-400 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '0.8s' }} />
+        </div>
       </div>
     );
   }
@@ -308,316 +394,530 @@ export default function Dashboard() {
 
   const sidebarLinks = [
     { icon: Home, label: "Dashboard", path: "/dashboard", active: location.pathname === "/dashboard" },
-    { icon: BarChart3, label: "Intelligence", path: "/intelligence", active: location.pathname === "/intelligence" },
+    { icon: TrendingUp, label: "Intelligence", path: "/intelligence", active: location.pathname === "/intelligence" },
     { icon: Brain, label: "Career Hub", path: "/sa-career-hub", active: location.pathname === "/sa-career-hub" },
     { icon: FileText, label: "My Resumes", path: "/my-resumes", active: location.pathname === "/my-resumes" },
-    { icon: Mail, label: "Cover Letters", path: "/cover-letter", active: location.pathname === "/cover-letter" },
     { icon: Briefcase, label: "Job Tracker", path: "/tracker", active: location.pathname === "/tracker" },
-    { icon: Briefcase, label: "🇦🇺 AU Jobs", path: "/au-jobs", active: location.pathname === "/au-jobs" },
-    { icon: Newspaper, label: "📊 Market News", path: "/job-market-news", active: location.pathname === "/job-market-news" },
     { icon: Settings, label: "Settings", path: "/settings", active: location.pathname === "/settings" },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 relative overflow-hidden">
-      {/* Premium Animated Background - CSS Gradient Animation (Reliable) */}
+    <div className="min-h-screen bg-white relative cursor-default">
+      {/* Subtle, organic background with premium feel */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Base light gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60" />
-        
-        {/* Beautiful CSS Animated Gradient Background */}
-        <div 
-          className="absolute inset-0"
-          style={{
-            background: `linear-gradient(135deg, 
-              rgba(59,130,246,0.45) 0%, 
-              rgba(99,102,241,0.5) 25%, 
-              rgba(139,92,246,0.45) 50%, 
-              rgba(20,184,166,0.5) 75%, 
-              rgba(14,165,233,0.45) 100%)`,
-            backgroundSize: '400% 400%',
-            animation: 'gradient-shift 12s ease infinite',
-            mixBlendMode: 'screen',
-            opacity: 0.75
-          }}
-        />
-        
-        {/* Radial gradients for depth */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.25),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.2),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.15),transparent_70%)]" />
-        
-        {/* Morphing Orbs */}
-        <div className="absolute -top-40 right-[10%] w-[800px] h-[800px] rounded-full opacity-40"
-          style={{ background: "radial-gradient(circle, rgba(59,130,246,0.20) 0%, rgba(139,92,246,0.10) 50%, transparent 70%)", animation: "morph 15s ease-in-out infinite, float-slow 12s ease-in-out infinite" }} />
-        <div className="absolute top-[40%] -left-40 w-[700px] h-[700px] rounded-full opacity-30"
-          style={{ background: "radial-gradient(circle, rgba(14,165,233,0.15) 0%, rgba(59,130,246,0.08) 50%, transparent 70%)", animation: "morph 18s ease-in-out infinite reverse, float-slower 15s ease-in-out infinite" }} />
-        <div className="absolute bottom-[-20%] right-[20%] w-[600px] h-[600px] rounded-full opacity-25"
-          style={{ background: "radial-gradient(circle, rgba(59,130,246,0.12) 0%, rgba(14,165,233,0.06) 50%, transparent 70%)", animation: "morph 20s ease-in-out infinite, glow-pulse 8s ease-in-out infinite" }} />
+        {/* Soft gradient base with noise texture */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/30 to-white" />
+        <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' /%3E%3C/svg%3E")` }} />
 
-        {/* Grid & Particles */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:80px_80px]" />
-        <div className="absolute top-[15%] left-[5%] w-2 h-2 bg-blue-400/30 rounded-full" style={{ animation: "particle-float 10s ease-in-out infinite" }} />
-        <div className="absolute top-[25%] right-[8%] w-3 h-3 bg-sky-400/25 rounded-full" style={{ animation: "particle-float 12s ease-in-out infinite 2s" }} />
-        <div className="absolute top-[55%] left-[12%] w-2 h-2 bg-indigo-400/30 rounded-full" style={{ animation: "particle-float 11s ease-in-out infinite 1s" }} />
-        <div className="absolute top-[70%] right-[15%] w-2.5 h-2.5 bg-blue-400/25 rounded-full" style={{ animation: "particle-float 13s ease-in-out infinite 3s" }} />
+        {/* Organic shapes - subtle and creative */}
+        <svg className="absolute top-0 right-0 w-1/2 h-1/2 opacity-[0.03]" viewBox="0 0 800 800">
+          <defs>
+            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{ stopColor: '#3b82f6', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#8b5cf6', stopOpacity: 1 }} />
+            </linearGradient>
+          </defs>
+          <path
+            d="M400,100 C550,120 680,250 700,400 C720,550 590,680 440,700 C290,720 160,590 140,440 C120,290 250,120 400,100 Z"
+            fill="url(#grad1)"
+          />
+        </svg>
+
+        <svg className="absolute bottom-0 left-0 w-1/3 h-1/3 opacity-[0.02]" viewBox="0 0 600 600">
+          <path
+            d="M300,50 C420,60 540,180 550,300 C560,420 440,540 320,550 C200,560 80,440 70,320 C60,200 180,60 300,50 Z"
+            fill="#6366f1"
+          />
+        </svg>
       </div>
 
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Premium Glassmorphism Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-[300px] z-50 transform transition-all duration-500 ease-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/60 to-sky-50/50 backdrop-blur-xl border-r border-blue-100/80 shadow-lg shadow-blue-500/5" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.1),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(14,165,233,0.08),transparent_60%)]" />
-        <div className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-blue-300/30 to-transparent" />
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-blue-100/20 to-transparent" />
+      {/* Glassmorphic Sidebar */}
+      <aside className={`fixed top-0 left-0 h-full w-[280px] z-50 transform transition-all duration-500 ease-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Glass effect background */}
+        <div className="absolute inset-0 bg-white/70 backdrop-blur-2xl border-r border-white/20 shadow-2xl" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-transparent" />
 
         <div className="relative p-6 h-full flex flex-col">
-          {/* Logo */}
+          {/* Logo with glow */}
           <div className="flex items-center justify-between mb-8">
-            <button onClick={() => navigate("/")} className="flex items-center gap-3 group">
-              <img 
-                src="/logo.png" 
-                alt="Horus Intelligence" 
-                className="w-12 h-12 rounded-xl shadow-lg shadow-blue-500/30 object-contain"
+            <button onClick={() => navigate("/")} className="flex items-center gap-3 group relative">
+              <div className="absolute -inset-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-0 group-hover:opacity-20 blur-xl transition-all duration-500" />
+              <img
+                src="/logo.png"
+                alt="Horus Intelligence"
+                className="w-11 h-11 rounded-xl shadow-lg shadow-blue-500/50 object-contain relative z-10 group-hover:scale-110 transition-transform duration-300"
               />
-              <div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Horus Intelligence</span>
-                <p className="text-xs text-slate-600">Intelligence Platform</p>
+              <div className="relative z-10">
+                <span className="text-lg font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient">
+                  Horus
+                </span>
+                <p className="text-xs text-slate-500 font-medium">Intelligence</p>
               </div>
             </button>
-            <Button variant="ghost" size="icon" className="lg:hidden text-slate-600 hover:text-slate-900 hover:bg-blue-50" onClick={() => setSidebarOpen(false)}>
+            <Button variant="ghost" size="icon" className="lg:hidden hover:bg-blue-50" onClick={() => setSidebarOpen(false)}>
               <X className="w-5 h-5" />
             </Button>
           </div>
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {[
-              { label: "Resumes", value: stats.totalResumes, icon: FileText },
-              { label: "Letters", value: stats.totalCoverLetters, icon: Mail },
-            ].map((stat, index) => (
-              <div key={stat.label} ref={(el) => { if (el) statsCardsRef.current[index] = el; }}
-                className="group relative p-4 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 shadow-md hover:shadow-lg hover:border-blue-300/80 transition-all duration-300 cursor-pointer bg-gradient-to-br from-white to-blue-50/30">
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/5 to-sky-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="relative">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500/20 to-sky-500/20 flex items-center justify-center mb-2">
-                    <stat.icon className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <p className="text-2xl font-bold text-slate-800 mb-0.5">{stat.value}</p>
-                  <span className="text-xs text-slate-600 font-medium">{stat.label}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {/* Navigation */}
-          <nav className="space-y-1 flex-1 overflow-y-auto pr-2 -mr-2">
-            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-4 px-3">Main Menu</p>
-            {sidebarLinks.map((link, index) => (
-              <button key={link.path} ref={(el) => { if (el) navItemsRef.current[index] = el; }}
+          <nav className="space-y-2 flex-1 overflow-y-auto">
+            {sidebarLinks.map((link) => (
+              <button key={link.path}
                 onClick={() => { navigate(link.path); setSidebarOpen(false); }}
-                className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                  link.active ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border-l-2 border-blue-500 shadow-sm"
-                    : "text-slate-700 hover:text-blue-700 hover:bg-blue-50/50"
+                className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+                  link.active
+                    ? "text-white"
+                    : "text-slate-700 hover:text-blue-600"
                 }`}>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 ${
-                  link.active ? "bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25" : "bg-blue-50 group-hover:bg-blue-100"
-                }`}>
-                  <link.icon className={`w-4 h-4 ${link.active ? "text-white" : "text-blue-600"}`} />
-                </div>
-                <span className={`flex-1 text-left text-sm ${link.active ? "font-semibold" : "font-medium"}`}>{link.label}</span>
-                {link.active && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
-                <ChevronRight className={`w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 ${link.active ? "opacity-100 translate-x-0 text-blue-500" : "text-slate-400"}`} />
+                {/* Active background gradient */}
+                {link.active && (
+                  <>
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 rounded-xl shadow-lg shadow-blue-500/50" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl opacity-0 group-hover:opacity-100 blur transition-opacity duration-300" />
+                  </>
+                )}
+
+                {/* Hover effect for inactive */}
+                {!link.active && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                )}
+
+                <link.icon className={`w-5 h-5 relative z-10 ${link.active ? "text-white" : "text-slate-500 group-hover:text-blue-600"} transition-colors duration-300`} />
+                <span className="text-sm font-medium relative z-10">{link.label}</span>
+
+                {link.active && (
+                  <div className="ml-auto w-2 h-2 rounded-full bg-white animate-pulse relative z-10" />
+                )}
               </button>
             ))}
           </nav>
 
-          {/* User Card */}
-          <Card className="relative overflow-hidden p-4 bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 hover:border-blue-300/80 transition-all duration-300 cursor-pointer group shadow-md hover:shadow-lg">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-indigo-50/30 to-sky-50/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-400/50 to-transparent pointer-events-none" />
+          {/* User Card with gradient */}
+          <Card className="relative overflow-hidden p-4 border-0 shadow-xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/10 to-purple-500/10" />
+
             <div className="relative flex items-center gap-3 mb-3">
               <div className="relative">
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/50">
                   {userName.charAt(0).toUpperCase()}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-white shadow-md" />
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 border-2 border-white shadow-md" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-800 truncate">{userName}</p>
-                <p className="text-xs text-slate-600 truncate">{session?.user?.email}</p>
+                <p className="font-semibold text-slate-800 truncate text-sm">{userName}</p>
+                <p className="text-xs text-slate-500 truncate">{session?.user?.email}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="w-full justify-center text-slate-700 hover:text-red-600 hover:bg-red-50 border-2 border-blue-100 hover:border-red-200 transition-all" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4 mr-2" />Sign Out
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="relative w-full justify-center text-slate-600 hover:text-red-600 border-slate-200 hover:border-red-300 hover:bg-red-50 transition-all duration-300 group overflow-hidden"
+              onClick={handleSignOut}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-red-50 to-pink-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <LogOut className="w-4 h-4 mr-2 relative z-10" />
+              <span className="relative z-10">Sign Out</span>
             </Button>
           </Card>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="lg:pl-[300px] relative min-h-screen">
-        {/* Premium Floating Header */}
-        <header className="sticky top-0 z-30 mx-4 mt-4 lg:mx-6">
-          <div className="relative rounded-2xl overflow-hidden">
-            <div className="absolute inset-0 bg-white/95 backdrop-blur-xl border-2 border-blue-100/50 shadow-lg" />
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 via-transparent to-sky-50/50" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.15),transparent_70%)]" />
-            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-blue-300/30 to-transparent" />
-            
-            <div className="relative flex items-center justify-between px-6 py-4">
-              <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" className="lg:hidden text-slate-600 hover:text-slate-900 hover:bg-blue-50" onClick={() => setSidebarOpen(true)}>
-                  <Menu className="w-5 h-5" />
-                </Button>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-800">Welcome back</h1>
-                    <span className="text-2xl" style={{ animation: "wave 2s ease-in-out infinite" }}>👋</span>
-                  </div>
-                  <p className="text-sm text-slate-600">Ready to advance your career, <span className="text-blue-600 font-semibold">{userName}</span>?</p>
-                </div>
+      <div className="lg:pl-[280px] relative min-h-screen">
+        {/* Glassmorphic Header */}
+        <header className="sticky top-0 z-30 bg-white/60 backdrop-blur-2xl border-b border-white/20 shadow-lg shadow-blue-500/5">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden hover:bg-blue-50 relative group"
+                onClick={() => setSidebarOpen(true)}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg opacity-0 group-hover:opacity-10 transition-opacity duration-300" />
+                <Menu className="w-5 h-5 relative z-10" />
+              </Button>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-slate-800 via-blue-800 to-purple-800 bg-clip-text text-transparent">
+                  Welcome back, {userName}
+                </h1>
+                <p className="text-sm text-slate-600">Let's advance your career today ✨</p>
               </div>
-              
-              <div className="flex items-center gap-3">
-                <button className="relative p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-slate-700 hover:text-blue-700 transition-all duration-300 border-2 border-blue-100">
-                  <Bell className="w-5 h-5" />
-                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-gradient-to-r from-orange-400 to-pink-500 rounded-full border-2 border-white animate-pulse" />
-                </button>
-                <Button onClick={() => navigate("/builder")} className="hidden sm:flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-slate-700 hover:text-blue-700 border-2 border-blue-200 font-semibold">
-                  <Zap className="w-4 h-4 text-yellow-500" />New Resume
-                </Button>
-                <Button onClick={() => navigate("/my-resumes")} className="relative overflow-hidden bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white border-0 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 font-semibold">
-                  <Upload className="w-4 h-4 mr-2" /><span className="hidden sm:inline">Upload</span>
-                </Button>
-              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <NotificationCenter
+                notifications={notifications}
+                onMarkAsRead={handleMarkAsRead}
+                onClearAll={handleClearAllNotifications}
+                onActionClick={handleNotificationAction}
+              />
+              <Button
+                onClick={() => navigate("/builder")}
+                className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-500 to-purple-600 hover:from-blue-700 hover:via-blue-600 hover:to-purple-700 text-white shadow-lg shadow-blue-500/50 hover:shadow-xl hover:shadow-blue-500/60 transition-all duration-300 group border-0"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 opacity-0 group-hover:opacity-30 transition-opacity duration-300" />
+                <Zap className="w-4 h-4 mr-2 relative z-10" />
+                <span className="relative z-10 font-semibold">New Resume</span>
+              </Button>
             </div>
           </div>
         </header>
 
         {/* Main Content */}
-        <main ref={mainContentRef} className="p-4 md:p-6 lg:p-8 relative">
-          {/* Stats Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {[
-              { label: "Total Resumes", value: stats.totalResumes || 0, change: "+2 this week", icon: FileText, color: "blue" },
-              { label: "Cover Letters", value: stats.totalCoverLetters || 0, change: "+1 this week", icon: Mail, color: "teal" },
-              { label: "Profile Views", value: "156", change: "+12%", icon: TrendingUp, color: "purple" },
-              { label: "ATS Score", value: "92", change: "Excellent", icon: Award, color: "orange" },
-            ].map((stat, idx) => (
-              <div key={stat.label} ref={(el) => { if (el) statsCardsRef.current[idx + 2] = el; }}
-                className="group relative p-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 hover:border-blue-300/80 transition-all duration-300 cursor-pointer overflow-hidden shadow-md hover:shadow-lg bg-gradient-to-br from-white to-blue-50/30">
-                <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${
-                  stat.color === "blue" ? "from-blue-500 to-blue-400" : stat.color === "teal" ? "from-teal-500 to-teal-400" : stat.color === "purple" ? "from-purple-500 to-purple-400" : "from-orange-500 to-orange-400"
-                }`} />
-                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity ${
-                  stat.color === "blue" ? "bg-blue-50/50" : stat.color === "teal" ? "bg-teal-50/50" : stat.color === "purple" ? "bg-purple-50/50" : "bg-orange-50/50"
-                }`} />
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      stat.color === "blue" ? "bg-blue-100" : stat.color === "teal" ? "bg-teal-100" : stat.color === "purple" ? "bg-purple-100" : "bg-orange-100"
-                    }`}>
-                      <stat.icon className={`w-5 h-5 ${
-                        stat.color === "blue" ? "text-blue-600" : stat.color === "teal" ? "text-teal-600" : stat.color === "purple" ? "text-purple-600" : "text-orange-600"
-                      }`} />
-                    </div>
-                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">{stat.change}</span>
+        <main className="p-6 lg:p-8 max-w-7xl mx-auto">
+          {/* Hero Section - Premium Typography */}
+          <div ref={heroRef} className="mb-16">
+            <div className="relative group">
+              {/* Premium accent element */}
+              <div className="absolute left-0 top-10 w-1 h-32 bg-gradient-to-b from-blue-600 via-blue-500 to-transparent rounded-full opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="absolute left-0 top-10 w-1 h-32 bg-gradient-to-b from-blue-600 via-blue-500 to-transparent rounded-full blur-sm opacity-40" />
+
+              <div className="pl-10">
+                <div className="max-w-5xl">
+                  {/* Premium typography with display font */}
+                  <h1 className="font-display text-7xl lg:text-8xl font-semibold text-slate-900 mb-8 leading-[0.95] tracking-tight">
+                    {stats.totalResumes > 0
+                      ? <>Create your<br/><span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">next chapter</span></>
+                      : <>Build something<br/><span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">remarkable</span></>
+                    }
+                  </h1>
+
+                  <p className="text-2xl text-slate-600 mb-12 leading-relaxed max-w-2xl font-light tracking-wide">
+                    {stats.totalResumes > 0
+                      ? "Professional templates, intelligent insights, limitless possibilities."
+                      : "AI-powered resume builder that understands what makes you unique."
+                    }
+                  </p>
+
+                  <div className="flex flex-wrap gap-5 items-center">
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        size="lg"
+                        onClick={() => navigate("/builder")}
+                        className="group/btn relative overflow-hidden bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base px-10 py-7 h-auto rounded-2xl shadow-[0_8px_30px_rgb(37,99,235,0.2)] hover:shadow-[0_20px_60px_rgb(37,99,235,0.3)] transition-all duration-500 cursor-pointer border-0"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-600 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-500" />
+                        <Zap className="w-5 h-5 mr-2.5 relative z-10" />
+                        <span className="relative z-10">{stats.totalResumes > 0 ? "New Resume" : "Start Building"}</span>
+                        <ArrowRight className="w-5 h-5 ml-2.5 relative z-10 group-hover/btn:translate-x-1 transition-transform duration-300" />
+                      </Button>
+                    </motion.div>
+
+                    {stats.totalResumes > 0 && (
+                      <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          onClick={() => navigate("/my-resumes")}
+                          className="border-[1.5px] border-slate-300 hover:border-slate-400 hover:bg-slate-50 text-slate-700 font-semibold text-base px-10 py-7 h-auto rounded-2xl cursor-pointer transition-all duration-300"
+                        >
+                          <Upload className="w-5 h-5 mr-2.5" />
+                          My Resumes
+                        </Button>
+                      </motion.div>
+                    )}
+
+                    {stats.totalResumes === 0 && (
+                      <span className="text-sm text-slate-500 flex items-center gap-2.5 font-medium">
+                        <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
+                          <Sparkles className="w-3 h-3 text-green-600" />
+                        </div>
+                        Free forever • No credit card
+                      </span>
+                    )}
                   </div>
-                  <p className="text-3xl font-bold text-slate-800 mb-1">{stat.value}</p>
-                  <p className="text-sm text-slate-600 font-medium">{stat.label}</p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Stats Cards - Premium Design */}
+          <div ref={statsRef} className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20">
+            {statCards.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                layout
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={prefersReducedMotion ? { duration: 0.1 } : {
+                  ...springConfig,
+                  delay: stat.delay,
+                }}
+                whileHover={{ y: -4 }}
+                onClick={() => navigate(stat.path)}
+                className="stat-card group cursor-pointer"
+                style={{ willChange: 'transform' }}
+              >
+                <div className="relative p-8 bg-white border border-slate-200/60 hover:border-slate-300 rounded-3xl transition-all duration-500 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+                  {/* Premium gradient accent */}
+                  <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${stat.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-t-3xl`} />
+                  <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${stat.gradient} opacity-30 blur-sm group-hover:opacity-50 transition-opacity duration-500`} />
+
+                  <div className="flex items-start justify-between mb-8">
+                    <div className={`relative w-14 h-14 rounded-2xl bg-gradient-to-br ${stat.gradient} flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-xl group-hover:shadow-blue-500/30 transition-all duration-500 group-hover:scale-110`}>
+                      <stat.icon className="w-7 h-7 text-white" />
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1.5 transition-all duration-300" />
+                  </div>
+
+                  <div>
+                    <p className="font-display text-6xl font-semibold text-slate-900 mb-3 tabular-nums tracking-tight group-hover:text-blue-600 transition-colors duration-500">
+                      {stat.value}
+                    </p>
+                    <p className="text-sm text-slate-500 font-semibold uppercase tracking-widest">{stat.label}</p>
+                  </div>
+
+                  {/* Hover glow effect */}
+                  <div className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-[0.02] transition-opacity duration-500 pointer-events-none`} />
+                </div>
+              </motion.div>
             ))}
           </div>
 
-          {/* Quick Actions */}
-          <div className="mb-8">
-            <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-yellow-500" />Quick Actions
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {quickActions.map((action, index) => (
-                <div key={action.id} ref={(el) => { if (el) quickActionsRef.current[index] = el; }}
-                  onClick={() => navigate(action.path)}
-                  className={`group relative p-5 rounded-2xl cursor-pointer transition-all duration-300 overflow-hidden ${
-                    action.primary 
-                      ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-[1.02]' 
-                      : 'bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 hover:border-blue-300/80 hover:scale-[1.02] shadow-md hover:shadow-lg bg-gradient-to-br from-white to-blue-50/30'
-                  }`}>
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${
-                      action.primary ? 'bg-white/20' : `bg-gradient-to-br ${action.gradient}`
-                    }`}>
-                      <action.icon className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className={`font-semibold ${action.primary ? 'text-white' : 'text-slate-800 group-hover:text-blue-600 transition-colors'}`}>{action.title}</h3>
-                      <p className={`text-sm ${action.primary ? 'text-white/90' : 'text-slate-600'}`}>{action.description}</p>
-                    </div>
-                    <ChevronRight className={`w-5 h-5 ${action.primary ? 'text-white/80' : 'text-slate-500'} group-hover:translate-x-1 transition-transform`} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* All Tools Grid */}
-          <div className="mb-8">
-            <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-500" />All Tools
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {tools.map((tool, index) => (
-                <div key={tool.path} ref={(el) => { if (el) toolsRef.current[index] = el; }}
-                  onClick={() => navigate(tool.path)}
-                  className="group relative p-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 hover:border-blue-300/80 transition-all duration-300 cursor-pointer overflow-hidden hover:scale-[1.02] shadow-md hover:shadow-lg bg-gradient-to-br from-white to-blue-50/30">
-                  <div className={`absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r ${tool.gradient} opacity-0 group-hover:opacity-100 transition-opacity`} />
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
-                    <tool.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-slate-800 mb-1 group-hover:text-blue-600 transition-colors">{tool.title}</h3>
-                  <p className="text-sm text-slate-600 mb-2">{tool.description}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {tool.stats && <Badge className="bg-blue-100 text-blue-700 border border-blue-200 font-semibold">{tool.stats}</Badge>}
-                    {tool.featured && <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-0 font-semibold">Popular</Badge>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          {stats.recentActivity.length > 0 && (
-            <div>
-              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-600" />Recent Activity
+          {/* Tool Categories - Premium Layout */}
+          <div className="space-y-7">
+            <div className="flex items-center gap-5 mb-10">
+              <h2 className="font-display text-4xl font-semibold text-slate-900 tracking-tight">
+                Your Tools
               </h2>
-              <div className="rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-blue-100/60 overflow-hidden divide-y divide-blue-100/50 shadow-md">
+              <div className="flex-1 h-[1px] bg-gradient-to-r from-slate-300 via-slate-200 to-transparent" />
+            </div>
+
+            {toolCategories.map((category, index) => (
+              <Card
+                key={category.id}
+                ref={(el) => { if (el) categoriesRef.current[index] = el; }}
+                className="border border-slate-200/60 hover:border-slate-300 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] transition-all duration-500 overflow-hidden bg-white rounded-3xl cursor-pointer"
+              >
+                {/* Category Header - Premium Design */}
+                <button
+                  onClick={() => setExpandedCategory(expandedCategory === category.id ? null : category.id)}
+                  className="relative w-full flex items-center justify-between p-7 transition-all duration-300 group"
+                >
+                  <div className="flex items-center gap-5">
+                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${category.gradient} flex items-center justify-center shadow-lg shadow-blue-500/15 group-hover:shadow-xl group-hover:shadow-blue-500/25 group-hover:scale-105 transition-all duration-500`}>
+                      <category.icon className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-display text-xl font-semibold text-slate-900 tracking-tight">{category.title}</h3>
+                      <p className="text-sm text-slate-500 font-medium mt-0.5">{category.tools.length} tools</p>
+                    </div>
+                  </div>
+
+                  <ChevronDown
+                    className={`w-6 h-6 text-slate-400 transition-all duration-500 ${
+                      expandedCategory === category.id ? "rotate-180 text-blue-600" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Category Tools - Premium Grid */}
+                <AnimatePresence>
+                  {expandedCategory === category.id && (
+                    <motion.div
+                      layout
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={smoothEase}
+                      className="border-t border-slate-200/60 bg-gradient-to-b from-slate-50/40 to-white overflow-hidden"
+                    >
+                      <div className="p-7">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {category.tools.map((tool, toolIndex) => (
+                            <motion.div
+                              key={tool.path}
+                              layout
+                              initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={prefersReducedMotion ? { duration: 0.1 } : {
+                                ...springConfig,
+                                damping: 24,
+                                delay: toolIndex * 0.05
+                              }}
+                              whileHover={{ y: -2 }}
+                              onClick={() => navigate(tool.path)}
+                              className="group cursor-pointer"
+                              style={{ willChange: 'transform' }}
+                            >
+                              <div className="relative p-6 rounded-2xl bg-white border border-slate-200/60 hover:border-slate-300 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-all duration-500 overflow-hidden">
+                                {/* Premium accent glow */}
+                                <div className={`absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-br ${tool.gradient} opacity-0 group-hover:opacity-[0.04] blur-3xl transition-opacity duration-700`} />
+
+                                <div className="relative">
+                                  <div className="flex items-start justify-between mb-5">
+                                    <div className={`relative w-13 h-13 rounded-xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center shadow-md shadow-blue-500/15 group-hover:shadow-lg group-hover:shadow-blue-500/25 group-hover:scale-110 group-hover:-rotate-3 transition-all duration-500`}>
+                                      <tool.icon className="w-6 h-6 text-white" />
+                                    </div>
+                                    {tool.badge && (
+                                      <Badge className="bg-blue-50 text-blue-700 border border-blue-200 font-semibold text-xs px-2.5 py-1">
+                                        {tool.badge}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <h4 className="font-display text-lg font-semibold text-slate-900 mb-2.5 tracking-tight group-hover:text-blue-600 transition-colors duration-300">
+                                    {tool.title}
+                                  </h4>
+                                  <p className="text-sm text-slate-600 leading-relaxed font-normal">
+                                    {tool.description}
+                                  </p>
+                                </div>
+
+                                {/* Subtle hover arrow */}
+                                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
+                                  <ArrowRight className="w-4 h-4 text-blue-600" />
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Card>
+            ))}
+          </div>
+
+          {/* Recent Activity - Premium List */}
+          {stats.recentActivity.length > 0 && (
+            <div className="mt-20">
+              <div className="flex items-center gap-5 mb-10">
+                <h2 className="font-display text-4xl font-semibold text-slate-900 tracking-tight">
+                  Recent Activity
+                </h2>
+                <div className="flex-1 h-[1px] bg-gradient-to-r from-slate-300 via-slate-200 to-transparent" />
+              </div>
+
+              <Card className="border border-slate-200/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] divide-y divide-slate-100 overflow-hidden bg-white rounded-3xl">
                 {stats.recentActivity.map((activity, index) => (
-                  <div key={index} className="p-4 flex items-center gap-4 hover:bg-blue-50/50 transition-colors cursor-pointer">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-blue-600" />
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="p-6 flex items-center gap-5 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-300 cursor-pointer group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/15 group-hover:shadow-lg group-hover:shadow-blue-500/25 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500">
+                      <FileText className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 truncate">{activity.name}</p>
-                      <p className="text-sm text-slate-600">Resume updated</p>
+                      <p className="font-semibold text-slate-900 truncate text-base">{activity.name}</p>
+                      <p className="text-sm text-slate-500 font-medium mt-0.5">Updated {activity.date}</p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-500">
-                      <Clock className="w-4 h-4" />{activity.date}
-                    </div>
-                  </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate("/my-resumes")}
+                      className="text-slate-600 hover:text-blue-600 hover:bg-blue-50 font-semibold cursor-pointer rounded-xl px-4 py-2"
+                    >
+                      View
+                      <ChevronRight className="w-4 h-4 ml-1.5 group-hover:translate-x-1.5 transition-transform duration-300" />
+                    </Button>
+                  </motion.div>
                 ))}
-              </div>
+              </Card>
             </div>
           )}
         </main>
       </div>
+
+      {/* Premium Global Styles */}
+      <style>{`
+        /* Premium cursor styles */
+        * {
+          cursor: default;
+        }
+
+        button,
+        a,
+        [role="button"],
+        .cursor-pointer {
+          cursor: pointer;
+        }
+
+        input,
+        textarea,
+        select {
+          cursor: text;
+        }
+
+        /* Custom cursor trail effect - optional enhancement */
+        @media (hover: hover) and (pointer: fine) {
+          button:hover,
+          a:hover,
+          .cursor-pointer:hover {
+            cursor: pointer;
+          }
+        }
+
+        /* Smooth scrolling with premium easing */
+        html {
+          scroll-behavior: smooth;
+        }
+
+        /* GPU acceleration for performance */
+        .stat-card,
+        .group,
+        button {
+          transform: translateZ(0);
+          backface-visibility: hidden;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Premium text rendering */
+        body {
+          text-rendering: optimizeLegibility;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          font-feature-settings: "kern" 1, "liga" 1;
+        }
+
+        /* Smooth overflow scrolling */
+        nav,
+        main {
+          -webkit-overflow-scrolling: touch;
+        }
+
+        /* Hide scrollbar but keep functionality */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.3);
+          border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(148, 163, 184, 0.5);
+        }
+
+        /* Premium selection color */
+        ::selection {
+          background-color: rgba(59, 130, 246, 0.2);
+          color: inherit;
+        }
+
+        ::-moz-selection {
+          background-color: rgba(59, 130, 246, 0.2);
+          color: inherit;
+        }
+      `}</style>
     </div>
   );
 }

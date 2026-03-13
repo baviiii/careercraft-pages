@@ -69,6 +69,24 @@ export const RATE_LIMITS = {
     windowMs: 60 * 1000,
     blockDurationMs: 5 * 60 * 1000,
   },
+  // Playground chat - 15 per minute (hits LLM, more expensive than search)
+  PLAYGROUND_CHAT: {
+    maxRequests: 15,
+    windowMs: 60 * 1000,
+    blockDurationMs: 2 * 60 * 1000,
+  },
+  // Agent creation / update - 10 per 5 minutes
+  AGENT_CONFIG: {
+    maxRequests: 10,
+    windowMs: 5 * 60 * 1000,
+    blockDurationMs: 5 * 60 * 1000,
+  },
+  // Playground document uploads - 5 per minute
+  PLAYGROUND_UPLOAD: {
+    maxRequests: 5,
+    windowMs: 60 * 1000,
+    blockDurationMs: 3 * 60 * 1000,
+  },
 } as const;
 
 // ============================================

@@ -21,6 +21,7 @@ import {
   EmbeddedChart,
 } from "./ChatEnhancements";
 import { exportConversationToPDF } from "@/lib/pdfExport";
+import { CAREER_SYSTEM_DISCLAIMER } from "@/lib/careerGuardrails";
 import {
   Send,
   Sparkles,
@@ -1159,8 +1160,10 @@ export default function CareerCoach() {
             </div>
           </form>
           <div className="flex items-center justify-between mt-2 px-2">
-            <p className="text-[11px] text-white/15">Based on SA Government documents · Always verify important information</p>
-            <span className="text-[11px] text-white/15">⏎ to send</span>
+            <p className="text-[11px] text-white/35 max-w-xs line-clamp-2">
+              {CAREER_SYSTEM_DISCLAIMER}
+            </p>
+            <span className="ml-2 text-[11px] text-white/25 whitespace-nowrap">⏎ to send</span>
           </div>
         </div>
         </>

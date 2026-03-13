@@ -645,20 +645,59 @@ ${ctx.jobRequirements?.mandatorySkills?.join(', ') || 'None'}
         itemsToPreserve += `\n\n🎓 EDUCATION TO PRESERVE (${extractedItems.education.length} total):\n${extractedItems.education.map((e, i) => `${i + 1}. ${e}`).join('\n')}`;
       }
 
-      userPrompt = `JOB DESCRIPTION:
+      userPrompt = `JOB DESCRIPTION (READ CAREFULLY - ONLY ADD KEYWORDS THAT MATCH ACTUAL EXPERIENCE):
 ${jobDescription}
 
 ORIGINAL RESUME (REWRITE EVERY SECTION):
 ${resumeText}${contextInfo}${itemsToPreserve}
 
-TASK: Completely rewrite the ENTIRE resume above. You must:
-1. Include ALL sections from the original resume
-2. Optimize EVERY section with keywords from job description
-3. Address all critical issues: ${criticalIssues}
-4. Incorporate missing keywords: ${missingKeywords}
-5. Fix writing quality issues: ${writingIssues}
-6. Maintain the same structure and section order
-7. Return the complete, fully rewritten resume
+TASK: Completely rewrite the ENTIRE resume above by processing EACH SECTION methodically.
+
+=== STEP-BY-STEP PROCESS ===
+
+STEP 1 - READ JOB DESCRIPTION:
+- Understand what skills, experience, and qualifications they want
+- Note which requirements match this candidate's actual background
+- Identify keywords that truthfully apply to this candidate
+
+STEP 2 - PROCESS CONTACT SECTION:
+- Keep exactly as-is (no changes to name, email, phone, etc.)
+
+STEP 3 - REWRITE PROFESSIONAL SUMMARY:
+- Write 2-3 sentences highlighting strengths that ACTUALLY match job requirements
+- Only use keywords from job description if they match candidate's real experience
+- Make it specific to THIS candidate, not generic
+
+STEP 4 - REWRITE WORK EXPERIENCE (process each job one-by-one):
+For EACH job position in order:
+  a) Read all bullets for that specific job
+  b) Identify which job requirements this position satisfies
+  c) Rewrite each bullet to be clearer and more impactful
+  d) Add relevant keywords ONLY where truthful
+  e) Include metrics (approximate if needed: "~20 users", "around 30%")
+  f) DO NOT invent technologies or achievements not in original
+  g) Move to next job and repeat
+
+STEP 5 - REWRITE EDUCATION:
+- Keep exactly as-is (preserve degree names, schools, dates, GPA)
+
+STEP 6 - REWRITE SKILLS:
+- Keep ALL skills from original
+- Reorder to prioritize job-relevant ones first
+- May add job keywords ONLY if evidenced in experience section
+- DO NOT add skills the candidate hasn't used
+
+STEP 7 - REWRITE OTHER SECTIONS:
+- Certifications: Include ALL ${extractedItems.certifications.length > 0 ? extractedItems.certifications.length : ''} exactly as listed
+- Projects: Include ALL ${extractedItems.projects.length > 0 ? extractedItems.projects.length : ''} with enhanced descriptions
+- Languages/Awards/etc: Preserve all items exactly
+
+=== CRITICAL REQUIREMENTS ===
+
+Address these specific issues:
+- Critical issues to fix: ${criticalIssues}
+- Missing keywords to incorporate (ONLY where truthful): ${missingKeywords}
+- Writing quality improvements: ${writingIssues}
 
 ⚠️ PRESERVATION CHECKLIST (VERIFY BEFORE SUBMITTING):
 ${extractedItems.certifications.length > 0 ? `✓ Include ALL ${extractedItems.certifications.length} certifications listed above (with exact names)` : ''}
@@ -667,7 +706,8 @@ ${extractedItems.education.length > 0 ? `✓ Include ALL ${extractedItems.educat
 ✓ Preserve ALL job positions with exact company names and dates
 ✓ Keep ALL skills from original (can reorder by relevance)
 ✓ Do NOT add fake certifications, projects, or experience
-✓ Only add keywords where truthful and natural
+✓ Only add keywords where they TRUTHFULLY match actual experience
+✓ Do NOT claim experience with tools/technologies not in original resume
 
 OUTPUT FORMAT (MUST FOLLOW):
 [Full Name]
@@ -776,6 +816,15 @@ You write plainly and specifically, like a real person describing work they actu
 
 You will receive structured resume data (JSON) and a job description. Optimize the content while maintaining the exact same JSON structure and all field names.
 
+=== JOB DESCRIPTION ADHERENCE (CRITICAL) ===
+
+1. READ THE JOB DESCRIPTION CAREFULLY - understand what skills, experience, and qualifications are required
+2. ONLY add keywords/skills from the job description if they TRUTHFULLY match the candidate's actual experience
+3. DO NOT claim experience with technologies, tools, or skills that aren't already demonstrated in the original resume
+4. If the job requires "Python" but the resume shows "JavaScript", DO NOT add Python unless the candidate actually used it
+5. Keywords must be integrated NATURALLY and TRUTHFULLY into existing bullets - never fabricate new achievements to fit keywords
+6. When in doubt, DO NOT add a keyword - accuracy is more important than keyword density
+
 === WRITING STYLE (MANDATORY) ===
 
 1. Write like a human, not a brochure.
@@ -807,7 +856,9 @@ DO NOT fabricate or invent ANY information:
 - NO fake projects (only enhance projects already in the data)
 - NO fake job titles or companies (preserve all exactly)
 - NO invented achievements or metrics (only enhance what exists)
-- NO made-up skills (only include skills from original or job description)
+- NO made-up skills (only include skills from original or job description IF they match actual experience)
+- NO claiming experience with tools/technologies not evidenced in the original resume
+- If a keyword from the job description doesn't match the candidate's background, DO NOT force it in
 
 === PRESERVATION REQUIREMENTS ===
 
@@ -818,12 +869,27 @@ DO NOT fabricate or invent ANY information:
 - If original has 3 certifications, optimized must have exactly 3 certifications
 - Contact info must remain exactly the same
 
-=== OPTIMIZATION FOCUS ===
+=== OPTIMIZATION FOCUS - PROCESS SECTION BY SECTION ===
 
-- Improve bullet point wording with plain language and real tool names
-- Enhance summary with relevant keywords (keep it 2-3 sentences, specific not generic)
-- Reorder skills by job relevance (but keep all original skills)
-- Integrate missing keywords ONLY where they fit existing experience truthfully`;
+Process each section methodically in this order:
+
+1. CONTACT: Keep exactly as-is (no changes)
+2. SUMMARY: Rewrite 2-3 sentences highlighting candidate's actual strengths relevant to the job
+3. EXPERIENCE: Go through EACH job entry one-by-one:
+   - Review each bullet point individually
+   - Enhance wording to be clearer and more impactful
+   - Add relevant keywords ONLY if they truthfully describe what was done
+   - Ensure metrics are present (if in original) or approximate if appropriate
+4. EDUCATION: Keep exactly as-is (no changes)
+5. SKILLS: Reorder by job relevance, keep all original skills, may add job-relevant skills ONLY if evidenced in experience
+6. CERTIFICATIONS/PROJECTS/etc: Enhance descriptions but preserve all items exactly
+
+=== KEYWORD INTEGRATION RULES ===
+
+- ONLY add keywords where they fit NATURALLY and TRUTHFULLY
+- If a keyword doesn't match actual experience, skip it
+- Better to have fewer accurate keywords than many inaccurate ones
+- Enhance existing content with keywords, don't fabricate new content`;
       
       let contextInfo = "";
       if (parsedAnalysisContext) {
@@ -911,21 +977,71 @@ ${ctx.summary?.mostImportantFixes?.slice(0, 5).map((f: string) => `- ${f}`).join
 
 DO NOT ADD NEW CERTIFICATIONS, PROJECTS, REFERENCES, AWARDS, VOLUNTEER EXPERIENCES, OR JOBS. ONLY ENHANCE EXISTING CONTENT.`;
 
-      userPrompt = `JOB DESCRIPTION:\n${jobDescription}\n\nRESUME DATA (JSON):\n${resumeData || resumeText}${contextInfo}${structuredPreservation}\n\nOptimize this resume for the job. Return ONLY valid JSON with the same structure but improved content. Address all critical issues and incorporate missing keywords. Enhance:
-- Summary: Make it compelling, keyword-rich, and address top weaknesses
-- Experience bullets: Add metrics, strong action verbs, relevant keywords from missing list (enhance existing bullets, don't add new ones)
-- Skills: Prioritize job-relevant skills first, can add missing mandatory skills (but keep ALL ${skillsCount} original skills)
+      userPrompt = `JOB DESCRIPTION (READ CAREFULLY - ONLY USE KEYWORDS THAT MATCH ACTUAL EXPERIENCE):
+${jobDescription}
 
-✓ BEFORE SUBMITTING, VERIFY:
-${experienceCount > 0 ? `  - Experience array has exactly ${experienceCount} entries` : ''}
-${educationCount > 0 ? `  - Education array has exactly ${educationCount} entries` : ''}
-${certCount > 0 ? `  - Certifications array has exactly ${certCount} entries` : ''}
-${projectCount > 0 ? `  - Projects array has exactly ${projectCount} entries` : ''}
-  - All IDs are preserved
-  - Contact info is unchanged
-  - No fake content added
+RESUME DATA (JSON):
+${resumeData || resumeText}${contextInfo}${structuredPreservation}
 
-Keep contact info unchanged. Return ONLY the JSON, no explanation.`;
+TASK: Optimize this resume for the job description above by processing EACH SECTION methodically.
+
+=== CRITICAL INSTRUCTIONS ===
+
+1. READ THE JOB DESCRIPTION FIRST - Understand what they're looking for
+2. COMPARE to the candidate's actual experience in the resume
+3. ONLY enhance with keywords that TRUTHFULLY match the candidate's background
+4. DO NOT add skills/technologies the candidate hasn't actually used
+5. Process section-by-section:
+
+STEP 1 - SUMMARY:
+- Rewrite 2-3 sentences highlighting strengths that ACTUALLY align with job requirements
+- Use keywords from job description ONLY if they match candidate's real experience
+- Make it specific to this candidate's background, not generic
+
+STEP 2 - EXPERIENCE (process each job individually):
+For EACH work experience entry:
+  a) Read all existing bullets for that job
+  b) Identify which job requirements match this specific role
+  c) Enhance bullets with relevant keywords IF truthful
+  d) Add metrics where appropriate (approximate if needed)
+  e) Use strong but realistic language (no over-claiming)
+  f) DO NOT invent achievements or technologies not in original
+
+STEP 3 - SKILLS:
+- Reorder skills to prioritize job-relevant ones first
+- Keep ALL ${skillsCount > 0 ? skillsCount : ''} original skills
+- MAY add missing mandatory skills ONLY if evidenced in experience section
+- DO NOT add skills the candidate hasn't demonstrated
+
+STEP 4 - OTHER SECTIONS:
+- Enhance descriptions where appropriate
+- Keep exact same count of items (certifications, projects, etc.)
+- DO NOT add new items, only improve existing ones
+
+=== QUALITY CHECKLIST - VERIFY BEFORE RETURNING ===
+
+Accuracy Check:
+  ✓ No fabricated skills or technologies
+  ✓ No claimed experience with tools not in original
+  ✓ Keywords added only where truthful
+  ✓ Contact info unchanged
+  ✓ All dates, companies, schools preserved exactly
+
+Completeness Check:
+${experienceCount > 0 ? `  ✓ Experience array has exactly ${experienceCount} entries` : ''}
+${educationCount > 0 ? `  ✓ Education array has exactly ${educationCount} entries` : ''}
+${certCount > 0 ? `  ✓ Certifications array has exactly ${certCount} entries` : ''}
+${projectCount > 0 ? `  ✓ Projects array has exactly ${projectCount} entries` : ''}
+  ✓ All IDs preserved
+  ✓ All section counts match original
+
+Quality Check:
+  ✓ Bullets are 8-22 words (not too long)
+  ✓ No forbidden phrases used
+  ✓ Plain language, not marketing speak
+  ✓ Specific examples, not vague claims
+
+RETURN: ONLY valid JSON with the same structure but improved content. No explanations, no commentary, just the JSON.`;
 
       toolConfig = {
         tools: [

@@ -819,7 +819,7 @@ Cite sources using [Source X] notation.
           { role: 'system', content: horusSystemPrompt },
           { role: 'user', content: `${context}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nINTELLIGENCE QUERY: ${query}\n\nAnalyze the documents above and produce 3-5 decision-grade intelligence insights. Each insight should reveal something non-obvious that informs strategic decisions.` }
         ],
-        temperature: 0.4,
+        temperature: 0, // deterministic so same chunks + query → same answer (stable budget details on reload)
         max_tokens: 2000,
       }),
     }

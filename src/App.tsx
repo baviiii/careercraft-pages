@@ -23,6 +23,7 @@ const AustralianJobs = lazy(() => import("./pages/AustralianJobs"));
 const JobMarketNews = lazy(() => import("./pages/JobMarketNews"));
 const Settings = lazy(() => import("./pages/Settings"));
 const SACareerHub = lazy(() => import("./pages/SACareerHub"));
+const Playground = lazy(() => import("./pages/Playground"));
 const IntelligenceOverview = lazy(() => import("./pages/IntelligenceOverview"));
 const CareerExplorer = lazy(() => import("./pages/CareerExplorer"));
 const MarketTrends = lazy(() => import("./pages/MarketTrends"));
@@ -89,6 +90,7 @@ const App = () => (
             <Route path="/au-jobs" element={<AustralianJobs />} />
             <Route path="/job-market-news" element={<JobMarketNews />} />
             <Route path="/sa-career-hub" element={<SACareerHub />} />
+            <Route path="/playground" element={<Playground />} />
             <Route path="/intelligence" element={<IntelligenceOverview />} />
             <Route path="/career-explorer" element={<CareerExplorer />} />
             <Route path="/market-trends" element={<MarketTrends />} />

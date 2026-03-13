@@ -69,6 +69,12 @@ export {
   fileMetadataSchema,
   feedbackSchema,
   supportTicketSchema,
+  agentBehaviorRulesSchema,
+  agentDefinitionSchema,
+  chatMessageSchema,
+  playgroundChatRequestSchema,
+  collectionSchema,
+  agentSuggestRequestSchema,
   validateInput,
   validateOrThrow,
   type ValidationResult as SchemaValidationResult
@@ -108,3 +114,12 @@ export {
   type SecureApiResponse,
   type UseSecureApiState
 } from './secureApi';
+
+// Export from promptSecurity
+export {
+  scanForPromptInjection,
+  checkAndLogPromptInjection,
+  sanitizePromptInput,
+  validateAgentPrompt,
+  type PromptScanResult,
+} from './promptSecurity';

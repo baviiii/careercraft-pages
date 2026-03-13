@@ -115,6 +115,9 @@ export default function InterviewDashboard() {
   // DATA FETCHING
   // ============================================
   
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
   const fetchDashboardData = useCallback(async () => {
     // Check rate limit before fetching
     const rateLimitResult = checkLimit();
@@ -234,7 +237,7 @@ export default function InterviewDashboard() {
       setError(errorMessage);
       console.error("Dashboard fetch error:", err);
       
-      toast({
+      toastRef.current({
         title: "Error Loading Dashboard",
         description: errorMessage,
         variant: "destructive",
@@ -242,7 +245,7 @@ export default function InterviewDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [checkLimit, navigate, toast]);
+  }, [checkLimit, navigate]); // toast and onLimitExceeded are accessed via refs - stable
 
   // ============================================
   // STREAK CALCULATION

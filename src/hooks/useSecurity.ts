@@ -135,26 +135,32 @@ export interface UseRateLimitResult {
 }
 
 export function useRateLimit(options: UseRateLimitOptions): UseRateLimitResult {
-  const [status, setStatus] = useState<RateLimitResult>(() => 
+  const [status, setStatus] = useState<RateLimitResult>(() =>
     getRateLimitStatus(options.key, options.config || RATE_LIMITS.API)
   );
-  
+
+  // Keep a ref so callbacks always see latest options without triggering re-creation
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   const checkLimit = useCallback(() => {
-    const result = checkRateLimit(options.key, options.config || RATE_LIMITS.API);
+    const { key, config, onLimitExceeded } = optionsRef.current;
+    const result = checkRateLimit(key, config || RATE_LIMITS.API);
     setStatus(result);
-    
-    if (!result.allowed && options.onLimitExceeded) {
-      options.onLimitExceeded(result);
+
+    if (!result.allowed && onLimitExceeded) {
+      onLimitExceeded(result);
     }
-    
+
     return result;
-  }, [options]);
-  
+  }, []); // stable - reads latest options via ref
+
   const getStatus = useCallback(() => {
-    const result = getRateLimitStatus(options.key, options.config || RATE_LIMITS.API);
+    const { key, config } = optionsRef.current;
+    const result = getRateLimitStatus(key, config || RATE_LIMITS.API);
     setStatus(result);
     return result;
-  }, [options]);
+  }, []); // stable - reads latest options via ref
   
   return {
     checkLimit,

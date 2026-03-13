@@ -868,7 +868,7 @@ const Index = memo(() => {
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
                     <Button
                       size="lg"
-                      onClick={() => navigate("/try")}
+                      onClick={() => navigate("/playground")}
                       className="w-full sm:w-auto relative bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 bg-[length:200%_100%] hover:bg-[position:100%_0] text-white shadow-2xl shadow-purple-500/30 px-6 sm:px-10 py-5 sm:py-7 text-base sm:text-lg rounded-2xl transition-all duration-500 group overflow-hidden font-bold"
                     >
                       <motion.span
@@ -877,7 +877,7 @@ const Index = memo(() => {
                         transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
                       />
                       <Play className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                      Try Us Free
+                      Open Playground
                       <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                     </Button>
                   </motion.div>

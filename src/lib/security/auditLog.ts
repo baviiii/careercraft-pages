@@ -35,7 +35,14 @@ export type AuditEventType =
   | 'PERMISSION_DENIED'
   | 'SESSION_CREATED'
   | 'SESSION_EXPIRED'
-  | 'SETTINGS_CHANGED';
+  | 'SETTINGS_CHANGED'
+  | 'AGENT_CREATED'
+  | 'AGENT_UPDATED'
+  | 'AGENT_DELETED'
+  | 'AGENT_CHAT'
+  | 'COLLECTION_CREATED'
+  | 'COLLECTION_UPDATED'
+  | 'PROMPT_INJECTION_ATTEMPT';
 
 export type AuditSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -115,6 +122,13 @@ const EVENT_SEVERITY: Record<AuditEventType, AuditSeverity> = {
   SESSION_CREATED: 'LOW',
   SESSION_EXPIRED: 'LOW',
   SETTINGS_CHANGED: 'LOW',
+  AGENT_CREATED: 'LOW',
+  AGENT_UPDATED: 'LOW',
+  AGENT_DELETED: 'MEDIUM',
+  AGENT_CHAT: 'LOW',
+  COLLECTION_CREATED: 'LOW',
+  COLLECTION_UPDATED: 'LOW',
+  PROMPT_INJECTION_ATTEMPT: 'CRITICAL',
 };
 
 // ============================================
@@ -444,4 +458,36 @@ export function auditRateLimitExceeded(
   ipAddress?: string
 ): void {
   getAuditLogger().logRateLimitExceeded(endpoint, userId, ipAddress);
+}
+
+export function auditAgentEvent(
+  type: 'AGENT_CREATED' | 'AGENT_UPDATED' | 'AGENT_DELETED' | 'AGENT_CHAT',
+  agentId: string,
+  userId?: string,
+  details?: Record<string, unknown>,
+): void {
+  getAuditLogger().log({
+    type,
+    action: `${type.replace('AGENT_', '').toLowerCase()} agent`,
+    resource: 'agent',
+    resourceId: agentId,
+    userId,
+    success: true,
+    details,
+  });
+}
+
+export function auditPromptInjection(
+  context: string,
+  threats: Array<{ label: string; match: string }>,
+  userId?: string,
+): void {
+  getAuditLogger().log({
+    type: 'PROMPT_INJECTION_ATTEMPT',
+    action: `Prompt injection detected in ${context}`,
+    userId,
+    success: false,
+    errorMessage: 'Prompt injection blocked',
+    details: { context, threats },
+  });
 }

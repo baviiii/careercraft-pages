@@ -14,7 +14,13 @@
       "Bash(az network nsg delete:*)",
       "Bash(az resource list:*)",
       "Bash(powershell:*)",
-      "Bash(Select-Object -First 50)"
+      "Bash(Select-Object -First 50)",
+      "Bash(npm run dev:*)",
+      "Bash(C:UsersaseesAppDataLocalTempauth_old.txt)",
+      "Bash(where:*)",
+      "Bash(supabase functions deploy:*)",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:claudefa.st)"
     ],
     "deny": [],
     "ask": []

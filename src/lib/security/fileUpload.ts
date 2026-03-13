@@ -57,6 +57,31 @@ export const RESUME_UPLOAD_CONFIG: FileUploadConfig = {
   generateSafeFilename: true,
 };
 
+// Playground config — accepts career docs AND general documents (policies, reports, etc.)
+// Same security pipeline: magic bytes + Azure sandboxing + size limits
+export const PLAYGROUND_UPLOAD_CONFIG: FileUploadConfig = {
+  maxSizeMB: 25,
+  allowedMimeTypes: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'text/plain',
+    'text/csv',
+    'text/markdown',
+    'image/jpeg',
+    'image/png',
+  ],
+  allowedExtensions: [
+    '.pdf', '.doc', '.docx', '.xlsx', '.xls',
+    '.txt', '.csv', '.md',
+    '.jpg', '.jpeg', '.png',
+  ],
+  scanContent: true,
+  generateSafeFilename: true,
+};
+
 // Image-specific config
 export const IMAGE_UPLOAD_CONFIG: FileUploadConfig = {
   maxSizeMB: 20,
@@ -93,6 +118,8 @@ const FILE_SIGNATURES: Record<string, number[][]> = {
   'application/pdf': [[0x25, 0x50, 0x44, 0x46]], // %PDF
   'application/msword': [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]],
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [[0x50, 0x4B, 0x03, 0x04]], // ZIP (DOCX is a ZIP)
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [[0x50, 0x4B, 0x03, 0x04]], // ZIP (XLSX is a ZIP)
+  'application/vnd.ms-excel': [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]], // OLE2 compound
 };
 
 /**

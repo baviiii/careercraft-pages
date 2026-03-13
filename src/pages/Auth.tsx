@@ -276,11 +276,21 @@ const Auth = () => {
   }, [navigate, trackAuthEvent]);
 
   const handleGoogleAuth = async () => {
-    if (!checkAuthRateLimit()) return;
-    
+    console.log('[OAuth] Starting Google OAuth flow...');
+    console.log('[OAuth] Current URL:', window.location.href);
+    console.log('[OAuth] Redirect will be to:', `${window.location.origin}/`);
+
+    if (!checkAuthRateLimit()) {
+      console.log('[OAuth] Blocked by rate limit');
+      return;
+    }
+
     setIsGoogleLoading(true);
+
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('[OAuth] Calling signInWithOAuth...');
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/`,
@@ -291,19 +301,46 @@ const Auth = () => {
         },
       });
 
-      if (error) throw error;
+      console.log('[OAuth] Response received');
+      console.log('[OAuth] Data:', data);
+      console.log('[OAuth] Error:', error);
+
+      if (error) {
+        console.error('[OAuth] Google OAuth error details:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        });
+        throw error;
+      }
+
+      console.log('[OAuth] No error - redirect should happen now');
+      // Note: The redirect happens automatically if no error
+      // Don't set loading to false here as the page will redirect
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign in with Google");
+      console.error('[OAuth] Google OAuth failed:', error);
+      console.error('[OAuth] Error type:', typeof error);
+      console.error('[OAuth] Error keys:', Object.keys(error || {}));
+
+      // Provide more specific error messages
+      if (error.message?.includes('not enabled')) {
+        toast.error("Google sign-in is not configured. Please contact support.");
+      } else if (error.message?.includes('network') || error.message?.includes('connection')) {
+        toast.error("Connection error. Please check your internet and try again.");
+      } else {
+        toast.error(error.message || "Failed to sign in with Google. Please try again.");
+      }
+
       setIsGoogleLoading(false);
     }
   };
 
   const handleMicrosoftAuth = async () => {
     if (!checkAuthRateLimit()) return;
-    
+
     setIsMicrosoftLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
         options: {
           redirectTo: `${window.location.origin}/`,
@@ -311,9 +348,25 @@ const Auth = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Microsoft OAuth error:', error);
+        throw error;
+      }
+
+      // Note: The redirect happens automatically if no error
+      // Don't set loading to false here as the page will redirect
     } catch (error: any) {
-      toast.error(error.message || "Failed to sign in with Microsoft");
+      console.error('Microsoft OAuth failed:', error);
+
+      // Provide more specific error messages
+      if (error.message?.includes('not enabled')) {
+        toast.error("Microsoft sign-in is not configured. Please contact support.");
+      } else if (error.message?.includes('network') || error.message?.includes('connection')) {
+        toast.error("Connection error. Please check your internet and try again.");
+      } else {
+        toast.error(error.message || "Failed to sign in with Microsoft. Please try again.");
+      }
+
       setIsMicrosoftLoading(false);
     }
   };

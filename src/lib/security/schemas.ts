@@ -236,6 +236,55 @@ export const supportTicketSchema = z.object({
 });
 
 // ============================================
+// PLAYGROUND / AGENT SCHEMAS
+// ============================================
+
+export const agentBehaviorRulesSchema = z.object({
+  do: z.array(safeString(1, 500)).min(1).max(20),
+  dont: z.array(safeString(1, 500)).max(20),
+});
+
+export const agentDefinitionSchema = z.object({
+  name: safeString(1, 100),
+  emoji: z.string().max(10).optional(),
+  shortTagline: safeString(1, 200),
+  systemPrompt: safeString(1, 8000),
+  behaviorRules: agentBehaviorRulesSchema,
+  toneStyle: z.enum(['direct', 'supportive', 'coach', 'analyst']),
+  defaultTools: z.array(z.enum(['career_rag', 'policy_rag', 'ats_scorer'])).max(10),
+  careerUseCase: z.enum(['ats_reviewer', 'storyteller', 'gap_analyst', 'local_sa_coach']).optional(),
+  domain: z.string().max(50).optional(),
+  linkedCollections: z.array(safeString(1, 100)).max(50),
+});
+
+export const chatMessageSchema = z.object({
+  role: z.enum(['user', 'assistant', 'system']),
+  content: safeString(1, 16000),
+});
+
+export const playgroundChatRequestSchema = z.object({
+  agentId: safeString(1, 100),
+  collectionIds: z.array(safeString(1, 100)).max(50),
+  messages: z.array(chatMessageSchema).min(1).max(200),
+});
+
+export const collectionSchema = z.object({
+  name: safeString(1, 100),
+  description: safeString(0, 500).optional(),
+  type: z.enum([
+    'resumes', 'job_descriptions', 'career_notes', 'portfolio_docs',
+    'policies', 'guidelines', 'research_docs', 'mixed',
+  ]),
+  domain: z.string().max(50).optional(),
+});
+
+export const agentSuggestRequestSchema = z.object({
+  description: safeString(10, 2000),
+  careerUseCase: z.enum(['ats_reviewer', 'storyteller', 'gap_analyst', 'local_sa_coach']).optional(),
+  domain: z.string().max(50).optional(),
+});
+
+// ============================================
 // VALIDATION HELPERS
 // ============================================
 
