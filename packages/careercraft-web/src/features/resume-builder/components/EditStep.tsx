@@ -198,7 +198,7 @@ export const EditStep = ({
         }`}
       >
         {/* Section rail */}
-        <nav className="lg:sticky lg:top-[220px] lg:self-start">
+        <nav className="lg:sticky lg:top-20 lg:self-start">
           <div className="cc-label text-[color:var(--cc-ash)] mb-3">Table of contents</div>
           <ul className="space-y-px">
             {SECTIONS.map((section) => {
@@ -285,7 +285,7 @@ export const EditStep = ({
 
         {/* Live preview column */}
         {showLivePreview && (
-          <aside className="lg:sticky lg:top-[220px] lg:self-start hidden lg:block">
+          <aside className="lg:sticky lg:top-20 lg:self-start hidden lg:block">
             <div className="cc-label text-[color:var(--cc-ash)] mb-3 flex items-center justify-between">
               <span>Live proof</span>
               <Sparkles className="w-3.5 h-3.5 text-[color:var(--cc-rust)]" />

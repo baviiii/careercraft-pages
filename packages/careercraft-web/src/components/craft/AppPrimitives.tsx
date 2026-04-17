@@ -334,30 +334,30 @@ export const CraftDialog = ({
 }: CraftDialogProps) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent
-      className={`cc-root ${maxWidth} w-[95vw] gap-0 p-0 border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] rounded-none shadow-[0_20px_60px_-20px_rgba(14,12,10,0.35)]`}
+      className={`cc-root ${maxWidth} w-[95vw] max-h-[min(90vh,920px)] gap-0 p-0 flex flex-col overflow-hidden border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] rounded-none shadow-[0_20px_60px_-20px_rgba(14,12,10,0.35)]`}
     >
-      <DialogHeader className="p-7 md:p-8 pb-5 space-y-3 text-left">
+      <DialogHeader className="px-6 md:px-8 pt-6 md:pt-7 pb-4 md:pb-5 space-y-2.5 text-left flex-shrink-0 border-b border-[color:var(--cc-hair)]">
         {kicker && (
           <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>
         )}
-        <DialogTitle className="cc-font-display text-3xl md:text-4xl leading-[1] tracking-tight text-[color:var(--cc-ink)]">
+        <DialogTitle className="cc-font-display text-2xl md:text-3xl leading-[1.05] tracking-tight text-[color:var(--cc-ink)]">
           {title}
         </DialogTitle>
         {description && (
-          <DialogDescription className="cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+          <DialogDescription className="cc-font-editorial text-base md:text-lg leading-snug text-[color:var(--cc-ink-soft)]">
             {description}
           </DialogDescription>
         )}
       </DialogHeader>
 
       {children && (
-        <div className="px-7 md:px-8 pb-6 cc-font-sans text-[color:var(--cc-ink)]">
+        <div className="px-6 md:px-8 py-5 md:py-6 cc-font-sans text-[color:var(--cc-ink)] flex-1 overflow-y-auto min-h-0 overscroll-contain">
           {children}
         </div>
       )}
 
       {footer && (
-        <DialogFooter className="p-6 md:p-7 border-t border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] sm:justify-end gap-3 flex-col-reverse sm:flex-row">
+        <DialogFooter className="p-5 md:p-6 border-t border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] sm:justify-end gap-3 flex-col-reverse sm:flex-row flex-shrink-0">
           {footer}
         </DialogFooter>
       )}
