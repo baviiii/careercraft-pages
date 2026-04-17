@@ -1,0 +1,193 @@
+/* ───────────────────────────────────────────────────────────
+   CareerCraft — Editorial Theme
+   Tokens + utility classes used by the public pages.
+   ─────────────────────────────────────────────────────────── */
+
+:root {
+  --cc-cream: #F3EADB;
+  --cc-cream-2: #ECE0CB;
+  --cc-ink: #0E0C0A;
+  --cc-ink-2: #211E1B;
+  --cc-ink-soft: #3A3530;
+  --cc-rust: #C8431E;
+  --cc-rust-deep: #9C3416;
+  --cc-ash: #746A60;
+  --cc-hair: rgba(14, 12, 10, 0.14);
+  --cc-hair-strong: rgba(14, 12, 10, 0.3);
+}
+
+.cc-root ::selection { background: var(--cc-rust); color: var(--cc-cream); }
+
+/* Fonts ----------------------------------------------------- */
+.cc-font-display   { font-family: 'Fraunces', 'Times New Roman', serif; font-optical-sizing: auto; }
+.cc-font-editorial { font-family: 'Instrument Serif', 'Times New Roman', serif; }
+.cc-font-mono      { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.cc-font-sans      { font-family: 'Inter', system-ui, sans-serif; }
+
+/* Wonky italic display — the signature accent */
+.cc-italic-wonk {
+  font-style: italic;
+  font-variation-settings: 'SOFT' 100, 'WONK' 1;
+  font-weight: 300;
+}
+
+/* Labels ---------------------------------------------------- */
+.cc-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+.cc-label-sm {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+/* Rules ----------------------------------------------------- */
+.cc-rule { height: 1px; background: var(--cc-hair-strong); }
+
+/* Buttons --------------------------------------------------- */
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.15rem 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  border: 1px solid var(--cc-ink);
+  background: transparent;
+  color: var(--cc-ink);
+  transition: background .35s ease, color .35s ease, border-color .35s ease;
+  cursor: pointer;
+  line-height: 1;
+}
+.cc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cc-btn-primary { background: var(--cc-ink); color: var(--cc-cream); }
+.cc-btn-primary:hover:not(:disabled) { background: var(--cc-rust); border-color: var(--cc-rust); }
+.cc-btn-ghost:hover:not(:disabled)   { background: var(--cc-ink); color: var(--cc-cream); }
+.cc-btn-onrust {
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+  border-color: var(--cc-ink);
+}
+.cc-btn-onrust:hover:not(:disabled) {
+  background: var(--cc-cream);
+  color: var(--cc-ink);
+  border-color: var(--cc-cream);
+}
+.cc-btn svg { transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+.cc-btn:hover .cc-arrow-up    { transform: rotate(45deg); }
+.cc-btn:hover .cc-arrow-right { transform: translateX(4px); }
+
+/* Animated link underline that retreats on hover */
+.cc-link { position: relative; display: inline-block; color: inherit; }
+.cc-link::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -3px;
+  height: 1px;
+  background: currentColor;
+  transform-origin: right;
+  transform: scaleX(1);
+  transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-link:hover::after { transform-origin: left; transform: scaleX(0); }
+
+/* Paper grain overlay */
+.cc-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+  opacity: 0.06;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* Animations ----------------------------------------------- */
+@keyframes cc-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.cc-marquee-track { animation: cc-marquee 42s linear infinite; will-change: transform; }
+
+@keyframes cc-marquee-fast { from { transform: translateX(0); } to { transform: translateX(-33.3334%); } }
+.cc-marquee-track-fast { animation: cc-marquee-fast 38s linear infinite; will-change: transform; }
+
+@keyframes cc-spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.cc-spin-slow { animation: cc-spin-slow 28s linear infinite; }
+
+@keyframes cc-blink { 0%, 65% { opacity: 1; } 75%, 100% { opacity: 0.2; } }
+.cc-blink { animation: cc-blink 1.8s steps(2, end) infinite; }
+
+/* Editorial diff marks — used by the Exhibit */
+.cc-strike {
+  text-decoration: line-through;
+  text-decoration-color: var(--cc-rust);
+  text-decoration-thickness: 2px;
+  color: rgba(243, 234, 219, 0.45);
+}
+.cc-highlight {
+  background: linear-gradient(180deg, transparent 58%, rgba(200, 67, 30, 0.35) 58%);
+  padding: 0 2px;
+  color: var(--cc-cream);
+}
+.cc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--cc-hair-strong);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--cc-ink-soft);
+  line-height: 1;
+}
+.cc-chip-dark {
+  border-color: rgba(243, 234, 219, 0.25);
+  color: rgba(243, 234, 219, 0.75);
+}
+
+/* Ticker direction reversal helper */
+.cc-marquee-reverse { animation-direction: reverse; }
+
+/* Form elements — editorial style, used by Auth & Contact */
+.cc-input {
+  width: 100%;
+  padding: 1rem 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--cc-hair-strong);
+  font-family: 'Instrument Serif', serif;
+  font-size: 20px;
+  color: var(--cc-ink);
+  outline: none;
+  transition: border-color .3s ease, padding .3s ease;
+}
+.cc-input::placeholder { color: var(--cc-ash); opacity: 0.7; font-style: italic; }
+.cc-input:focus { border-color: var(--cc-rust); }
+.cc-input.cc-input-error { border-color: var(--cc-rust); }
+
+.cc-textarea {
+  width: 100%;
+  padding: 1rem 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--cc-hair-strong);
+  font-family: 'Instrument Serif', serif;
+  font-size: 18px;
+  color: var(--cc-ink);
+  outline: none;
+  resize: vertical;
+  min-height: 140px;
+  line-height: 1.5;
+  transition: border-color .3s ease;
+}
+.cc-textarea::placeholder { color: var(--cc-ash); opacity: 0.7; font-style: italic; }
+.cc-textarea:focus { border-color: var(--cc-rust); }
+
+/* Scroll smoothing on the public pages */
+.cc-root { scroll-behavior: smooth; }

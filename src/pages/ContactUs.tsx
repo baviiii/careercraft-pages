@@ -1,25 +1,16 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Phone, MapPin, Send, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { ArrowLeft, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { CraftPageShell } from "@/components/landing/CraftShell";
 
 export default function ContactUs() {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    subject: "",
-    message: "",
-  });
+  const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission here
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
@@ -28,199 +19,164 @@ export default function ContactUs() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-sky-50">
-      <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-6xl mx-auto"
-        >
-          {/* Header */}
-          <div className="text-center mb-12 sm:mb-16">
-            <Button
-              variant="ghost"
-              onClick={() => navigate("/")}
-              className="mb-4 sm:mb-6"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
-            </Button>
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 px-4 bg-gradient-to-r from-blue-600 to-sky-600 bg-clip-text text-transparent"
-            >
-              Contact Us
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="text-base sm:text-xl text-slate-600 max-w-2xl mx-auto px-4"
-            >
-              Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
-            </motion.p>
-          </div>
+    <CraftPageShell>
+      {/* Masthead */}
+      <section className="bg-[color:var(--cc-cream)] pt-32 pb-12 md:pt-40 md:pb-20">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-10">
+          <button
+            onClick={() => navigate("/")}
+            className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-ink)] cc-link mb-10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to the atelier
+          </button>
 
-          <div className="grid md:grid-cols-2 gap-8 sm:gap-12">
-            {/* Contact Information */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-              className="space-y-6 sm:space-y-8"
-            >
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-4 sm:mb-6 px-2">Get in Touch</h2>
-                <p className="text-sm sm:text-base text-slate-600 mb-6 sm:mb-8 px-2">
-                  We're here to help! Reach out to us through any of these channels.
-                </p>
-              </div>
+          <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · Correspondence</div>
+          <h1 className="mt-4 cc-font-display text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight text-[color:var(--cc-ink)]">
+            Write to the<br />
+            <span className="cc-italic-wonk">editors.</span>
+          </h1>
+          <p className="mt-8 cc-font-editorial text-2xl md:text-[28px] leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
+            Questions, commissions, corrections — every letter opened by a person, usually within a day.
+          </p>
+        </div>
+      </section>
 
-              <div className="space-y-4 sm:space-y-6">
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-blue-100"
-                >
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-1">Email</h3>
-                    <a href="mailto:support@careercraft.com" className="text-sm sm:text-base text-blue-600 hover:text-blue-700 break-all">
+      {/* Body — 2 column: details + letter */}
+      <section className="bg-[color:var(--cc-cream)] pb-24 md:pb-36">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-10">
+          <div className="grid grid-cols-12 gap-8 md:gap-16 border-t border-[color:var(--cc-hair-strong)] pt-16 md:pt-20">
+            {/* Left column — addresses */}
+            <div className="col-span-12 md:col-span-5">
+              <div className="cc-label text-[color:var(--cc-rust)]">§ 01 · The Address</div>
+              <h2 className="mt-4 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
+                Three ways to reach<br />
+                <span className="cc-italic-wonk">the workshop.</span>
+              </h2>
+
+              <dl className="mt-12 space-y-8">
+                <div className="border-t border-[color:var(--cc-hair)] pt-5">
+                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">Post · electronic</dt>
+                  <dd className="mt-2 cc-font-display italic text-2xl md:text-3xl">
+                    <a href="mailto:support@careercraft.com" className="cc-link text-[color:var(--cc-ink)]">
                       support@careercraft.com
                     </a>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-blue-100"
-                >
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-1">Phone</h3>
-                    <a href="tel:+611300000000" className="text-sm sm:text-base text-blue-600 hover:text-blue-700">
+                  </dd>
+                </div>
+                <div className="border-t border-[color:var(--cc-hair)] pt-5">
+                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">By telephone</dt>
+                  <dd className="mt-2 cc-font-display italic text-2xl md:text-3xl">
+                    <a href="tel:+611300000000" className="cc-link text-[color:var(--cc-ink)]">
                       +61 1300 000 000
                     </a>
-                  </div>
-                </motion.div>
+                  </dd>
+                </div>
+                <div className="border-t border-[color:var(--cc-hair)] pt-5">
+                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">In person</dt>
+                  <dd className="mt-2 cc-font-editorial text-xl md:text-2xl text-[color:var(--cc-ink-soft)] leading-snug">
+                    Adelaide, South Australia<br />
+                    <span className="cc-font-display italic text-[color:var(--cc-ink)]">by quiet appointment</span>
+                  </dd>
+                </div>
+              </dl>
 
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  className="flex items-start gap-3 sm:gap-4 p-4 sm:p-6 bg-white rounded-xl sm:rounded-2xl shadow-lg border border-blue-100"
-                >
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-1">Address</h3>
-                    <p className="text-sm sm:text-base text-slate-600">
-                      Adelaide, South Australia<br />
-                      Australia
-                    </p>
-                  </div>
-                </motion.div>
+              <div className="mt-12 border-t border-[color:var(--cc-ink)] pt-5">
+                <div className="cc-label-sm text-[color:var(--cc-ash)]">Opening hours</div>
+                <div className="mt-3 cc-font-editorial text-xl text-[color:var(--cc-ink-soft)] leading-snug">
+                  Mon &ndash; Fri · 9:00 &ndash; 17:00 AEST<br />
+                  Weekends closed · letters held
+                </div>
               </div>
+            </div>
 
-              <div className="p-4 sm:p-6 bg-gradient-to-br from-blue-50 to-sky-50 rounded-xl sm:rounded-2xl border border-blue-200">
-                <h3 className="text-sm sm:text-base font-semibold text-slate-800 mb-2">Business Hours</h3>
-                <p className="text-slate-600 text-xs sm:text-sm">
-                  Monday - Friday: 9:00 AM - 5:00 PM AEST<br />
-                  Saturday - Sunday: Closed
-                </p>
-              </div>
-            </motion.div>
+            {/* Right column — letter form */}
+            <div className="col-span-12 md:col-span-7">
+              <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · The Letter</div>
+              <h2 className="mt-4 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
+                Leave a <span className="cc-italic-wonk">note.</span>
+              </h2>
 
-            {/* Contact Form */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <div className="bg-white rounded-2xl shadow-xl p-5 sm:p-8 border border-blue-100">
+              <div className="mt-10">
                 {submitted ? (
                   <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="text-center py-12"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="border border-[color:var(--cc-ink)] p-10 md:p-14 text-center bg-[color:var(--cc-cream)]"
                   >
-                    <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-slate-800 mb-2">Message Sent!</h3>
-                    <p className="text-slate-600">We'll get back to you soon.</p>
+                    <CheckCircle2 className="w-10 h-10 text-[color:var(--cc-rust)] mx-auto" />
+                    <div className="mt-6 cc-label text-[color:var(--cc-rust)]">Letter received</div>
+                    <h3 className="mt-4 cc-font-display text-3xl md:text-4xl text-[color:var(--cc-ink)]">
+                      Thank you — <span className="cc-italic-wonk">we'll write back soon.</span>
+                    </h3>
+                    <p className="mt-4 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">
+                      A reply is typically posted within one working day.
+                    </p>
                   </motion.div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  <form onSubmit={handleSubmit} className="space-y-8">
                     <div>
-                      <Label htmlFor="name" className="text-slate-700">Name</Label>
-                      <Input
-                        id="name"
+                      <label htmlFor="c-name" className="cc-label-sm text-[color:var(--cc-ash)]">From &mdash; your name</label>
+                      <input
+                        id="c-name"
                         type="text"
                         required
+                        placeholder="e.g. Ada Lovelace"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="mt-2"
-                        placeholder="Your name"
+                        className="cc-input mt-2"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="email" className="text-slate-700">Email</Label>
-                      <Input
-                        id="email"
+                      <label htmlFor="c-email" className="cc-label-sm text-[color:var(--cc-ash)]">Return address</label>
+                      <input
+                        id="c-email"
                         type="email"
                         required
+                        placeholder="you@example.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="mt-2"
-                        placeholder="your.email@example.com"
+                        className="cc-input mt-2"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="subject" className="text-slate-700">Subject</Label>
-                      <Input
-                        id="subject"
+                      <label htmlFor="c-subject" className="cc-label-sm text-[color:var(--cc-ash)]">Subject line</label>
+                      <input
+                        id="c-subject"
                         type="text"
                         required
+                        placeholder="What is this about?"
                         value={formData.subject}
                         onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                        className="mt-2"
-                        placeholder="What's this about?"
+                        className="cc-input mt-2"
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="message" className="text-slate-700">Message</Label>
-                      <Textarea
-                        id="message"
+                      <label htmlFor="c-message" className="cc-label-sm text-[color:var(--cc-ash)]">The letter</label>
+                      <textarea
+                        id="c-message"
                         required
+                        placeholder="Tell us how we can help…"
                         value={formData.message}
                         onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                        className="mt-2 min-h-[150px]"
-                        placeholder="Tell us how we can help..."
+                        className="cc-textarea mt-2"
                       />
                     </div>
 
-                    <Button
-                      type="submit"
-                      size="lg"
-                      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      Send Message
-                    </Button>
+                    <div className="pt-2">
+                      <button type="submit" className="cc-btn cc-btn-primary">
+                        Send the Letter <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+                      </button>
+                    </div>
                   </form>
                 )}
               </div>
-            </motion.div>
+            </div>
           </div>
-        </motion.div>
-      </div>
-    </div>
+        </div>
+      </section>
+    </CraftPageShell>
   );
 }
-

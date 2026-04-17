@@ -20,7 +20,21 @@
       "Bash(where:*)",
       "Bash(supabase functions deploy:*)",
       "WebFetch(domain:code.claude.com)",
-      "WebFetch(domain:claudefa.st)"
+      "WebFetch(domain:claudefa.st)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(pnpm)",
+      "Bash(workspace)",
+      "Bash(lerna \")",
+      "Bash(cd:*)",
+      "Bash(node_modules/.bin/tsc --noEmit -p tsconfig.app.json)",
+      "Bash(node_modules/.bin/vite --port 5188 --strictPort)",
+      "Bash(curl -s -o /tmp/cc.html -w \"%{http_code}\\\\n\" http://localhost:5188/)",
+      "Bash(curl -s http://localhost:5188/src/pages/Index.tsx)",
+      "Bash(curl -s http://localhost:5188/)",
+      "Bash(curl -s http://localhost:5188/ -o /dev/null -w \"status=%{http_code}\\\\n\")",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" http://localhost:5188/src/pages/Index.tsx)",
+      "Bash(curl -s -o /dev/null -w \"port5188=%{http_code}\\\\n\" --max-time 2 http://localhost:5188/)"
     ],
     "deny": [],
     "ask": []

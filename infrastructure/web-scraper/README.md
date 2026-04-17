@@ -24,25 +24,16 @@ This will scrape all websites, generate embeddings, and upload to Azure AI Searc
 
 ---
 
-## ⚠️ Legacy PowerShell Scraper
-
-**`smart-web-scraper.ps1`** - Basic PowerShell scraper (HttpWebRequest)
-- Works for simple static sites
-- Struggles with JavaScript and anti-bot protection
-- Limited success rate (~30-50%)
-- **Use Enterprise Scraper for production**
-
----
-
 ## 📁 Files Overview
 
-### Enterprise Scraper (Production)
+### Enterprise Scraper (Production - Azure)
 - **`enterprise-scraper/scraper.js`** - Main Playwright scraper
 - **`enterprise-scraper/run-enterprise-scraper.ps1`** - Complete workflow (scrape + upload)
 - **`enterprise-scraper/upload-to-azure.ps1`** - Uploads scraped content to Azure AI Search
 
-### Legacy Scraper
-- **`smart-web-scraper.ps1`** - Basic PowerShell scraper (backup/legacy)
+### Local Scraper (No Cloud Dependencies)
+- **`local-scraper/local-scraper.js`** - Playwright scraper with local JSON output
+- **`local-scraper/README.md`** - Setup & usage
 
 ### Utilities
 - **`verify-scraper-data.ps1`** - Verifies scraped data in Azure AI Search index
@@ -66,11 +57,13 @@ npm run install-browsers
 
 **This is the production-ready solution** - uses Playwright for real browser automation!
 
-### Legacy PowerShell Scraper (Backup)
+### Local Scraper (No Azure Required)
 
-```powershell
-# Basic scraper (limited success rate)
-.\smart-web-scraper.ps1 -ResourceGroupName "rg-careercraft-dev"
+```bash
+cd local-scraper
+npm install && npm run install-browsers
+npm run scrape        # Scrape all sites, output JSON to ./output
+npm run scrape:jobs   # Jobs only
 ```
 
 ---

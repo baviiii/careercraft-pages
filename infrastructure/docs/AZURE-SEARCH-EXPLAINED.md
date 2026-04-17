@@ -69,7 +69,7 @@ Let me explain the difference:
 ```
 Azure AI Search INDEX ("sa-gov-documents")
 ├── 5,333 PDF documents (pushed via process-pdfs.ps1)
-└── 1,035 web documents (pushed via smart-web-scraper.ps1)
+└── 1,035 web documents (pushed via enterprise-scraper (run-enterprise-scraper.ps1))
 ```
 
 ### What You DON'T Have (Yet):
@@ -84,7 +84,7 @@ Azure AI Search INDEXERS
 
 ### Option 1: Manual Scraping (What You're Doing Now)
 
-**Using:** Your custom PowerShell scraper (`smart-web-scraper.ps1`)
+**Using:** Your custom PowerShell scraper (`enterprise-scraper (run-enterprise-scraper.ps1)`)
 
 **How it works:**
 1. Script scrapes websites
@@ -131,7 +131,7 @@ Azure AI Search INDEXERS
 
 1. **Initial Data (Use Custom Scraper)**
    ```powershell
-   .\smart-web-scraper.ps1 -ResourceGroupName "rg-careercraft-dev"
+   .\enterprise-scraper (run-enterprise-scraper.ps1) -ResourceGroupName "rg-careercraft-dev"
    ```
    - Gets initial data with embeddings
    - Best quality

@@ -128,9 +128,6 @@ if ($documentCount -eq 0) {
     Write-Host "  To populate the index, run:" -ForegroundColor Yellow
     Write-Host "    cd web-scraper\enterprise-scraper" -ForegroundColor White
     Write-Host "    .\run-enterprise-scraper.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
-    Write-Host "  OR (legacy scraper):" -ForegroundColor Yellow
-    Write-Host "    cd web-scraper" -ForegroundColor White
-    Write-Host "    .\smart-web-scraper.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
     exit 1
 }
 
@@ -242,9 +239,9 @@ try {
     } else {
         Write-Host "  [WARNING] No embeddings found in documents" -ForegroundColor Yellow
         Write-Host "    Documents exist but no vectors. RAG queries will use semantic/keyword search only." -ForegroundColor Gray
-        Write-Host "    To add embeddings, run:" -ForegroundColor Yellow
-        Write-Host "      cd web-scraper" -ForegroundColor White
-        Write-Host "      .\smart-web-scraper.ps1 -ResourceGroupName $ResourceGroupName -GenerateEmbeddings" -ForegroundColor White
+        Write-Host "    To add embeddings, run the enterprise scraper:" -ForegroundColor Yellow
+        Write-Host "      cd web-scraper\enterprise-scraper" -ForegroundColor White
+        Write-Host "      .\run-enterprise-scraper.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
         Write-Host "    OR process PDFs with embeddings:" -ForegroundColor Yellow
         Write-Host "      .\process-pdfs.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
     }
@@ -271,9 +268,9 @@ if ($documentCount -gt 0) {
 } else {
     Write-Host "Status: NO DATA FOUND" -ForegroundColor Red
     Write-Host ""
-    Write-Host "The index exists but is empty. Run a scraper to populate it:" -ForegroundColor Yellow
-    Write-Host "  cd web-scraper" -ForegroundColor White
-    Write-Host "  .\smart-web-scraper.ps1 -ResourceGroupName $ResourceGroupName -GenerateEmbeddings" -ForegroundColor White
+    Write-Host "The index exists but is empty. Run the enterprise scraper to populate it:" -ForegroundColor Yellow
+    Write-Host "  cd web-scraper\enterprise-scraper" -ForegroundColor White
+    Write-Host "  .\run-enterprise-scraper.ps1 -ResourceGroupName $ResourceGroupName" -ForegroundColor White
 }
 
 Write-Host ""

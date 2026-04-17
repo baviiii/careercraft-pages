@@ -1,4 +1,7 @@
 {
+  "buildCommand": "cd packages/careercraft-web && npm run build",
+  "outputDirectory": "packages/careercraft-web/dist",
+  "installCommand": "npm install",
   "headers": [
     {
       "source": "/(.*)",

@@ -195,7 +195,7 @@ cd web-scraper
 **If index is empty:**
 - Check if scraper script ran successfully (look for errors)
 - Check indexer status: `cd web-scraper; .\check-indexer-status.ps1 -ResourceGroupName "rg-careercraft-dev"`
-- Try running smart scraper manually: `cd web-scraper; .\smart-web-scraper.ps1 -ResourceGroupName "rg-careercraft-dev" -GenerateEmbeddings`
+- Try running smart scraper manually: `cd web-scraper; .\run-enterprise-scraper.ps1 -ResourceGroupName "rg-careercraft-dev"`
 - See `web-scraper/README.md` for detailed scraping options
 - Check Azure Portal → AI Search → Indexes → Documents count
 

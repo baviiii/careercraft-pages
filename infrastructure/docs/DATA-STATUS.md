@@ -10,7 +10,7 @@
    - `configure-web-scraping.ps1` - Sets up Azure AI Search indexers (automatic crawlers)
 
 2. **Web Scraping Scripts** (Ready to run)
-   - `smart-web-scraper.ps1` - Custom scraper that scrapes → chunks → generates embeddings → pushes to Azure AI Search
+   - `enterprise-scraper (run-enterprise-scraper.ps1)` - Custom scraper that scrapes → chunks → generates embeddings → pushes to Azure AI Search
    - `configure-web-scraping.ps1` - Sets up Azure indexers that automatically crawl every 6 hours
 
 3. **PDF Processing** (Ready to run)
@@ -50,7 +50,7 @@ cd web-scraper
 **Option B: Smart Custom Scraper (Better for embeddings)**
 ```powershell
 cd web-scraper
-.\smart-web-scraper.ps1 -ResourceGroupName "rg-careercraft-dev" -GenerateEmbeddings
+.\run-enterprise-scraper.ps1 -ResourceGroupName "rg-careercraft-dev"
 ```
 - Scrapes websites intelligently
 - Generates embeddings using Azure OpenAI
@@ -130,7 +130,7 @@ az search index statistics --service-name $searchService --index-name sa-gov-doc
 **Answer**: The scraping **scripts are ready**, but you need to **run them** to get data into the vector database. Once you run:
 
 ```powershell
-.\smart-web-scraper.ps1 -ResourceGroupName "rg-careercraft-dev" -GenerateEmbeddings
+.\run-enterprise-scraper.ps1 -ResourceGroupName "rg-careercraft-dev"
 ```
 
 OR
