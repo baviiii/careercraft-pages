@@ -1,0 +1,444 @@
+/* ───────────────────────────────────────────────────────────
+   CareerCraft — Astral / Observatory theme
+   Used by Intelligence routes: /intelligence, /career-explorer,
+   /market-trends, /policy. Opposite vibe to Craft editorial:
+   void canvas, drifting nebula, starfield, glass, aurora glow.
+   ─────────────────────────────────────────────────────────── */
+
+:root {
+  --as-void: #04050C;
+  --as-abyss: #080B1A;
+  --as-deep: #0B1028;
+  --as-nebula: #131740;
+  --as-panel: rgba(15, 20, 50, 0.55);
+  --as-panel-2: rgba(20, 28, 70, 0.38);
+
+  --as-ion: #E8ECFF;
+  --as-ion-soft: #B6C0E8;
+  --as-mist: #7B88BB;
+  --as-ash: #5A6690;
+
+  --as-hair: rgba(150, 180, 255, 0.08);
+  --as-hair-strong: rgba(150, 180, 255, 0.18);
+
+  --as-aurora-1: #7C5CFF;   /* violet */
+  --as-aurora-2: #22D3EE;   /* cyan   */
+  --as-aurora-3: #F472B6;   /* rose   */
+  --as-signal:   #5EEAD4;   /* live   */
+  --as-gold:     #FCD34D;   /* rare   */
+
+  /* Cursor parallax state (set by AstralShell) */
+  --as-mx: 0;
+  --as-my: 0;
+}
+
+.as-root {
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--as-ion);
+  background: var(--as-void);
+}
+.as-root ::selection { background: rgba(124, 92, 255, 0.45); color: #fff; }
+
+/* ─────────────────────────── Nebula field ─────────────────────────── */
+
+.as-nebula {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      60vw 60vh
+      at calc(20% + (var(--as-mx)) * 24px) calc(28% + (var(--as-my)) * 20px),
+      rgba(124, 92, 255, 0.32),
+      transparent 60%
+    ),
+    radial-gradient(
+      70vw 50vh
+      at calc(80% + (var(--as-mx)) * -32px) calc(70% + (var(--as-my)) * -24px),
+      rgba(34, 211, 238, 0.22),
+      transparent 60%
+    ),
+    radial-gradient(
+      50vw 42vh
+      at calc(58% + (var(--as-mx)) * 18px) calc(12% + (var(--as-my)) * 10px),
+      rgba(244, 114, 182, 0.16),
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--as-void) 0%, var(--as-abyss) 60%, var(--as-void) 100%);
+  filter: saturate(1.1);
+}
+
+.as-nebula::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(45vw 40vh at 50% 100%, rgba(94, 234, 212, 0.10), transparent 60%);
+  animation: as-breathe 14s ease-in-out infinite;
+}
+
+@keyframes as-breathe {
+  0%, 100% { opacity: 0.55; transform: translateY(12px) scale(1); }
+  50%      { opacity: 1;    transform: translateY(-18px) scale(1.04); }
+}
+
+/* ─────────────────────────── Starfield canvas ─────────────────────────── */
+
+.as-stars {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ─────────────────────────── Grid / vignette ─────────────────────────── */
+
+.as-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(150, 180, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 180, 255, 0.04) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
+  transform: translate3d(
+    calc(var(--as-mx) * -6px),
+    calc(var(--as-my) * -6px),
+    0
+  );
+  transition: transform 0.3s ease-out;
+}
+
+.as-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.7) 100%);
+}
+
+/* ─────────────────────────── Typography ─────────────────────────── */
+
+.as-display {
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  letter-spacing: -0.025em;
+  font-weight: 500;
+}
+
+.as-italic {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.as-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--as-mist);
+  line-height: 1.4;
+}
+
+.as-label-sm {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--as-ash);
+  line-height: 1.4;
+}
+
+.as-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+.as-gradient-text {
+  background: linear-gradient(120deg, #FFFFFF 0%, #CBD5FF 40%, #22D3EE 85%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+
+.as-gradient-text-warm {
+  background: linear-gradient(120deg, #F472B6 0%, #A78BFA 55%, #22D3EE 100%);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+
+/* ─────────────────────────── Glass panel ─────────────────────────── */
+
+.as-panel {
+  position: relative;
+  background: var(--as-panel);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--as-hair-strong);
+  border-radius: 20px;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 30px 60px -30px rgba(0, 0, 0, 0.7);
+  transition: border-color 0.5s ease, box-shadow 0.5s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Gradient hairline border */
+.as-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(124, 92, 255, 0.45),
+    rgba(34, 211, 238, 0.25) 40%,
+    rgba(244, 114, 182, 0.25) 80%,
+    rgba(124, 92, 255, 0.15)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.55;
+  z-index: 2;
+}
+
+/* Slow scan line */
+.as-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(94, 234, 212, 0.10) 45%,
+    rgba(124, 92, 255, 0.14) 55%,
+    transparent 100%
+  );
+  animation: as-scan 9s cubic-bezier(0.4, 0.1, 0.4, 1) infinite;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: plus-lighter;
+}
+
+@keyframes as-scan {
+  0%   { transform: translateX(0);     opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(420%);  opacity: 0; }
+}
+
+.as-panel:hover {
+  border-color: rgba(124, 92, 255, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 40px 90px -30px rgba(124, 92, 255, 0.35),
+    0 0 0 1px rgba(124, 92, 255, 0.15);
+}
+
+.as-panel-flat {
+  position: relative;
+  background: var(--as-panel-2);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--as-hair);
+  border-radius: 16px;
+}
+
+/* Content layer (above ::before / ::after) */
+.as-panel-inner { position: relative; z-index: 3; }
+
+/* ─────────────────────────── Live pulse dot ─────────────────────────── */
+
+.as-pulse {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--as-signal);
+  box-shadow: 0 0 12px var(--as-signal);
+}
+
+.as-pulse::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  background: var(--as-signal);
+  opacity: 0.4;
+  animation: as-pulse 2s ease-out infinite;
+}
+
+@keyframes as-pulse {
+  0%   { transform: scale(1);   opacity: 0.5; }
+  80%, 100% { transform: scale(3.2); opacity: 0; }
+}
+
+/* ─────────────────────────── Buttons ─────────────────────────── */
+
+.as-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 1.1rem;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--as-ion);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--as-hair-strong);
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
+  transition: border-color 0.3s, background 0.3s, transform 0.3s, box-shadow 0.3s, color 0.3s;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+}
+.as-btn:hover {
+  border-color: rgba(124, 92, 255, 0.6);
+  background: rgba(124, 92, 255, 0.12);
+  box-shadow: 0 0 24px rgba(124, 92, 255, 0.3);
+  color: #fff;
+}
+.as-btn-primary {
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.32), rgba(34, 211, 238, 0.22));
+  border-color: rgba(124, 92, 255, 0.5);
+  color: #fff;
+}
+.as-btn-primary:hover {
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.55), rgba(34, 211, 238, 0.35));
+  box-shadow: 0 0 36px rgba(124, 92, 255, 0.55);
+}
+
+/* ─────────────────────────── Tabs ─────────────────────────── */
+
+.as-tabs {
+  display: inline-flex;
+  padding: 4px;
+  background: rgba(12, 16, 40, 0.7);
+  border: 1px solid var(--as-hair-strong);
+  backdrop-filter: blur(20px);
+  border-radius: 999px;
+  gap: 2px;
+}
+.as-tab {
+  position: relative;
+  padding: 0.7rem 1.25rem;
+  color: var(--as-mist);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: 0;
+}
+.as-tab:hover { color: var(--as-ion); }
+.as-tab[data-state="active"] {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.55), rgba(34, 211, 238, 0.32));
+  box-shadow:
+    0 0 0 1px rgba(124, 92, 255, 0.45),
+    0 10px 36px -10px rgba(124, 92, 255, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ─────────────────────────── Rules / dividers ─────────────────────────── */
+
+.as-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--as-hair-strong), transparent);
+}
+
+.as-vrule {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--as-hair-strong), transparent);
+}
+
+/* ─────────────────────────── Orbital rings (SVG target) ─────────────────────────── */
+
+@keyframes as-spin-slow  { to { transform: rotate(360deg); } }
+@keyframes as-spin-slower { to { transform: rotate(-360deg); } }
+@keyframes as-spin-slowest { to { transform: rotate(360deg); } }
+
+.as-ring-1 { animation: as-spin-slow    60s linear infinite; transform-origin: center; }
+.as-ring-2 { animation: as-spin-slower  90s linear infinite; transform-origin: center; }
+.as-ring-3 { animation: as-spin-slowest 140s linear infinite; transform-origin: center; }
+
+/* Data node pulse */
+@keyframes as-node-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px currentColor); }
+  50%      { filter: drop-shadow(0 0 14px currentColor); }
+}
+.as-node { animation: as-node-pulse 3s ease-in-out infinite; }
+
+/* ─────────────────────────── Number morph (glitch) ─────────────────────────── */
+
+@keyframes as-flicker {
+  0%, 100% { opacity: 1; }
+  43%      { opacity: 0.82; }
+  47%      { opacity: 1; }
+}
+.as-morph {
+  font-variant-numeric: tabular-nums lining-nums;
+  animation: as-flicker 6s ease-in-out infinite;
+}
+
+/* ─────────────────────────── Prism refraction (hover) ─────────────────────────── */
+
+.as-refract { position: relative; }
+.as-refract::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      300px circle at var(--as-hx, 50%) var(--as-hy, 50%),
+      rgba(124, 92, 255, 0.18),
+      rgba(34, 211, 238, 0.12) 40%,
+      transparent 70%
+    );
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  mix-blend-mode: plus-lighter;
+}
+.as-refract:hover::after { opacity: 1; }
+
+/* ─────────────────────────── Scrollbar ─────────────────────────── */
+
+.as-root *::-webkit-scrollbar { width: 8px; height: 8px; }
+.as-root *::-webkit-scrollbar-track { background: transparent; }
+.as-root *::-webkit-scrollbar-thumb {
+  background: rgba(150, 180, 255, 0.14);
+  border-radius: 999px;
+}
+.as-root *::-webkit-scrollbar-thumb:hover { background: rgba(124, 92, 255, 0.4); }
+
+/* ─────────────────────────── Reduced motion ─────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .as-nebula::after,
+  .as-panel::after,
+  .as-pulse::before,
+  .as-ring-1, .as-ring-2, .as-ring-3,
+  .as-node,
+  .as-morph { animation: none !important; }
+  .as-grid { transform: none !important; }
+}

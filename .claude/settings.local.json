@@ -34,7 +34,8 @@
       "Bash(curl -s http://localhost:5188/)",
       "Bash(curl -s http://localhost:5188/ -o /dev/null -w \"status=%{http_code}\\\\n\")",
       "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" http://localhost:5188/src/pages/Index.tsx)",
-      "Bash(curl -s -o /dev/null -w \"port5188=%{http_code}\\\\n\" --max-time 2 http://localhost:5188/)"
+      "Bash(curl -s -o /dev/null -w \"port5188=%{http_code}\\\\n\" --max-time 2 http://localhost:5188/)",
+      "Bash(node_modules/.bin/tsc --noEmit -p packages/careercraft-web/tsconfig.app.json)"
     ],
     "deny": [],
     "ask": []

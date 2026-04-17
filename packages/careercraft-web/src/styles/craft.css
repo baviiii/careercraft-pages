@@ -1,0 +1,940 @@
+/* ───────────────────────────────────────────────────────────
+   CareerCraft — Editorial Theme
+   Tokens + utility classes used by the public pages.
+   ─────────────────────────────────────────────────────────── */
+
+:root {
+  --cc-cream: #F3EADB;
+  --cc-cream-2: #ECE0CB;
+  --cc-ink: #0E0C0A;
+  --cc-ink-2: #211E1B;
+  --cc-ink-soft: #3A3530;
+  --cc-rust: #C8431E;
+  --cc-rust-deep: #9C3416;
+  --cc-ash: #746A60;
+  --cc-hair: rgba(14, 12, 10, 0.14);
+  --cc-hair-strong: rgba(14, 12, 10, 0.3);
+}
+
+.cc-root ::selection { background: var(--cc-rust); color: var(--cc-cream); }
+
+/* Fonts ----------------------------------------------------- */
+.cc-font-display   { font-family: 'Fraunces', 'Times New Roman', serif; font-optical-sizing: auto; }
+.cc-font-editorial { font-family: 'Instrument Serif', 'Times New Roman', serif; }
+.cc-font-mono      { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.cc-font-sans      { font-family: 'Inter', system-ui, sans-serif; }
+
+/* Wonky italic display — the signature accent */
+.cc-italic-wonk {
+  font-style: italic;
+  font-variation-settings: 'SOFT' 100, 'WONK' 1;
+  font-weight: 300;
+}
+
+/* Labels ---------------------------------------------------- */
+.cc-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+.cc-label-sm {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+/* Rules ----------------------------------------------------- */
+.cc-rule { height: 1px; background: var(--cc-hair-strong); }
+
+/* Buttons --------------------------------------------------- */
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.15rem 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  border: 1px solid var(--cc-ink);
+  background: transparent;
+  color: var(--cc-ink);
+  transition: background .35s ease, color .35s ease, border-color .35s ease;
+  cursor: pointer;
+  line-height: 1;
+}
+.cc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cc-btn-primary { background: var(--cc-ink); color: var(--cc-cream); }
+.cc-btn-primary:hover:not(:disabled) { background: var(--cc-rust); border-color: var(--cc-rust); }
+.cc-btn-ghost:hover:not(:disabled)   { background: var(--cc-ink); color: var(--cc-cream); }
+.cc-btn-onrust {
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+  border-color: var(--cc-ink);
+}
+.cc-btn-onrust:hover:not(:disabled) {
+  background: var(--cc-cream);
+  color: var(--cc-ink);
+  border-color: var(--cc-cream);
+}
+.cc-btn-danger {
+  background: transparent;
+  color: var(--cc-rust-deep);
+  border-color: var(--cc-rust-deep);
+}
+.cc-btn-danger:hover:not(:disabled) {
+  background: var(--cc-rust-deep);
+  color: var(--cc-cream);
+  border-color: var(--cc-rust-deep);
+}
+.cc-btn svg { transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+.cc-btn:hover .cc-arrow-up    { transform: rotate(45deg); }
+.cc-btn:hover .cc-arrow-right { transform: translateX(4px); }
+
+/* Animated link underline that retreats on hover */
+.cc-link { position: relative; display: inline-block; color: inherit; }
+.cc-link::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -3px;
+  height: 1px;
+  background: currentColor;
+  transform-origin: right;
+  transform: scaleX(1);
+  transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-link:hover::after { transform-origin: left; transform: scaleX(0); }
+
+/* Paper grain overlay */
+.cc-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+  opacity: 0.06;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* Animations ----------------------------------------------- */
+@keyframes cc-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.cc-marquee-track { animation: cc-marquee 42s linear infinite; will-change: transform; }
+
+@keyframes cc-marquee-fast { from { transform: translateX(0); } to { transform: translateX(-33.3334%); } }
+.cc-marquee-track-fast { animation: cc-marquee-fast 38s linear infinite; will-change: transform; }
+
+@keyframes cc-spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.cc-spin-slow { animation: cc-spin-slow 28s linear infinite; }
+
+@keyframes cc-blink { 0%, 65% { opacity: 1; } 75%, 100% { opacity: 0.2; } }
+.cc-blink { animation: cc-blink 1.8s steps(2, end) infinite; }
+
+/* Editorial diff marks — used by the Exhibit */
+.cc-strike {
+  text-decoration: line-through;
+  text-decoration-color: var(--cc-rust);
+  text-decoration-thickness: 2px;
+  color: rgba(243, 234, 219, 0.45);
+}
+.cc-highlight {
+  background: linear-gradient(180deg, transparent 58%, rgba(200, 67, 30, 0.35) 58%);
+  padding: 0 2px;
+  color: var(--cc-cream);
+}
+.cc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--cc-hair-strong);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--cc-ink-soft);
+  line-height: 1;
+}
+.cc-chip-dark {
+  border-color: rgba(243, 234, 219, 0.25);
+  color: rgba(243, 234, 219, 0.75);
+}
+
+/* Ticker direction reversal helper */
+.cc-marquee-reverse { animation-direction: reverse; }
+
+/* Form elements — editorial style, used by Auth & Contact */
+.cc-input {
+  width: 100%;
+  padding: 1rem 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--cc-hair-strong);
+  font-family: 'Instrument Serif', serif;
+  font-size: 20px;
+  color: var(--cc-ink);
+  outline: none;
+  transition: border-color .3s ease, padding .3s ease;
+}
+.cc-input::placeholder { color: var(--cc-ash); opacity: 0.7; font-style: italic; }
+.cc-input:focus { border-color: var(--cc-rust); }
+.cc-input.cc-input-error { border-color: var(--cc-rust); }
+
+.cc-textarea {
+  width: 100%;
+  padding: 1rem 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--cc-hair-strong);
+  font-family: 'Instrument Serif', serif;
+  font-size: 18px;
+  color: var(--cc-ink);
+  outline: none;
+  resize: vertical;
+  min-height: 140px;
+  line-height: 1.5;
+  transition: border-color .3s ease;
+}
+.cc-textarea::placeholder { color: var(--cc-ash); opacity: 0.7; font-style: italic; }
+.cc-textarea:focus { border-color: var(--cc-rust); }
+
+/* Scroll smoothing on the public pages */
+.cc-root { scroll-behavior: smooth; }
+
+/* ─────────────────────────── Typographic refinements ─────────────────────────── */
+
+/* Editorial drop cap — apply to a paragraph to give its first letter a
+   newspaper-style raised initial set in the display serif. */
+.cc-dropcap::first-letter {
+  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-size: 5.2em;
+  float: left;
+  line-height: 0.82;
+  padding: 0.08em 0.14em 0 0;
+  margin: 0.04em 0.06em 0 -0.03em;
+  color: var(--cc-rust);
+  font-weight: 300;
+  font-variation-settings: 'SOFT' 100, 'WONK' 1;
+  font-style: italic;
+}
+
+/* Small caps — mono label alternative with true small-cap proportions */
+.cc-smallcaps {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.18em;
+}
+
+/* Tabular lining numerals — for counters, figures, tables */
+.cc-tabular { font-variant-numeric: tabular-nums lining-nums; }
+
+/* ─────────────────────────── Fleurons & separators ─────────────────────────── */
+
+/* A flanked ornament — renders as: ─── ✻ ─── */
+.cc-fleuron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--cc-ash);
+}
+.cc-fleuron::before,
+.cc-fleuron::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.4;
+}
+.cc-fleuron > .cc-fleuron-mark {
+  font-family: 'Fraunces', serif;
+  font-style: italic;
+  color: var(--cc-rust);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+}
+
+/* ─────────────────────────── Dispatches (telegrams) ─────────────────────────── */
+
+.cc-telegram {
+  position: relative;
+  background: var(--cc-cream);
+  border: 1px dashed var(--cc-hair-strong);
+  padding: 1.5rem 1.75rem 1.5rem;
+  transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s, border-color .5s;
+}
+.cc-telegram:hover {
+  transform: translateY(-3px) rotate(-0.35deg);
+  border-color: var(--cc-ink);
+  box-shadow: 0 18px 32px -22px rgba(14, 12, 10, 0.4);
+}
+.cc-telegram::before,
+.cc-telegram::after {
+  content: '';
+  position: absolute;
+  left: 1.25rem; right: 1.25rem;
+  height: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--cc-hair-strong) 0 4px,
+    transparent 4px 10px
+  );
+}
+.cc-telegram::before { top: 6px; }
+.cc-telegram::after  { bottom: 6px; }
+
+.cc-tele-stamp {
+  position: absolute;
+  top: -12px; right: 16px;
+  background: var(--cc-cream);
+  padding: 2px 10px;
+  border: 1px solid var(--cc-ink);
+  color: var(--cc-ink);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+
+/* ─────────────────────────── Wax seal ─────────────────────────── */
+
+.cc-wax {
+  width: 112px; height: 112px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.45) 0, rgba(255,255,255,0) 35%),
+    radial-gradient(circle at 70% 70%, rgba(0,0,0,0.35) 0, rgba(0,0,0,0) 45%),
+    linear-gradient(135deg, var(--cc-rust), var(--cc-rust-deep));
+  display: flex; align-items: center; justify-content: center;
+  color: var(--cc-cream);
+  box-shadow:
+    inset 0 -6px 16px rgba(0,0,0,0.35),
+    inset 0 6px 14px rgba(255,255,255,0.2),
+    0 14px 36px -12px rgba(156, 52, 22, 0.6);
+  transform: rotate(-8deg);
+  transition: transform .6s cubic-bezier(.2,.8,.2,1), box-shadow .6s;
+  position: relative;
+}
+.cc-wax::after {
+  content: '';
+  position: absolute; inset: 6px;
+  border-radius: 999px;
+  border: 1px dashed rgba(243,234,219,0.45);
+}
+.cc-wax:hover {
+  transform: rotate(6deg) scale(1.04);
+  box-shadow:
+    inset 0 -6px 16px rgba(0,0,0,0.35),
+    inset 0 6px 14px rgba(255,255,255,0.2),
+    0 22px 44px -12px rgba(156, 52, 22, 0.75);
+}
+
+/* ─────────────────────────── Scroll progress rail ─────────────────────────── */
+
+.cc-progress-rail {
+  position: fixed;
+  top: 80px; right: 14px; bottom: 24px;
+  width: 1px;
+  background: var(--cc-hair);
+  z-index: 40;
+  pointer-events: none;
+}
+.cc-progress-rail::after {
+  content: '';
+  position: absolute;
+  left: -1px; top: 0;
+  width: 3px;
+  height: var(--cc-progress, 0%);
+  background: var(--cc-rust);
+  transition: height .12s linear;
+}
+.cc-progress-label {
+  position: fixed;
+  right: 28px;
+  top: 92px;
+  z-index: 41;
+  pointer-events: none;
+  color: var(--cc-ink);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+}
+
+/* ─────────────────────────── Colophon ─────────────────────────── */
+
+.cc-colophon-rule {
+  border: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--cc-hair-strong) 20%,
+    var(--cc-hair-strong) 80%,
+    transparent 100%);
+}
+
+/* ─────────────────────────── Ticker ribbon ─────────────────────────── */
+
+.cc-ribbon {
+  position: relative;
+  background: var(--cc-cream-2);
+  border-top: 1px solid var(--cc-hair-strong);
+  border-bottom: 1px solid var(--cc-hair-strong);
+  overflow: hidden;
+}
+.cc-ribbon::before,
+.cc-ribbon::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 80px;
+  z-index: 2;
+  pointer-events: none;
+}
+.cc-ribbon::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--cc-cream-2), transparent);
+}
+.cc-ribbon::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--cc-cream-2), transparent);
+}
+
+/* ─────────────────────────── Hover fold on cards ─────────────────────────── */
+
+.cc-fold {
+  position: relative;
+  transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .5s;
+}
+.cc-fold::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 0 18px 18px 0;
+  border-color: transparent var(--cc-rust) transparent transparent;
+  opacity: 0;
+  transition: opacity .45s ease, border-width .45s ease;
+}
+.cc-fold:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 40px -28px rgba(14,12,10,0.4);
+}
+.cc-fold:hover::before {
+  opacity: 1;
+  border-width: 0 26px 26px 0;
+}
+
+/* ─────────────────────────── Editorial tag ─────────────────────────── */
+
+.cc-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--cc-hair-strong);
+  color: var(--cc-ink-soft);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  line-height: 1;
+  transition: background .3s, color .3s, border-color .3s;
+}
+.cc-tag:hover {
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+  border-color: var(--cc-ink);
+}
+
+/* ─────────────────────────── Counter entry ─────────────────────────── */
+
+@keyframes cc-count-in {
+  from { opacity: 0; transform: translateY(10px) skewY(2deg); }
+  to   { opacity: 1; transform: translateY(0)    skewY(0); }
+}
+.cc-count-in { animation: cc-count-in .9s cubic-bezier(.2,.8,.2,1) both; }
+
+/* ─────────────────────────── Pull quote ─────────────────────────── */
+
+.cc-pullquote {
+  position: relative;
+  max-width: 62ch;
+  margin: 0 auto;
+  font-family: 'Fraunces', serif;
+  font-weight: 300;
+  color: var(--cc-ink);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+.cc-pullquote-open,
+.cc-pullquote-close {
+  font-family: 'Fraunces', serif;
+  color: var(--cc-rust);
+  font-weight: 300;
+  font-style: italic;
+  font-variation-settings: 'SOFT' 100, 'WONK' 1;
+  line-height: 0;
+}
+
+/* Print-style fine rule used in section framing */
+.cc-frame-rule {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--cc-hair-strong) 0 2px,
+    transparent 2px 6px
+  );
+  height: 1px;
+}
+
+/* ------------------------------------------------------------------
+   App-surface primitives — used across the logged-in toolkit pages
+   (MyResumes, ResumeBuilder, Analysis, JobTracker).
+   ------------------------------------------------------------------ */
+
+/* Bordered "index card" — the basic cream rectangle with an ink border. */
+.cc-card {
+  background: var(--cc-cream);
+  border: 1px solid var(--cc-ink);
+  transition: transform .4s cubic-bezier(.2,.8,.2,1),
+              box-shadow .4s cubic-bezier(.2,.8,.2,1),
+              border-color .3s ease;
+}
+.cc-card-hover:hover {
+  transform: translate(-3px, -3px);
+  box-shadow: 6px 6px 0 0 var(--cc-ink);
+}
+
+/* A lighter card — no border, just hairline divide. Good for list rows. */
+.cc-row {
+  background: var(--cc-cream);
+  border-bottom: 1px solid var(--cc-hair-strong);
+  transition: background .25s ease;
+}
+.cc-row:hover { background: var(--cc-cream-2); }
+
+/* Editorial select / native select styled like cc-input. */
+.cc-select {
+  appearance: none;
+  width: 100%;
+  padding: 0.9rem 2.4rem 0.9rem 1rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--cc-hair-strong);
+  border-radius: 0;
+  color: var(--cc-ink);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='none' stroke='%230E0C0A' stroke-width='1.5' d='M2 4l4 4 4-4'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  cursor: pointer;
+}
+.cc-select:focus { outline: none; border-color: var(--cc-rust); }
+
+/* Ink-bordered chip for tags etc. */
+.cc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--cc-ink);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cc-ink);
+  line-height: 1;
+  background: transparent;
+  white-space: nowrap;
+}
+.cc-pill-filled {
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+}
+.cc-pill-rust {
+  border-color: var(--cc-rust);
+  color: var(--cc-rust);
+}
+
+/* An inline key/value meta row, used in list items and dialog footers. */
+.cc-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+.cc-meta-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cc-ash);
+}
+.cc-meta-value {
+  font-family: 'Fraunces', serif;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--cc-ink);
+}
+
+/* A subtle separator with centred mark (for dividers inside cards). */
+.cc-dot-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--cc-ash);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.cc-dot-rule::before,
+.cc-dot-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--cc-hair);
+}
+
+/* ─────────────────────────── Cover & monumental type ─────────────────────────── */
+
+/* Subtle press-mark ghost behind monumental type */
+.cc-letterpress {
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18),
+    0 -1px 0 rgba(0, 0, 0, 0.05);
+}
+.cc-impression { position: relative; isolation: isolate; }
+.cc-impression::before {
+  content: attr(data-ghost);
+  position: absolute;
+  inset: 0;
+  color: var(--cc-rust);
+  opacity: 0.07;
+  transform: translate(8px, 8px);
+  pointer-events: none;
+  z-index: -1;
+  white-space: pre;
+}
+
+/* Cover edge — torn deckle dot pattern under a paper block */
+.cc-deckle {
+  position: relative;
+  padding-bottom: 14px;
+}
+.cc-deckle::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 12px;
+  background:
+    radial-gradient(circle at 8px 0, currentColor 5px, transparent 6px) repeat-x;
+  background-size: 16px 12px;
+  opacity: 0.85;
+}
+
+/* Top register marks (printer's crop marks) for editorial framing */
+.cc-register {
+  position: relative;
+}
+.cc-register::before, .cc-register::after {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  border: 1px solid var(--cc-ink);
+}
+.cc-register::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+.cc-register::after { top: -1px; right: -1px; border-left: 0; border-bottom: 0; }
+
+/* ─────────────────────────── Engraved illustrations ─────────────────────────── */
+
+.cc-engraved {
+  stroke: var(--cc-ink);
+  stroke-width: 1;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.cc-engraved-rust { stroke: var(--cc-rust); }
+.cc-engraved-fill { fill: var(--cc-ink); stroke: none; }
+.cc-engraved-fill-rust { fill: var(--cc-rust); stroke: none; }
+
+@keyframes cc-engrave {
+  to { stroke-dashoffset: 0; }
+}
+.cc-engrave-anim path,
+.cc-engrave-anim circle,
+.cc-engrave-anim line,
+.cc-engrave-anim polyline {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: cc-engrave 1.6s ease-out forwards;
+}
+
+/* ─────────────────────────── Workbench (dark live exhibit) ─────────────────────────── */
+
+.cc-workbench {
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+  position: relative;
+  overflow: hidden;
+}
+.cc-workbench::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(243, 234, 219, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(243, 234, 219, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+/* A "specimen" sheet of paper sitting on the workbench */
+.cc-paper {
+  background: var(--cc-cream);
+  color: var(--cc-ink);
+  border: 1px solid rgba(14, 12, 10, 0.18);
+  padding: 1.5rem 1.4rem;
+  position: relative;
+  box-shadow:
+    0 0 0 1px rgba(243, 234, 219, 0.05) inset,
+    8px 10px 0 0 rgba(243, 234, 219, 0.04);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.cc-paper-title {
+  font-family: 'Fraunces', serif;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+.cc-paper-sub {
+  text-align: center;
+  color: var(--cc-ash);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.cc-paper-rule {
+  border: 0;
+  height: 1px;
+  background: rgba(14, 12, 10, 0.2);
+  margin: 10px 0;
+}
+.cc-paper-h {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cc-rust);
+  margin-bottom: 4px;
+}
+.cc-bullet {
+  position: relative;
+  padding-left: 14px;
+  margin: 3px 0;
+}
+.cc-bullet::before {
+  content: '✻';
+  position: absolute;
+  left: 0; top: 0;
+  color: var(--cc-rust);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* Diff marks for the rewrite exhibit */
+.cc-diff-old {
+  text-decoration: line-through;
+  text-decoration-color: var(--cc-rust);
+  text-decoration-thickness: 1.5px;
+  color: rgba(14, 12, 10, 0.42);
+}
+.cc-diff-new {
+  background: linear-gradient(180deg, transparent 62%, rgba(200, 67, 30, 0.28) 62%);
+  color: var(--cc-ink);
+  font-weight: 500;
+}
+
+/* Margin annotation column — used in Workbench right gutter */
+.cc-margin-note {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: rgba(243, 234, 219, 0.78);
+  line-height: 1.45;
+  position: relative;
+  padding-left: 18px;
+}
+.cc-margin-note::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 4px; bottom: 4px;
+  width: 1px;
+  background: rgba(243, 234, 219, 0.3);
+}
+.cc-margin-fn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(94, 234, 212, 0.85);
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
+/* Mechanical knob — decorative dial on the workbench rail */
+.cc-knob {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(243, 234, 219, 0.95), rgba(243, 234, 219, 0.45) 55%, rgba(243, 234, 219, 0.12) 90%);
+  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* ─────────────────────────── ATS gauge ─────────────────────────── */
+
+.cc-gauge-track {
+  stroke: rgba(243, 234, 219, 0.16);
+}
+.cc-gauge-fill {
+  stroke: var(--cc-rust);
+  transition: stroke-dashoffset 1.6s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-gauge-fill-warm { stroke: #E8B544; }
+.cc-gauge-fill-good { stroke: #5EC57A; }
+
+/* ─────────────────────────── Apothecary cabinet (Instruments) ─────────────────────────── */
+
+.cc-cabinet {
+  display: grid;
+  border: 2px solid var(--cc-ink);
+  background: var(--cc-ink);
+  gap: 2px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 768px) {
+  .cc-cabinet { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1024px) {
+  .cc-cabinet { grid-template-columns: 1fr 1fr 1fr; }
+}
+.cc-drawer {
+  position: relative;
+  background: var(--cc-cream);
+  color: var(--cc-ink);
+  padding: 2.25rem 2rem 2rem 2rem;
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  transition: background .5s ease, color .5s ease;
+  overflow: hidden;
+}
+.cc-drawer::after {
+  content: '';
+  position: absolute;
+  right: 14px; top: 50%;
+  transform: translateY(-50%);
+  width: 4px; height: 30px;
+  background: var(--cc-ink);
+  border-radius: 1px;
+  transition: background .5s ease;
+}
+.cc-drawer:hover { background: var(--cc-ink); color: var(--cc-cream); }
+.cc-drawer:hover::after { background: var(--cc-rust); }
+.cc-drawer:hover .cc-drawer-rule { background: rgba(243, 234, 219, 0.3); }
+.cc-drawer:hover .cc-engraved { stroke: var(--cc-cream); }
+.cc-drawer:hover .cc-drawer-tag { color: rgba(243, 234, 219, 0.55); border-color: rgba(243, 234, 219, 0.3); }
+.cc-drawer-rule {
+  height: 1px;
+  background: var(--cc-hair-strong);
+  margin: 1.25rem 0;
+  transition: background .5s ease;
+}
+.cc-drawer-tag {
+  display: inline-block;
+  padding: 3px 6px;
+  border: 1px solid var(--cc-hair-strong);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cc-ash);
+  transition: color .5s, border-color .5s;
+}
+
+/* ─────────────────────────── Press / Powered by Horus ─────────────────────────── */
+
+.cc-imprint {
+  border: 2px solid var(--cc-ink);
+  background: var(--cc-cream);
+  padding: 1.5rem 1.75rem;
+  position: relative;
+}
+.cc-imprint::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid var(--cc-hair-strong);
+  pointer-events: none;
+}
+
+/* Schematic dotted grid for Horus engine illustration */
+.cc-schematic {
+  background-image:
+    linear-gradient(rgba(243, 234, 219, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(243, 234, 219, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Footnote marker */
+.cc-fn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.55em;
+  vertical-align: super;
+  color: var(--cc-rust);
+  margin-left: 2px;
+}
+
+/* Specimen box (for type spec moments) */
+.cc-specimen {
+  position: relative;
+  border: 1px solid var(--cc-hair-strong);
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: var(--cc-cream);
+}
+.cc-specimen-corner {
+  position: absolute;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cc-ash);
+  background: var(--cc-cream);
+  padding: 0 6px;
+}
+
+/* Accessibility — respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .cc-marquee-track,
+  .cc-marquee-track-fast,
+  .cc-spin-slow,
+  .cc-blink,
+  .cc-engrave-anim path,
+  .cc-engrave-anim circle,
+  .cc-engrave-anim line,
+  .cc-engrave-anim polyline { animation: none !important; }
+  .cc-fold,
+  .cc-telegram,
+  .cc-wax,
+  .cc-card,
+  .cc-row,
+  .cc-drawer { transition: none !important; }
+  .cc-card-hover:hover { transform: none !important; box-shadow: none !important; }
+}
