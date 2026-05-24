@@ -4,7 +4,7 @@
    pages can stay skinny (just layout + logic).
    ─────────────────────────────────────────────────────────── */
 
-import { memo, ReactNode, useEffect, useRef, useState } from "react";
+import { memo, ReactNode, type HTMLAttributes, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
@@ -37,7 +37,7 @@ export const CraftAppShell = memo(function CraftAppShell({
 }: CraftAppShellProps) {
   return (
     <main
-      className={`cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased ${className}`}
+      className={`ds-shell cc-root cc-font-sans min-h-screen antialiased ${className}`}
     >
       <div className="cc-grain pointer-events-none fixed inset-0 z-0" />
       <div className="relative z-10">{children}</div>
@@ -68,7 +68,7 @@ export const CraftAppHeader = memo(function CraftAppHeader({
   ctaLabel,
   onCta,
   backTo = "/dashboard",
-  backLabel = "Back to the atelier",
+  backLabel = "Back to dashboard",
   rightSlot,
 }: CraftAppHeaderProps) {
   const navigate = useNavigate();
@@ -76,7 +76,7 @@ export const CraftAppHeader = memo(function CraftAppHeader({
   return (
     <>
       {/* Thin sticky bar — only back + CTA; never eats more than ~56px of viewport */}
-      <div className="sticky top-0 z-30 bg-[color:var(--cc-cream)]/85 backdrop-blur-md border-b border-[color:var(--cc-hair)]">
+      <div className="sticky top-0 z-30 ds-nav">
         <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-14 flex items-center justify-between gap-4">
           <button
             onClick={() => navigate(backTo)}
@@ -120,14 +120,13 @@ export const CraftAppHeader = memo(function CraftAppHeader({
 
 /* ─────────────────────────── Page frame ─────────────────────── */
 
-interface CraftAppBodyProps {
+interface CraftAppBodyProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  className?: string;
 }
 
 /** Constrained content wrapper; 1400px max, editorial padding. */
-export const CraftAppBody = ({ children, className = "" }: CraftAppBodyProps) => (
-  <div className={`max-w-[1400px] mx-auto px-6 md:px-10 py-10 md:py-12 ${className}`}>
+export const CraftAppBody = ({ children, className = "", ...rest }: CraftAppBodyProps) => (
+  <div className={`max-w-[1400px] mx-auto px-6 md:px-10 py-10 md:py-12 ${className}`} {...rest}>
     {children}
   </div>
 );
@@ -239,13 +238,13 @@ interface CraftEmptyProps {
 }
 
 export const CraftEmpty = ({
-  kicker = "§ Empty cabinet",
+  kicker = "§ Nothing here yet",
   title,
   body,
   ctaLabel,
   onCta,
 }: CraftEmptyProps) => (
-  <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-12 md:p-16 text-center">
+  <div className="ds-panel p-12 md:p-16 text-center">
     <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>
     <h2 className="mt-5 cc-font-display text-3xl md:text-5xl leading-[0.95] tracking-tight">
       {title}
@@ -334,7 +333,7 @@ export const CraftDialog = ({
 }: CraftDialogProps) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent
-      className={`cc-root ${maxWidth} w-[95vw] max-h-[min(90vh,920px)] gap-0 p-0 flex flex-col overflow-hidden border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] rounded-none shadow-[0_20px_60px_-20px_rgba(14,12,10,0.35)]`}
+      className={`cc-root ds-surface ${maxWidth} w-[95vw] max-h-[min(90vh,920px)] gap-0 p-0 flex flex-col overflow-hidden text-[color:var(--cc-ink)] rounded-2xl shadow-[0_20px_60px_-20px_rgba(14,12,10,0.35)]`}
     >
       <DialogHeader className="px-6 md:px-8 pt-6 md:pt-7 pb-4 md:pb-5 space-y-2.5 text-left flex-shrink-0 border-b border-[color:var(--cc-hair)]">
         {kicker && (
@@ -357,7 +356,7 @@ export const CraftDialog = ({
       )}
 
       {footer && (
-        <DialogFooter className="p-5 md:p-6 border-t border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] sm:justify-end gap-3 flex-col-reverse sm:flex-row flex-shrink-0">
+        <DialogFooter className="p-5 md:p-6 border-t border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] sm:justify-end gap-3 flex-col-reverse sm:flex-row flex-shrink-0 rounded-b-2xl">
           {footer}
         </DialogFooter>
       )}
@@ -387,10 +386,10 @@ export const CraftButton = ({
   className = "",
   size = "md",
 }: CraftButtonProps) => {
-  const base = "cc-btn";
+  const base = "cc-btn ds-btn";
   const v =
     variant === "primary"
-      ? "cc-btn-primary"
+      ? "cc-btn-primary ds-btn-primary"
       : variant === "danger"
       ? "cc-btn-danger"
       : "cc-btn-ghost";

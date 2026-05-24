@@ -184,7 +184,7 @@ export const EditStep = ({
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {currentResumeId ? "Update" : "File to cabinet"}
+            {currentResumeId ? "Update" : "Save resume"}
           </button>
         </div>
       </div>
@@ -274,10 +274,10 @@ export const EditStep = ({
           <div className="flex items-center justify-between pt-2">
             <button onClick={onBack} className="cc-btn cc-btn-ghost">
               <ArrowLeft className="w-4 h-4" />
-              Back to cover
+              Back
             </button>
             <CraftButton onClick={onNext}>
-              Typeset
+              Choose template
               <ArrowRight className="w-4 h-4" />
             </CraftButton>
           </div>

@@ -50,7 +50,7 @@ const primaryNav: NavItem[] = [
   },
   {
     label: "Horus Chat",
-    href: "/sa-career-hub",
+    href: "/career-coach",
     icon: <MessageSquareText className="w-5 h-5" />,
     description: "RAG-powered career guidance",
   },

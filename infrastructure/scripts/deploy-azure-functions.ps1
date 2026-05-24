@@ -153,7 +153,7 @@ Write-Host ""
 # Deploy function code via ZIP (Azure CLI method)
 Write-Host "Deploying function code..." -ForegroundColor Cyan
 
-$functionCodePath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "azure-functions"
+$functionCodePath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "packages\horus-services"
 if (-not (Test-Path $functionCodePath)) {
     Write-Host "ERROR: Function code directory not found: $functionCodePath" -ForegroundColor Red
     exit 1

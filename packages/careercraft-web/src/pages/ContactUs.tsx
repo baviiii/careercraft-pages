@@ -33,16 +33,16 @@ export default function ContactUs() {
             className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-ink)] cc-link mb-10"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to the atelier
+            Back to home
           </button>
 
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · Correspondence</div>
+          <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · Contact</div>
           <h1 className="mt-4 cc-font-display text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight text-[color:var(--cc-ink)]">
-            Write to the<br />
-            <span className="cc-italic-wonk">editors.</span>
+            Get in<br />
+            <span className="cc-italic-wonk">touch.</span>
           </h1>
           <p className="mt-8 cc-font-editorial text-2xl md:text-[28px] leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
-            Questions, commissions, corrections — every letter opened by a person, usually within a day.
+            Questions, feedback, corrections — every message read by a person, usually within a day.
           </p>
         </div>
       </section>
@@ -55,15 +55,15 @@ export default function ContactUs() {
           <div className="grid grid-cols-12 gap-8 md:gap-16 border-t border-[color:var(--cc-hair-strong)] pt-16 md:pt-20">
             {/* Left column — addresses */}
             <div className="col-span-12 md:col-span-5">
-              <div className="cc-label text-[color:var(--cc-rust)]">§ 01 · The Address</div>
+              <div className="cc-label text-[color:var(--cc-rust)]">§ 01 · Reach us</div>
               <h2 className="mt-4 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
-                Three ways to reach<br />
-                <span className="cc-italic-wonk">the workshop.</span>
+                Three ways to<br />
+                <span className="cc-italic-wonk">reach the team.</span>
               </h2>
 
               <dl className="mt-12 space-y-8">
                 <div className="border-t border-[color:var(--cc-hair)] pt-5">
-                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">Post · electronic</dt>
+                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">Email</dt>
                   <dd className="mt-2 cc-font-display italic text-2xl md:text-3xl">
                     <a href="mailto:support@careercraft.com" className="cc-link text-[color:var(--cc-ink)]">
                       support@careercraft.com
@@ -71,7 +71,7 @@ export default function ContactUs() {
                   </dd>
                 </div>
                 <div className="border-t border-[color:var(--cc-hair)] pt-5">
-                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">By telephone</dt>
+                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">Phone</dt>
                   <dd className="mt-2 cc-font-display italic text-2xl md:text-3xl">
                     <a href="tel:+611300000000" className="cc-link text-[color:var(--cc-ink)]">
                       +61 1300 000 000
@@ -82,7 +82,7 @@ export default function ContactUs() {
                   <dt className="cc-label-sm text-[color:var(--cc-ash)]">In person</dt>
                   <dd className="mt-2 cc-font-editorial text-xl md:text-2xl text-[color:var(--cc-ink-soft)] leading-snug">
                     Adelaide, South Australia<br />
-                    <span className="cc-font-display italic text-[color:var(--cc-ink)]">by quiet appointment</span>
+                    <span className="cc-font-display italic text-[color:var(--cc-ink)]">by appointment</span>
                   </dd>
                 </div>
               </dl>
@@ -91,14 +91,14 @@ export default function ContactUs() {
                 <div className="cc-label-sm text-[color:var(--cc-ash)]">Opening hours</div>
                 <div className="mt-3 cc-font-editorial text-xl text-[color:var(--cc-ink-soft)] leading-snug">
                   Mon &ndash; Fri · 9:00 &ndash; 17:00 AEST<br />
-                  Weekends closed · letters held
+                  Weekends closed · messages held
                 </div>
               </div>
             </div>
 
             {/* Right column — letter form */}
             <div className="col-span-12 md:col-span-7">
-              <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · The Letter</div>
+              <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Send a message</div>
               <h2 className="mt-4 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
                 Leave a <span className="cc-italic-wonk">note.</span>
               </h2>
@@ -111,18 +111,18 @@ export default function ContactUs() {
                     className="border border-[color:var(--cc-ink)] p-10 md:p-14 text-center bg-[color:var(--cc-cream)]"
                   >
                     <CheckCircle2 className="w-10 h-10 text-[color:var(--cc-rust)] mx-auto" />
-                    <div className="mt-6 cc-label text-[color:var(--cc-rust)]">Letter received</div>
+                    <div className="mt-6 cc-label text-[color:var(--cc-rust)]">Message received</div>
                     <h3 className="mt-4 cc-font-display text-3xl md:text-4xl text-[color:var(--cc-ink)]">
-                      Thank you — <span className="cc-italic-wonk">we'll write back soon.</span>
+                      Thank you — <span className="cc-italic-wonk">we'll reply soon.</span>
                     </h3>
                     <p className="mt-4 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">
-                      A reply is typically posted within one working day.
+                      You'll typically hear back within one working day.
                     </p>
                   </motion.div>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-8">
                     <div>
-                      <label htmlFor="c-name" className="cc-label-sm text-[color:var(--cc-ash)]">From &mdash; your name</label>
+                      <label htmlFor="c-name" className="cc-label-sm text-[color:var(--cc-ash)]">Your name</label>
                       <input
                         id="c-name"
                         type="text"
@@ -135,7 +135,7 @@ export default function ContactUs() {
                     </div>
 
                     <div>
-                      <label htmlFor="c-email" className="cc-label-sm text-[color:var(--cc-ash)]">Return address</label>
+                      <label htmlFor="c-email" className="cc-label-sm text-[color:var(--cc-ash)]">Email address</label>
                       <input
                         id="c-email"
                         type="email"
@@ -148,7 +148,7 @@ export default function ContactUs() {
                     </div>
 
                     <div>
-                      <label htmlFor="c-subject" className="cc-label-sm text-[color:var(--cc-ash)]">Subject line</label>
+                      <label htmlFor="c-subject" className="cc-label-sm text-[color:var(--cc-ash)]">Subject</label>
                       <input
                         id="c-subject"
                         type="text"
@@ -161,7 +161,7 @@ export default function ContactUs() {
                     </div>
 
                     <div>
-                      <label htmlFor="c-message" className="cc-label-sm text-[color:var(--cc-ash)]">The letter</label>
+                      <label htmlFor="c-message" className="cc-label-sm text-[color:var(--cc-ash)]">Your message</label>
                       <textarea
                         id="c-message"
                         required
@@ -174,7 +174,7 @@ export default function ContactUs() {
 
                     <div className="pt-2">
                       <button type="submit" className="cc-btn cc-btn-primary">
-                        Send the Letter <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+                        Send message <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
                       </button>
                     </div>
                   </form>

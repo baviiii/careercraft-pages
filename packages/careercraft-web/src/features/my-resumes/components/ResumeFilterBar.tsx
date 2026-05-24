@@ -47,7 +47,7 @@ export const ResumeFilterBar = ({
           type="text"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search the cabinet…"
+          placeholder="Search resumes…"
           className="flex-1 bg-transparent outline-none cc-font-sans text-[15px] text-[color:var(--cc-ink)] placeholder:italic placeholder:text-[color:var(--cc-ash)]"
         />
       </label>

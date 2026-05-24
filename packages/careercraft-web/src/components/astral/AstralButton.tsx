@@ -30,7 +30,7 @@ export const AstralButton = memo(function AstralButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`as-btn ${variant === "primary" ? "as-btn-primary" : ""} ${
+      className={`as-btn ds-btn ${variant === "primary" ? "as-btn-primary ds-btn-primary" : ""} ${
         disabled ? "opacity-50 cursor-not-allowed" : ""
       } ${className}`}
     >

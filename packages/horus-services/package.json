@@ -9,9 +9,11 @@
   "dependencies": {
     "@azure/data-tables": "^13.3.2",
     "@azure/storage-blob": "^12.17.0",
-    "gremlin": "^3.8.0",
+    "gremlin": "^3.7.1",
+    "jspdf": "4.2.1",
     "neo4j-driver": "^5.15.0",
-    "pdfjs-dist": "^4.0.189"
+    "pdfjs-dist": "^4.0.189",
+    "vite": "8.0.14"
   },
   "engines": {
     "node": ">=18.0.0"

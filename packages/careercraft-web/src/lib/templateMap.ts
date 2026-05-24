@@ -102,6 +102,13 @@ export function toTemplateData(content: any): TemplateData {
       gpa: edu.gpa || "",
     })),
     skills: c.skills || [],
+    certifications: c.certifications,
+    references: c.references,
+    languages: c.languages,
+    awards: c.awards,
+    volunteer: c.volunteer,
+    publications: c.publications,
+    projects: c.projects,
   };
 }
 

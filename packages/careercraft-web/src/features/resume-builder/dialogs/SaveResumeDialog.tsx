@@ -61,7 +61,7 @@ export const SaveResumeDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker={isUpdate ? "§ Update" : "§ File"}
+      kicker={isUpdate ? "§ Update resume" : "§ Save resume"}
       title={
         isUpdate ? (
           <>
@@ -69,11 +69,11 @@ export const SaveResumeDialog = ({
           </>
         ) : (
           <>
-            File to the <span className="cc-italic-wonk">cabinet</span>.
+            Save this <span className="cc-italic-wonk">resume</span>.
           </>
         )
       }
-      description="Give it a name, a drawer, and any tags that help find it later."
+      description="Name it, pick a category, and add tags so you can find it later."
       maxWidth="max-w-lg"
       footer={
         <>
@@ -87,12 +87,12 @@ export const SaveResumeDialog = ({
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Filing…
+                Saving…
               </>
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                {isUpdate ? "Update file" : "File it"}
+                {isUpdate ? "Update" : "Save"}
               </>
             )}
           </CraftButton>
@@ -101,7 +101,7 @@ export const SaveResumeDialog = ({
     >
       <div className="space-y-6">
         {/* Name */}
-        <LabelledField label="Title on the file" required>
+        <LabelledField label="Resume title" required>
           <CraftInput
             value={resumeName}
             onChange={(e) => onResumeNameChange(e.target.value)}
@@ -111,7 +111,7 @@ export const SaveResumeDialog = ({
 
         {/* Category */}
         <div>
-          <div className="cc-label text-[color:var(--cc-ash)]">Drawer</div>
+          <div className="cc-label text-[color:var(--cc-ash)]">Category</div>
           <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
             {CATEGORIES.map((cat) => {
               const active = category === cat.id;

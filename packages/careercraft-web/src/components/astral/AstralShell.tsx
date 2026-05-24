@@ -62,7 +62,7 @@ const AstralRail = memo(function AstralRail({ onSignOut }: { onSignOut: () => vo
       {/* Logo mark */}
       <button
         onClick={() => navigate("/dashboard")}
-        title="Back to atelier"
+        title="Back to dashboard"
         className="relative w-11 h-11 rounded-2xl flex items-center justify-center group"
         style={{
           background: "linear-gradient(135deg, rgba(124,92,255,0.35), rgba(34,211,238,0.25))",
@@ -95,7 +95,7 @@ const AstralRail = memo(function AstralRail({ onSignOut }: { onSignOut: () => vo
 
       <div className="w-8 as-rule my-2" />
 
-      <RailButton label="Exit to Atelier" onClick={() => navigate("/dashboard")}>
+      <RailButton label="Dashboard" onClick={() => navigate("/dashboard")}>
         <LayoutDashboard className="w-[18px] h-[18px]" />
       </RailButton>
       <RailButton label="Settings" onClick={() => navigate("/settings")}>

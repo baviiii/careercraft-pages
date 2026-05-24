@@ -11,7 +11,7 @@ export default function AdminLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="ds-shell min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Verifying admin access...</p>
@@ -26,7 +26,7 @@ export default function AdminLayout() {
 
   if (!isAdmin || !isWhitelistedAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="ds-shell min-h-screen flex items-center justify-center">
         <div className="text-center max-w-md p-8">
           <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
             <ShieldX className="w-8 h-8 text-destructive" />
@@ -47,11 +47,11 @@ export default function AdminLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="ds-shell min-h-screen flex w-full">
         <AdminSidebar />
         
         <div className="flex-1 flex flex-col">
-          <header className="h-14 border-b border-border/50 flex items-center px-4 sticky top-0 bg-background/95 backdrop-blur z-10">
+          <header className="h-14 border-b border-border/50 flex items-center px-4 sticky top-0 bg-[color:var(--ds-bg)]/95 backdrop-blur z-10">
             <SidebarTrigger className="mr-4" />
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Super Admin</span>

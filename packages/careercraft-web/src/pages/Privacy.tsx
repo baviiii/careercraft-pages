@@ -63,13 +63,13 @@ export default function Privacy() {
             className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-ink)] cc-link mb-10"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to the atelier
+            Back to home
           </button>
 
           <div className="flex items-center gap-4 cc-label text-[color:var(--cc-rust)]">
-            <span>§ 00 · Colophon</span>
+            <span>§ 00 · Privacy</span>
             <span className="h-px w-10 bg-[color:var(--cc-hair-strong)]" />
-            <span className="text-[color:var(--cc-ash)]">Last set · {updated}</span>
+            <span className="text-[color:var(--cc-ash)]">Last updated · {updated}</span>
           </div>
 
           <h1 className="mt-4 cc-font-display text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight text-[color:var(--cc-ink)]">
@@ -147,20 +147,20 @@ export default function Privacy() {
       {/* Contact for privacy */}
       <section className="bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)] py-24 md:py-32">
         <div className="max-w-3xl mx-auto px-6 md:px-10 text-center">
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 05 · Further Reading</div>
+          <div className="cc-label text-[color:var(--cc-rust)]">§ 05 · Get in touch</div>
           <h2 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[0.95] tracking-tight">
             Questions about<br /><span className="cc-italic-wonk">your data?</span>
           </h2>
           <p className="mt-8 cc-font-editorial text-xl md:text-2xl text-[color:var(--cc-cream)]/80 leading-snug">
-            Write to&nbsp;
+            Email&nbsp;
             <a href="mailto:privacy@careercraft.com" className="cc-link text-[color:var(--cc-cream)]">
               privacy@careercraft.com
             </a>
-            &nbsp;— or drop the editors a line.
+            &nbsp;— or send us a message.
           </p>
           <div className="mt-10 flex items-center justify-center">
             <button onClick={() => navigate("/contact")} className="cc-btn cc-btn-onrust">
-              Contact the Editors <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+              Contact us <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
             </button>
           </div>
         </div>

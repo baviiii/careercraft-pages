@@ -53,19 +53,19 @@ const MARKET_TABS = [
     id: "news",
     label: "News",
     icon: Newspaper,
-    note: "Dispatches from the market floor.",
+    note: "Latest job market news.",
   },
   {
     id: "trends",
     label: "Analytics",
     icon: BarChart3,
-    note: "Trends and movement, read aloud.",
+    note: "Trends and movement, at a glance.",
   },
   {
     id: "insights",
     label: "Insights",
     icon: Sparkles,
-    note: "AI readings and forward odds.",
+    note: "AI-powered market outlook.",
   },
 ] as const;
 
@@ -339,16 +339,16 @@ export default function JobMarketNews() {
         <div className="grid grid-cols-12 gap-6 md:gap-10 items-end">
           <div className="col-span-12 md:col-span-8">
             <div className="cc-label text-[color:var(--cc-rust)]">
-              § Press · Australian job market — Vol. I
+              § Market news
             </div>
             <h1 className="mt-5 cc-font-display text-5xl md:text-7xl leading-[0.9] tracking-tight">
-              Market <span className="cc-italic-wonk">news,</span>
+              Australian <span className="cc-italic-wonk">job</span>
               <br />
-              read quietly.
+              market, today.
             </h1>
             <p className="mt-6 cc-font-editorial text-xl md:text-2xl leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
-              {activeMeta.note} Policy, hiring signals and forward readings —
-              cited, filed, and set in plain type.
+              {activeMeta.note} Policy, hiring signals and forward-looking
+              analysis — all in one place.
             </p>
           </div>
 
@@ -356,7 +356,7 @@ export default function JobMarketNews() {
             <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-6 md:p-7">
               <div className="flex items-center justify-between">
                 <div className="cc-label text-[color:var(--cc-rust)]">
-                  Press plate
+                  Today's headlines
                 </div>
                 <div className="cc-label-sm text-[color:var(--cc-ash)]">
                   № {String(news.length).padStart(3, "0")}
@@ -364,16 +364,16 @@ export default function JobMarketNews() {
               </div>
               <div className="mt-5 cc-font-display italic text-xl leading-tight">
                 {news.length > 0
-                  ? `${news.length} dispatches filed today.`
-                  : "The press is warm, awaiting copy."}
+                  ? `${news.length} stories published today.`
+                  : "No stories yet — check back soon."}
               </div>
               <div className="mt-5 pt-4 border-t border-[color:var(--cc-hair-strong)] cc-label-sm text-[color:var(--cc-ash)]">
                 {isLoading ? (
                   <span className="inline-flex items-center gap-2">
-                    <RefreshCw className="w-3 h-3 animate-spin" /> Printing…
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Loading…
                   </span>
                 ) : (
-                  <span className="cc-tabular">Signed to press</span>
+                  <span className="cc-tabular">Up to date</span>
                 )}
               </div>
             </div>
@@ -425,7 +425,7 @@ export default function JobMarketNews() {
                     : "Set from your profile."}
                 </div>
                 <div className="mt-1 cc-font-editorial text-[15px] text-[color:var(--cc-ink-soft)]">
-                  The desk reads the market through your own lens.
+                  News filtered to match your profile.
                 </div>
               </div>
             </div>
@@ -472,14 +472,14 @@ export default function JobMarketNews() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="cc-label text-[color:var(--cc-rust)]">
-                § Bench note
+                § Personalise
               </div>
               <div className="mt-1 cc-font-display italic text-2xl text-[color:var(--cc-ink)]">
                 Make the news <span className="cc-italic-wonk">yours.</span>
               </div>
               <p className="mt-2 cc-font-editorial text-[17px] text-[color:var(--cc-ink-soft)] max-w-lg">
-                Set your industry and level so the desk can file the right
-                stories to your bench.
+                Set your industry and level and we'll show the stories that
+                matter most to you.
               </p>
             </div>
             <button

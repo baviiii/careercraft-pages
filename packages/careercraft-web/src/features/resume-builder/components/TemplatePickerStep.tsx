@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   § 03 · Typeset — choose the dressing.
+   § 03 · Template — pick the layout.
    Scaled thumbnails of every template in @/lib/templateMap.
    ─────────────────────────────────────────────────────────── */
 
@@ -55,12 +55,12 @@ export const TemplatePickerStep = ({
       exit={{ opacity: 0, y: -16 }}
     >
       <div className="mb-10">
-        <div className="cc-label text-[color:var(--cc-rust)]">§ 03 · Typeset</div>
+        <div className="cc-label text-[color:var(--cc-rust)]">§ 03 · Template</div>
         <h2 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
-          Choose the <span className="cc-italic-wonk">dressing</span>.
+          Pick a <span className="cc-italic-wonk">template</span>.
         </h2>
         <p className="mt-3 cc-font-editorial italic text-xl text-[color:var(--cc-ink-soft)] max-w-xl">
-          Same words, different set. Each template keeps your content and re-lays it.
+          Same content, different layout. Switch any time — your writing stays put.
         </p>
       </div>
 
@@ -137,10 +137,10 @@ export const TemplatePickerStep = ({
       <div className="flex items-center justify-between mt-12">
         <button onClick={onBack} className="cc-btn cc-btn-ghost">
           <ArrowLeft className="w-4 h-4" />
-          Back to compose
+          Back
         </button>
         <CraftButton onClick={onNext}>
-          Press the proof
+          Preview &amp; export
           <ArrowRight className="w-4 h-4" />
         </CraftButton>
       </div>

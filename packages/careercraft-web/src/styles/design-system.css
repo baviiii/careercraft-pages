@@ -1,0 +1,214 @@
+/* Unified Stripe-polish design system
+   Single source of truth for app + public surfaces.
+*/
+
+:root {
+  /* Core semantic tokens */
+  --ds-bg: #f8fafc;
+  --ds-surface: #ffffff;
+  --ds-surface-alt: #f1f5f9;
+  --ds-fg: #0f172a;
+  --ds-fg-muted: #475569;
+  --ds-border: #dbe3ee;
+  --ds-border-strong: #cbd5e1;
+
+  --ds-primary: #635bff;
+  --ds-primary-strong: #5246ff;
+  --ds-primary-soft: #edeaff;
+  --ds-secondary: #06b6d4;
+  --ds-success: #0f9d63;
+  --ds-warning: #c28100;
+  --ds-danger: #dc2626;
+
+  --ds-shadow-sm: 0 1px 2px rgba(2, 6, 23, 0.06);
+  --ds-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --ds-shadow-lg: 0 20px 44px rgba(15, 23, 42, 0.12);
+  --ds-radius-sm: 10px;
+  --ds-radius-md: 14px;
+  --ds-radius-lg: 18px;
+
+  --ds-gradient-primary: linear-gradient(135deg, #635bff 0%, #7c74ff 52%, #14b8ff 100%);
+  --ds-gradient-subtle: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+
+  /* Tailwind token bridge */
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 246 100% 67%;
+  --primary-foreground: 0 0% 100%;
+  --primary-light: 248 100% 73%;
+  --primary-dark: 246 100% 58%;
+  --primary-glow: 246 100% 74%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --success: 156 82% 34%;
+  --success-foreground: 0 0% 100%;
+  --warning: 39 95% 40%;
+  --warning-foreground: 0 0% 100%;
+  --info: 190 90% 42%;
+  --info-foreground: 0 0% 100%;
+  --muted: 214 32% 93%;
+  --muted-foreground: 215 18% 40%;
+  --accent: 248 100% 96%;
+  --accent-foreground: 248 74% 38%;
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 26% 88%;
+  --input: 214 26% 88%;
+  --ring: 246 100% 67%;
+  --radius: 0.875rem;
+
+  /* Legacy compatibility bridge: craft */
+  --cc-cream: var(--ds-bg);
+  --cc-cream-2: #f3f7fd;
+  --cc-cream-3: #eef4fc;
+  --cc-ink: var(--ds-fg);
+  --cc-ink-2: #1e293b;
+  --cc-ink-soft: var(--ds-fg-muted);
+  --cc-rust: var(--ds-primary);
+  --cc-rust-deep: var(--ds-primary-strong);
+  --cc-rust-soft: rgba(99, 91, 255, 0.12);
+  --cc-ash: #64748b;
+  --cc-hair: rgba(15, 23, 42, 0.1);
+  --cc-hair-strong: rgba(15, 23, 42, 0.18);
+  --cc-signal: var(--ds-success);
+  --cc-signal-deep: #0a7f50;
+  --cc-signal-soft: rgba(15, 157, 99, 0.14);
+  --cc-wheat: var(--ds-warning);
+  --cc-wheat-deep: #9a6100;
+  --cc-wheat-soft: rgba(194, 129, 0, 0.12);
+
+  /* Legacy compatibility bridge: astral */
+  --as-void: #f8fafc;
+  --as-abyss: #f1f5f9;
+  --as-deep: #e8eef8;
+  --as-nebula: #e3eafe;
+  --as-panel: rgba(255, 255, 255, 0.86);
+  --as-panel-2: rgba(255, 255, 255, 0.72);
+  --as-ion: var(--ds-fg);
+  --as-ion-soft: #334155;
+  --as-mist: #475569;
+  --as-ash: #64748b;
+  --as-hair: rgba(15, 23, 42, 0.08);
+  --as-hair-strong: rgba(15, 23, 42, 0.18);
+  --as-aurora-1: #635bff;
+  --as-aurora-2: #14b8ff;
+  --as-aurora-3: #8b80ff;
+  --as-signal: var(--ds-success);
+  --as-gold: #f5c451;
+}
+
+.dark {
+  --ds-bg: #0b1220;
+  --ds-surface: #121a2b;
+  --ds-surface-alt: #1a2438;
+  --ds-fg: #eef2ff;
+  --ds-fg-muted: #a5b1c9;
+  --ds-border: #28334b;
+  --ds-border-strong: #34415b;
+
+  --background: 224 45% 9%;
+  --foreground: 220 40% 96%;
+  --card: 224 45% 12%;
+  --card-foreground: 220 40% 96%;
+  --popover: 224 45% 12%;
+  --popover-foreground: 220 40% 96%;
+  --secondary: 224 36% 18%;
+  --secondary-foreground: 220 40% 96%;
+  --muted: 224 36% 18%;
+  --muted-foreground: 220 22% 72%;
+  --accent: 246 56% 22%;
+  --accent-foreground: 246 100% 84%;
+  --border: 224 30% 24%;
+  --input: 224 30% 24%;
+  --ring: 246 100% 71%;
+}
+
+/* Shared primitives */
+.ds-shell {
+  min-height: 100vh;
+  background: var(--ds-bg);
+  color: var(--ds-fg);
+}
+
+.ds-surface {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-shadow-sm);
+}
+
+.ds-panel {
+  background: var(--ds-gradient-subtle);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-md);
+}
+
+.ds-nav {
+  background: rgba(248, 250, 252, 0.88);
+  border-bottom: 1px solid var(--ds-border);
+  backdrop-filter: blur(10px);
+}
+
+.ds-btn {
+  border-radius: 999px;
+  border: 1px solid var(--ds-border-strong);
+  background: var(--ds-surface);
+  color: var(--ds-fg);
+  transition: all 180ms ease;
+}
+.ds-btn:hover {
+  border-color: rgba(99, 91, 255, 0.45);
+  box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.08);
+}
+.ds-btn-primary {
+  border-color: transparent;
+  color: #fff;
+  background: var(--ds-gradient-primary);
+}
+.ds-btn-primary:hover {
+  box-shadow: 0 10px 24px rgba(99, 91, 255, 0.34);
+}
+
+/* Compatibility normalization for old class sets */
+.cc-root,
+.as-root {
+  background: var(--ds-bg);
+  color: var(--ds-fg);
+}
+
+.cc-btn,
+.as-btn {
+  border-radius: 999px;
+  border-color: var(--ds-border-strong);
+}
+
+.cc-btn-primary,
+.as-btn-primary {
+  background: var(--ds-gradient-primary);
+  border-color: transparent;
+  color: #fff;
+}
+
+.cc-btn-ghost {
+  background: var(--ds-surface);
+  color: var(--ds-fg);
+}
+
+.as-panel,
+.glass,
+.glass-card,
+.card-intelligence {
+  background: var(--ds-surface);
+  border-color: var(--ds-border);
+  box-shadow: var(--ds-shadow-md);
+}
+
+/* Guardrail utility: every custom component should prefer token classes */
+[data-ds-tokenized="true"] {
+  color: inherit;
+}

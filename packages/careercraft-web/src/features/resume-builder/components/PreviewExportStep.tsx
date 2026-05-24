@@ -1,6 +1,7 @@
 /* ───────────────────────────────────────────────────────────
    § 04 · Press — proof and print.
-   Live DOM is captured by html2canvas via `previewRef`.
+   On-screen preview of the selected template; export is rendered
+   independently as a vector PDF via @react-pdf/renderer.
    ─────────────────────────────────────────────────────────── */
 
 import { motion } from "framer-motion";
@@ -58,21 +59,21 @@ export const PreviewExportStep = ({
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10">
         <div>
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 04 · Press</div>
+          <div className="cc-label text-[color:var(--cc-rust)]">§ 04 · Preview &amp; export</div>
           <h2 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
-            Proof <span className="cc-italic-wonk">and</span> print.
+            Review <span className="cc-italic-wonk">and</span> download.
           </h2>
           <p className="mt-3 cc-font-editorial italic text-xl text-[color:var(--cc-ink-soft)]">
             {meta
-              ? `Set in ${meta.title} · ${meta.category}`
-              : "Review before the press."}
+              ? `Using template: ${meta.title} · ${meta.category}`
+              : "Review your résumé before exporting."}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={onChangeTemplate} className="cc-btn cc-btn-ghost" style={{ padding: "0.8rem 1.1rem" }}>
             <ArrowLeft className="w-4 h-4" />
-            Change dressing
+            Change template
           </button>
           <button
             onClick={onOpenSaveDialog}
@@ -87,7 +88,7 @@ export const PreviewExportStep = ({
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {currentResumeId ? "Update file" : "File to cabinet"}
+            {currentResumeId ? "Update" : "Save resume"}
           </button>
           <CraftButton onClick={onExportPDF} disabled={isExporting}>
             {isExporting ? (
@@ -95,7 +96,7 @@ export const PreviewExportStep = ({
             ) : (
               <Download className="w-4 h-4" />
             )}
-            Press to PDF
+            Export PDF
           </CraftButton>
         </div>
       </div>
@@ -111,7 +112,7 @@ export const PreviewExportStep = ({
             <Template data={templateData} isPreview={false} />
           ) : (
             <div className="p-16 text-center cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-              Template missing — return to § 03 to choose a dressing.
+              Template missing — return to § 03 to pick one.
             </div>
           )}
         </div>

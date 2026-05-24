@@ -100,9 +100,9 @@ const INDUSTRIES = [
 
 const AU_TABS = [
   { id: "jobs", label: "Listings", icon: Briefcase, note: "Open roles across the country." },
-  { id: "saved", label: "Saved", icon: Heart, note: "Files pinned to your bench." },
-  { id: "analysis", label: "Analysis", icon: BarChart3, note: "AI readings on the current board." },
-  { id: "alerts", label: "Alerts", icon: Bell, note: "Tune the telegraph." },
+  { id: "saved", label: "Saved", icon: Heart, note: "Jobs you've saved for later." },
+  { id: "analysis", label: "Analysis", icon: BarChart3, note: "AI analysis of the current market." },
+  { id: "alerts", label: "Alerts", icon: Bell, note: "Set up email alerts for new jobs." },
 ] as const;
 
 const ALERT_TYPES = [
@@ -308,7 +308,7 @@ export default function AustralianJobs() {
         localStorage.setItem(`jobPreferences_${session.user.id}`, JSON.stringify(prefsToSave));
         toast({
           title: "Preferences saved",
-          description: "Your bench is set.",
+          description: "Your job preferences have been updated.",
         });
       }
     } catch {
@@ -394,7 +394,7 @@ export default function AustralianJobs() {
     if (jobs.length === 0) {
       toast({
         title: "No jobs to analyse",
-        description: "Search first, then ask the desk.",
+        description: "Search for jobs first, then run an analysis.",
         variant: "destructive",
       });
       return;
@@ -425,7 +425,7 @@ export default function AustralianJobs() {
 
       setTrendAnalysis(data);
       setActiveTab("analysis");
-      toast({ title: "Analysis filed", description: "The desk has a reading." });
+      toast({ title: "Analysis complete", description: "Your market report is ready." });
     } catch (error: any) {
       console.error("Error analysing trends:", error);
       toast({
@@ -535,31 +535,31 @@ export default function AustralianJobs() {
         <div className="grid grid-cols-12 gap-6 md:gap-10 items-end">
           <div className="col-span-12 md:col-span-8">
             <div className="cc-label text-[color:var(--cc-rust)]">
-              § Post · Australian listings — Vol. I
+              § Browse jobs
             </div>
             <h1 className="mt-5 cc-font-display text-5xl md:text-7xl leading-[0.9] tracking-tight">
               Australian <span className="cc-italic-wonk">jobs,</span>
               <br />
-              on the bench.
+              one search away.
             </h1>
             <p className="mt-6 cc-font-editorial text-xl md:text-2xl leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
-              {activeMeta.note} SEEK, Indeed, LinkedIn and Jora —
-              curated, scored against your profile, and quietly filed.
+              {activeMeta.note} Live jobs from SEEK, Indeed, LinkedIn and Jora —
+              scored against your profile to show the best matches first.
             </p>
           </div>
 
           <div className="col-span-12 md:col-span-4">
             <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-6 md:p-7">
               <div className="flex items-center justify-between">
-                <div className="cc-label text-[color:var(--cc-rust)]">Bench card</div>
+                <div className="cc-label text-[color:var(--cc-rust)]">Search summary</div>
                 <div className="cc-label-sm text-[color:var(--cc-ash)]">
                   № {String(jobs.length).padStart(3, "0")}
                 </div>
               </div>
               <div className="mt-5 cc-font-display italic text-xl leading-tight">
                 {jobs.length > 0
-                  ? `${jobs.length} listings on the desk.`
-                  : "The board is clear — search a role."}
+                  ? `${jobs.length} jobs found.`
+                  : "No results — try a new search."}
               </div>
               <div className="mt-5 pt-4 border-t border-[color:var(--cc-hair-strong)] space-y-2 cc-label-sm">
                 <Row k="Saved" v={`${savedJobs.length}`} />
@@ -744,7 +744,7 @@ export default function AustralianJobs() {
                 <span className="cc-font-display italic text-lg text-[color:var(--cc-ink)]">
                   {matchingJobsCount}
                 </span>{" "}
-                listings fit your bench.
+                jobs match your profile.
               </span>
               <span>·</span>
               <button
@@ -760,9 +760,9 @@ export default function AustralianJobs() {
           {!hasPersonalizationData && !profileLoading && !loading && (
             <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="cc-label text-[color:var(--cc-rust)]">§ Bench note</div>
+                <div className="cc-label text-[color:var(--cc-rust)]">§ Set up profile</div>
                 <div className="mt-1 cc-font-display italic text-xl text-[color:var(--cc-ink)]">
-                  Set your bench, see your matches.
+                  Complete your profile to see job matches.
                 </div>
               </div>
               <button
@@ -831,9 +831,9 @@ export default function AustralianJobs() {
 
               {!loading && jobs.length === 0 && (
                 <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-12 md:p-14 text-center">
-                  <div className="cc-label text-[color:var(--cc-rust)]">§ Empty bench</div>
+                  <div className="cc-label text-[color:var(--cc-rust)]">§ No results</div>
                   <h3 className="mt-4 cc-font-display text-3xl md:text-4xl leading-[0.95] tracking-tight">
-                    Nothing on the board.
+                    No jobs found.
                   </h3>
                   <p className="mt-4 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] max-w-md mx-auto">
                     Loosen the filters or try a different title.
@@ -865,9 +865,9 @@ export default function AustralianJobs() {
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-[color:var(--cc-hair-strong)] pb-4">
                 <div>
-                  <div className="cc-label text-[color:var(--cc-rust)]">§ Pinned</div>
+                  <div className="cc-label text-[color:var(--cc-rust)]">§ Saved</div>
                   <div className="mt-1 cc-font-display italic text-2xl">
-                    {savedJobsList.length} saved on the bench.
+                    {savedJobsList.length} jobs saved.
                   </div>
                 </div>
               </div>
@@ -884,18 +884,18 @@ export default function AustralianJobs() {
             </div>
           ) : (
             <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-12 md:p-14 text-center">
-              <div className="cc-label text-[color:var(--cc-rust)]">§ Bench is clear</div>
+              <div className="cc-label text-[color:var(--cc-rust)]">§ Nothing saved</div>
               <h3 className="mt-4 cc-font-display text-3xl md:text-4xl leading-[0.95] tracking-tight">
-                No saved files, <span className="cc-italic-wonk">yet.</span>
+                No saved jobs <span className="cc-italic-wonk">yet.</span>
               </h3>
               <p className="mt-4 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] max-w-md mx-auto">
-                Tap the bookmark on any listing to pin it to your bench.
+                Tap the bookmark on any job to save it here.
               </p>
               <button
                 onClick={() => setActiveTab("jobs")}
                 className="mt-8 cc-btn cc-btn-primary"
               >
-                <Briefcase className="w-4 h-4" /> Browse listings
+                <Briefcase className="w-4 h-4" /> Browse jobs
               </button>
             </div>
           )}
@@ -1035,12 +1035,12 @@ export default function AustralianJobs() {
             </>
           ) : (
             <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-12 md:p-14 text-center">
-              <div className="cc-label text-[color:var(--cc-rust)]">§ Awaiting copy</div>
+              <div className="cc-label text-[color:var(--cc-rust)]">§ No analysis</div>
               <h3 className="mt-4 cc-font-display text-3xl md:text-4xl leading-[0.95] tracking-tight">
-                No reading <span className="cc-italic-wonk">yet.</span>
+                No analysis <span className="cc-italic-wonk">yet.</span>
               </h3>
               <p className="mt-4 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] max-w-md mx-auto">
-                Pull a search first — then ask the desk to set the type.
+                Search for jobs first, then run an AI analysis to see trends.
               </p>
               <button
                 onClick={analyzeJobTrends}
@@ -1063,9 +1063,9 @@ export default function AustralianJobs() {
       {activeTab === "alerts" && (
         <div className="mt-10 space-y-6">
           <EditorialPanel
-            kicker="§ Telegraph"
+            kicker="§ Alerts"
             title="Job alert types"
-            sub="Pick the stories that should tap your shoulder."
+            sub="Pick what you want to be notified about."
           >
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
               {ALERT_TYPES.map((alert) => (
@@ -1095,11 +1095,11 @@ export default function AustralianJobs() {
             </div>
           </EditorialPanel>
 
-          <EditorialPanel kicker="§ Signals" title="Notification settings">
+          <EditorialPanel kicker="§ Notifications" title="Notification settings">
             <div className="space-y-3">
               <PrefRow
                 label="Email notifications"
-                sub="Receive alerts by post."
+                sub="Receive alerts by email."
                 control={
                   <Switch
                     checked={preferences.emailNotifications}
@@ -1111,7 +1111,7 @@ export default function AustralianJobs() {
               />
               <PrefRow
                 label="Push notifications"
-                sub="Instant taps, browser-side."
+                sub="Browser alerts, in the moment."
                 control={
                   <Switch
                     checked={preferences.pushNotifications}
@@ -1123,7 +1123,7 @@ export default function AustralianJobs() {
               />
               <PrefRow
                 label="Summary frequency"
-                sub="How often the desk files your report."
+                sub="How often we send you a job summary."
                 control={
                   <CraftSelect
                     value={preferences.summaryFrequency}
@@ -1144,9 +1144,9 @@ export default function AustralianJobs() {
           </EditorialPanel>
 
           <EditorialPanel
-            kicker="§ Bench"
+            kicker="§ Defaults"
             title="Default search"
-            sub="Set your preferred lens for quicker work."
+            sub="Your preferred filters, ready for next time."
           >
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
@@ -1407,7 +1407,7 @@ const JobRow = ({
             {fitsPreferences && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] cc-label-sm text-[color:var(--cc-ink)]">
                 <Star className="w-3 h-3 text-[color:var(--cc-rust)]" />
-                Fits your bench
+                Matches your profile
               </span>
             )}
             {salary && (

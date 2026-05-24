@@ -320,7 +320,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
   }
 
   const handleConversationStarter = (question: string) => {
-    navigate("/sa-career-hub", { state: { initialQuestion: question } });
+    navigate("/career-coach", { state: { initialQuestion: question } });
   };
 
   return (

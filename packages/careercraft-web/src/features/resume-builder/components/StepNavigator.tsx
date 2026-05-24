@@ -1,6 +1,6 @@
 /* ───────────────────────────────────────────────────────────
    The editorial four-step progress rail.
-   § 01 Cover / § 02 Compose / § 03 Typeset / § 04 Press
+   § 01 Cover / § 02 Compose / § 03 Template / § 04 Export
    ─────────────────────────────────────────────────────────── */
 
 import { STEPS } from "../types";
@@ -51,8 +51,8 @@ export const StepNavigator = ({
                   ].join(" ")}
                 >
                   {step.number}
-                  {state === "done" && <span className="ml-2">·&nbsp;filed</span>}
-                  {state === "active" && <span className="ml-2">·&nbsp;at press</span>}
+                  {state === "done" && <span className="ml-2">·&nbsp;done</span>}
+                  {state === "active" && <span className="ml-2">·&nbsp;current</span>}
                 </div>
                 <div
                   className={[

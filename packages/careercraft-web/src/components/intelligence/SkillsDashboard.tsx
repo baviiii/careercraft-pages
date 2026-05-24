@@ -195,7 +195,7 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
   }, [isAutoPlay, skillsStories.length]);
 
   const handleConversationStarter = (question: string) => {
-    navigate("/sa-career-hub", { state: { initialQuestion: question } });
+    navigate("/career-coach", { state: { initialQuestion: question } });
   };
 
   // Loading state - now AFTER all hooks

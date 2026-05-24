@@ -81,7 +81,7 @@ export const UploadStep = ({
         begin with a blank sheet.
       </h2>
       <p className="mt-4 cc-font-editorial italic text-xl text-[color:var(--cc-ink-soft)] max-w-xl">
-        Upload a résumé, paste it in, or reopen one from the cabinet.
+        Upload a résumé, paste one in, or reopen a saved resume.
       </p>
 
       {/* AI Smart Import — top-tier */}
@@ -99,10 +99,10 @@ export const UploadStep = ({
                 § Smart import · new
               </div>
               <h3 className="mt-1 cc-font-display text-2xl md:text-3xl leading-tight tracking-tight">
-                Let the press-reader do the filing.
+                Let AI import your résumé for you.
               </h3>
               <p className="mt-2 cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-                Any résumé format · extract everything · review before applying.
+                Upload any format · we'll extract your details · review before you apply.
               </p>
             </div>
           </div>
@@ -237,7 +237,7 @@ export const UploadStep = ({
           ) : (
             <FolderOpen className="w-4 h-4" />
           )}
-          The cabinet
+          My resumes
         </button>
         <button onClick={onOpenPaste} className="cc-btn cc-btn-ghost w-full">
           <ClipboardPaste className="w-4 h-4" />

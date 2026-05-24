@@ -28,6 +28,7 @@ import {
   Home,
   Brain,
   Newspaper,
+  MessageSquareText,
   Settings as SettingsIcon,
   TrendingUp,
   Search,
@@ -38,7 +39,6 @@ import {
   Bell,
   CheckCircle2,
 } from "lucide-react";
-import { CraftFleuron } from "@/components/landing/CraftShell";
 import { CraftSidebar, CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
 
 /* ────────────────────────────── types ─────────────────────────── */
@@ -106,18 +106,18 @@ export default function Dashboard() {
     {
       id: "1",
       kind: "insight",
-      title: "Career insight posted",
-      body: "Your résumé has been analysed. Personalised notes are ready in the Intelligence desk.",
+      title: "New career insight available",
+      body: "We've analysed your résumé. View your personalised notes in Career Insights.",
       when: new Date(Date.now() - 300000),
       read: false,
-      actionLabel: "Read the memo",
+      actionLabel: "View insights",
       actionPath: "/intelligence",
     },
     {
       id: "2",
       kind: "success",
-      title: "File filed",
-      body: "Your résumé ‘Senior Software Engineer’ was saved to the cabinet at 14:02.",
+      title: "Résumé saved",
+      body: "Your résumé ‘Senior Software Engineer’ was saved at 14:02.",
       when: new Date(Date.now() - 3600000),
       read: false,
     },
@@ -241,24 +241,24 @@ export default function Dashboard() {
     () => [
       {
         n: "i.",
-        label: "Résumés filed",
+        label: "Résumés",
         value: stats.totalResumes,
         path: "/my-resumes",
-        note: "in the cabinet",
+        note: "saved",
       },
       {
         n: "ii.",
-        label: "Cover letters set",
+        label: "Cover letters",
         value: stats.totalCoverLetters,
         path: "/cover-letter",
-        note: "plates composed",
+        note: "written",
       },
       {
         n: "iii.",
-        label: "Applications posted",
+        label: "Applications",
         value: stats.totalApplications,
         path: "/tracker",
-        note: "letters in transit",
+        note: "sent",
       },
     ],
     [stats.totalResumes, stats.totalCoverLetters, stats.totalApplications]
@@ -268,49 +268,38 @@ export default function Dashboard() {
     () => [
       {
         id: "resume",
-        section: "§ 01 · Résumé desk",
-        title: (
-          <>
-            The <span className="cc-italic-wonk">compositor’s</span> drawer.
-          </>
-        ),
-        sub: "Templates, analysis and hand-set edits. Everything you need to print a file.",
+        section: "Resume",
+        title: "Build a resume that gets interviews.",
+        sub: "Write, polish, and score your resume with practical tools in one place.",
         tools: [
-          { icon: Zap, tag: "Build", title: "Résumé Builder", description: "Compose a résumé from hand-set templates.", path: "/builder" },
-          { icon: Upload, tag: "Library", title: "My Résumés", description: "Thumb through the cabinet of past files.", path: "/my-resumes", badge: stats.totalResumes > 0 ? `${stats.totalResumes}` : undefined },
-          { icon: BarChart3, tag: "ATS", title: "ATS Analysis", description: "Score a file against the reader-machine.", path: "/analysis" },
-          { icon: Sparkles, tag: "AI", title: "AI Rewrite", description: "Re-set bullets with a considered editor.", path: "/rewrite" },
-          { icon: Layout, tag: "Templates", title: "Template Builder", description: "Set your own house-style plate.", path: "/templates" },
+          { icon: Zap, tag: "Build", title: "Résumé Builder", description: "Start from a template and fill in your details.", path: "/builder" },
+          { icon: Upload, tag: "Library", title: "My Résumés", description: "View and edit every résumé you've saved.", path: "/my-resumes", badge: stats.totalResumes > 0 ? `${stats.totalResumes}` : undefined },
+          { icon: BarChart3, tag: "ATS Check", title: "ATS Analysis", description: "See how well your résumé scores with applicant tracking systems.", path: "/analysis" },
+          { icon: Sparkles, tag: "Rewrite", title: "Bullet Rewrite", description: "Improve weak bullet points into stronger impact statements.", path: "/rewrite" },
+          { icon: Layout, tag: "Templates", title: "Template Builder", description: "Design your own custom résumé template.", path: "/templates" },
         ],
       },
       {
         id: "career",
-        section: "§ 02 · Intelligence desk",
-        title: (
-          <>
-            Signals from <span className="cc-italic-wonk">the floor.</span>
-          </>
-        ),
-        sub: "Policy, funding and workforce intelligence, cited from government sources.",
+        section: "Career",
+        title: "Understand what the market is saying.",
+        sub: "Use trusted career signals and local market data to make better decisions.",
         tools: [
-          { icon: Brain, tag: "Coach", title: "Career Hub", description: "A quiet coach, grounded in SA data.", path: "/sa-career-hub" },
-          { icon: TrendingUp, tag: "Dash", title: "Intelligence Dashboard", description: "Skills, funding, investment dossiers.", path: "/intelligence" },
-          { icon: Newspaper, tag: "Press", title: "Market News", description: "A weekly reading of the job market.", path: "/job-market-news" },
+          { icon: Brain, tag: "Coach", title: "Career Coach", description: "Get personalised career advice based on South Australian data.", path: "/career-coach" },
+          { icon: TrendingUp, tag: "Insights", title: "Career Insights", description: "In-demand skills, funding opportunities and industry growth.", path: "/intelligence" },
+          { icon: Newspaper, tag: "News", title: "Market News", description: "This week's job market news and hiring trends.", path: "/job-market-news" },
         ],
       },
       {
         id: "applications",
-        section: "§ 03 · Post office",
-        title: (
-          <>
-            Letters in <span className="cc-italic-wonk">transit.</span>
-          </>
-        ),
-        sub: "Craft, stamp and track your applications from the same bench.",
+        section: "Applications",
+        title: "Apply with confidence and stay organized.",
+        sub: "Write cover letters, apply for jobs and keep track of every application you send.",
         tools: [
-          { icon: Mail, tag: "Letter", title: "Cover Letters", description: "Bespoke letters, tailored per post.", path: "/cover-letter", badge: stats.totalCoverLetters > 0 ? `${stats.totalCoverLetters}` : undefined },
-          { icon: Briefcase, tag: "Track", title: "Job Tracker", description: "Pin each application to the board.", path: "/tracker", badge: stats.totalApplications > 0 ? `${stats.totalApplications}` : undefined },
-          { icon: Search, tag: "Market", title: "Australian Jobs", description: "SEEK, Indeed & friends, curated.", path: "/au-jobs" },
+          { icon: Mail, tag: "Letter", title: "Cover Letters", description: "Write a tailored cover letter for any job.", path: "/cover-letter", badge: stats.totalCoverLetters > 0 ? `${stats.totalCoverLetters}` : undefined },
+          { icon: Briefcase, tag: "Track", title: "Job Tracker", description: "Track the status of every application you send.", path: "/tracker", badge: stats.totalApplications > 0 ? `${stats.totalApplications}` : undefined },
+          { icon: MessageSquareText, tag: "Practice", title: "Interview Prep", description: "Practice interviews with AI feedback and coaching.", path: "/interview-prep" },
+          { icon: Search, tag: "Jobs", title: "Browse Jobs", description: "Find live jobs from SEEK, Indeed and other sources.", path: "/au-jobs" },
         ],
       },
     ],
@@ -321,10 +310,10 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] flex items-center justify-center">
+      <div className="ds-shell cc-root cc-font-sans min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border border-[color:var(--cc-ink)] border-t-[color:var(--cc-rust)] animate-spin" />
-          <div className="cc-label-sm text-[color:var(--cc-ash)]">Warming the press…</div>
+          <div className="cc-label-sm text-[color:var(--cc-ash)]">Loading your workspace…</div>
         </div>
       </div>
     );
@@ -335,10 +324,7 @@ export default function Dashboard() {
   /* ────────────────────────── render ──────────────────────────── */
 
   return (
-    <main className="cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] overflow-x-hidden antialiased">
-      {/* Grain backdrop */}
-      <div className="cc-grain pointer-events-none fixed inset-0 z-0" />
-
+    <main className="ds-shell cc-root cc-font-sans min-h-screen text-[color:var(--cc-ink)] overflow-x-hidden antialiased" data-ds-tokenized="true">
       {/* Mobile sidebar overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -367,7 +353,7 @@ export default function Dashboard() {
       {/* ────────────── Main ────────────── */}
       <div className="lg:pl-[300px] relative z-10 min-h-screen flex flex-col">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-[color:var(--cc-cream)]/90 backdrop-blur-sm border-b border-[color:var(--cc-hair)]">
+        <header className="sticky top-0 z-30 ds-nav">
           <div className="flex items-center justify-between px-6 md:px-10 h-16">
             <div className="flex items-center gap-4">
               <button
@@ -387,8 +373,8 @@ export default function Dashboard() {
               <div className="relative">
                 <button
                   onClick={() => setBellOpen((v) => !v)}
-                  className="relative p-2.5 border border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)] transition-colors"
-                  aria-label="Dispatches"
+                  className="relative p-2.5 rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--ds-surface)] hover:border-[color:var(--cc-hair-strong)] transition-colors"
+                  aria-label="Notifications"
                 >
                   <Bell className="w-4 h-4" />
                   {unread > 0 && (
@@ -401,19 +387,19 @@ export default function Dashboard() {
                       initial={{ opacity: 0, y: -6 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -6 }}
-                      className="absolute right-0 mt-3 w-[22rem] bg-[color:var(--cc-cream)] border border-[color:var(--cc-ink)] shadow-[0_20px_60px_-20px_rgba(14,12,10,0.35)] z-50"
+                      className="absolute right-0 mt-3 w-[22rem] ds-surface rounded-2xl z-50 overflow-hidden"
                     >
                       <div className="p-4 border-b border-[color:var(--cc-hair)] flex items-center justify-between">
                         <div>
-                          <div className="cc-label text-[color:var(--cc-rust)]">§ Dispatches</div>
-                          <div className="mt-1 cc-font-display italic text-xl">From the desk.</div>
+                          <div className="cc-label text-[color:var(--cc-rust)]">Notifications</div>
+                          <div className="mt-1 text-base font-medium text-[color:var(--cc-ink)]">Latest updates</div>
                         </div>
                         {dispatches.length > 0 && (
                           <button
                             onClick={clearDispatches}
                             className="cc-label-sm text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
                           >
-                            Clear
+                            Clear all
                           </button>
                         )}
                       </div>
@@ -422,7 +408,7 @@ export default function Dashboard() {
                           <div className="p-8 text-center">
                             <CheckCircle2 className="w-5 h-5 mx-auto text-[color:var(--cc-ash)]" />
                             <p className="mt-3 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">
-                              The desk is clear.
+                              You're all caught up.
                             </p>
                           </div>
                         ) : (
@@ -454,7 +440,7 @@ export default function Dashboard() {
                                   <div className="cc-label-sm text-[color:var(--cc-ash)]">
                                     {d.when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                                   </div>
-                                  <div className="mt-1 cc-font-display italic text-lg leading-tight">{d.title}</div>
+                                  <div className="mt-1 text-[15px] font-semibold leading-tight">{d.title}</div>
                                   <p className="mt-1.5 cc-font-editorial text-[15px] leading-snug text-[color:var(--cc-ink-soft)]">
                                     {d.body}
                                   </p>
@@ -490,46 +476,48 @@ export default function Dashboard() {
           <div className="max-w-[1400px] mx-auto">
             {/* ─────────────── Masthead ─────────────── */}
             <section>
-              <div className="grid grid-cols-12 gap-6 md:gap-10 items-end border-b border-[color:var(--cc-hair-strong)] pb-10">
+              <div className="grid grid-cols-12 gap-6 md:gap-8 items-start pb-6">
                 <div className="col-span-12 md:col-span-8">
                   <div className="cc-label text-[color:var(--cc-rust)]">
-                    § 00 · Atelier — Vol. I · MMXXVI
+                    Dashboard
                   </div>
-                  <h1 className="mt-5 cc-font-display text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight">
-                    {greeting},<br />
-                    <span className="cc-italic-wonk">{userName}.</span>
+                  <h1 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[1.02] tracking-tight">
+                    {greeting}, {userName}
                   </h1>
-                  <p className="mt-8 cc-font-editorial text-xl md:text-2xl leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
+                  <p className="mt-5 text-lg md:text-xl leading-[1.45] text-[color:var(--cc-ink-soft)] max-w-2xl">
                     {stats.totalResumes > 0 ? (
                       <>
-                        The press is warm. Your cabinet holds{" "}
+                        You have{" "}
                         <span className="cc-font-display italic text-[color:var(--cc-ink)]">
                           {stats.totalResumes}{" "}
-                          {stats.totalResumes === 1 ? "file" : "files"}
-                        </span>
-                        , with <span className="cc-font-display italic text-[color:var(--cc-ink)]">{stats.totalApplications}</span> letter
-                        {stats.totalApplications === 1 ? "" : "s"} in transit.
+                          {stats.totalResumes === 1 ? "résumé" : "résumés"}
+                        </span>{" "}
+                        saved and{" "}
+                        <span className="cc-font-display italic text-[color:var(--cc-ink)]">
+                          {stats.totalApplications}
+                        </span>{" "}
+                        {stats.totalApplications === 1 ? "application" : "applications"} sent.
                       </>
                     ) : (
                       <>
-                        A clean sheet on the bench. Set your first résumé, or let the
-                        intelligence desk read the market while you think.
+                        Let's get started. Build your first résumé, or browse the job
+                        market to see what's out there.
                       </>
                     )}
                   </p>
 
                   <div className="mt-10 flex flex-wrap items-center gap-3">
                     <button onClick={() => navigate("/builder")} className="cc-btn cc-btn-primary">
-                      {stats.totalResumes > 0 ? "Set a new résumé" : "Begin a file"}
+                      {stats.totalResumes > 0 ? "Create new résumé" : "Create my first résumé"}
                       <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
                     </button>
                     {stats.totalResumes > 0 ? (
                       <button onClick={() => navigate("/my-resumes")} className="cc-btn cc-btn-ghost">
-                        Open the cabinet <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+                        View my résumés <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
                       </button>
                     ) : (
                       <button onClick={() => navigate("/intelligence")} className="cc-btn cc-btn-ghost">
-                        Read the desk <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+                        Browse career insights <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
                       </button>
                     )}
                   </div>
@@ -537,26 +525,29 @@ export default function Dashboard() {
 
                 {/* Right: workshop ticket */}
                 <div className="col-span-12 md:col-span-4">
-                  <div className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-6 md:p-8">
+                  <div className="ds-panel p-6 md:p-7">
                     <div className="flex items-center justify-between">
-                      <div className="cc-label text-[color:var(--cc-rust)]">Bench ticket</div>
-                      <div className="cc-label-sm text-[color:var(--cc-ash)]">№ 001</div>
+                      <div className="cc-label text-[color:var(--cc-rust)]">Today</div>
+                      <div className="cc-label-sm text-[color:var(--cc-ash)]">Quick summary</div>
                     </div>
-                    <div className="mt-5 cc-font-display italic text-2xl leading-tight">
-                      Today, {userName} is on the bench.
+                    <div className="mt-4 text-lg font-semibold leading-tight">
+                      Welcome back, {userName}.
                     </div>
                     <div className="mt-6 space-y-3 cc-label-sm">
-                      <Row k="Session" v="Live" dot />
-                      <Row k="Tools" v="9 at hand" />
-                      <Row k="Dispatches" v={`${unread} unread`} />
+                      <Row k="Session" v="Active" dot />
+                      <Row k="Tools available" v="9" />
+                      <Row k="Notifications" v={`${unread} new`} />
                     </div>
                     <div className="mt-6 pt-5 border-t border-[color:var(--cc-hair-strong)]">
                       <div className="cc-font-mono text-[10px] tracking-[0.28em] uppercase text-[color:var(--cc-ash)]">
-                        Signed
+                        Need help?
                       </div>
-                      <div className="mt-1 cc-font-display italic text-xl text-[color:var(--cc-ink)]">
-                        — The Editors
-                      </div>
+                      <button
+                        onClick={() => navigate("/career-coach")}
+                        className="mt-1 cc-font-display italic text-xl text-[color:var(--cc-ink)] cc-link"
+                      >
+                        Ask the career coach →
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -567,17 +558,17 @@ export default function Dashboard() {
             <section className="mt-16 md:mt-24">
               <div className="mb-10 flex items-end justify-between gap-6">
                 <div>
-                  <div className="cc-label text-[color:var(--cc-rust)]">§ Figures</div>
-                  <h2 className="mt-3 cc-font-display text-3xl md:text-5xl leading-[0.95] tracking-tight">
-                    Your week, <span className="cc-italic-wonk">in print.</span>
+                  <div className="cc-label text-[color:var(--cc-rust)]">Your numbers</div>
+                  <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[1.05] tracking-tight">
+                    Progress so far
                   </h2>
                 </div>
                 <div className="hidden md:block cc-label-sm text-[color:var(--cc-ash)] text-right max-w-xs">
-                  Counts update as you work.<br />Click any plate to turn the page.
+                  Counts update automatically.<br />Click any tile to view details.
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {statPlates.map((p, i) => (
                   <FigurePlate
                     key={p.label}
@@ -592,26 +583,24 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <CraftFleuron mark="✻" />
-
             {/* ─────────────── Toolkit sections ─────────────── */}
             {sections.map((sec, si) => (
               <section key={sec.id} className="mt-16 md:mt-24">
-                <div className="grid grid-cols-12 gap-6 md:gap-10 items-end border-b border-[color:var(--cc-hair-strong)] pb-8 mb-10">
+                <div className="grid grid-cols-12 gap-6 md:gap-8 items-end pb-3 mb-8">
                   <div className="col-span-12 md:col-span-5">
                     <div className="cc-label text-[color:var(--cc-rust)]">{sec.section}</div>
-                    <h2 className="mt-4 cc-font-display text-3xl md:text-5xl leading-[0.95] tracking-tight">
+                    <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[1.05] tracking-tight">
                       {sec.title}
                     </h2>
                   </div>
                   <div className="col-span-12 md:col-span-7 md:pl-6">
-                    <p className="cc-font-editorial text-xl md:text-[22px] leading-snug text-[color:var(--cc-ink-soft)] max-w-xl">
+                    <p className="text-lg leading-snug text-[color:var(--cc-ink-soft)] max-w-xl">
                       {sec.sub}
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {sec.tools.map((t, ti) => (
                     <ToolFold
                       key={t.path}
@@ -628,15 +617,13 @@ export default function Dashboard() {
               </section>
             ))}
 
-            <CraftFleuron mark="※" />
-
             {/* ─────────────── Dispatches (recent activity) ─────────────── */}
             {(stats.recentActivity.length > 0 || dispatches.length > 0) && (
               <section className="mt-16 md:mt-24">
                 <div className="mb-10">
-                  <div className="cc-label text-[color:var(--cc-rust)]">§ Dispatches</div>
-                  <h2 className="mt-3 cc-font-display text-3xl md:text-5xl leading-[0.95] tracking-tight">
-                    From the <span className="cc-italic-wonk">wire.</span>
+                  <div className="cc-label text-[color:var(--cc-rust)]">Recent activity</div>
+                  <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[1.05] tracking-tight">
+                    What changed recently
                   </h2>
                 </div>
 
@@ -645,7 +632,7 @@ export default function Dashboard() {
                   {stats.recentActivity.length > 0 && (
                     <div className="space-y-4">
                       <div className="cc-label-sm text-[color:var(--cc-ash)] border-b border-[color:var(--cc-hair)] pb-3">
-                        Recent files
+                        Recent résumés
                       </div>
                       {stats.recentActivity.map((a, i) => (
                         <motion.button
@@ -655,16 +642,16 @@ export default function Dashboard() {
                           viewport={{ once: true, margin: "-20%" }}
                           transition={{ delay: i * 0.06 }}
                           onClick={() => navigate("/my-resumes")}
-                          className="cc-telegram w-full text-left group"
+                          className="ds-surface w-full text-left group p-5"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div>
-                              <div className="cc-tele-stamp">File updated</div>
-                              <div className="mt-2 cc-font-display italic text-2xl leading-tight">
+                              <div className="cc-label-sm text-[color:var(--cc-ash)]">Resume updated</div>
+                              <div className="mt-1 text-xl font-semibold leading-tight">
                                 {a.name}
                               </div>
                               <div className="mt-1 cc-label-sm text-[color:var(--cc-ash)]">
-                                Posted <span className="cc-tabular">{a.date}</span>
+                                Saved <span className="cc-tabular">{a.date}</span>
                               </div>
                             </div>
                             <ArrowUpRight className="w-5 h-5 text-[color:var(--cc-ash)] group-hover:text-[color:var(--cc-rust)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
@@ -678,7 +665,7 @@ export default function Dashboard() {
                   {dispatches.length > 0 && (
                     <div className="space-y-4">
                       <div className="cc-label-sm text-[color:var(--cc-ash)] border-b border-[color:var(--cc-hair)] pb-3">
-                        Telegrams
+                        Notifications
                       </div>
                       {dispatches.map((d, i) => (
                         <motion.button
@@ -691,20 +678,20 @@ export default function Dashboard() {
                             markDispatchRead(d.id);
                             if (d.actionPath) navigate(d.actionPath);
                           }}
-                          className="cc-telegram w-full text-left group"
+                          className="ds-surface w-full text-left group p-5"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div>
-                              <div className="cc-tele-stamp">
+                              <div className="cc-label-sm text-[color:var(--cc-ash)]">
                                 {d.kind === "success"
-                                  ? "Filed"
+                                  ? "Saved"
                                   : d.kind === "insight"
                                   ? "Insight"
                                   : d.kind === "warning"
-                                  ? "Note"
-                                  : "Memo"}
+                                  ? "Warning"
+                                  : "Info"}
                               </div>
-                              <div className="mt-2 cc-font-display italic text-2xl leading-tight">
+                              <div className="mt-1 text-xl font-semibold leading-tight">
                                 {d.title}
                               </div>
                               <p className="mt-2 cc-font-editorial text-[17px] leading-snug text-[color:var(--cc-ink-soft)]">
@@ -721,34 +708,34 @@ export default function Dashboard() {
               </section>
             )}
 
-            {/* ─────────────── Colophon ─────────────── */}
-            <section className="mt-24 md:mt-32 border-t border-[color:var(--cc-ink)] pt-10">
+            {/* ─────────────── Footer meta ─────────────── */}
+            <section className="mt-20 border-t border-[color:var(--cc-hair)] pt-8">
               <div className="grid grid-cols-12 gap-6 md:gap-10">
                 <div className="col-span-12 md:col-span-5">
-                  <div className="cc-label text-[color:var(--cc-rust)]">§ Colophon</div>
-                  <p className="mt-5 cc-dropcap cc-font-editorial text-xl md:text-2xl leading-[1.45] text-[color:var(--cc-ink-soft)]">
-                    This atelier is a workbench, not a dashboard. Everything here — the
-                    résumés, the telegrams, the market dossiers — is set with a human hand
-                    over South Australian intelligence, and kept quiet.
+                  <div className="cc-label text-[color:var(--cc-rust)]">About</div>
+                  <p className="mt-4 text-lg leading-[1.6] text-[color:var(--cc-ink-soft)]">
+                    CareerCraft is built for people looking for work in South Australia.
+                    Every tool and every insight here is grounded in real market data —
+                    designed to help you get noticed and get hired.
                   </p>
                 </div>
                 <div className="col-span-12 md:col-span-7 grid grid-cols-2 md:grid-cols-4 gap-8">
-                  <Meta k="Bench" v="Adelaide" />
+                  <Meta k="Based in" v="Adelaide" />
                   <Meta k="Set in" v="Fraunces" />
-                  <Meta k="Volume" v="I · MMXXVI" />
-                  <Meta k="Session" v={session?.user?.email?.split("@")[0] || "—"} />
+                  <Meta k="Version" v="1.0" />
+                  <Meta k="Signed in as" v={session?.user?.email?.split("@")[0] || "—"} />
                 </div>
               </div>
 
               <div className="mt-12 flex items-center justify-between">
                 <div className="cc-label-sm text-[color:var(--cc-ash)]">
-                  © MMXXVI · CareerCraft · Adelaide, SA
+                  © 2026 · CareerCraft · Adelaide, SA
                 </div>
                 <button
                   onClick={handleSignOut}
                   className="cc-label text-[color:var(--cc-ink)] cc-link inline-flex items-center gap-2"
                 >
-                  <LogOut className="w-3.5 h-3.5" /> Sign off the bench
+                  <LogOut className="w-3.5 h-3.5" /> Sign out
                 </button>
               </div>
             </section>
@@ -790,10 +777,10 @@ const FigurePlate = memo(function FigurePlate({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.08, duration: 0.6 }}
-      className="bg-[color:var(--cc-cream)] hover:bg-[color:var(--cc-cream-2)] transition-colors p-8 md:p-10 text-left group"
+      className="ds-surface hover:bg-[color:var(--cc-cream-2)] transition-colors p-7 md:p-8 text-left group"
     >
       <div className="flex items-start justify-between">
-        <div className="cc-font-display italic text-4xl text-[color:var(--cc-rust)] leading-none">
+        <div className="cc-font-display text-2xl text-[color:var(--cc-rust)] leading-none">
           {n}
         </div>
         <ArrowUpRight className="w-5 h-5 text-[color:var(--cc-ash)] group-hover:text-[color:var(--cc-rust)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
@@ -802,12 +789,12 @@ const FigurePlate = memo(function FigurePlate({
       <div className="mt-10">
         <span
           ref={ref}
-          className="cc-font-display text-6xl md:text-7xl leading-none tracking-tight cc-tabular text-[color:var(--cc-ink)] block"
+          className="cc-font-display text-5xl md:text-6xl leading-none tracking-tight cc-tabular text-[color:var(--cc-ink)] block"
         >
           {String(counted).padStart(2, "0")}
         </span>
         <div className="mt-4 cc-label text-[color:var(--cc-ink)]">{label}</div>
-        <div className="mt-1 cc-font-editorial italic text-[17px] text-[color:var(--cc-ink-soft)]">
+        <div className="mt-1 text-[15px] text-[color:var(--cc-ink-soft)]">
           {note}
         </div>
       </div>
@@ -844,14 +831,14 @@ const ToolFold = memo(function ToolFold({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-10%" }}
       transition={{ delay: (index % 6) * 0.05, duration: 0.55 }}
-      className="cc-fold bg-[color:var(--cc-cream)] hover:bg-[color:var(--cc-cream-2)] p-8 text-left group relative"
+      className="ds-surface hover:bg-[color:var(--cc-cream-2)] p-7 text-left group relative"
     >
       <div className="flex items-start justify-between">
-        <div className="w-10 h-10 border border-[color:var(--cc-ink)] flex items-center justify-center bg-[color:var(--cc-cream)] group-hover:bg-[color:var(--cc-ink)] group-hover:text-[color:var(--cc-cream)] transition-colors">
+        <div className="w-10 h-10 rounded-xl border border-[color:var(--cc-hair-strong)] flex items-center justify-center bg-[color:var(--ds-surface)] group-hover:border-[color:var(--cc-rust)] transition-colors">
           <Icon className="w-4 h-4" />
         </div>
         {badge && (
-          <span className="cc-label-sm px-2 py-1 border border-[color:var(--cc-ink)] text-[color:var(--cc-ink)] bg-[color:var(--cc-cream)]">
+          <span className="cc-label-sm px-2 py-1 rounded-full border border-[color:var(--cc-hair-strong)] text-[color:var(--cc-ink)] bg-[color:var(--ds-surface)]">
             {badge}
           </span>
         )}
@@ -859,16 +846,16 @@ const ToolFold = memo(function ToolFold({
 
       <div className="mt-8">
         <div className="cc-label text-[color:var(--cc-rust)]">{tag}</div>
-        <h3 className="mt-3 cc-font-display text-2xl md:text-3xl leading-[1.05] tracking-tight text-[color:var(--cc-ink)]">
+        <h3 className="mt-3 cc-font-display text-2xl leading-[1.1] tracking-tight text-[color:var(--cc-ink)]">
           {title}
         </h3>
-        <p className="mt-3 cc-font-editorial text-[17px] leading-snug text-[color:var(--cc-ink-soft)]">
+        <p className="mt-3 text-[15px] leading-snug text-[color:var(--cc-ink-soft)]">
           {description}
         </p>
       </div>
 
       <div className="mt-8 flex items-center justify-between">
-        <span className="cc-tag">Open</span>
+        <span className="cc-label-sm text-[color:var(--cc-ash)]">Open</span>
         <ArrowUpRight className="w-4 h-4 text-[color:var(--cc-ash)] group-hover:text-[color:var(--cc-rust)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
       </div>
     </motion.button>

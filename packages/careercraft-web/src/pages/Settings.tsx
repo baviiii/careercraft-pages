@@ -82,6 +82,10 @@ import {
 } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
+const APP_BASE_URL =
+  (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim().replace(/\/+$/, "") ||
+  window.location.origin;
+
 // Sidebar navigation items - simplified to what we actually support
 const SETTINGS_SECTIONS = [
   { id: "profile", label: "Profile", icon: User, description: "Personal info" },
@@ -1084,7 +1088,7 @@ export default function Settings() {
                     </p>
                     <Button variant="outline" onClick={() => {
                       supabase.auth.resetPasswordForEmail(session?.user?.email || '', {
-                        redirectTo: `${window.location.origin}/auth`,
+                        redirectTo: `${APP_BASE_URL}/auth`,
                       });
                       toast({
                         title: '✓ Password reset email sent',

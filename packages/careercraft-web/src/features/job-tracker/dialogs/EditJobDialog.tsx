@@ -51,13 +51,13 @@ export const EditJobDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker="§ Amend entry"
+      kicker="§ Edit application"
       title={
         <>
-          Revise the <span className="cc-italic-wonk">record</span>.
+          Update this <span className="cc-italic-wonk">application</span>.
         </>
       }
-      description="Status changed? New salary band? Edit the line and we'll re-file it."
+      description="Change the status, add notes, or update any details."
       maxWidth="max-w-2xl"
       footer={
         <>
@@ -65,7 +65,7 @@ export const EditJobDialog = ({
             Cancel
           </CraftButton>
           <CraftButton onClick={handleSubmit} disabled={saving}>
-            {saving ? "Amending…" : "Amend entry"}
+            {saving ? "Saving…" : "Save changes"}
           </CraftButton>
         </>
       }

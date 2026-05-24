@@ -116,15 +116,15 @@ export default function ResumeBuilderPage() {
     <CraftAppShell>
       {/* Editorial masthead */}
       <CraftAppHeader
-        kicker="§ Atelier · Résumé builder"
+        kicker="§ Résumé builder"
         title={
           <>
-            A few <span className="cc-italic-wonk">steps</span>,
+            Build your résumé in <span className="cc-italic-wonk">four</span>
             <br />
-            one proof résumé.
+            simple steps.
           </>
         }
-        sub="Upload, compose, typeset, press. Your narrative — set in ink."
+        sub="Upload an existing résumé, fill in your details, pick a template, and download."
         backTo="/dashboard"
       />
 
@@ -135,7 +135,7 @@ export default function ResumeBuilderPage() {
       />
 
       {/* Steps */}
-      <CraftAppBody>
+      <CraftAppBody data-ds-tokenized="true">
         <AnimatePresence mode="wait">
           {currentStep === 0 && (
             <UploadStep

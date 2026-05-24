@@ -46,7 +46,7 @@ export const CreateResumeDialog = ({
         <span className="cc-italic-wonk">motion</span>.
       </>
     }
-    description="Your data is extracted. Pick a destination — pages, letter, cabinet, or the job tracker."
+    description="Your data is extracted. Pick what to do next — build a new resume, draft a cover letter, save it, or track the job."
     maxWidth="max-w-2xl"
     footer={
       <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
@@ -105,7 +105,7 @@ export const CreateResumeDialog = ({
         Icon={Save}
         kicker="§ 03"
         title="Save résumé"
-        body="File a copy in the cabinet for later."
+        body="Save a copy to your resumes."
         onClick={onSaveResume}
       />
       <DialogTile

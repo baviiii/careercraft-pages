@@ -3,8 +3,6 @@
    The page stays thin; this owns the model.
    ─────────────────────────────────────────────────────────── */
 
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import {
   type Dispatch,
   type SetStateAction,
@@ -13,25 +11,21 @@ import {
   useRef,
   useState,
 } from "react";
-import { useNavigate } from "react-router-dom";
 
 import { useToast } from "@/hooks/use-toast";
-import { useSecureResumeUpload } from "@/hooks/useSecurity";
 import { usePersonalization } from "@/hooks/usePersonalization";
 import { supabase } from "@/integrations/supabase/client";
 import { rewriteBullet } from "@/lib/aiRewriter";
-import {
-  type AIResumeData,
-  parseResumeStructured,
-  parseResumeWithAI,
-} from "@/lib/resumeParser";
-import { auditFileOperation } from "@/lib/security/auditLog";
+import { type AIResumeData } from "@/lib/resumeParser";
 
 import {
   aiDataToResumeData,
   createEmptyResumeData,
   parseTextToResumeData,
 } from "../lib/resumeData";
+import { useResumeExport } from "./useResumeExport";
+import { useResumeImport } from "./useResumeImport";
+import { useResumePersistence } from "./useResumePersistence";
 import type {
   AutoSaveStatus,
   ContactInfo,
@@ -159,66 +153,80 @@ export function useResumeBuilder(dialogs: {
   setShowPasteDialog: Dispatch<SetStateAction<boolean>>;
   setPastedText: Dispatch<SetStateAction<string>>;
 }): UseResumeBuilderReturn {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // ── Security ────────────────────────────────────────────────
-  const {
-    validateFile: secureValidateFile,
-    isValidating: isSecurityValidating,
-  } = useSecureResumeUpload({
-    onValidationError: (errors) => {
-      toast({
-        title: "Security check failed",
-        description: errors.join(", "),
-        variant: "destructive",
-      });
-    },
-    onSecurityThreat: (threats) => {
-      toast({
-        title: "Security threat detected",
-        description:
-          "The file contains potentially malicious content and was blocked.",
-        variant: "destructive",
-      });
-      console.error("Security threats:", threats);
-    },
-  });
-
   // ── Core state ──────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadedFileType, setUploadedFileType] = useState<UploadedFileType>(null);
   const [resumeData, setResumeData] = useState<ResumeData>(createEmptyResumeData());
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>("modern1");
   const [activeSection, setActiveSection] = useState("contact");
-  const [isExporting, setIsExporting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("saved");
   const [resumeName, setResumeName] = useState("");
-  const [useAIParsing, setUseAIParsing] = useState(false); // default off to save tokens
   const [currentResumeId, setCurrentResumeId] = useState<string | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [rewritingBulletId, setRewritingBulletId] = useState<string | null>(null);
   const [showLivePreview, setShowLivePreview] = useState(false);
 
-  // Save-dialog metadata
-  const [saveResumeName, setSaveResumeName] = useState("");
-  const [saveCategory, setSaveCategory] = useState("general");
-  const [saveTags, setSaveTags] = useState<string[]>([]);
-
-  // Saved-resumes list (lazy-loaded on demand)
-  const [savedResumes, setSavedResumes] = useState<SavedResumeRow[]>([]);
-  const [isLoadingResumes, setIsLoadingResumes] = useState(false);
-
   // Personalization
   const {
     profile: userProfile,
-    hasPersonalizationData,
+    hasPersonalizationData: hasPersonalizationSignal,
     getResumeAutoFillData,
   } = usePersonalization();
+  const hasPersonalizationData = Boolean(hasPersonalizationSignal);
+
+  const {
+    isProcessing,
+    uploadProgress,
+    uploadedFileType,
+    useAIParsing,
+    setUseAIParsing,
+    isSecurityValidating,
+    handleFile,
+    handleTextContent,
+    applyAIResumeData,
+  } = useResumeImport({
+    toast,
+    setResumeData,
+    setCurrentStep,
+    setShowPasteDialog: dialogs.setShowPasteDialog,
+    setPastedText: dialogs.setPastedText,
+  });
+
+  const {
+    isSaving,
+    savedResumes,
+    isLoadingResumes,
+    saveResumeName,
+    setSaveResumeName,
+    saveCategory,
+    setSaveCategory,
+    saveTags,
+    setSaveTags,
+    loadSavedResumes,
+    loadSelectedResume,
+    saveResume,
+  } = useResumePersistence({
+    toast,
+    dialogs: { setShowLoadResumeDialog: dialogs.setShowLoadResumeDialog },
+    resumeData,
+    selectedTemplate,
+    currentResumeId,
+    setCurrentResumeId,
+    setResumeData,
+    setSelectedTemplate,
+    setCurrentStep,
+    setResumeName,
+    setAutoSaveStatus,
+  });
+
+  const { isExporting, exportToPDF } = useResumeExport({
+    resumeData,
+    selectedTemplate,
+    resumeDisplayName: resumeData.contact.name || "resume",
+    toast,
+  });
 
   // ── Bootstrap from sessionStorage / URL ─────────────────────
   useEffect(() => {
@@ -245,7 +253,7 @@ export function useResumeBuilder(dialogs: {
         sessionStorage.removeItem("rewriteTemplate");
         toast({
           title: "Optimised résumé loaded",
-          description: `${parsed.experience.length} roles · ${parsed.skills.length} skills ready to compose.`,
+          description: `${parsed.experience.length} roles · ${parsed.skills.length} skills ready to edit.`,
         });
         return;
       }
@@ -274,7 +282,7 @@ export function useResumeBuilder(dialogs: {
             title: "Résumé loaded",
             description: `${parsed.experience?.length || 0} roles · ${
               parsed.skills?.length || 0
-            } skills extracted. Compose & typeset.`,
+            } skills extracted. Ready to edit.`,
           });
           return;
         } catch (e) {
@@ -383,145 +391,6 @@ export function useResumeBuilder(dialogs: {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ── File handling ──────────────────────────────────────────
-  const handleFile = useCallback(
-    async (file: File) => {
-      setIsProcessing(true);
-      setUploadProgress(0);
-      try {
-        const securityResult = await secureValidateFile(file);
-        if (!securityResult.isValid) {
-          auditFileOperation(
-            "upload",
-            file.name,
-            undefined,
-            false,
-            securityResult.errors.join(", ")
-          );
-          toast({
-            title: "File rejected",
-            description:
-              securityResult.errors[0] || "File failed security validation",
-            variant: "destructive",
-          });
-          setIsProcessing(false);
-          return;
-        }
-        auditFileOperation(
-          "upload",
-          securityResult.sanitizedFilename || file.name,
-          undefined,
-          true
-        );
-
-        let fileType: UploadedFileType = "pdf";
-        if (
-          file.type.includes("word") ||
-          file.name.endsWith(".docx") ||
-          file.name.endsWith(".doc")
-        )
-          fileType = "docx";
-        else if (file.type.startsWith("image/")) fileType = "image";
-        else if (file.type === "text/plain" || file.name.endsWith(".txt"))
-          fileType = "txt";
-        setUploadedFileType(fileType);
-
-        if (fileType === "txt") {
-          const textContent = await file.text();
-          await handleTextContent(textContent);
-          return;
-        }
-
-        let data: ResumeData;
-        if (useAIParsing) {
-          const aiParsed = await parseResumeWithAI(file, (p) =>
-            setUploadProgress(p)
-          );
-          data = aiDataToResumeData(aiParsed);
-          toast({
-            title: "AI reading complete",
-            description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
-          });
-        } else {
-          const parsed = await parseResumeStructured(file, (p) =>
-            setUploadProgress(p)
-          );
-          data = parseTextToResumeData(parsed.rawText);
-          toast({
-            title: "Text extracted",
-            description: `Text pulled from ${file.name}. Toggle on AI parsing for finer results.`,
-          });
-        }
-
-        setResumeData(data);
-        setCurrentStep(1);
-      } catch (error) {
-        console.error("File processing error:", error);
-        toast({
-          title: "Processing failed",
-          description:
-            error instanceof Error ? error.message : "Could not process the file",
-          variant: "destructive",
-        });
-      } finally {
-        setIsProcessing(false);
-        setUploadProgress(0);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [secureValidateFile, toast, useAIParsing]
-  );
-
-  const handleTextContent = useCallback(
-    async (text: string) => {
-      setIsProcessing(true);
-      setUploadProgress(20);
-      try {
-        let data: ResumeData;
-        if (useAIParsing) {
-          const blob = new Blob([text], { type: "text/plain" });
-          const file = new globalThis.File([blob], "pasted-resume.txt", {
-            type: "text/plain",
-          });
-          setUploadProgress(40);
-          const aiParsed = await parseResumeWithAI(file, (p) =>
-            setUploadProgress(40 + p * 0.5)
-          );
-          data = aiDataToResumeData(aiParsed);
-          toast({
-            title: "AI reading complete",
-            description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
-          });
-        } else {
-          setUploadProgress(60);
-          data = parseTextToResumeData(text);
-          toast({
-            title: "Text processed",
-            description:
-              "Basic extraction complete. Toggle on AI parsing for finer results.",
-          });
-        }
-        setUploadProgress(100);
-        setResumeData(data);
-        dialogs.setShowPasteDialog(false);
-        dialogs.setPastedText("");
-        setCurrentStep(1);
-      } catch (error) {
-        console.error("Text processing error:", error);
-        toast({
-          title: "Processing failed",
-          description:
-            error instanceof Error ? error.message : "Could not process the text",
-          variant: "destructive",
-        });
-      } finally {
-        setIsProcessing(false);
-        setUploadProgress(0);
-      }
-    },
-    [useAIParsing, toast, dialogs]
-  );
 
   // ── Field mutations ─────────────────────────────────────────
   const updateContact = useCallback(
@@ -672,70 +541,6 @@ export function useResumeBuilder(dialogs: {
     setAutoSaveStatus("unsaved");
   }, []);
 
-  // ── Saved résumés ───────────────────────────────────────────
-  const loadSavedResumes = useCallback(async () => {
-    setIsLoadingResumes(true);
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Please sign in to open the cabinet",
-          variant: "destructive",
-        });
-        return;
-      }
-      const { data, error } = await supabase
-        .from("resumes")
-        .select("id, name, content, created_at")
-        .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
-      if (error) throw error;
-      setSavedResumes((data || []) as SavedResumeRow[]);
-      dialogs.setShowLoadResumeDialog(true);
-    } catch (error) {
-      console.error("Error loading resumes:", error);
-      toast({ title: "Failed to open the cabinet", variant: "destructive" });
-    } finally {
-      setIsLoadingResumes(false);
-    }
-  }, [toast, dialogs]);
-
-  const loadSelectedResume = useCallback(
-    (resume: SavedResumeRow) => {
-      try {
-        let content = resume.content;
-        if (typeof content === "string") content = JSON.parse(content);
-
-        if (content?.metadata) {
-          const { metadata, ...resumeContent } = content;
-          setResumeData(resumeContent as ResumeData);
-          if (metadata.category) setSaveCategory(metadata.category);
-          if (metadata.tags) setSaveTags(metadata.tags);
-          if (metadata.template) setSelectedTemplate(metadata.template);
-        } else {
-          setResumeData(content as ResumeData);
-        }
-
-        setCurrentResumeId(resume.id);
-        setResumeName(resume.name);
-        setSaveResumeName(resume.name);
-        dialogs.setShowLoadResumeDialog(false);
-        setCurrentStep(1);
-
-        toast({
-          title: "Draft reopened",
-          description: `Editing “${resume.name}”.`,
-        });
-      } catch (error) {
-        console.error("Error parsing resume:", error);
-        toast({ title: "Failed to reopen draft", variant: "destructive" });
-      }
-    },
-    [toast, dialogs]
-  );
-
   // ── Auto-fill ───────────────────────────────────────────────
   const autoFillFromProfile = useCallback(() => {
     if (!hasPersonalizationData) {
@@ -821,178 +626,6 @@ export function useResumeBuilder(dialogs: {
       }
     },
     [resumeData.experience, jobDescription, toast, updateBullet]
-  );
-
-  // ── PDF export ──────────────────────────────────────────────
-  const exportToPDF = useCallback(async () => {
-    if (!previewRef.current) return;
-    setIsExporting(true);
-    try {
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 4,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        width: 794,
-        height: previewRef.current.scrollHeight,
-        windowWidth: 794,
-      });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-        compress: true,
-      });
-
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * pageWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-      let pageCount = 0;
-      while (heightLeft > 0) {
-        if (pageCount > 0) pdf.addPage();
-        pdf.addImage(
-          imgData,
-          "JPEG",
-          0,
-          position,
-          imgWidth,
-          imgHeight,
-          undefined,
-          "FAST"
-        );
-        heightLeft -= pageHeight;
-        position -= pageHeight;
-        pageCount++;
-      }
-
-      pdf.save(`${resumeData.contact.name || "resume"}.pdf`);
-
-      toast({
-        title: "PDF pressed",
-        description: `High-quality export · ${pageCount} page${
-          pageCount > 1 ? "s" : ""
-        }.`,
-      });
-    } catch (error) {
-      console.error("Export error:", error);
-      toast({
-        title: "Press failed",
-        description: "Could not generate the PDF.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  }, [resumeData.contact.name, toast]);
-
-  // ── Save / Update ───────────────────────────────────────────
-  const saveResume = useCallback(async () => {
-    setIsSaving(true);
-    setAutoSaveStatus("saving");
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Not signed in",
-          description: "Please sign in to file your draft.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const contentWithMetadata = {
-        ...resumeData,
-        metadata: {
-          category: saveCategory,
-          tags: saveTags,
-          is_favorite: false,
-          template: selectedTemplate,
-          created_at: new Date().toISOString(),
-        },
-      };
-
-      const content = JSON.stringify(contentWithMetadata);
-
-      if (currentResumeId) {
-        const { error } = await (supabase.from("resumes").update as any)({
-          name: saveResumeName || "Untitled Résumé",
-          content,
-          template_id: selectedTemplate,
-          updated_at: new Date().toISOString(),
-        }).eq("id", currentResumeId);
-        if (error) throw error;
-
-        toast({
-          title: "Draft filed",
-          description: "Your edits are in the cabinet.",
-        });
-      } else {
-        const { data, error } = await (supabase.from("resumes").insert as any)({
-          user_id: user.id,
-          name: saveResumeName || "Untitled Résumé",
-          content,
-          file_type: "builder",
-          template_id: selectedTemplate,
-        })
-          .select()
-          .single();
-        if (error) throw error;
-        if (data) setCurrentResumeId((data as any).id);
-
-        toast({
-          title: "Draft filed",
-          description: "Your draft now lives in the cabinet.",
-          action: undefined,
-        });
-      }
-
-      setAutoSaveStatus("saved");
-    } catch (error) {
-      console.error("Save error:", error);
-      toast({
-        title: "Filing failed",
-        description: "Could not save the résumé.",
-        variant: "destructive",
-      });
-      setAutoSaveStatus("unsaved");
-    } finally {
-      setIsSaving(false);
-    }
-  // navigate intentionally omitted — toast action is handled by the page
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    resumeData,
-    saveCategory,
-    saveTags,
-    saveResumeName,
-    selectedTemplate,
-    currentResumeId,
-    toast,
-  ]);
-
-  // unused but kept for future toast "View" action
-  void navigate;
-
-  // ── AI Import payload handler ──────────────────────────────
-  const applyAIResumeData = useCallback(
-    (aiData: AIResumeData) => {
-      setResumeData(aiDataToResumeData(aiData));
-      setCurrentStep(1);
-      setAutoSaveStatus("unsaved");
-      toast({
-        title: "Draft imported",
-        description: "AI read your résumé. Review every line before filing.",
-      });
-    },
-    [toast]
   );
 
   // Reference to keep the openSaveDialog helper tethered; avoids unused-var lints.

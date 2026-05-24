@@ -500,6 +500,7 @@ function IntelligenceDashboardContent() {
 
   return (
     <AstralShell
+      className="ds-shell"
       title={<span className="as-gradient-text">Intelligence</span>}
       subtitle={`${(metrics?.totalDocuments ?? 0).toLocaleString()} docs · ${formatTimeAgo(lastRefresh)}`}
       actions={headerActions}

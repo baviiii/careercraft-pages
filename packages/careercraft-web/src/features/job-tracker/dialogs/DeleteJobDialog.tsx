@@ -18,24 +18,24 @@ export const DeleteJobDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ Strike from ledger"
-    title="Remove this entry?"
+    kicker="§ Delete application"
+    title="Delete this application?"
     description={
       <>
         The application at{" "}
         <span className="cc-italic-wonk">
           “{application?.company || "this company"}”
         </span>{" "}
-        will be permanently deleted. The line cannot be recovered.
+        will be permanently deleted. This cannot be undone.
       </>
     }
     footer={
       <>
         <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
-          Keep it
+          Cancel
         </CraftButton>
         <CraftButton variant="danger" onClick={onConfirm}>
-          Strike it out
+          Delete
         </CraftButton>
       </>
     }

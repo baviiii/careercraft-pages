@@ -24,6 +24,58 @@ export interface JobApplication {
   salary_range: string | null;
   location: string | null;
   job_type: string | null;
+  jobs_catalog_id?: string | null;
+  fit_score_latest?: number | null;
+  last_status_change_at?: string | null;
+}
+
+export interface JobCatalogJob {
+  id: string;
+  source: string;
+  source_job_id: string | null;
+  canonical_url: string | null;
+  title: string;
+  company: string;
+  location: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  currency: string | null;
+  job_type: string | null;
+  is_remote: boolean;
+  description_snippet: string | null;
+  full_description: string | null;
+  posted_at: string | null;
+}
+
+export interface JobFitScore {
+  id: string;
+  application_id: string;
+  score: number;
+  strengths: string[];
+  gaps: string[];
+  next_actions: string[];
+  suggested_bullet_rewrites: string[];
+  model: string | null;
+  created_at: string;
+}
+
+export interface ApplicationEvent {
+  id: string;
+  application_id: string;
+  source: string;
+  event_type: string;
+  summary: string;
+  confidence: number | null;
+  payload: Record<string, unknown>;
+  auto_applied: boolean;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface JobAutomationSettings {
+  email_sync_enabled: boolean;
+  confidence_threshold: number;
+  auto_apply_non_destructive: boolean;
 }
 
 export interface ResumeRef {
@@ -39,11 +91,19 @@ export interface CoverLetterRef {
 
 export type StatusFilter = ApplicationStatus | "all";
 
+export type StatusPillVariant =
+  | "default"
+  | "rust"
+  | "filled"
+  | "signal"
+  | "signal-filled"
+  | "rust-soft";
+
 export interface StatusMeta {
   id: ApplicationStatus;
   label: string;
   kicker: string;
-  pill: "default" | "rust" | "filled";
+  pill: StatusPillVariant;
   verb: string;
 }
 
@@ -52,32 +112,108 @@ export const STATUS_META: Record<ApplicationStatus, StatusMeta> = {
   applied: {
     id: "applied",
     label: "Applied",
-    kicker: "§ Dispatches sent",
-    pill: "default",
+    kicker: "§ Applied",
+    pill: "signal",
     verb: "Log an application",
   },
   interview: {
     id: "interview",
     label: "Interview",
-    kicker: "§ Replies received",
+    kicker: "§ Interview",
     pill: "rust",
-    verb: "Record the call",
+    verb: "Log an interview",
   },
   offer: {
     id: "offer",
     label: "Offer",
-    kicker: "§ Offers on the table",
-    pill: "filled",
-    verb: "Record the offer",
+    kicker: "§ Offer",
+    pill: "signal-filled",
+    verb: "Log an offer",
   },
   rejected: {
     id: "rejected",
     label: "Rejected",
-    kicker: "§ Letters of regret",
-    pill: "default",
-    verb: "File a rejection",
+    kicker: "§ Rejected",
+    pill: "rust-soft",
+    verb: "Log a rejection",
   },
 };
+
+/** Maps status metadata to Craft pill classes (list cards + detail panel). */
+export function statusPillClass(status: ApplicationStatus): string {
+  switch (STATUS_META[status].pill) {
+    case "filled":
+      return "cc-pill cc-pill-filled";
+    case "rust":
+      return "cc-pill cc-pill-rust";
+    case "signal":
+      return "cc-pill cc-pill-signal";
+    case "signal-filled":
+      return "cc-pill cc-pill-signal cc-pill-filled";
+    case "rust-soft":
+      return "cc-pill cc-pill-rust-soft";
+    default:
+      return "cc-pill";
+  }
+}
+
+/* ───────── Per-status accent palette ──────────────────────────
+   Every status earns its own colour identity so cards, chips and
+   ledger glyphs share one visual language. Values resolve at runtime
+   so they inherit any later theme changes from design-system.css.
+   ──────────────────────────────────────────────────────────── */
+export interface StatusAccent {
+  /** 4-px edge band drawn on the JobCard left side. */
+  edge: string;
+  /** Soft tinted background for chips, lane headers, dot fills. */
+  soft: string;
+  /** Deep type colour used against soft fills for legibility. */
+  deep: string;
+  /** Single-glyph mark used in the ledger summary glyph row. */
+  mark: string;
+  /** Lowercase noun phrase for italic captions ("awaiting reply"). */
+  note: string;
+}
+
+export const STATUS_ACCENT: Record<ApplicationStatus, StatusAccent> = {
+  applied: {
+    edge: "var(--cc-signal)",
+    soft: "var(--cc-signal-soft)",
+    deep: "var(--cc-signal-deep)",
+    mark: "A",
+    note: "awaiting reply",
+  },
+  interview: {
+    edge: "var(--cc-rust)",
+    soft: "var(--cc-rust-soft)",
+    deep: "var(--cc-rust-deep)",
+    mark: "I",
+    note: "in conversation",
+  },
+  offer: {
+    edge: "var(--cc-wheat-deep)",
+    soft: "var(--cc-wheat-soft)",
+    deep: "var(--cc-wheat-deep)",
+    mark: "O",
+    note: "decision pending",
+  },
+  rejected: {
+    edge: "var(--cc-ash)",
+    soft: "rgba(116, 106, 96, 0.14)",
+    deep: "var(--cc-ash)",
+    mark: "R",
+    note: "closed entry",
+  },
+};
+
+/** Lowercase roman numerals — used for ledger glyphs (i, ii, iii, …, xxx). */
+const ROMAN_ONES = ["", "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix"];
+const ROMAN_TENS = ["", "x", "xx", "xxx", "xl", "l", "lx", "lxx", "lxxx", "xc"];
+export function toRoman(value: number): string {
+  if (value <= 0) return "·";
+  if (value >= 100) return String(value);
+  return `${ROMAN_TENS[Math.floor(value / 10)]}${ROMAN_ONES[value % 10]}`;
+}
 
 export const STATUS_ORDER: ApplicationStatus[] = [
   "applied",

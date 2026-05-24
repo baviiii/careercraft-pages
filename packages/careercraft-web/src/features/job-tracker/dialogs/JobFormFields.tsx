@@ -7,8 +7,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-
 import {
   JOB_TYPE_OPTIONS,
   STATUS_ORDER,
@@ -30,7 +28,7 @@ interface JobFormFieldsProps {
 
 /**
  * The shared form used by both Add and Edit dialogs.
- * Editorial: cc-input text fields, shadcn Select with className overrides,
+ * Editorial: cc-field text fields, shadcn Select with className overrides,
  * ink dividers between logical sections.
  */
 export const JobFormFields = ({
@@ -40,7 +38,7 @@ export const JobFormFields = ({
   coverLetters,
 }: JobFormFieldsProps) => {
   const triggerCls =
-    "cc-root w-full rounded-none border-0 border-b border-[color:var(--cc-ink)] bg-transparent px-0 cc-font-sans text-[15px] text-[color:var(--cc-ink)] focus:ring-0 focus:border-[color:var(--cc-rust)] h-auto py-3";
+    "cc-root w-full rounded-none border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-[0.9rem] cc-font-sans text-[14px] text-[color:var(--cc-ink)] hover:border-[color:var(--cc-ink)] focus:ring-0 focus:border-[color:var(--cc-rust)] h-auto py-[0.75rem]";
   const contentCls =
     "cc-root rounded-none border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] shadow-[4px_4px_0_0_var(--cc-ink)]";
 
@@ -50,7 +48,7 @@ export const JobFormFields = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <FieldLabel label="Role *">
           <input
-            className="cc-input"
+            className="cc-field"
             placeholder="e.g. Software Engineer"
             value={values.jobTitle}
             onChange={(e) => onChange({ jobTitle: e.target.value })}
@@ -58,7 +56,7 @@ export const JobFormFields = ({
         </FieldLabel>
         <FieldLabel label="Company *">
           <input
-            className="cc-input"
+            className="cc-field"
             placeholder="e.g. Canva"
             value={values.company}
             onChange={(e) => onChange({ company: e.target.value })}
@@ -112,7 +110,7 @@ export const JobFormFields = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <FieldLabel label="Location">
           <input
-            className="cc-input"
+            className="cc-field"
             placeholder="e.g. Sydney, NSW"
             value={values.jobLocation}
             onChange={(e) => onChange({ jobLocation: e.target.value })}
@@ -120,7 +118,7 @@ export const JobFormFields = ({
         </FieldLabel>
         <FieldLabel label="Salary range">
           <input
-            className="cc-input cc-tabular"
+            className="cc-field cc-tabular"
             placeholder="e.g. $120k – $160k"
             value={values.salaryRange}
             onChange={(e) => onChange({ salaryRange: e.target.value })}
@@ -131,7 +129,7 @@ export const JobFormFields = ({
       {/* Job URL */}
       <FieldLabel label="Job URL">
         <input
-          className="cc-input"
+          className="cc-field"
           placeholder="https://…"
           value={values.jobUrl}
           onChange={(e) => onChange({ jobUrl: e.target.value })}
@@ -194,7 +192,7 @@ export const JobFormFields = ({
       <FieldLabel label="Follow-up reminder">
         <input
           type="date"
-          className="cc-input"
+          className="cc-field"
           value={values.reminderDate}
           onChange={(e) => onChange({ reminderDate: e.target.value })}
         />
@@ -202,21 +200,21 @@ export const JobFormFields = ({
 
       {/* Job description */}
       <FieldLabel label="The brief">
-        <Textarea
+        <textarea
           placeholder="Paste the job description here…"
           value={values.jobDescription}
           onChange={(e) => onChange({ jobDescription: e.target.value })}
-          className="cc-root min-h-[100px] rounded-none border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] cc-font-sans text-[15px] text-[color:var(--cc-ink)] placeholder:italic placeholder:text-[color:var(--cc-ash)] focus-visible:ring-0 focus-visible:border-[color:var(--cc-rust)]"
+          className="cc-field cc-field-textarea min-h-[100px] placeholder:italic"
         />
       </FieldLabel>
 
       {/* Notes */}
       <FieldLabel label="Marginalia">
-        <Textarea
+        <textarea
           placeholder="Private notes…"
           value={values.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
-          className="cc-root min-h-[80px] rounded-none border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] cc-font-sans text-[15px] text-[color:var(--cc-ink)] placeholder:italic placeholder:text-[color:var(--cc-ash)] focus-visible:ring-0 focus-visible:border-[color:var(--cc-rust)]"
+          className="cc-field cc-field-textarea min-h-[80px] placeholder:italic"
         />
       </FieldLabel>
     </div>

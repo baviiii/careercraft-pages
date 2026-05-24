@@ -163,14 +163,14 @@ export const STEPS: BuilderStep[] = [
   {
     id: "template",
     number: "§ 03",
-    title: "Typeset",
-    sub: "Choose the dressing.",
+    title: "Template",
+    sub: "Pick the layout.",
   },
   {
     id: "preview",
     number: "§ 04",
-    title: "Press",
-    sub: "Proof and print.",
+    title: "Export",
+    sub: "Preview and download.",
   },
 ];
 

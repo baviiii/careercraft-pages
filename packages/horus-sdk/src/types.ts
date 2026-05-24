@@ -16,6 +16,7 @@ export type {
   GraphConnection,
   Contradiction,
   IntersectionAnalysis,
+ 
 } from "@careercraft/shared";
 
 // SDK-specific types

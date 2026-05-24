@@ -84,7 +84,7 @@ export default function MyResumesPage() {
         <div className="min-h-screen grid place-items-center">
           <div className="text-center">
             <div className="cc-label text-[color:var(--cc-rust)] mb-3">
-              § Fetching the cabinet
+              § Loading your resumes
             </div>
             <div className="w-10 h-10 border-2 border-[color:var(--cc-ink)] border-t-transparent rounded-full animate-spin mx-auto" />
           </div>
@@ -96,16 +96,16 @@ export default function MyResumesPage() {
   return (
     <CraftAppShell>
       <CraftAppHeader
-        kicker="§ 02 · Cabinet"
+        kicker="§ 02 · My resumes"
         title={
           <>
-            Your <span className="cc-italic-wonk">cabinet</span> of
+            Your <span className="cc-italic-wonk">saved</span>
             <br />
-            drafted résumés.
+            résumés.
           </>
         }
-        sub="Each draft is a version of you — tagged, dated, waiting."
-        ctaLabel="New draft"
+        sub="Every version of you — tagged, dated, ready to reopen."
+        ctaLabel="New resume"
         onCta={() => goToBuilder()}
       />
 
@@ -113,7 +113,7 @@ export default function MyResumesPage() {
         {/* Stats */}
         <CraftAppStats
           stats={[
-            { label: "Total drafts", value: stats.total, note: "on file" },
+            { label: "Total resumes", value: stats.total, note: "saved" },
             { label: "Favourites", value: stats.favorites, note: "starred" },
             { label: "Tags used", value: stats.tags, note: "distinct" },
             { label: "This week", value: stats.recent, note: "edited" },
@@ -153,7 +153,7 @@ export default function MyResumesPage() {
           {filteredResumes.length === 0 ? (
             <CraftEmpty
               kicker={
-                resumes.length === 0 ? "§ A blank cabinet" : "§ Nothing filed"
+                resumes.length === 0 ? "§ No resumes yet" : "§ Nothing found"
               }
               title={
                 resumes.length === 0 ? (
@@ -162,7 +162,7 @@ export default function MyResumesPage() {
                     sheet.
                   </>
                 ) : (
-                  <>No drafts match these filters.</>
+                  <>No resumes match these filters.</>
                 )
               }
               body={

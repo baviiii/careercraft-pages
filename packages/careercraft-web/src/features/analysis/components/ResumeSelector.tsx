@@ -59,7 +59,7 @@ export const ResumeSelector = ({
         {savedResumes.length > 0 && (
           <div>
             <label className="cc-label text-[color:var(--cc-ash)] block mb-2">
-              From the cabinet
+              Saved resumes
             </label>
             <select
               value={selectedResumeId}

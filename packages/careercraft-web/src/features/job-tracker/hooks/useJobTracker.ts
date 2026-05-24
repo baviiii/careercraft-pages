@@ -177,8 +177,8 @@ export function useJobTracker() {
       });
       if (error) throw error;
       toast({
-        title: "✓ Added",
-        description: "Application logged to the ledger",
+        title: "Application saved",
+        description: "Added to your tracker.",
       });
       await fetchApplications();
       return true;
@@ -211,8 +211,8 @@ export function useJobTracker() {
         .eq("id", id);
       if (error) throw error;
       toast({
-        title: "✓ Updated",
-        description: "The entry has been amended",
+        title: "Changes saved",
+        description: "Your updates were saved.",
       });
       await fetchApplications();
       return true;
@@ -254,8 +254,8 @@ export function useJobTracker() {
         .eq("id", id);
       if (error) throw error;
       toast({
-        title: "✓ Struck from the ledger",
-        description: "Application removed from tracker",
+        title: "Application deleted",
+        description: "Removed from your tracker.",
       });
       setApplications((prev) => prev.filter((a) => a.id !== id));
     } catch (error) {
@@ -280,6 +280,7 @@ export function useJobTracker() {
     setFilters,
     getResumeName,
     getCoverLetterPreview,
+    refreshApplications: fetchApplications,
     mutations: {
       createApplication,
       updateApplication,

@@ -94,7 +94,7 @@ export const CraftAppLayout = memo(function CraftAppLayout({
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 rounded-full border border-[color:var(--cc-ink)] border-t-[color:var(--cc-rust)] animate-spin" />
           <div className="cc-label-sm text-[color:var(--cc-ash)]">
-            Warming the press…
+            Loading…
           </div>
         </div>
       </div>

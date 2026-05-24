@@ -27,14 +27,14 @@ export const SaveResumeDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ File it"
+    kicker="§ Save & edit"
     title={
       <>
         Save &{" "}
         <span className="cc-italic-wonk">edit</span> in Builder
       </>
     }
-    description="The draft will be parsed, filed to your cabinet, and opened in the Builder for a template."
+    description="We'll parse this draft, save it to your resumes, and open it in the Builder to pick a template."
     maxWidth="max-w-lg"
     footer={
       <>

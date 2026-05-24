@@ -326,7 +326,7 @@ export function DataStoriesPanel() {
                   transition={{ delay: 0.8 + idx * 0.1 }}
                   onClick={() => {
                     // Navigate to Horus Chat with pre-filled question
-                    window.location.href = `/sa-career-hub?q=${encodeURIComponent(starter)}`;
+                    window.location.href = `/career-coach?q=${encodeURIComponent(starter)}`;
                   }}
                   className="group flex items-center gap-2 p-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-blue-500/30 text-left transition-all"
                 >

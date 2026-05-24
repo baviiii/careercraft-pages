@@ -22,13 +22,13 @@ export const LoadResumeDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ The cabinet"
+    kicker="§ Your resumes"
     title={
       <>
-        Reopen a <span className="cc-italic-wonk">draft</span>.
+        Open a <span className="cc-italic-wonk">saved resume</span>.
       </>
     }
-    description="Pick a filed résumé and we'll drop you back into compose."
+    description="Pick one and you'll pick up right where you left off."
     maxWidth="max-w-xl"
     footer={
       <button
@@ -43,10 +43,10 @@ export const LoadResumeDialog = ({
       <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-10 text-center">
         <FileText className="w-10 h-10 mx-auto text-[color:var(--cc-ink-soft)]" />
         <p className="mt-4 cc-font-display text-2xl leading-tight">
-          Nothing filed yet.
+          No resumes saved yet.
         </p>
         <p className="mt-2 cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-          Upload, paste, or start fresh — then file to the cabinet.
+          Upload a résumé, paste one in, or start from scratch.
         </p>
       </div>
     ) : (
@@ -66,7 +66,7 @@ export const LoadResumeDialog = ({
                     {resume.name}
                   </div>
                   <div className="mt-1 cc-label text-[color:var(--cc-ash)] cc-tabular">
-                    filed{" "}
+                    saved{" "}
                     {new Date(resume.created_at).toLocaleDateString("en-GB", {
                       day: "numeric",
                       month: "short",

@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -22,7 +22,6 @@ const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
 const AustralianJobs = lazy(() => import("./pages/AustralianJobs"));
 const JobMarketNews = lazy(() => import("./pages/JobMarketNews"));
 const Settings = lazy(() => import("./pages/Settings"));
-const SACareerHub = lazy(() => import("./pages/SACareerHub"));
 const Playground = lazy(() => import("./pages/Playground"));
 const IntelligenceOverview = lazy(() => import("./pages/IntelligenceOverview"));
 const CareerExplorer = lazy(() => import("./pages/CareerExplorer"));
@@ -89,7 +88,7 @@ const App = () => (
             <Route path="/interview-prep" element={<InterviewPrep />} />
             <Route path="/au-jobs" element={<AustralianJobs />} />
             <Route path="/job-market-news" element={<JobMarketNews />} />
-            <Route path="/sa-career-hub" element={<SACareerHub />} />
+            <Route path="/sa-career-hub" element={<Navigate to="/career-coach" replace />} />
             <Route path="/playground" element={<Playground />} />
             <Route path="/intelligence" element={<IntelligenceOverview />} />
             <Route path="/career-coach" element={<CareerCoachPage />} />

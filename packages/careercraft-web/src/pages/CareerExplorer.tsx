@@ -1138,7 +1138,7 @@ function CareerExplorerContent() {
                   Retry Extraction
                 </Button>
                 <Button
-                  onClick={() => navigate('/sa-career-hub')}
+                  onClick={() => navigate('/career-coach')}
                   className="gap-2 border-purple-400/50 bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 text-white backdrop-blur-sm shadow-md shadow-purple-500/20"
                 >
                   <MessageSquare className="w-4 h-4" />

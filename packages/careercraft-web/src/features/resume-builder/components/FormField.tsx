@@ -47,11 +47,11 @@ export const CraftInput = ({
 }: CraftInputProps) => (
   <div className="flex items-center gap-2">
     {leading && (
-      <span className="text-[color:var(--cc-ash)] pb-3">{leading}</span>
+      <span className="text-[color:var(--cc-ash)] flex-shrink-0">{leading}</span>
     )}
     <input
       {...rest}
-      className={`cc-input text-base md:text-[17px] ${className}`}
+      className={`cc-field ${className}`}
     />
   </div>
 );
@@ -60,7 +60,7 @@ interface CraftTextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
 
 export const CraftTextarea = ({ className = "", ...rest }: CraftTextareaProps) => (
-  <textarea {...rest} className={`cc-textarea ${className}`} />
+  <textarea {...rest} className={`cc-field cc-field-textarea ${className}`} />
 );
 
 interface CraftSectionProps {

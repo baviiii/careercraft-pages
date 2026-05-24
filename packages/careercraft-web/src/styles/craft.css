@@ -1,19 +1,33 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — Editorial Theme
-   Tokens + utility classes used by the public pages.
+   Legacy compatibility layer (DEPRECATED)
+   Canonical tokens now live in src/styles/design-system.css.
+   Keep this file only for class-level compatibility while migrating.
+   Do not add new colors/tokens/classes here.
    ─────────────────────────────────────────────────────────── */
 
 :root {
   --cc-cream: #F3EADB;
   --cc-cream-2: #ECE0CB;
+  --cc-cream-3: #E3D4B8;
   --cc-ink: #0E0C0A;
   --cc-ink-2: #211E1B;
   --cc-ink-soft: #3A3530;
   --cc-rust: #C8431E;
   --cc-rust-deep: #9C3416;
+  --cc-rust-soft: rgba(200, 67, 30, 0.14);
   --cc-ash: #746A60;
   --cc-hair: rgba(14, 12, 10, 0.14);
   --cc-hair-strong: rgba(14, 12, 10, 0.3);
+
+  /* Status palette — warm, earthy, pairs with rust without shouting.
+     Used in the logged-in app (scores, badges, validation). The public
+     landing stays strictly cream/ink/rust. */
+  --cc-signal: #3F7A5C;          /* warm sage — pass / complete / good */
+  --cc-signal-deep: #2F5B44;
+  --cc-signal-soft: rgba(63, 122, 92, 0.14);
+  --cc-wheat: #B4872C;            /* warm amber — caution / in-progress */
+  --cc-wheat-deep: #8A6620;
+  --cc-wheat-soft: rgba(180, 135, 44, 0.16);
 }
 
 .cc-root ::selection { background: var(--cc-rust); color: var(--cc-cream); }
@@ -119,14 +133,6 @@
 }
 
 /* Animations ----------------------------------------------- */
-@keyframes cc-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.cc-marquee-track { animation: cc-marquee 42s linear infinite; will-change: transform; }
-
-@keyframes cc-marquee-fast { from { transform: translateX(0); } to { transform: translateX(-33.3334%); } }
-.cc-marquee-track-fast { animation: cc-marquee-fast 38s linear infinite; will-change: transform; }
-
-@keyframes cc-spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.cc-spin-slow { animation: cc-spin-slow 28s linear infinite; }
 
 @keyframes cc-blink { 0%, 65% { opacity: 1; } 75%, 100% { opacity: 0.2; } }
 .cc-blink { animation: cc-blink 1.8s steps(2, end) infinite; }
@@ -160,9 +166,6 @@
   border-color: rgba(243, 234, 219, 0.25);
   color: rgba(243, 234, 219, 0.75);
 }
-
-/* Ticker direction reversal helper */
-.cc-marquee-reverse { animation-direction: reverse; }
 
 /* Form elements — editorial style, used by Auth & Contact */
 .cc-input {
@@ -297,39 +300,6 @@
   transform: rotate(-2deg);
 }
 
-/* ─────────────────────────── Wax seal ─────────────────────────── */
-
-.cc-wax {
-  width: 112px; height: 112px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 32% 30%, rgba(255,255,255,0.45) 0, rgba(255,255,255,0) 35%),
-    radial-gradient(circle at 70% 70%, rgba(0,0,0,0.35) 0, rgba(0,0,0,0) 45%),
-    linear-gradient(135deg, var(--cc-rust), var(--cc-rust-deep));
-  display: flex; align-items: center; justify-content: center;
-  color: var(--cc-cream);
-  box-shadow:
-    inset 0 -6px 16px rgba(0,0,0,0.35),
-    inset 0 6px 14px rgba(255,255,255,0.2),
-    0 14px 36px -12px rgba(156, 52, 22, 0.6);
-  transform: rotate(-8deg);
-  transition: transform .6s cubic-bezier(.2,.8,.2,1), box-shadow .6s;
-  position: relative;
-}
-.cc-wax::after {
-  content: '';
-  position: absolute; inset: 6px;
-  border-radius: 999px;
-  border: 1px dashed rgba(243,234,219,0.45);
-}
-.cc-wax:hover {
-  transform: rotate(6deg) scale(1.04);
-  box-shadow:
-    inset 0 -6px 16px rgba(0,0,0,0.35),
-    inset 0 6px 14px rgba(255,255,255,0.2),
-    0 22px 44px -12px rgba(156, 52, 22, 0.75);
-}
-
 /* ─────────────────────────── Scroll progress rail ─────────────────────────── */
 
 .cc-progress-rail {
@@ -358,45 +328,6 @@
   color: var(--cc-ink);
   mix-blend-mode: multiply;
   opacity: 0.55;
-}
-
-/* ─────────────────────────── Colophon ─────────────────────────── */
-
-.cc-colophon-rule {
-  border: 0;
-  height: 1px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    var(--cc-hair-strong) 20%,
-    var(--cc-hair-strong) 80%,
-    transparent 100%);
-}
-
-/* ─────────────────────────── Ticker ribbon ─────────────────────────── */
-
-.cc-ribbon {
-  position: relative;
-  background: var(--cc-cream-2);
-  border-top: 1px solid var(--cc-hair-strong);
-  border-bottom: 1px solid var(--cc-hair-strong);
-  overflow: hidden;
-}
-.cc-ribbon::before,
-.cc-ribbon::after {
-  content: '';
-  position: absolute;
-  top: 0; bottom: 0;
-  width: 80px;
-  z-index: 2;
-  pointer-events: none;
-}
-.cc-ribbon::before {
-  left: 0;
-  background: linear-gradient(90deg, var(--cc-cream-2), transparent);
-}
-.cc-ribbon::after {
-  right: 0;
-  background: linear-gradient(270deg, var(--cc-cream-2), transparent);
 }
 
 /* ─────────────────────────── Hover fold on cards ─────────────────────────── */
@@ -453,38 +384,6 @@
   to   { opacity: 1; transform: translateY(0)    skewY(0); }
 }
 .cc-count-in { animation: cc-count-in .9s cubic-bezier(.2,.8,.2,1) both; }
-
-/* ─────────────────────────── Pull quote ─────────────────────────── */
-
-.cc-pullquote {
-  position: relative;
-  max-width: 62ch;
-  margin: 0 auto;
-  font-family: 'Fraunces', serif;
-  font-weight: 300;
-  color: var(--cc-ink);
-  line-height: 1.04;
-  letter-spacing: -0.02em;
-}
-.cc-pullquote-open,
-.cc-pullquote-close {
-  font-family: 'Fraunces', serif;
-  color: var(--cc-rust);
-  font-weight: 300;
-  font-style: italic;
-  font-variation-settings: 'SOFT' 100, 'WONK' 1;
-  line-height: 0;
-}
-
-/* Print-style fine rule used in section framing */
-.cc-frame-rule {
-  background: repeating-linear-gradient(
-    90deg,
-    var(--cc-hair-strong) 0 2px,
-    transparent 2px 6px
-  );
-  height: 1px;
-}
 
 /* ------------------------------------------------------------------
    App-surface primitives — used across the logged-in toolkit pages
@@ -554,6 +453,11 @@
 .cc-pill-rust {
   border-color: var(--cc-rust);
   color: var(--cc-rust);
+}
+.cc-pill-rust-soft {
+  border-color: var(--cc-rust-deep);
+  color: var(--cc-rust-deep);
+  background: var(--cc-rust-soft);
 }
 
 /* An inline key/value meta row, used in list items and dialog footers. */
@@ -920,11 +824,165 @@
   padding: 0 6px;
 }
 
+/* ─────────────────────────── Status palette — app-surface only ─────────────────────────── */
+
+/* Pills that carry state — used on score chips, tag lists, step indicators.
+   The soft-fill variants have a subtle background + strong text + matching border,
+   so they remain legible on cream without reading as "error". */
+.cc-pill-signal {
+  border-color: var(--cc-signal);
+  color: var(--cc-signal);
+  background: var(--cc-signal-soft);
+}
+.cc-pill-wheat {
+  border-color: var(--cc-wheat-deep);
+  color: var(--cc-wheat-deep);
+  background: var(--cc-wheat-soft);
+}
+.cc-pill-signal.cc-pill-filled {
+  background: var(--cc-signal);
+  color: var(--cc-cream);
+  border-color: var(--cc-signal);
+}
+.cc-pill-wheat.cc-pill-filled {
+  background: var(--cc-wheat);
+  color: var(--cc-cream);
+  border-color: var(--cc-wheat);
+}
+
+/* Signal-green button — positive/confirm actions: "Save", "Complete", "Approve".
+   Wheat button reserved for neutral dismiss/secondary where an ink button would
+   collide with an adjacent ink primary. */
+.cc-btn-signal {
+  background: var(--cc-signal);
+  color: var(--cc-cream);
+  border-color: var(--cc-signal);
+}
+.cc-btn-signal:hover:not(:disabled) {
+  background: var(--cc-signal-deep);
+  border-color: var(--cc-signal-deep);
+}
+.cc-btn-wheat {
+  background: transparent;
+  color: var(--cc-wheat-deep);
+  border-color: var(--cc-wheat-deep);
+}
+.cc-btn-wheat:hover:not(:disabled) {
+  background: var(--cc-wheat);
+  color: var(--cc-cream);
+  border-color: var(--cc-wheat);
+}
+
+/* Inline text dot — leads a status line with a tiny coloured puck */
+.cc-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.cc-dot-signal { color: var(--cc-signal); }
+.cc-dot-wheat  { color: var(--cc-wheat); }
+.cc-dot-rust   { color: var(--cc-rust); }
+.cc-dot-ash    { color: var(--cc-ash); }
+
+/* Score meter — a linear bar that grades by value.
+   Usage: <div class="cc-score"><span class="cc-score-fill cc-score-good" style="width:84%"></span></div>
+   Intentionally 4px thin — editorial, doesn't shout. */
+.cc-score {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background: rgba(14, 12, 10, 0.08);
+  overflow: hidden;
+}
+.cc-score-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  transition: width 1s cubic-bezier(.2, .8, .2, 1), background .3s ease;
+}
+.cc-score-poor { background: var(--cc-rust); }
+.cc-score-warn { background: var(--cc-wheat); }
+.cc-score-good { background: var(--cc-signal); }
+
+/* Ring score — a small circular gauge for resume/ATS overall. */
+.cc-ring { --cc-ring-size: 72px; width: var(--cc-ring-size); height: var(--cc-ring-size); }
+.cc-ring circle { fill: none; stroke-width: 6; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.cc-ring-track { stroke: rgba(14, 12, 10, 0.08); }
+.cc-ring-fill-good  { stroke: var(--cc-signal); }
+.cc-ring-fill-warn  { stroke: var(--cc-wheat); }
+.cc-ring-fill-poor  { stroke: var(--cc-rust); }
+
+/* Panel accents — a thin left bar to lead a status block */
+.cc-lead-signal { border-left: 3px solid var(--cc-signal); padding-left: 12px; }
+.cc-lead-wheat  { border-left: 3px solid var(--cc-wheat);  padding-left: 12px; }
+.cc-lead-rust   { border-left: 3px solid var(--cc-rust);   padding-left: 12px; }
+
+/* Feedback banner inside forms/dialogs */
+.cc-notice {
+  padding: 10px 14px;
+  border: 1px solid currentColor;
+  background: transparent;
+  font-family: 'Instrument Serif', serif;
+  font-size: 15px;
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.cc-notice-signal { color: var(--cc-signal-deep); background: var(--cc-signal-soft); border-color: var(--cc-signal); }
+.cc-notice-wheat  { color: var(--cc-wheat-deep);  background: var(--cc-wheat-soft);  border-color: var(--cc-wheat-deep); }
+.cc-notice-rust   { color: var(--cc-rust-deep);   background: var(--cc-rust-soft);   border-color: var(--cc-rust-deep); }
+
+/* Functional input — stronger border than the editorial cc-input,
+   intended for long-form resume/job-tracker fields where scan-ability matters */
+.cc-field {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  background: var(--cc-cream);
+  border: 1px solid var(--cc-hair-strong);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--cc-ink);
+  transition: border-color .25s ease, background .25s ease;
+  line-height: 1.4;
+  outline: none;
+}
+.cc-field::placeholder { color: var(--cc-ash); }
+.cc-field:hover { border-color: var(--cc-ink); }
+.cc-field:focus {
+  border-color: var(--cc-rust);
+  background: var(--cc-cream);
+  box-shadow: 0 0 0 3px var(--cc-rust-soft);
+}
+.cc-field-textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+.cc-field-error { border-color: var(--cc-rust); }
+.cc-field-label {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cc-ink-soft);
+  margin-bottom: 6px;
+}
+.cc-field-hint {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--cc-ash);
+  margin-top: 4px;
+}
+
+/* Panel background for long forms — slightly warmer cream for edit surfaces */
+.cc-panel-form {
+  background: var(--cc-cream-2);
+  border: 1px solid var(--cc-hair-strong);
+  padding: 1.5rem;
+}
+
 /* Accessibility — respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .cc-marquee-track,
-  .cc-marquee-track-fast,
-  .cc-spin-slow,
   .cc-blink,
   .cc-engrave-anim path,
   .cc-engrave-anim circle,
@@ -932,7 +990,6 @@
   .cc-engrave-anim polyline { animation: none !important; }
   .cc-fold,
   .cc-telegram,
-  .cc-wax,
   .cc-card,
   .cc-row,
   .cc-drawer { transition: none !important; }

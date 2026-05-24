@@ -19,6 +19,19 @@ import { sanitizeEmail, sanitize } from "@/lib/security/sanitizers";
 import { detectXSS } from "@/lib/security/xss";
 
 const SESSION_TOKEN_KEY = "horus_session_token";
+const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim();
+
+const getAppBaseUrl = () => {
+  if (PUBLIC_APP_URL) {
+    return PUBLIC_APP_URL.replace(/\/+$/, "");
+  }
+  return window.location.origin;
+};
+
+const getAppRedirectUrl = (path = "/") => {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${getAppBaseUrl()}${normalizedPath}`;
+};
 
 /* ─── validation ─── */
 const emailSchema = z
@@ -249,7 +262,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: getAppRedirectUrl("/"),
           queryParams: { access_type: "offline", prompt: "consent" },
         },
       });
@@ -268,7 +281,7 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "azure",
-        options: { redirectTo: `${window.location.origin}/`, scopes: "email profile openid" },
+        options: { redirectTo: getAppRedirectUrl("/"), scopes: "email profile openid" },
       });
       if (error) throw error;
     } catch (err: any) {
@@ -305,7 +318,7 @@ const Auth = () => {
       const { data, error } = await supabase.auth.signUp({
         email: sanitizedEmail,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/`, data: { full_name: sanitizedName } },
+        options: { emailRedirectTo: getAppRedirectUrl("/"), data: { full_name: sanitizedName } },
       });
       if (error) {
         await trackAuthEvent("signup_failure", sanitizedEmail, null, error.message);
@@ -375,7 +388,7 @@ const Auth = () => {
     const sanitizedEmail = sanitizeEmail(resetEmail);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(sanitizedEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: getAppRedirectUrl("/reset-password"),
       });
       if (error) throw error;
       await trackAuthEvent("password_reset_request", sanitizedEmail);
@@ -407,29 +420,29 @@ const Auth = () => {
               className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-cream)] cc-link"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to the atelier
+              Back to home
             </button>
 
             <div className="mt-14 md:mt-20">
-              <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · The Gate</div>
+              <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · Sign in</div>
               <h1 className="mt-4 cc-font-display leading-[0.86] tracking-[-0.035em] text-5xl md:text-6xl lg:text-7xl">
-                <span className="block">Sign the</span>
-                <span className="block cc-italic-wonk text-[color:var(--cc-rust)]">ledger.</span>
+                <span className="block">Welcome</span>
+                <span className="block cc-italic-wonk text-[color:var(--cc-rust)]">back.</span>
               </h1>
               <p className="mt-8 cc-font-editorial text-xl md:text-[22px] leading-[1.45] text-[color:var(--cc-cream)]/80 max-w-md">
-                Enter the shop and the presses start warming. Résumé, interview
-                and career map, all bound to live South Australian intelligence.
+                Sign in to access your résumé, interview practice and career
+                map — all grounded in live South Australian data.
               </p>
             </div>
           </div>
 
           <div className="relative mt-16 grid grid-cols-3 gap-4 md:gap-6 border-t border-[color:var(--cc-cream)]/20 pt-6">
             <div>
-              <div className="cc-label-sm text-[color:var(--cc-cream)]/55">Vol.</div>
-              <div className="cc-font-display italic text-2xl md:text-3xl mt-1">I · MMXXVI</div>
+              <div className="cc-label-sm text-[color:var(--cc-cream)]/55">Launched</div>
+              <div className="cc-font-display italic text-2xl md:text-3xl mt-1">2026</div>
             </div>
             <div>
-              <div className="cc-label-sm text-[color:var(--cc-cream)]/55">Press</div>
+              <div className="cc-label-sm text-[color:var(--cc-cream)]/55">Built in</div>
               <div className="cc-font-display italic text-2xl md:text-3xl mt-1">Adelaide</div>
             </div>
             <div>

@@ -35,7 +35,17 @@
       "Bash(curl -s http://localhost:5188/ -o /dev/null -w \"status=%{http_code}\\\\n\")",
       "Bash(curl -s -o /dev/null -w \"status=%{http_code}\\\\n\" http://localhost:5188/src/pages/Index.tsx)",
       "Bash(curl -s -o /dev/null -w \"port5188=%{http_code}\\\\n\" --max-time 2 http://localhost:5188/)",
-      "Bash(node_modules/.bin/tsc --noEmit -p packages/careercraft-web/tsconfig.app.json)"
+      "Bash(node_modules/.bin/tsc --noEmit -p packages/careercraft-web/tsconfig.app.json)",
+      "Read(//c/c/Users/asees/Downloads/free-lance work/careercraft-pages/packages/careercraft-web/src/components/**)",
+      "Read(//c/c/Users/asees/Downloads/free-lance work/careercraft-pages/packages/careercraft-web/src/lib/**)",
+      "Read(//c/c/Users/asees/Downloads/free-lance work/careercraft-pages/**)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(pnpm install *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(npm uninstall *)",
+      "Bash(npm run *)",
+      "Bash(npm ls *)"
     ],
     "deny": [],
     "ask": []

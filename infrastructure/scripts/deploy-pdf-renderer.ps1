@@ -46,7 +46,7 @@ Write-Host "  Login Server: $acrLoginServer" -ForegroundColor Gray
 # Build and push Docker image
 Write-Host ""
 Write-Host "[STEP 3] Building and pushing Docker image..." -ForegroundColor Cyan
-$pdfRendererPath = Join-Path $PSScriptRoot "..\..\azure-functions\pdf-renderer"
+$pdfRendererPath = Join-Path $PSScriptRoot "..\..\packages\horus-services\pdf-renderer"
 
 if (-not (Test-Path $pdfRendererPath)) {
     Write-Host "  [ERROR] PDF renderer source not found at: $pdfRendererPath" -ForegroundColor Red

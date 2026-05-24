@@ -1,6 +1,6 @@
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 
-import { STATUS_ORDER } from "../types";
+import { STATUS_ACCENT, STATUS_META, STATUS_ORDER } from "../types";
 import type { StatusFilter } from "../types";
 
 interface JobFilterBarProps {
@@ -11,8 +11,9 @@ interface JobFilterBarProps {
 }
 
 /**
- * Editorial filter bar: full-width ink-bordered strip with a search field
- * on the left and a native status select on the right.
+ * A slim filter rail — search + colour-coded status chips. The native select
+ * is gone; the chip selection mirrors the lane palette so the filter state
+ * matches the pipeline below at a glance.
  */
 export const JobFilterBar = ({
   search,
@@ -20,29 +21,89 @@ export const JobFilterBar = ({
   status,
   onStatusChange,
 }: JobFilterBarProps) => (
-  <div className="border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] grid grid-cols-1 md:grid-cols-[1.5fr_1fr] divide-y md:divide-y-0 md:divide-x divide-[color:var(--cc-hair-strong)]">
-    <label className="relative flex items-center px-4 py-3">
-      <Search className="w-4 h-4 text-[color:var(--cc-ash)] mr-3" />
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => onSearchChange(e.target.value)}
-        placeholder="Search company or role…"
-        className="flex-1 bg-transparent outline-none cc-font-sans text-[15px] text-[color:var(--cc-ink)] placeholder:italic placeholder:text-[color:var(--cc-ash)]"
-      />
-    </label>
+  <div className="space-y-3">
+    <p className="cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
+      Search by company or role, then focus on the status you want to action.
+    </p>
+    <div className="flex flex-col xl:flex-row xl:items-center gap-4 xl:gap-5">
+      <label className="relative flex items-center gap-3 xl:max-w-lg flex-1 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-3 py-2.5 focus-within:border-[color:var(--cc-ink)] focus-within:shadow-[0_0_0_3px_var(--cc-rust-soft)] transition-all">
+        <Search className="w-4 h-4 text-[color:var(--cc-ash)]" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search company or role..."
+          className="flex-1 bg-transparent outline-none cc-font-sans text-base py-0.5 text-[color:var(--cc-ink)] placeholder:text-[color:var(--cc-ash)]"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearchChange("")}
+            className="text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)] transition-colors"
+            aria-label="Clear search"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </label>
 
-    <select
-      value={status}
-      onChange={(e) => onStatusChange(e.target.value as StatusFilter)}
-      className="cc-select border-b-0 px-4"
-    >
-      <option value="all">All statuses</option>
-      {STATUS_ORDER.map((s) => (
-        <option key={s} value={s}>
-          {s[0].toUpperCase() + s.slice(1)}
-        </option>
-      ))}
-    </select>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="cc-font-sans text-sm text-[color:var(--cc-ink-soft)] mr-1">
+          Status:
+        </span>
+        <StatusChip
+          label="All"
+          active={status === "all"}
+          onClick={() => onStatusChange("all")}
+        />
+        {STATUS_ORDER.map((s) => {
+          const accent = STATUS_ACCENT[s];
+          const active = status === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onStatusChange(s)}
+              className="inline-flex items-center gap-2 px-3 py-2 border cc-font-sans text-xs font-medium transition-all duration-200"
+              style={{
+                borderColor: active ? accent.deep : "var(--cc-hair-strong)",
+                background: active ? accent.soft : "transparent",
+                color: active ? accent.deep : "var(--cc-ink-soft)",
+              }}
+            >
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ background: accent.deep }}
+                aria-hidden
+              />
+              {STATUS_META[s].label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   </div>
+);
+
+const StatusChip = ({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="px-3 py-2 border cc-font-sans text-xs font-medium transition-all duration-200"
+    style={{
+      borderColor: active ? "var(--cc-ink)" : "var(--cc-hair-strong)",
+      background: active ? "var(--cc-ink)" : "transparent",
+      color: active ? "var(--cc-cream)" : "var(--cc-ink-soft)",
+    }}
+  >
+    {label}
+  </button>
 );

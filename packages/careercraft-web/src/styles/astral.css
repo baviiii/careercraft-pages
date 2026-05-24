@@ -1,8 +1,8 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — Astral / Observatory theme
-   Used by Intelligence routes: /intelligence, /career-explorer,
-   /market-trends, /policy. Opposite vibe to Craft editorial:
-   void canvas, drifting nebula, starfield, glass, aurora glow.
+   Legacy compatibility layer (DEPRECATED)
+   Canonical tokens now live in src/styles/design-system.css.
+   Keep this file only for class-level compatibility while migrating.
+   Do not add new colors/tokens/classes here.
    ─────────────────────────────────────────────────────────── */
 
 :root {

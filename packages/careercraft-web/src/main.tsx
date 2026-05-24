@@ -3,5 +3,6 @@ import App from "./App.tsx";
 import "./index.css";
 import "./styles/craft.css";
 import "./styles/astral.css";
+import "./styles/design-system.css";
 
 createRoot(document.getElementById("root")!).render(<App />);

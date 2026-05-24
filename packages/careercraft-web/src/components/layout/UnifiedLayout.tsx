@@ -74,8 +74,8 @@ const navigationLinks: NavLink[] = [
   },
   {
     icon: Globe,
-    label: "Career Hub",
-    path: "/sa-career-hub",
+    label: "Career Coach",
+    path: "/career-coach",
     section: "career",
     description: "AI-powered chat & exploration",
     badge: "New",
@@ -96,6 +96,13 @@ const navigationLinks: NavLink[] = [
   },
   
   // Career Tools Section
+  {
+    icon: MessageSquareText,
+    label: "Interview Prep",
+    path: "/interview-prep",
+    section: "tools",
+    description: "Mock interview practice & coaching",
+  },
   {
     icon: FileText,
     label: "My Resumes",

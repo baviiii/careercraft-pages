@@ -13,6 +13,7 @@ import {
   FileText,
   Home,
   LogOut,
+  MessageSquareText,
   Newspaper,
   Search,
   Settings,
@@ -31,12 +32,13 @@ export interface CraftSidebarLink {
  * logged-in screen picks them up.
  */
 export const CRAFT_SIDEBAR_LINKS: CraftSidebarLink[] = [
-  { icon: Home, label: "Atelier", path: "/dashboard" },
-  { icon: TrendingUp, label: "Intelligence", path: "/intelligence" },
-  { icon: Brain, label: "Career Hub", path: "/sa-career-hub" },
+  { icon: Home, label: "Home", path: "/dashboard" },
+  { icon: TrendingUp, label: "Career Insights", path: "/intelligence" },
+  { icon: Brain, label: "Career Coach", path: "/career-coach" },
+  { icon: MessageSquareText, label: "Interview Prep", path: "/interview-prep" },
   { icon: FileText, label: "My Résumés", path: "/my-resumes" },
   { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
-  { icon: Search, label: "AU Jobs", path: "/au-jobs" },
+  { icon: Search, label: "Browse Jobs", path: "/au-jobs" },
   { icon: Newspaper, label: "Market News", path: "/job-market-news" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
@@ -93,7 +95,7 @@ export const CraftSidebar = memo(function CraftSidebar({
                 CareerCraft
               </div>
               <div className="cc-label-sm text-[color:var(--cc-ash)] mt-0.5">
-                Atelier · Vol. I
+                Your workspace
               </div>
             </div>
           </button>
@@ -109,7 +111,7 @@ export const CraftSidebar = memo(function CraftSidebar({
         {/* Navigation */}
         <nav className="mt-8 flex-1 overflow-y-auto -mx-2">
           <div className="px-2 cc-label-sm text-[color:var(--cc-ash)] mb-4">
-            The pages
+            Menu
           </div>
           <ul className="space-y-1">
             {links.map((l) => {

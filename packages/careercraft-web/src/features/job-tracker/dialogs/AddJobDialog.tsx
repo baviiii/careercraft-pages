@@ -50,10 +50,10 @@ export const AddJobDialog = ({
       kicker="§ Log an application"
       title={
         <>
-          A new line in the <span className="cc-italic-wonk">ledger</span>.
+          New <span className="cc-italic-wonk">application</span>.
         </>
       }
-      description="Company, role, status — the skeleton of the hunt. Add the brief and notes if you have them."
+      description="Company, role, and status are the essentials. Add the job description and notes if you have them."
       maxWidth="max-w-2xl"
       footer={
         <>
@@ -61,7 +61,7 @@ export const AddJobDialog = ({
             Cancel
           </CraftButton>
           <CraftButton onClick={handleSubmit} disabled={saving}>
-            {saving ? "Filing…" : "File the entry"}
+            {saving ? "Saving…" : "Save application"}
           </CraftButton>
         </>
       }
