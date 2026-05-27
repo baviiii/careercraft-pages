@@ -262,14 +262,15 @@ export default function Settings() {
   const handleAddSkill = async () => {
     if (!newSkill.skill_name.trim()) return;
     
-    await addSkill({
-      skill_id: newSkill.skill_name.trim(), // Use skill_name as skill_id for now
+    const created = await addSkill({
+      skill_id: null,
       skill_name: newSkill.skill_name.trim(),
       proficiency: newSkill.proficiency,
       category: newSkill.category,
       is_primary: newSkill.is_primary,
       years_experience: null,
     } as any);
+    if (!created) return;
     
     toast({
       title: "✓ Skill added",

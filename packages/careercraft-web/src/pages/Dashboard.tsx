@@ -40,6 +40,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { CraftSidebar, CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
+import { OnboardingBanner } from "@/features/onboarding/OnboardingBanner";
 
 /* ────────────────────────────── types ─────────────────────────── */
 
@@ -474,6 +475,7 @@ export default function Dashboard() {
         {/* Body */}
         <div className="flex-1 px-6 md:px-10 py-12 md:py-16">
           <div className="max-w-[1400px] mx-auto">
+            <OnboardingBanner />
             {/* ─────────────── Masthead ─────────────── */}
             <section>
               <div className="grid grid-cols-12 gap-6 md:gap-8 items-start pb-6">

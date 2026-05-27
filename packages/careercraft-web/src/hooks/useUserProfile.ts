@@ -2,6 +2,25 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// AI-derived persona from the onboarding analysis
+export interface AIPersona {
+  archetype: string;
+  seniority: 'student' | 'entry' | 'mid' | 'senior' | 'lead' | 'principal' | 'exec';
+  function: string;
+  subFunction: string | null;
+  vertical: string | null;
+  narrative: string;
+}
+
+export interface CVStandards {
+  recommended_length: '1 page' | '2 pages' | '3+ pages';
+  format: 'reverse-chronological' | 'functional' | 'hybrid';
+  ats_notes: string[];
+  improvements: string[];
+}
+
+export type OnboardingSource = 'resume' | 'describe' | 'hybrid' | 'skipped';
+
 // Types for the user profile system
 export interface UserProfile {
   id: string;
@@ -28,7 +47,11 @@ export interface UserProfile {
   preferred_locations: string[] | null;
   job_change_timeline: string | null;
   profile_completed_at: string | null;
-  onboarding_completed: boolean;
+  ai_persona: AIPersona | null;
+  cv_standards: CVStandards | null;
+  onboarding_source: OnboardingSource | null;
+  onboarding_started_at: string | null;
+  onboarding_completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,7 +60,7 @@ export interface UserSkill {
   id: string;
   user_id: string;
   skill_id: string | null;
-  skill_name?: string; // Virtual field for UI display, maps to skill_id
+  skill_name?: string; // Virtual field for UI display (resolved from skill_tags.name)
   proficiency: string | null;
   proficiency_level: number | null;
   category: string | null;
@@ -127,14 +150,6 @@ export interface UserPreferences {
   notification_settings: NotificationSettings;
   display_settings: DisplaySettings;
   privacy_settings: PrivacySettings;
-  // Legacy fields
-  preferred_field: string | null;
-  seniority_level: string | null;
-  preferred_industries: string[] | null;
-  preferred_countries: string[] | null;
-  email_notifications: boolean | null;
-  push_notifications: boolean | null;
-  summary_frequency: string | null;
 }
 
 export interface CompleteUserProfile {
@@ -143,6 +158,15 @@ export interface CompleteUserProfile {
   skills: UserSkill[];
   certifications: UserCertification[];
   completeness: number;
+}
+
+function normalizeProfileRow(profileData: any): UserProfile {
+  return {
+    ...profileData,
+    ai_persona: (profileData?.ai_persona ?? null) as AIPersona | null,
+    cv_standards: (profileData?.cv_standards ?? null) as CVStandards | null,
+    onboarding_source: (profileData?.onboarding_source ?? null) as OnboardingSource | null,
+  } as UserProfile;
 }
 
 // Default values
@@ -211,6 +235,19 @@ export function useUserProfile() {
   const [completeness, setCompleteness] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
 
+  const resolveSkillIdByName = useCallback(async (name: string): Promise<string | null> => {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const { data, error } = await supabase
+      .from('skill_tags')
+      .select('id')
+      .ilike('name', trimmed)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.id ?? null;
+  }, []);
+
   // Fetch complete profile
   const fetchProfile = useCallback(async () => {
     try {
@@ -249,7 +286,10 @@ export function useUserProfile() {
       // Fetch skills
       const { data: skillsData } = await supabase
         .from('user_skills')
-        .select('*')
+        .select(`
+          *,
+          skill_tags(name)
+        `)
         .eq('user_id', session.user.id)
         .order('is_primary', { ascending: false });
 
@@ -262,7 +302,7 @@ export function useUserProfile() {
 
       // Set state with defaults for missing JSONB fields
       if (profileData) {
-        setProfile(profileData as UserProfile);
+        setProfile(normalizeProfileRow(profileData));
       }
 
       if (prefsData) {
@@ -277,10 +317,10 @@ export function useUserProfile() {
         } as UserPreferences);
       }
 
-      // Map skills with skill_name for UI display
-      const mappedSkills = (skillsData || []).map(s => ({
+      // Map skills with resolved tag names for UI display.
+      const mappedSkills = (skillsData || []).map((s: any) => ({
         ...s,
-        skill_name: s.skill_id || 'Unknown Skill', // Use skill_id as display name for now
+        skill_name: s.skill_tags?.name || 'Unknown Skill',
       })) as UserSkill[];
       setSkills(mappedSkills);
       setCertifications((certsData as UserCertification[]) || []);
@@ -333,7 +373,7 @@ export function useUserProfile() {
       
       const { error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(updates as any)
         .eq('id', userId);
 
       if (error) throw error;
@@ -402,17 +442,48 @@ export function useUserProfile() {
     if (!userId) return null;
     
     try {
+      const incomingSkillId = skill.skill_id;
+      const incomingSkillName = typeof (skill as any).skill_name === 'string'
+        ? (skill as any).skill_name
+        : '';
+      const resolvedSkillId = incomingSkillId
+        || (incomingSkillName ? await resolveSkillIdByName(incomingSkillName) : null);
+
+      if (!resolvedSkillId) {
+        toast({
+          title: 'Unknown skill',
+          description: 'Please select a skill from the existing list.',
+          variant: 'destructive',
+        });
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('user_skills')
-        .insert({ ...skill, user_id: userId })
-        .select()
+        .insert({
+          user_id: userId,
+          skill_id: resolvedSkillId,
+          proficiency: skill.proficiency,
+          proficiency_level: skill.proficiency_level,
+          category: skill.category,
+          years_experience: skill.years_experience,
+          is_primary: skill.is_primary,
+          last_tested_at: skill.last_tested_at,
+          times_tested: skill.times_tested,
+          times_correct: skill.times_correct,
+          trend: skill.trend,
+        })
+        .select(`
+          *,
+          skill_tags(name)
+        `)
         .single();
 
       if (error) throw error;
 
       const mappedData = {
         ...data,
-        skill_name: (skill as any).skill_name || data.skill_id || 'New Skill',
+        skill_name: (data as any).skill_tags?.name || incomingSkillName || 'New Skill',
       } as UserSkill;
       setSkills(prev => [...prev, mappedData]);
       
@@ -438,7 +509,7 @@ export function useUserProfile() {
       }
       return null;
     }
-  }, [userId, toast]);
+  }, [userId, toast, resolveSkillIdByName]);
 
   // Update skill
   const updateSkill = useCallback(async (skillId: string, updates: Partial<UserSkill>) => {
@@ -617,6 +688,8 @@ export function useUserProfile() {
     fetchProfile();
   }, [fetchProfile]);
 
+  const isOnboarded = !!profile?.onboarding_completed_at;
+
   return {
     loading,
     saving,
@@ -626,6 +699,7 @@ export function useUserProfile() {
     certifications,
     completeness,
     userId,
+    isOnboarded,
     fetchProfile,
     updateProfile,
     updatePreferences,

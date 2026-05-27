@@ -1,5 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateObject } from "npm:ai@4";
+import { z } from "npm:zod@3";
+
+import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { handler } from "../_shared/http/responses.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +29,31 @@ const NEWS_APIS = {
   currents: "https://api.currentsapi.services/v1/search",
 };
 
+const TrendAnalysisSchema = z.object({
+  trends: z.array(z.object({
+    trend: z.string(),
+    direction: z.enum(["up", "down", "stable"]),
+    confidence: z.number(),
+  })).default([]),
+  insights: z.array(z.object({
+    title: z.string(),
+    description: z.string(),
+    impact: z.enum(["high", "medium", "low"]),
+  })).default([]),
+  predictions: z.array(z.object({
+    prediction: z.string(),
+    timeframe: z.string(),
+    likelihood: z.number(),
+  })).default([]),
+  salaryTrends: z.object({
+    direction: z.enum(["up", "down", "stable"]),
+    averageChange: z.string(),
+    topPayingRoles: z.array(z.string()).default([]),
+  }),
+  hotSkills: z.array(z.string()).default([]),
+  whatThisMeansForYou: z.string(),
+});
+
 // Fast fetch with timeout - don't wait forever for slow APIs
 const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = 5000) => {
   const controller = new AbortController();
@@ -38,18 +68,13 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutM
   }
 };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(handler(async (req) => {
   try {
     const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber } = await req.json();
     const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
     const ADZUNA_APP_KEY = Deno.env.get("ADZUNA_APP_KEY");
     const JSEARCH_API_KEY = Deno.env.get("JSEARCH_API_KEY");
     const CURRENTS_API_KEY = Deno.env.get("CURRENTS_API_KEY");
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     // ============================================
     // AUSTRALIAN JOBS - Layered APIs (JSearch + Adzuna + Remotive + Arbeitnow)
@@ -1211,10 +1236,6 @@ serve(async (req) => {
       });
 
     } else if (action === "analyze_trends") {
-      if (!LOVABLE_API_KEY) {
-        throw new Error("LOVABLE_API_KEY is not configured");
-      }
-
       const systemPrompt = `You are a job market analyst expert. Analyze the provided job listings and market data to generate insights about job market trends.
 
 Return a JSON object with this structure:
@@ -1237,47 +1258,16 @@ Return a JSON object with this structure:
   "whatThisMeansForYou": "Personalized advice paragraph based on the industry/field"
 }`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: `Analyze these job market listings for ${industry || "general"} industry in ${country || "US"}:\n${query}` }
-          ],
-          response_format: { type: "json_object" }
-        }),
+      const lovable = getLovableGateway();
+      const { object: result } = await generateObject({
+        model: lovable("google/gemini-2.5-flash"),
+        schema: TrendAnalysisSchema,
+        schemaName: "TrendAnalysis",
+        system: systemPrompt,
+        prompt: `Analyze these job market listings for ${industry || "general"} industry in ${country || "US"}:\n${query}`,
+        temperature: 0.4,
+        maxTokens: 2500,
       });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (response.status === 402) {
-          return new Response(JSON.stringify({ error: "AI credits exhausted" }), {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        throw new Error(`AI error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-      
-      let result;
-      try {
-        result = JSON.parse(content);
-      } catch {
-        result = { raw: content };
-      }
 
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1298,7 +1288,7 @@ Return a JSON object with this structure:
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}, { name: "job-news", allowedMethods: ["POST"] }));
 
 function categorizeJob(adzunaCategory: string | undefined, title: string): string {
   const titleLower = title?.toLowerCase() || "";

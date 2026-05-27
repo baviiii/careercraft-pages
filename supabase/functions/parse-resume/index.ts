@@ -1,520 +1,260 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// parse-resume — Structured resume extraction.
+//
+// Two modes:
+//   JSON body  → caller pre-extracted text (e.g. via client-side pdfjs/mammoth)
+//   FormData   → server-side OCR via Azure Document Intelligence (prebuilt-layout)
+//
+// In both cases, raw text is then fed to Azure OpenAI with a typed schema.
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { generateObject } from "npm:ai@4";
+import { z } from "npm:zod@3";
 
-interface ParsedResume {
-  // Personal Info
-  personalInfo: {
-    fullName: string | null
-    email: string | null
-    phone: string | null
-    location: string | null
-    linkedin: string | null
-    website: string | null
-    summary: string | null
-  }
-  // Work Experience
-  workExperience: {
-    company: string
-    title: string
-    location: string | null
-    startDate: string | null
-    endDate: string | null
-    current: boolean
-    bullets: string[]
-  }[]
-  // Education
-  education: {
-    institution: string
-    degree: string
-    field: string | null
-    startDate: string | null
-    endDate: string | null
-    gpa: string | null
-    achievements: string[]
-  }[]
-  // Skills
-  skills: {
-    category: string
-    items: string[]
-  }[]
-  // Certifications
-  certifications: {
-    name: string
-    issuer: string | null
-    date: string | null
-    expiryDate: string | null
-  }[]
-  // Languages
-  languages: {
-    language: string
-    proficiency: string | null
-  }[]
-  // Projects
-  projects: {
-    name: string
-    description: string | null
-    technologies: string[]
-    url: string | null
-  }[]
-  // References
-  references: {
-    name: string
-    title: string | null
-    company: string | null
-    phone: string | null
-    email: string | null
-    relationship: string | null
-  }[]
-  // Awards & Honors
-  awards: {
-    title: string
-    issuer: string | null
-    date: string | null
-    description: string | null
-  }[]
-  // Volunteer Experience
-  volunteer: {
-    role: string
-    organization: string
-    location: string | null
-    startDate: string | null
-    endDate: string | null
-    current: boolean
-    description: string | null
-  }[]
-  // Publications
-  publications: {
-    title: string
-    publisher: string | null
-    date: string | null
-    url: string | null
-    description: string | null
-  }[]
-  // Raw text for reference
-  rawText: string
-  // Confidence score
-  confidence: number
-  // Source file info
-  sourceFile: {
-    name: string
-    type: string
-    pages: number
-  }
-}
+import { getAzure } from "../_shared/ai/providers.ts";
+import { ConfigError, ProviderError, ValidationError } from "../_shared/ai/errors.ts";
+import { handler, json } from "../_shared/http/responses.ts";
+import { optEnv, reqEnv } from "../_shared/env.ts";
 
-serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+const ParsedResumeSchema = z.object({
+  personalInfo: z.object({
+    fullName: z.string().nullable(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+    location: z.string().nullable().describe("city, state/country"),
+    linkedin: z.string().nullable(),
+    website: z.string().nullable(),
+    summary: z.string().nullable().describe("Professional summary / objective text"),
+  }),
+  workExperience: z.array(z.object({
+    company: z.string(),
+    title: z.string(),
+    location: z.string().nullable(),
+    startDate: z.string().nullable().describe("YYYY-MM or YYYY"),
+    endDate: z.string().nullable().describe("YYYY-MM or YYYY; null when current"),
+    current: z.boolean(),
+    bullets: z.array(z.string()).default([]),
+  })).default([]),
+  education: z.array(z.object({
+    institution: z.string(),
+    degree: z.string(),
+    field: z.string().nullable(),
+    startDate: z.string().nullable(),
+    endDate: z.string().nullable(),
+    gpa: z.string().nullable(),
+    achievements: z.array(z.string()).default([]),
+  })).default([]),
+  skills: z.array(z.object({
+    category: z.string(),
+    items: z.array(z.string()),
+  })).default([]),
+  certifications: z.array(z.object({
+    name: z.string(),
+    issuer: z.string().nullable(),
+    date: z.string().nullable(),
+    expiryDate: z.string().nullable(),
+  })).default([]),
+  languages: z.array(z.object({
+    language: z.string(),
+    proficiency: z.string().nullable(),
+  })).default([]),
+  projects: z.array(z.object({
+    name: z.string(),
+    description: z.string().nullable(),
+    technologies: z.array(z.string()).default([]),
+    url: z.string().nullable(),
+  })).default([]),
+  references: z.array(z.object({
+    name: z.string(),
+    title: z.string().nullable(),
+    company: z.string().nullable(),
+    phone: z.string().nullable(),
+    email: z.string().nullable(),
+    relationship: z.string().nullable(),
+  })).default([]),
+  awards: z.array(z.object({
+    title: z.string(),
+    issuer: z.string().nullable(),
+    date: z.string().nullable(),
+    description: z.string().nullable(),
+  })).default([]),
+  volunteer: z.array(z.object({
+    role: z.string(),
+    organization: z.string(),
+    location: z.string().nullable(),
+    startDate: z.string().nullable(),
+    endDate: z.string().nullable(),
+    current: z.boolean(),
+    description: z.string().nullable(),
+  })).default([]),
+  publications: z.array(z.object({
+    title: z.string(),
+    publisher: z.string().nullable(),
+    date: z.string().nullable(),
+    url: z.string().nullable(),
+    description: z.string().nullable(),
+  })).default([]),
+  confidence: z.number().min(0).max(1),
+});
+
+const JsonBodySchema = z.object({
+  rawText: z.string().min(1).max(60_000),
+  fileName: z.string().default("document.txt"),
+  fileType: z.string().default("text/plain"),
+  pageCount: z.number().int().positive().default(1),
+});
+
+const SYSTEM_PROMPT = `You are a precise resume parser. Extract ALL information present. Use null where data is missing — never guess.
+
+Date format: YYYY-MM where available, else YYYY. For currently-held roles set current=true and endDate=null.
+Group skills by logical category (Technical Skills, Soft Skills, Programming Languages, Tools, …).
+Confidence (0-1): completeness × clarity × volume extracted.`;
+
+serve(handler(async (req) => {
+  const contentType = req.headers.get("content-type") || "";
+
+  let rawText = "";
+  let fileName = "document";
+  let fileType = "text/plain";
+  let pageCount = 1;
+
+  if (contentType.includes("application/json")) {
+    const raw = await req.json().catch(() => null);
+    const parsed = JsonBodySchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new ValidationError("Invalid JSON body", parsed.error.flatten());
+    }
+    rawText = parsed.data.rawText;
+    fileName = parsed.data.fileName;
+    fileType = parsed.data.fileType;
+    pageCount = parsed.data.pageCount;
+    console.log(`[parse-resume] received pre-extracted text (${rawText.length} chars)`);
+  } else {
+    const formData = await req.formData().catch(() => null);
+    const file = formData?.get("file");
+    if (!(file instanceof File)) {
+      throw new ValidationError("No file provided in FormData (field name must be 'file')");
+    }
+    fileName = (formData?.get("fileName") as string | null) ?? file.name ?? "document";
+    fileType = file.type || "application/pdf";
+    console.log(`[parse-resume] received file: ${fileName} (${fileType}, ${file.size} bytes)`);
+
+    const extracted = await extractWithDocumentIntelligence(file);
+    rawText = extracted.text;
+    pageCount = extracted.pageCount;
   }
+
+  const deployment = optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini")!;
+  const azure = getAzure();
 
   try {
-    // Detect if request contains file (FormData) or text (JSON)
-    const contentType = req.headers.get('content-type') || ''
-    let rawText = ''
-    let fileName = 'document'
-    let fileType = 'text/plain'
-    let pageCount = 1
+    const { object } = await generateObject({
+      model: azure(deployment),
+      schema: ParsedResumeSchema,
+      schemaName: "ParsedResume",
+      system: SYSTEM_PROMPT,
+      prompt: `Resume text:\n${rawText.substring(0, 15000)}`,
+      temperature: 0.1,
+      maxTokens: 4000,
+    });
 
-    // Method 1: JSON with pre-extracted text (from client-side PDF.js/Mammoth)
-    if (contentType.includes('application/json')) {
-      const body = await req.json()
+    return json({
+      success: true,
+      parsed: {
+        ...object,
+        rawText,
+        sourceFile: { name: fileName, type: fileType, pages: pageCount },
+      },
+      message: `Parsed ${pageCount} page(s) with ${Math.round(object.confidence * 100)}% confidence`,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ProviderError(`Resume parsing failed: ${msg}`, "azure-openai");
+  }
+}, { name: "parse-resume" }));
 
-      if (!body.rawText) {
-        return new Response(
-          JSON.stringify({ error: 'No rawText provided in JSON body' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+// ----- Azure Document Intelligence (OCR / layout) -----
 
-      rawText = body.rawText
-      fileName = body.fileName || 'document.txt'
-      fileType = body.fileType || 'text/plain'
-      pageCount = body.pageCount || 1
+async function extractWithDocumentIntelligence(file: File): Promise<{ text: string; pageCount: number }> {
+  const endpoint = optEnv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
+  const key = optEnv("AZURE_DOCUMENT_INTELLIGENCE_KEY");
+  if (!endpoint || !key) {
+    throw new ConfigError(
+      "Server-side OCR requires AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY. " +
+      "Alternatively, extract text client-side (pdfjs / mammoth) and POST as JSON.",
+    );
+  }
 
-      console.log(`📝 Received pre-extracted text (${rawText.length} chars) from client`)
-    }
-    // Method 2: FormData with file (full Azure Document Intelligence processing)
-    else {
-      const formData = await req.formData()
-      const file = formData.get('file') as File
-      fileName = formData.get('fileName') as string || file?.name || 'document'
+  const clean = endpoint.replace(/\/$/, "");
+  const buf = await file.arrayBuffer();
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
 
-      if (!file) {
-        return new Response(
-          JSON.stringify({ error: 'No file provided in FormData' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+  // Try modern Document Intelligence API first, fall back to Form Recognizer for older resources.
+  const apiCandidates = [
+    { path: "/documentintelligence/documentModels/prebuilt-layout:analyze", version: "2024-11-30" },
+    { path: "/documentintelligence/documentModels/prebuilt-layout:analyze", version: "2024-07-31-preview" },
+    { path: "/formrecognizer/documentModels/prebuilt-layout:analyze", version: "2023-07-31" },
+  ];
 
-      console.log(`📄 Received file upload: ${fileName}`)
+  let operationLocation: string | null = null;
+  let lastError = "no attempts made";
 
-      // Get Azure Document Intelligence credentials
-      const docIntelEndpoint = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT')
-      const docIntelKey = Deno.env.get('AZURE_DOCUMENT_INTELLIGENCE_KEY')
-
-      if (!docIntelEndpoint || !docIntelKey) {
-        // Fallback: Return error but suggest using JSON method with pre-extracted text
-        return new Response(
-          JSON.stringify({ 
-            success: false,
-            error: 'Azure Document Intelligence not configured',
-            details: 'Please configure AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY in Supabase secrets, or use client-side text extraction first.'
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      // Convert file to base64
-      const arrayBuffer = await file.arrayBuffer()
-      const base64Content = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
-
-      // Determine content type
-      fileType = file.type || 'application/pdf'
-
-      console.log(`📄 Processing file: ${fileName}, type: ${fileType}, size: ${file.size} bytes`)
-
-    // Step 1: Use prebuilt-document model for general document extraction
-    // This handles PDFs, images, and Office documents
-    // Try multiple API paths/versions for compatibility
-    // Ensure endpoint doesn't have trailing slash
-    const cleanEndpoint = docIntelEndpoint.replace(/\/$/, '');
-    const apiPaths = [
-      { path: '/documentintelligence/documentModels/prebuilt-layout:analyze', version: '2024-11-30' },
-      { path: '/documentintelligence/documentModels/prebuilt-layout:analyze', version: '2024-07-31-preview' },
-      { path: '/documentintelligence/documentModels/prebuilt-layout:analyze', version: '2024-02-29-preview' },
-      { path: '/formrecognizer/documentModels/prebuilt-layout:analyze', version: '2023-07-31' },
-    ]
-
-    let analyzeResponse = null
-    let operationLocation = null
-    let lastError = null
-
-    // Try each API path until one works
-    for (const apiPath of apiPaths) {
-      try {
-        const analyzeUrl = `${cleanEndpoint}${apiPath.path}?api-version=${apiPath.version}`
-        console.log(`Trying API path: ${apiPath.path} with version ${apiPath.version}`)
-
-        analyzeResponse = await fetch(analyzeUrl, {
-          method: 'POST',
-          headers: {
-            'Ocp-Apim-Subscription-Key': docIntelKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            base64Source: base64Content
-          })
-        })
-
-        if (analyzeResponse.ok) {
-          operationLocation = analyzeResponse.headers.get('Operation-Location')
-          if (operationLocation) {
-            console.log(`✅ Successfully started analysis with ${apiPath.version}`)
-            break
-          }
-        } else {
-          const errorText = await analyzeResponse.text()
-          lastError = `Status ${analyzeResponse.status}: ${errorText}`
-          console.warn(`API path ${apiPath.path} (${apiPath.version}) failed: ${lastError}`)
+  for (const c of apiCandidates) {
+    const url = `${clean}${c.path}?api-version=${c.version}`;
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Source: base64 }),
+      });
+      if (resp.ok) {
+        operationLocation = resp.headers.get("Operation-Location");
+        if (operationLocation) {
+          console.log(`[parse-resume] OCR started via ${c.version}`);
+          break;
         }
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : String(err)
-        console.warn(`API path ${apiPath.path} (${apiPath.version}) exception: ${lastError}`)
-        continue
+      } else {
+        lastError = `${resp.status}: ${(await resp.text()).slice(0, 200)}`;
       }
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
     }
+  }
 
-    if (!analyzeResponse || !analyzeResponse.ok || !operationLocation) {
-      const errorMsg = lastError || 'All API paths failed'
-      console.error('Document Intelligence error:', errorMsg)
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          error: `Document analysis failed: ${errorMsg}`,
-          details: 'Please check Azure Document Intelligence configuration. The service may not support the API version, or credentials may be incorrect.'
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+  if (!operationLocation) {
+    throw new ProviderError(
+      `Document Intelligence: all API versions failed (${lastError})`,
+      "azure-document-intelligence",
+    );
+  }
 
-    // Poll for results (operationLocation already set above)
-    let result = null
-    let attempts = 0
-    const maxAttempts = 30
+  // Poll for completion. Real-world layout parses settle in 3-8s.
+  for (let attempt = 0; attempt < 30; attempt++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const statusResp = await fetch(operationLocation, {
+      headers: { "Ocp-Apim-Subscription-Key": key },
+    });
+    if (!statusResp.ok) {
+      throw new ProviderError(
+        `Document Intelligence status check failed: ${statusResp.status}`,
+        "azure-document-intelligence",
+        statusResp.status,
+      );
+    }
+    const status = await statusResp.json();
+    if (status.status === "succeeded") {
+      const result = status.analyzeResult ?? {};
+      return {
+        text: result.content || "",
+        pageCount: result.pages?.length || 1,
+      };
+    }
+    if (status.status === "failed") {
+      throw new ProviderError("Document Intelligence analysis failed", "azure-document-intelligence");
+    }
+  }
 
-    while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const statusResponse = await fetch(operationLocation, {
-        headers: {
-          'Ocp-Apim-Subscription-Key': docIntelKey,
-        }
-      })
-
-      const statusData = await statusResponse.json()
-
-      if (statusData.status === 'succeeded') {
-        result = statusData.analyzeResult
-        break
-      } else if (statusData.status === 'failed') {
-        throw new Error('Document analysis failed')
-      }
-
-      attempts++
-    }
-
-    if (!result) {
-      throw new Error('Document analysis timed out')
-    }
-
-      // Extract raw text from all pages
-      rawText = result.content || ''
-      pageCount = result.pages?.length || 1
-
-      console.log(`✅ Extracted ${rawText.length} characters from ${pageCount} pages via Azure`)
-    }
-
-    // Step 2: Use GPT to intelligently parse the resume content (shared for both methods)
-    const openAIEndpoint = Deno.env.get('AZURE_OPENAI_ENDPOINT')
-    const openAIKey = Deno.env.get('AZURE_OPENAI_KEY')
-    const chatDeployment = Deno.env.get('AZURE_OPENAI_CHAT_DEPLOYMENT') || 'gpt-4o-mini'
-
-    if (!openAIEndpoint || !openAIKey) {
-      // Return raw text if OpenAI not configured
-      return new Response(
-        JSON.stringify({
-          success: true,
-          parsed: {
-            personalInfo: { fullName: null, email: null, phone: null, location: null, linkedin: null, website: null, summary: null },
-            workExperience: [],
-            education: [],
-            skills: [],
-            certifications: [],
-            languages: [],
-            projects: [],
-            references: [],
-            awards: [],
-            volunteer: [],
-            publications: [],
-            rawText,
-            confidence: 0.5,
-            sourceFile: { name: fileName, type: fileType, pages: pageCount }
-          },
-          message: 'Basic extraction only - AI parsing not available'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // AI-powered resume parsing with enhanced instructions
-    const parsePrompt = `You are an expert resume parser. Extract ALL structured information from the following resume text. Be thorough and extract EVERY section.
-
-CRITICAL REQUIREMENTS:
-1. Extract ALL sections present in the resume - do not skip any
-2. Extract ALL work experiences, even if they seem minor or old
-3. Extract ALL education entries, including certifications if listed separately
-4. Extract ALL skills mentioned anywhere in the resume
-5. Parse dates consistently (YYYY-MM or YYYY format)
-6. Extract contact information accurately (name, email, phone, location, LinkedIn, website)
-7. If information is unclear, use null rather than guessing
-8. Group skills by logical categories (Technical, Soft Skills, Languages, etc.)
-9. Extract ALL bullet points for each work experience
-10. Include projects, certifications, languages if present
-
-RESUME TEXT:
-${rawText.substring(0, 15000)}
-
-Extract and return a JSON object with this exact structure. Include ALL data found:
-{
-  "personalInfo": {
-    "fullName": "extracted full name or null",
-    "email": "extracted email or null",
-    "phone": "extracted phone or null",
-    "location": "city, state/country or null",
-    "linkedin": "linkedin URL or null",
-    "website": "personal website or null",
-    "summary": "professional summary/objective if present or null"
-  },
-  "workExperience": [
-    {
-      "company": "company name",
-      "title": "job title",
-      "location": "location or null",
-      "startDate": "YYYY-MM or YYYY or null",
-      "endDate": "YYYY-MM or YYYY or null",
-      "current": true/false,
-      "bullets": ["achievement 1", "achievement 2"]
-    }
-  ],
-  "education": [
-    {
-      "institution": "school name",
-      "degree": "degree type (Bachelor's, Master's, etc.)",
-      "field": "field of study or null",
-      "startDate": "YYYY or null",
-      "endDate": "YYYY or null",
-      "gpa": "GPA if mentioned or null",
-      "achievements": ["honors", "relevant coursework"]
-    }
-  ],
-  "skills": [
-    {
-      "category": "Technical Skills",
-      "items": ["skill1", "skill2"]
-    }
-  ],
-  "certifications": [
-    {
-      "name": "certification name",
-      "issuer": "issuing organization or null",
-      "date": "date obtained or null",
-      "expiryDate": "expiry date or null"
-    }
-  ],
-  "languages": [
-    {
-      "language": "language name",
-      "proficiency": "Native/Fluent/Professional/Basic or null"
-    }
-  ],
-  "projects": [
-    {
-      "name": "project name",
-      "description": "brief description or null",
-      "technologies": ["tech1", "tech2"],
-      "url": "project URL or null"
-    }
-  ],
-  "references": [
-    {
-      "name": "reference full name",
-      "title": "job title or null",
-      "company": "company/organization or null",
-      "phone": "phone number or null",
-      "email": "email or null",
-      "relationship": "relationship description or null"
-    }
-  ],
-  "awards": [
-    {
-      "title": "award/honor title",
-      "issuer": "issuing organization or null",
-      "date": "date received or null",
-      "description": "description or null"
-    }
-  ],
-  "volunteer": [
-    {
-      "role": "volunteer role/position",
-      "organization": "organization name",
-      "location": "location or null",
-      "startDate": "YYYY-MM or YYYY or null",
-      "endDate": "YYYY-MM or YYYY or null",
-      "current": true/false,
-      "description": "description of volunteer work or null"
-    }
-  ],
-  "publications": [
-    {
-      "title": "publication title",
-      "publisher": "publisher/journal or null",
-      "date": "publication date or null",
-      "url": "URL or null",
-      "description": "brief description or null"
-    }
-  ],
-  "confidence": 0.0-1.0 (how confident you are in the extraction quality)
+  throw new ProviderError("Document Intelligence timed out after 30s", "azure-document-intelligence");
 }
 
-EXTRACTION GUIDELINES:
-- Extract ALL work experiences in chronological order (most recent first if that's how they appear)
-- For each experience, extract ALL bullet points - do not skip any
-- Parse dates consistently: Use YYYY-MM for month/year, YYYY for year-only
-- For "Present" or "Current" jobs, set "current": true and endDate to null
-- Group skills by logical categories: Technical Skills, Soft Skills, Programming Languages, Tools, etc.
-- Extract summary/objective if present (may be labeled as "Summary", "Professional Summary", "Objective", "Profile")
-- Extract ALL education entries including incomplete degrees, certifications listed under education
-- Extract projects with ALL details (name, description, technologies, URL if present)
-- Extract certifications with issuer and dates if available
-- Extract languages with proficiency levels if mentioned
-- Extract references if present (may be labeled "References", "Professional References")
-- Extract awards/honors if present (may be labeled "Awards", "Honors", "Achievements", "Recognition")
-- Extract volunteer experience if present (may be labeled "Volunteer Work", "Community Service", "Volunteer Experience")
-- Extract publications if present (may be labeled "Publications", "Research", "Articles", "Papers")
-- For contact info: Extract full name from header, email (look for @), phone (various formats), location (city, state/country)
-- Set confidence score (0.0-1.0) based on:
-  * How complete the extraction is (all sections found = higher score)
-  * How clear and structured the resume was (well-formatted = higher score)
-  * How much information was successfully extracted (more data = higher score)
-
-Return ONLY valid JSON, no explanations. Ensure all arrays include ALL items found in the resume.`
-
-    const chatResponse = await fetch(
-      `${openAIEndpoint}/openai/deployments/${chatDeployment}/chat/completions?api-version=2024-02-15-preview`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': openAIKey,
-        },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: 'You are a precise resume parsing assistant. Always return valid JSON.' },
-            { role: 'user', content: parsePrompt }
-          ],
-          temperature: 0.1,
-          max_tokens: 4000,
-          response_format: { type: 'json_object' }
-        })
-      }
-    )
-
-    if (!chatResponse.ok) {
-      const error = await chatResponse.text()
-      console.error('OpenAI parsing error:', error)
-      throw new Error('AI parsing failed')
-    }
-
-    const chatData = await chatResponse.json()
-    const parsedContent = JSON.parse(chatData.choices[0].message.content)
-
-    // Combine with source info
-    const parsedResume: ParsedResume = {
-      ...parsedContent,
-      rawText,
-      sourceFile: {
-        name: fileName,
-        type: fileType,
-        pages: pageCount
-      }
-    }
-
-    console.log(`Successfully parsed resume with confidence: ${parsedResume.confidence}`)
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        parsed: parsedResume,
-        message: `Successfully parsed ${pageCount} page(s) with ${parsedResume.confidence * 100}% confidence`
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-
-  } catch (error) {
-    console.error('Parse resume error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to parse document'
-    return new Response(
-      JSON.stringify({ 
-        success: false,
-        error: errorMessage,
-        details: 'Please try uploading a different file format'
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  }
-})
+// Quiet the unused-import warning for reqEnv (kept available for future use).
+void reqEnv;

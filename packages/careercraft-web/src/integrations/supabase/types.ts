@@ -855,12 +855,14 @@ export type Database = {
       }
       profiles: {
         Row: {
+          ai_persona: Json | null
           avatar_url: string | null
           bio: string | null
           career_level: string | null
           created_at: string
           current_company: string | null
           current_job_title: string | null
+          cv_standards: Json | null
           desired_salary_currency: string | null
           desired_salary_max: number | null
           desired_salary_min: number | null
@@ -872,7 +874,9 @@ export type Database = {
           job_change_timeline: string | null
           location_city: string | null
           location_country: string | null
-          onboarding_completed: boolean | null
+          onboarding_completed_at: string | null
+          onboarding_source: string | null
+          onboarding_started_at: string | null
           phone: string | null
           preferred_locations: string[] | null
           profile_completed_at: string | null
@@ -884,12 +888,14 @@ export type Database = {
           years_of_experience: string | null
         }
         Insert: {
+          ai_persona?: Json | null
           avatar_url?: string | null
           bio?: string | null
           career_level?: string | null
           created_at?: string
           current_company?: string | null
           current_job_title?: string | null
+          cv_standards?: Json | null
           desired_salary_currency?: string | null
           desired_salary_max?: number | null
           desired_salary_min?: number | null
@@ -901,7 +907,9 @@ export type Database = {
           job_change_timeline?: string | null
           location_city?: string | null
           location_country?: string | null
-          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          onboarding_source?: string | null
+          onboarding_started_at?: string | null
           phone?: string | null
           preferred_locations?: string[] | null
           profile_completed_at?: string | null
@@ -913,12 +921,14 @@ export type Database = {
           years_of_experience?: string | null
         }
         Update: {
+          ai_persona?: Json | null
           avatar_url?: string | null
           bio?: string | null
           career_level?: string | null
           created_at?: string
           current_company?: string | null
           current_job_title?: string | null
+          cv_standards?: Json | null
           desired_salary_currency?: string | null
           desired_salary_max?: number | null
           desired_salary_min?: number | null
@@ -930,7 +940,9 @@ export type Database = {
           job_change_timeline?: string | null
           location_city?: string | null
           location_country?: string | null
-          onboarding_completed?: boolean | null
+          onboarding_completed_at?: string | null
+          onboarding_source?: string | null
+          onboarding_started_at?: string | null
           phone?: string | null
           preferred_locations?: string[] | null
           profile_completed_at?: string | null
@@ -940,6 +952,54 @@ export type Database = {
           updated_at?: string
           work_arrangement?: string[] | null
           years_of_experience?: string | null
+        }
+        Relationships: []
+      }
+      onboarding_runs: {
+        Row: {
+          ai_analysis: Json | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          input_tokens: number | null
+          mode: string
+          model: string | null
+          output_tokens: number | null
+          raw_text: string | null
+          resume_path: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          ai_analysis?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_tokens?: number | null
+          mode: string
+          model?: string | null
+          output_tokens?: number | null
+          raw_text?: string | null
+          resume_path?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          ai_analysis?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_tokens?: number | null
+          mode?: string
+          model?: string | null
+          output_tokens?: number | null
+          raw_text?: string | null
+          resume_path?: string | null
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1383,7 +1443,6 @@ export type Database = {
           alert_types: string[] | null
           created_at: string
           display_settings: Json | null
-          email_notifications: boolean | null
           id: string
           interview_preferences: Json | null
           interview_types: string[] | null
@@ -1391,13 +1450,7 @@ export type Database = {
           job_role_type: string | null
           news_preferences: Json | null
           notification_settings: Json | null
-          preferred_countries: string[] | null
-          preferred_field: string | null
-          preferred_industries: string[] | null
           privacy_settings: Json | null
-          push_notifications: boolean | null
-          seniority_level: string | null
-          summary_frequency: string | null
           updated_at: string
           user_id: string
         }
@@ -1405,7 +1458,6 @@ export type Database = {
           alert_types?: string[] | null
           created_at?: string
           display_settings?: Json | null
-          email_notifications?: boolean | null
           id?: string
           interview_preferences?: Json | null
           interview_types?: string[] | null
@@ -1413,13 +1465,7 @@ export type Database = {
           job_role_type?: string | null
           news_preferences?: Json | null
           notification_settings?: Json | null
-          preferred_countries?: string[] | null
-          preferred_field?: string | null
-          preferred_industries?: string[] | null
           privacy_settings?: Json | null
-          push_notifications?: boolean | null
-          seniority_level?: string | null
-          summary_frequency?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1427,7 +1473,6 @@ export type Database = {
           alert_types?: string[] | null
           created_at?: string
           display_settings?: Json | null
-          email_notifications?: boolean | null
           id?: string
           interview_preferences?: Json | null
           interview_types?: string[] | null
@@ -1435,13 +1480,7 @@ export type Database = {
           job_role_type?: string | null
           news_preferences?: Json | null
           notification_settings?: Json | null
-          preferred_countries?: string[] | null
-          preferred_field?: string | null
-          preferred_industries?: string[] | null
           privacy_settings?: Json | null
-          push_notifications?: boolean | null
-          seniority_level?: string | null
-          summary_frequency?: string | null
           updated_at?: string
           user_id?: string
         }

@@ -1,15 +1,17 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 // Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Onboarding = lazy(() => import("./features/onboarding/OnboardingPage"));
 const Analysis = lazy(() => import("./pages/Analysis"));
 const Editor = lazy(() => import("./pages/Editor"));
 const Rewrite = lazy(() => import("./pages/Rewrite"));
@@ -64,6 +66,41 @@ const PageLoader = () => (
   </div>
 );
 
+function RequireAuthAndOnboarding({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<"loading" | "allow" | "auth">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (!session?.user) {
+        if (!cancelled) setState("auth");
+        return;
+      }
+
+      if (cancelled) return;
+      setState("allow");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (state === "loading") return <PageLoader />;
+  if (state === "auth") return <Navigate to="/auth" replace />;
+  return <>{children}</>;
+}
+
+function ProtectedLayout() {
+  return (
+    <RequireAuthAndOnboarding>
+      <Outlet />
+    </RequireAuthAndOnboarding>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider delayDuration={0}>
@@ -75,44 +112,48 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/upload" element={<ResumeBuilder />} />
-            <Route path="/analysis" element={<Analysis />} />
-            <Route path="/editor" element={<Editor />} />
-            <Route path="/rewrite" element={<Rewrite />} />
-            <Route path="/cover-letter" element={<CoverLetter />} />
-            <Route path="/tracker" element={<JobTracker />} />
-            <Route path="/templates" element={<TemplateBuilder />} />
-            <Route path="/builder" element={<ResumeBuilder />} />
-            <Route path="/my-resumes" element={<MyResumes />} />
-            <Route path="/interview-prep" element={<InterviewPrep />} />
-            <Route path="/au-jobs" element={<AustralianJobs />} />
-            <Route path="/job-market-news" element={<JobMarketNews />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/sa-career-hub" element={<Navigate to="/career-coach" replace />} />
-            <Route path="/playground" element={<Playground />} />
-            <Route path="/intelligence" element={<IntelligenceOverview />} />
-            <Route path="/career-coach" element={<CareerCoachPage />} />
-            <Route path="/career-explorer" element={<CareerExplorer />} />
-            <Route path="/market-trends" element={<MarketTrends />} />
-            <Route path="/policy" element={<PolicyVisualizer />} />
-            <Route path="/settings" element={<Settings />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/try" element={<TryUs />} />
-            
-            {/* Admin Routes */}
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<AdminOverview />} />
-              <Route path="documents" element={<AdminDocuments />} />
-              <Route path="users" element={<UserManagement />} />
-              <Route path="activity" element={<ActivityLogs />} />
-              <Route path="sessions" element={<SessionsManagement />} />
-              <Route path="security" element={<SecurityAlerts />} />
-              <Route path="access" element={<AccessControl />} />
-              <Route path="audit" element={<AuditTrail />} />
-              <Route path="settings" element={<AdminSettings />} />
-              <Route path="prompts" element={<ChatPrompts />} />
+
+            <Route element={<ProtectedLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/upload" element={<ResumeBuilder />} />
+              <Route path="/analysis" element={<Analysis />} />
+              <Route path="/editor" element={<Editor />} />
+              <Route path="/rewrite" element={<Rewrite />} />
+              <Route path="/cover-letter" element={<CoverLetter />} />
+              <Route path="/tracker" element={<JobTracker />} />
+              <Route path="/templates" element={<TemplateBuilder />} />
+              <Route path="/builder" element={<ResumeBuilder />} />
+              <Route path="/my-resumes" element={<MyResumes />} />
+              <Route path="/interview-prep" element={<InterviewPrep />} />
+              <Route path="/au-jobs" element={<AustralianJobs />} />
+              <Route path="/job-market-news" element={<JobMarketNews />} />
+              <Route path="/playground" element={<Playground />} />
+              <Route path="/intelligence" element={<IntelligenceOverview />} />
+              <Route path="/career-coach" element={<CareerCoachPage />} />
+              <Route path="/career-explorer" element={<CareerExplorer />} />
+              <Route path="/market-trends" element={<MarketTrends />} />
+              <Route path="/policy" element={<PolicyVisualizer />} />
+              <Route path="/settings" element={<Settings />} />
+
+              {/* Admin Routes */}
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminOverview />} />
+                <Route path="documents" element={<AdminDocuments />} />
+                <Route path="users" element={<UserManagement />} />
+                <Route path="activity" element={<ActivityLogs />} />
+                <Route path="sessions" element={<SessionsManagement />} />
+                <Route path="security" element={<SecurityAlerts />} />
+                <Route path="access" element={<AccessControl />} />
+                <Route path="audit" element={<AuditTrail />} />
+                <Route path="settings" element={<AdminSettings />} />
+                <Route path="prompts" element={<ChatPrompts />} />
+              </Route>
             </Route>
             
             <Route path="*" element={<NotFound />} />

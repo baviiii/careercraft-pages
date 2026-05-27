@@ -1,215 +1,139 @@
-/**
- * ============================================================================
- * PROMPT GENERATOR - AI-Assisted Prompt Generation for RAG Systems
- * ============================================================================
- * 
- * Uses Gemini 2.5 Flash to generate and improve AI system prompts for
- * different focus areas (careers, policies, funding, etc.)
- * 
- * Features:
- * - Generate new prompts from scratch
- * - Improve existing prompts
- * - Optimize for specific focus areas
- * - Include best practices (citations, accuracy, tone)
- * ============================================================================
- */
+// generate-prompt — AI-assisted system-prompt authoring for RAG assistants.
+//
+// Actions:
+//   generate         → produce a new system prompt from focus area + description
+//   improve          → take a current prompt and return an improved version with notes
+//   generate_guided  → produce a prompt from full wizard data (audience, tone, citations, …)
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { generateObject, generateText } from "npm:ai@4";
+import { z } from "npm:zod@3";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
+import { handler, json } from "../_shared/http/responses.ts";
 
-const AI_MODEL = "google/gemini-2.5-flash";
-const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "google/gemini-2.5-flash";
 
-interface WizardData {
-  name: string;
-  focusArea: string;
-  customFocusArea: string;
-  targetAudience: string;
-  audienceExpertise: 'beginner' | 'intermediate' | 'expert' | 'mixed';
-  audienceGoals: string[];
-  customGoals: string;
-  tone: string[];
-  responseLength: 'concise' | 'detailed' | 'adaptive';
-  personality: string;
-  topicFocus: string;
-  mustInclude: string[];
-  mustAvoid: string[];
-  customMustInclude: string;
-  customMustAvoid: string;
-  citationStyle: 'strict' | 'moderate' | 'flexible';
-  accuracyLevel: 'high' | 'very_high' | 'absolute';
-  sourcePreferences: string[];
-  specialInstructions: string;
-  exampleQuestions: string;
-  desiredOutcomes: string;
-}
+const WizardDataSchema = z.object({
+  name: z.string(),
+  focusArea: z.string(),
+  customFocusArea: z.string().default(""),
+  targetAudience: z.string(),
+  audienceExpertise: z.enum(["beginner", "intermediate", "expert", "mixed"]),
+  audienceGoals: z.array(z.string()).default([]),
+  customGoals: z.string().default(""),
+  tone: z.array(z.string()).default([]),
+  responseLength: z.enum(["concise", "detailed", "adaptive"]),
+  personality: z.string().default(""),
+  topicFocus: z.string().default(""),
+  mustInclude: z.array(z.string()).default([]),
+  mustAvoid: z.array(z.string()).default([]),
+  customMustInclude: z.string().default(""),
+  customMustAvoid: z.string().default(""),
+  citationStyle: z.enum(["strict", "moderate", "flexible"]),
+  accuracyLevel: z.enum(["high", "very_high", "absolute"]),
+  sourcePreferences: z.array(z.string()).default([]),
+  specialInstructions: z.string().default(""),
+  exampleQuestions: z.string().default(""),
+  desiredOutcomes: z.string().default(""),
+});
 
-interface GeneratePromptRequest {
-  action: 'generate' | 'improve' | 'generate_guided';
-  focus_area?: string;
-  description?: string;
-  current_prompt?: string;
-  requirements?: string[];
-  wizard_data?: WizardData;
-}
+const RequestSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("generate"),
+    focus_area: z.string().min(1),
+    description: z.string().optional(),
+    requirements: z.array(z.string()).optional(),
+  }),
+  z.object({
+    action: z.literal("improve"),
+    focus_area: z.string().min(1),
+    current_prompt: z.string().min(1),
+    description: z.string().optional(),
+    requirements: z.array(z.string()).optional(),
+  }),
+  z.object({
+    action: z.literal("generate_guided"),
+    wizard_data: WizardDataSchema,
+  }),
+]);
 
-interface PromptResponse {
-  prompt: string;
-  explanation?: string;
-  suggestions?: string[];
-}
+type GenRequest = z.infer<typeof RequestSchema>;
 
-serve(async (req) => {
+const ImprovedPromptSchema = z.object({
+  prompt: z.string().describe("The improved system prompt text"),
+  explanation: z.string().describe("Brief explanation of key improvements"),
+  suggestions: z.array(z.string()).describe("Specific follow-up suggestions").max(10),
+});
+
+serve(handler(async (req) => {
   const startTime = Date.now();
 
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  const raw = await req.json().catch(() => null);
+  const parsed = RequestSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid request body", parsed.error.flatten());
   }
+  const body = parsed.data;
+
+  const lovable = getLovableGateway();
 
   try {
-    const body: GeneratePromptRequest = await req.json();
-    const { action, focus_area, description, current_prompt, requirements, wizard_data } = body;
+    if (body.action === "improve") {
+      const { system, user } = improvePrompts(body);
+      const { object } = await generateObject({
+        model: lovable(MODEL),
+        schema: ImprovedPromptSchema,
+        schemaName: "ImprovedPrompt",
+        system,
+        prompt: user,
+        temperature: 0.7,
+        maxTokens: 2000,
+      });
 
-    // Validate action
-    if (!action || (action !== 'generate' && action !== 'improve' && action !== 'generate_guided')) {
-      return new Response(
-        JSON.stringify({ error: "Invalid action. Must be 'generate', 'improve', or 'generate_guided'" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json({
+        prompt: object.prompt,
+        explanation: object.explanation,
+        suggestions: object.suggestions,
+        processingTime: Date.now() - startTime,
+      });
     }
 
-    // For guided generation, wizard_data is required
-    if (action === 'generate_guided' && !wizard_data) {
-      return new Response(
-        JSON.stringify({ error: "wizard_data is required for 'generate_guided' action" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const { system, user } = body.action === "generate_guided"
+      ? guidedPrompts(body.wizard_data)
+      : generatePrompts(body);
 
-    if (action !== 'generate_guided' && !focus_area) {
-      return new Response(
-        JSON.stringify({ error: "focus_area is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const { text } = await generateText({
+      model: lovable(MODEL),
+      system,
+      prompt: user,
+      temperature: 0.7,
+      maxTokens: 2000,
+    });
 
-    // Get API key
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
-      return new Response(
-        JSON.stringify({ error: "AI service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    return json({
+      prompt: text.trim(),
+      processingTime: Date.now() - startTime,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ProviderError(`Prompt generation failed: ${msg}`, "lovable");
+  }
+}, { name: "generate-prompt" }));
 
-    // Build system prompt based on action
-    let systemPrompt: string;
-    let userPrompt: string;
+// ----- Prompt builders -----
 
-    if (action === 'generate_guided' && wizard_data) {
-      // Advanced guided generation using structured wizard data
-      systemPrompt = `You are a world-class expert at writing AI system prompts for RAG (Retrieval-Augmented Generation) systems.
-
-Your task is to transform the user's structured requirements into a powerful, professional system prompt that will guide an AI assistant to provide excellent responses using retrieved documents.
-
-CRITICAL REQUIREMENTS FOR THE GENERATED PROMPT:
-1. It MUST include strict citation requirements using [Source X] format
-2. It MUST define clear accuracy and fact-checking guidelines
-3. It MUST be optimized for RAG - meaning it should instruct the AI to base ALL responses on the provided context/documents
-4. It MUST include response structure guidelines
-5. It should be comprehensive yet concise - no fluff, every sentence should serve a purpose
-6. It should be written in second person ("You are...", "You should...")
-
-The prompt you generate should:
-- Start with a clear role definition
-- Include specific guidelines for citation and accuracy based on user preferences
-- Set the appropriate tone and conversation style
-- Include topic focus and boundaries
-- Have clear structure guidelines for responses
-- End with a reminder about accuracy and source-based responses
-
-OUTPUT: Return ONLY the system prompt text. No explanations, no markdown formatting, no prefixes like "Here is your prompt:". Just the raw prompt text ready to be used.`;
-
-      // Build comprehensive user prompt from wizard data
-      const expertiseMap = {
-        beginner: 'new to the topic and need explanations of basic concepts',
-        intermediate: 'have some knowledge and understand basics',
-        expert: 'deeply knowledgeable and want advanced insights',
-        mixed: 'vary in expertise level, so adapt explanations accordingly',
-      };
-
-      const citationMap = {
-        strict: 'EVERY factual claim must have a [Source X] citation. No exceptions.',
-        moderate: 'Key facts and statistics need citations, but general context can flow naturally.',
-        flexible: 'Major claims should be cited, but maintain conversational flow.',
-      };
-
-      const accuracyMap = {
-        absolute: 'Only state facts that can be directly cited from sources. Say "I don\'t have information on that" if uncertain. Never infer or assume.',
-        very_high: 'Strong preference for cited facts. Can make reasonable inferences but must indicate when doing so.',
-        high: 'Prioritize accuracy but allow helpful context and general knowledge to supplement sources.',
-      };
-
-      const responseLengthMap = {
-        concise: 'Keep responses brief and to-the-point. Focus on key information.',
-        detailed: 'Provide comprehensive explanations with full context and background.',
-        adaptive: 'Match response length to question complexity - brief for simple questions, detailed for complex ones.',
-      };
-
-      userPrompt = `Generate a professional RAG system prompt based on these detailed requirements:
-
-=== BASIC INFORMATION ===
-Focus Area: ${wizard_data.focusArea}
-Prompt Name: ${wizard_data.name}
-
-=== TARGET AUDIENCE ===
-Who they are: ${wizard_data.targetAudience}
-Expertise Level: Users ${expertiseMap[wizard_data.audienceExpertise]}
-${wizard_data.audienceGoals.length > 0 ? `Goals: ${wizard_data.audienceGoals.join(', ')}` : ''}
-${wizard_data.customGoals ? `Additional Goals: ${wizard_data.customGoals}` : ''}
-
-=== CONVERSATION STYLE ===
-Tone: ${wizard_data.tone.join(', ')}
-Response Length: ${responseLengthMap[wizard_data.responseLength]}
-${wizard_data.personality ? `Personality/Character: ${wizard_data.personality}` : ''}
-
-=== CONTENT REQUIREMENTS ===
-Topic Focus: ${wizard_data.topicFocus}
-${wizard_data.sourcePreferences.length > 0 ? `Preferred Sources: ${wizard_data.sourcePreferences.join(', ')}` : ''}
-${wizard_data.customMustInclude ? `Must Include: ${wizard_data.customMustInclude}` : ''}
-${wizard_data.customMustAvoid ? `Must Avoid: ${wizard_data.customMustAvoid}` : ''}
-
-=== ACCURACY & CITATIONS (CRITICAL FOR RAG) ===
-Citation Style: ${citationMap[wizard_data.citationStyle]}
-Accuracy Level: ${accuracyMap[wizard_data.accuracyLevel]}
-
-=== SPECIAL INSTRUCTIONS ===
-${wizard_data.specialInstructions || 'None provided'}
-
-=== EXAMPLE USER QUESTIONS (for context) ===
-${wizard_data.exampleQuestions || 'None provided'}
-
-=== DESIRED OUTCOMES ===
-${wizard_data.desiredOutcomes || 'Help users get accurate, actionable information'}
-
-Generate a comprehensive, production-ready system prompt that incorporates ALL of these requirements. The prompt should be powerful enough to make the AI assistant highly effective at using RAG-retrieved documents to help users achieve their goals.`;
-
-    } else if (action === 'generate') {
-      systemPrompt = `You are an expert at writing AI system prompts for RAG (Retrieval-Augmented Generation) systems.
+function generatePrompts(body: Extract<GenRequest, { action: "generate" }>) {
+  const system = `You are an expert at writing AI system prompts for RAG (Retrieval-Augmented Generation) systems.
 
 Your prompts must:
 1. Clearly define the AI's role and expertise
 2. Include strict citation requirements ([Source X] format)
 3. Set appropriate tone and conversation style
-4. Emphasize accuracy and fact-checking
+4. Emphasise accuracy and fact-checking
 5. Include structure guidelines for responses
-6. Be optimized for the specific focus area
+6. Be optimised for the specific focus area
 
 Focus areas:
 - careers: Career guidance, job advice, training programs
@@ -219,146 +143,119 @@ Focus areas:
 
 Return ONLY the system prompt text, no explanations or markdown formatting.`;
 
-      userPrompt = `Generate a professional system prompt for a RAG-based AI assistant focused on: ${focus_area}
+  const user = [
+    `Generate a professional system prompt for a RAG-based AI assistant focused on: ${body.focus_area}`,
+    body.description ? `\nUser's description: ${body.description}` : "",
+    body.requirements?.length
+      ? `\nAdditional requirements:\n${body.requirements.map((r) => `- ${r}`).join("\n")}`
+      : "",
+    "\nCreate a comprehensive, professional prompt that will guide the AI to provide accurate, helpful responses with proper source citations.",
+  ].join("");
 
-${description ? `User's description: ${description}\n` : ''}
-${requirements && requirements.length > 0 ? `Additional requirements:\n${requirements.map(r => `- ${r}`).join('\n')}\n` : ''}
+  return { system, user };
+}
 
-Create a comprehensive, professional prompt that will guide the AI to provide accurate, helpful responses with proper source citations.`;
+function improvePrompts(body: Extract<GenRequest, { action: "improve" }>) {
+  const system = `You are an expert at improving AI system prompts for RAG systems.
 
-    } else {
-      // improve action
-      if (!current_prompt) {
-        return new Response(
-          JSON.stringify({ error: "current_prompt is required for 'improve' action" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      systemPrompt = `You are an expert at improving AI system prompts for RAG systems.
-
-Analyze the provided prompt and suggest improvements while maintaining its core purpose.
-Focus on:
+Analyse the provided prompt and suggest improvements while maintaining its core purpose. Focus on:
 - Clarity and specificity
 - Citation requirements
 - Tone and style
 - Accuracy guidelines
 - Response structure
-- Best practices for RAG systems
+- Best practices for RAG systems`;
 
-Return a JSON object with:
-{
-  "prompt": "The improved prompt text",
-  "explanation": "Brief explanation of key improvements",
-  "suggestions": ["suggestion1", "suggestion2", "suggestion3"]
-}`;
+  const user = [
+    `Improve this system prompt for focus area: ${body.focus_area}`,
+    `\nCurrent prompt:\n${body.current_prompt}`,
+    body.description ? `\nUser's feedback/requirements: ${body.description}` : "",
+    body.requirements?.length
+      ? `\nAdditional requirements:\n${body.requirements.map((r) => `- ${r}`).join("\n")}`
+      : "",
+    "\nProvide an improved version that's clearer, more effective, and follows RAG best practices.",
+  ].join("");
 
-      userPrompt = `Improve this system prompt for focus area: ${focus_area}
+  return { system, user };
+}
 
-Current prompt:
-${current_prompt}
+const expertiseMap: Record<z.infer<typeof WizardDataSchema>["audienceExpertise"], string> = {
+  beginner: "new to the topic and need explanations of basic concepts",
+  intermediate: "have some knowledge and understand basics",
+  expert: "deeply knowledgeable and want advanced insights",
+  mixed: "vary in expertise level, so adapt explanations accordingly",
+};
 
-${description ? `User's feedback/requirements: ${description}\n` : ''}
-${requirements && requirements.length > 0 ? `Additional requirements:\n${requirements.map(r => `- ${r}`).join('\n')}\n` : ''}
+const citationMap: Record<z.infer<typeof WizardDataSchema>["citationStyle"], string> = {
+  strict: "EVERY factual claim must have a [Source X] citation. No exceptions.",
+  moderate: "Key facts and statistics need citations, but general context can flow naturally.",
+  flexible: "Major claims should be cited, but maintain conversational flow.",
+};
 
-Provide an improved version that's clearer, more effective, and follows RAG best practices.`;
-    }
+const accuracyMap: Record<z.infer<typeof WizardDataSchema>["accuracyLevel"], string> = {
+  absolute: 'Only state facts that can be directly cited from sources. Say "I don\'t have information on that" if uncertain. Never infer or assume.',
+  very_high: "Strong preference for cited facts. Can make reasonable inferences but must indicate when doing so.",
+  high: "Prioritise accuracy but allow helpful context and general knowledge to supplement sources.",
+};
 
-    // Call Gemini AI
-    const response = await fetch(AI_GATEWAY, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        response_format: action === 'improve' ? { type: "json_object" } : undefined,
-        temperature: 0.7,
-        max_tokens: 2000,
-      }),
-    });
+const responseLengthMap: Record<z.infer<typeof WizardDataSchema>["responseLength"], string> = {
+  concise: "Keep responses brief and to-the-point. Focus on key information.",
+  detailed: "Provide comprehensive explanations with full context and background.",
+  adaptive: "Match response length to question complexity - brief for simple questions, detailed for complex ones.",
+};
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+function guidedPrompts(w: z.infer<typeof WizardDataSchema>) {
+  const system = `You are a world-class expert at writing AI system prompts for RAG (Retrieval-Augmented Generation) systems.
 
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+Your task is to transform the user's structured requirements into a powerful, professional system prompt that will guide an AI assistant to provide excellent responses using retrieved documents.
 
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please contact support." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+CRITICAL REQUIREMENTS FOR THE GENERATED PROMPT:
+1. It MUST include strict citation requirements using [Source X] format
+2. It MUST define clear accuracy and fact-checking guidelines
+3. It MUST be optimised for RAG — meaning it should instruct the AI to base ALL responses on the provided context/documents
+4. It MUST include response structure guidelines
+5. It should be comprehensive yet concise — no fluff, every sentence should serve a purpose
+6. It should be written in second person ("You are...", "You should...")
 
-      return new Response(
-        JSON.stringify({ error: "AI service error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+OUTPUT: Return ONLY the system prompt text. No explanations, no markdown formatting, no prefixes like "Here is your prompt:". Just the raw prompt text ready to be used.`;
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+  const user = `Generate a professional RAG system prompt based on these detailed requirements:
 
-    if (!content) {
-      return new Response(
-        JSON.stringify({ error: "Empty response from AI" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+=== BASIC INFORMATION ===
+Focus Area: ${w.focusArea}
+Prompt Name: ${w.name}
 
-    // Parse response
-    let result: PromptResponse;
+=== TARGET AUDIENCE ===
+Who they are: ${w.targetAudience}
+Expertise Level: Users ${expertiseMap[w.audienceExpertise]}
+${w.audienceGoals.length > 0 ? `Goals: ${w.audienceGoals.join(", ")}` : ""}
+${w.customGoals ? `Additional Goals: ${w.customGoals}` : ""}
 
-    if (action === 'improve') {
-      try {
-        result = JSON.parse(content);
-      } catch {
-        // If JSON parsing fails, wrap as prompt
-        result = {
-          prompt: content,
-          explanation: "AI provided improved prompt",
-        };
-      }
-    } else {
-      // For generate, content is the prompt itself
-      result = {
-        prompt: content.trim(),
-      };
-    }
+=== CONVERSATION STYLE ===
+Tone: ${w.tone.join(", ")}
+Response Length: ${responseLengthMap[w.responseLength]}
+${w.personality ? `Personality/Character: ${w.personality}` : ""}
 
-    return new Response(
-      JSON.stringify({
-        ...result,
-        processingTime: Date.now() - startTime,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
-    );
+=== CONTENT REQUIREMENTS ===
+Topic Focus: ${w.topicFocus}
+${w.sourcePreferences.length > 0 ? `Preferred Sources: ${w.sourcePreferences.join(", ")}` : ""}
+${w.customMustInclude ? `Must Include: ${w.customMustInclude}` : ""}
+${w.customMustAvoid ? `Must Avoid: ${w.customMustAvoid}` : ""}
 
-  } catch (error) {
-    console.error("Error in generate-prompt:", error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500,
-      }
-    );
-  }
-});
+=== ACCURACY & CITATIONS (CRITICAL FOR RAG) ===
+Citation Style: ${citationMap[w.citationStyle]}
+Accuracy Level: ${accuracyMap[w.accuracyLevel]}
 
+=== SPECIAL INSTRUCTIONS ===
+${w.specialInstructions || "None provided"}
+
+=== EXAMPLE USER QUESTIONS (for context) ===
+${w.exampleQuestions || "None provided"}
+
+=== DESIRED OUTCOMES ===
+${w.desiredOutcomes || "Help users get accurate, actionable information"}
+
+Generate a comprehensive, production-ready system prompt that incorporates ALL of these requirements.`;
+
+  return { system, user };
+}

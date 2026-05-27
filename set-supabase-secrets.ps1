@@ -42,6 +42,13 @@ Write-Host "📝 Setting Supabase secrets..." -ForegroundColor Green
 supabase secrets set "SUPABASE_URL=$env:SUPABASE_URL"
 supabase secrets set "SUPABASE_SERVICE_ROLE_KEY=$env:SUPABASE_SERVICE_ROLE_KEY"
 
+Write-Host "📝 Setting Anthropic Claude API key..." -ForegroundColor Green
+if ($env:ANTHROPIC_API_KEY) {
+    supabase secrets set "ANTHROPIC_API_KEY=$env:ANTHROPIC_API_KEY"
+} else {
+    Write-Host "⚠️  ANTHROPIC_API_KEY not found in .env — onboard-analyze will fail until set" -ForegroundColor Yellow
+}
+
 Write-Host "📝 Setting optional API keys..." -ForegroundColor Green
 if ($env:LOVABLE_API_KEY) {
     supabase secrets set "LOVABLE_API_KEY=$env:LOVABLE_API_KEY"

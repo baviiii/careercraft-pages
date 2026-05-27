@@ -39,6 +39,13 @@ echo "📝 Setting Supabase secrets..."
 supabase secrets set SUPABASE_URL="$SUPABASE_URL"
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
 
+echo "📝 Setting Anthropic Claude API key..."
+if [ ! -z "$ANTHROPIC_API_KEY" ]; then
+    supabase secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+else
+    echo "⚠️  ANTHROPIC_API_KEY not found in .env — onboard-analyze will fail until set"
+fi
+
 echo "📝 Setting optional API keys..."
 if [ ! -z "$LOVABLE_API_KEY" ]; then
     supabase secrets set LOVABLE_API_KEY="$LOVABLE_API_KEY"

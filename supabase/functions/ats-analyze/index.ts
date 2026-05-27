@@ -1,9 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { generateObject, generateText } from "npm:ai@4";
+import { z } from "npm:zod@3";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { ValidationError } from "../_shared/ai/errors.ts";
+import { handler, json } from "../_shared/http/responses.ts";
 
 // Enhanced validation with item counting and content preservation
 function validateRewriteResponse(rewrittenText: string, originalText: string): {
@@ -198,6 +199,37 @@ const SECTION_ORDER = [
   "AWARDS", "VOLUNTEER", "PUBLICATIONS"
 ];
 
+const AtsAnalysisSchema = z.object({
+  overallScore: z.number(),
+  subScores: z.object({
+    skillsMatch: z.number(),
+    experienceMatch: z.number(),
+    keywordMatch: z.number(),
+    formatCompatibility: z.number(),
+  }),
+  jobRequirements: z.record(z.any()),
+  resumeKeywords: z.record(z.any()),
+  writingQuality: z.record(z.any()),
+  redFlags: z.array(z.any()),
+  improvements: z.record(z.any()),
+  summary: z.record(z.any()),
+});
+
+const StructuredResumeSchema = z.object({
+  contact: z.record(z.any()),
+  summary: z.string(),
+  experience: z.array(z.record(z.any())).default([]),
+  education: z.array(z.record(z.any())).default([]),
+  skills: z.array(z.string()).default([]),
+  certifications: z.array(z.record(z.any())).default([]),
+  projects: z.array(z.record(z.any())).default([]),
+  references: z.array(z.record(z.any())).default([]),
+  languages: z.array(z.record(z.any())).default([]),
+  awards: z.array(z.record(z.any())).default([]),
+  volunteer: z.array(z.record(z.any())).default([]),
+  publications: z.array(z.record(z.any())).default([]),
+});
+
 /**
  * Parse resume text into named sections.
  * Returns a Map of section name -> section content (including the header line).
@@ -291,23 +323,16 @@ function mergeMissingSections(
   return { mergedText, recoveredSections };
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(handler(async (req) => {
   try {
     const { resumeText, jobDescription, analysisType, resumeData, analysisContext } = await req.json();
     
     if ((!resumeText && !resumeData) || !jobDescription) {
-      return new Response(
-        JSON.stringify({ error: "Missing resume or job description" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      throw new ValidationError("Missing resume or job description");
     }
 
     // Parse analysis context if provided
-    let parsedAnalysisContext = null;
+    let parsedAnalysisContext: any = null;
     if (analysisContext) {
       try {
         parsedAnalysisContext = typeof analysisContext === 'string' ? JSON.parse(analysisContext) : analysisContext;
@@ -316,18 +341,10 @@ serve(async (req) => {
       }
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not found");
-      return new Response(
-        JSON.stringify({ error: "AI service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const lovable = getLovableGateway();
 
     let systemPrompt = "";
     let userPrompt = "";
-    let toolConfig = null;
 
     if (analysisType === "full-analysis") {
       systemPrompt = `You are an Enterprise-grade ATS Resume Analyzer & Optimizer Engine trained on top recruitment systems (Greenhouse, Lever, Workday, Taleo, BambooHR, Seek, LinkedIn Talent Insights). You evaluate resumes + job descriptions, simulate an ATS scan, and produce a complete breakdown.`;
@@ -342,131 +359,6 @@ ${resumeText}
 
 Provide a detailed analysis covering all aspects.`;
 
-      toolConfig = {
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "provide_ats_analysis",
-              description: "Provide comprehensive ATS analysis results",
-              parameters: {
-                type: "object",
-                properties: {
-                  overallScore: { 
-                    type: "number", 
-                    description: "Overall ATS score 0-100" 
-                  },
-                  subScores: {
-                    type: "object",
-                    properties: {
-                      skillsMatch: { type: "number", description: "Skills match percentage 0-100" },
-                      experienceMatch: { type: "number", description: "Experience match percentage 0-100" },
-                      keywordMatch: { type: "number", description: "Keyword match percentage 0-100" },
-                      formatCompatibility: { type: "number", description: "ATS format compatibility 0-100" }
-                    },
-                    required: ["skillsMatch", "experienceMatch", "keywordMatch", "formatCompatibility"]
-                  },
-                  jobRequirements: {
-                    type: "object",
-                    properties: {
-                      mandatorySkills: { type: "array", items: { type: "string" } },
-                      preferredSkills: { type: "array", items: { type: "string" } },
-                      technicalKeywords: { type: "array", items: { type: "string" } },
-                      softSkills: { type: "array", items: { type: "string" } },
-                      requiredExperience: { type: "string" },
-                      tools: { type: "array", items: { type: "string" } },
-                      certifications: { type: "array", items: { type: "string" } }
-                    },
-                    required: ["mandatorySkills", "preferredSkills", "technicalKeywords", "softSkills", "requiredExperience", "tools", "certifications"]
-                  },
-                  resumeKeywords: {
-                    type: "object",
-                    properties: {
-                      matched: { type: "array", items: { type: "string" } },
-                      missing: { type: "array", items: { type: "string" } },
-                      underRepresented: { type: "array", items: { type: "string" } },
-                      overused: { type: "array", items: { type: "string" } }
-                    },
-                    required: ["matched", "missing", "underRepresented", "overused"]
-                  },
-                  writingQuality: {
-                    type: "object",
-                    properties: {
-                      grammarScore: { type: "number", description: "Score out of 10" },
-                      impactLanguageScore: { type: "number", description: "Score out of 10" },
-                      metricsUsageScore: { type: "number", description: "Score out of 10" },
-                      actionVerbsScore: { type: "number", description: "Score out of 10" },
-                      clarityScore: { type: "number", description: "Score out of 10" },
-                      structureScore: { type: "number", description: "Score out of 10" }
-                    },
-                    required: ["grammarScore", "impactLanguageScore", "metricsUsageScore", "actionVerbsScore", "clarityScore", "structureScore"]
-                  },
-                  redFlags: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        type: { type: "string" },
-                        severity: { type: "string", enum: ["critical", "warning", "minor"] },
-                        description: { type: "string" },
-                        location: { type: "string" }
-                      },
-                      required: ["type", "severity", "description", "location"]
-                    }
-                  },
-                  improvements: {
-                    type: "object",
-                    properties: {
-                      quickFixes: { 
-                        type: "array", 
-                        items: { 
-                          type: "object",
-                          properties: {
-                            issue: { type: "string" },
-                            fix: { type: "string" }
-                          },
-                          required: ["issue", "fix"]
-                        }
-                      },
-                      strongEnhancements: {
-                        type: "array",
-                        items: {
-                          type: "object",
-                          properties: {
-                            section: { type: "string" },
-                            current: { type: "string" },
-                            improved: { type: "string" },
-                            impact: { type: "string" }
-                          },
-                          required: ["section", "current", "improved", "impact"]
-                        }
-                      },
-                      advancedOptimizations: {
-                        type: "array",
-                        items: { type: "string" }
-                      }
-                    },
-                    required: ["quickFixes", "strongEnhancements", "advancedOptimizations"]
-                  },
-                  summary: {
-                    type: "object",
-                    properties: {
-                      topStrengths: { type: "array", items: { type: "string" }, maxItems: 3 },
-                      topWeaknesses: { type: "array", items: { type: "string" }, maxItems: 3 },
-                      mostImportantFixes: { type: "array", items: { type: "string" }, maxItems: 3 },
-                      overallVerdict: { type: "string" }
-                    },
-                    required: ["topStrengths", "topWeaknesses", "mostImportantFixes", "overallVerdict"]
-                  }
-                },
-                required: ["overallScore", "subScores", "jobRequirements", "resumeKeywords", "writingQuality", "redFlags", "improvements", "summary"],
-                additionalProperties: false
-              }
-            }
-          }
-        ],
-        tool_choice: { type: "function", function: { name: "provide_ats_analysis" } }
-      };
     } else if (analysisType === "auto-rewrite") {
       systemPrompt = `You are a human job applicant rewriting your own resume.
 You are NOT a career coach, NOT a marketer, and NOT an AI assistant.
@@ -585,7 +477,7 @@ Only output the final rewritten resume content. No explanations or commentary.`;
         const ctx = parsedAnalysisContext;
         criticalIssues = ctx.redFlags?.filter((f: any) => f.severity === 'critical').map((f: any) => `${f.type}: ${f.description}`).join('; ') || 'None';
         missingKeywords = ctx.resumeKeywords?.missing?.slice(0, 15).join(', ') || 'None';
-        const issues = [];
+        const issues: string[] = [];
         if (ctx.writingQuality?.actionVerbsScore < 7) issues.push(`Action verbs (${ctx.writingQuality.actionVerbsScore}/10)`);
         if (ctx.writingQuality?.metricsUsageScore < 7) issues.push(`Metrics usage (${ctx.writingQuality.metricsUsageScore}/10)`);
         if (ctx.writingQuality?.impactLanguageScore < 7) issues.push(`Impact language (${ctx.writingQuality.impactLanguageScore}/10)`);
@@ -1043,245 +935,38 @@ Quality Check:
 
 RETURN: ONLY valid JSON with the same structure but improved content. No explanations, no commentary, just the JSON.`;
 
-      toolConfig = {
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "return_optimized_resume",
-              description: "Return the optimized resume in structured JSON format",
-              parameters: {
-                type: "object",
-                properties: {
-                  contact: {
-                    type: "object",
-                    properties: {
-                      name: { type: "string" },
-                      email: { type: "string" },
-                      phone: { type: "string" },
-                      location: { type: "string" },
-                      linkedin: { type: "string" },
-                      website: { type: "string" }
-                    }
-                  },
-                  summary: { type: "string", description: "Optimized professional summary" },
-                  experience: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        title: { type: "string" },
-                        company: { type: "string" },
-                        location: { type: "string" },
-                        startDate: { type: "string" },
-                        endDate: { type: "string" },
-                        current: { type: "boolean" },
-                        bullets: { type: "array", items: { type: "string" }, description: "Optimized achievement bullets with metrics" }
-                      }
-                    }
-                  },
-                  education: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        degree: { type: "string" },
-                        school: { type: "string" },
-                        location: { type: "string" },
-                        graduationDate: { type: "string" },
-                        gpa: { type: "string" }
-                      }
-                    }
-                  },
-                  skills: { type: "array", items: { type: "string" }, description: "Skills prioritized by job relevance" },
-                  certifications: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        name: { type: "string" },
-                        issuer: { type: "string" },
-                        date: { type: "string" },
-                        expiryDate: { type: "string" }
-                      }
-                    }
-                  },
-                  projects: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        name: { type: "string" },
-                        description: { type: "string" },
-                        technologies: { type: "array", items: { type: "string" } }
-                      }
-                    }
-                  },
-                  references: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        name: { type: "string" },
-                        title: { type: "string" },
-                        company: { type: "string" },
-                        phone: { type: "string" },
-                        email: { type: "string" },
-                        relationship: { type: "string" }
-                      }
-                    }
-                  },
-                  languages: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        language: { type: "string" },
-                        proficiency: { type: "string" }
-                      }
-                    }
-                  },
-                  awards: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        title: { type: "string" },
-                        issuer: { type: "string" },
-                        date: { type: "string" },
-                        description: { type: "string" }
-                      }
-                    }
-                  },
-                  volunteer: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        role: { type: "string" },
-                        organization: { type: "string" },
-                        location: { type: "string" },
-                        startDate: { type: "string" },
-                        endDate: { type: "string" },
-                        current: { type: "boolean" },
-                        description: { type: "string" }
-                      }
-                    }
-                  },
-                  publications: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        id: { type: "string" },
-                        title: { type: "string" },
-                        publisher: { type: "string" },
-                        date: { type: "string" },
-                        url: { type: "string" },
-                        description: { type: "string" }
-                      }
-                    }
-                  }
-                },
-                required: ["contact", "summary", "experience", "education", "skills"]
-              }
-            }
-          }
-        ],
-        tool_choice: { type: "function", function: { name: "return_optimized_resume" } }
-      };
     }
 
     // Get model from environment or use default
     const REWRITE_MODEL = Deno.env.get('REWRITE_MODEL') || 'google/gemini-2.5-flash';
-    const model = analysisType === "auto-rewrite" || analysisType === "rewrite-structured" ? REWRITE_MODEL : "google/gemini-2.5-flash";
-    
-    const requestBody: any = {
-      model: model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    };
-
-    // Add max_tokens for rewrite operations to ensure complete output
-    if (analysisType === "auto-rewrite" || analysisType === "rewrite-experience" || analysisType === "generate-achievements" || analysisType === "generate-summaries") {
-      requestBody.max_tokens = 8000; // Ensure full resume output
-      requestBody.temperature = 0.7; // Balance creativity and consistency
-    }
-
-    if (toolConfig) {
-      requestBody.tools = toolConfig.tools;
-      requestBody.tool_choice = toolConfig.tool_choice;
-    }
+    const model = analysisType === "auto-rewrite" || analysisType === "rewrite-structured"
+      ? REWRITE_MODEL
+      : "google/gemini-2.5-flash";
+    const modelHandle = lovable(model);
 
     console.log(`Processing ${analysisType} request`);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI API error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ error: "AI service error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const data = await response.json();
-    console.log("AI response received");
-
     if (analysisType === "full-analysis") {
-      // Extract structured data from tool call
-      const toolCall = data.choices[0].message.tool_calls?.[0];
-      if (toolCall && toolCall.function) {
-        const analysisResult = JSON.parse(toolCall.function.arguments);
-        return new Response(
-          JSON.stringify({ analysis: analysisResult }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      } else {
-        // Fallback if no tool call
-        return new Response(
-          JSON.stringify({ error: "Failed to parse analysis" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      const { object: analysisResult } = await generateObject({
+        model: modelHandle,
+        schema: AtsAnalysisSchema,
+        schemaName: "AtsAnalysis",
+        system: systemPrompt,
+        prompt: userPrompt,
+        temperature: 0.3,
+        maxTokens: 6000,
+      });
+      return json({ analysis: analysisResult });
     } else if (analysisType === "rewrite-structured") {
-      // Extract structured resume data from tool call
-      const toolCall = data.choices[0].message.tool_calls?.[0];
-      if (toolCall && toolCall.function) {
-        const optimizedResume = JSON.parse(toolCall.function.arguments);
+      const { object: optimizedResume } = await generateObject({
+        model: modelHandle,
+        schema: StructuredResumeSchema,
+        schemaName: "StructuredResume",
+        system: systemPrompt,
+        prompt: userPrompt,
+        temperature: 0.7,
+        maxTokens: 10000,
+      });
 
         // Parse original data for validation and recovery
         const warnings: string[] = [];
@@ -1378,32 +1063,33 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         // Return with recovery info
         if (warnings.length > 0 || recoveredSections.length > 0) {
           console.warn("Structured rewrite validation - warnings:", warnings, "recovered:", recoveredSections);
-          return new Response(
-            JSON.stringify({
-              result: optimizedResume,
-              recoveredSections,
-              warning: recoveredSections.length > 0
-                ? `Preserved from your original resume: ${recoveredSections.join(", ")}`
-                : "Data preservation issues detected: " + warnings.join("; "),
-              validationWarnings: warnings,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return json({
+            result: optimizedResume,
+            recoveredSections,
+            warning: recoveredSections.length > 0
+              ? `Preserved from your original resume: ${recoveredSections.join(", ")}`
+              : "Data preservation issues detected: " + warnings.join("; "),
+            validationWarnings: warnings,
+          });
         }
 
-        return new Response(
-          JSON.stringify({ result: optimizedResume }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      } else {
-        return new Response(
-          JSON.stringify({ error: "Failed to generate optimized resume" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+        return json({ result: optimizedResume });
     } else {
       // Return text response for other types
-      let resultText = data.choices[0].message.content.trim();
+      const { text } = await generateText({
+        model: modelHandle,
+        system: systemPrompt,
+        prompt: userPrompt,
+        temperature: 0.7,
+        maxTokens:
+          analysisType === "auto-rewrite" ||
+          analysisType === "rewrite-experience" ||
+          analysisType === "generate-achievements" ||
+          analysisType === "generate-summaries"
+            ? 8000
+            : 4000,
+      });
+      let resultText = text.trim();
       
       // Validate rewrite responses for completeness with enhanced checks
       if (analysisType === "auto-rewrite" || analysisType === "rewrite-experience") {
@@ -1442,28 +1128,15 @@ ${validation.missingItems.length > 0 ? `\n⚠️ You lost some items: ${validati
 
 DO NOT SKIP ANY CERTIFICATIONS, PROJECTS, OR OTHER SECTIONS.`;
 
-          const retryRequestBody: any = {
-            model: model,
-            messages: [
-              { role: "system", content: retrySystemPrompt },
-              { role: "user", content: retryUserPrompt },
-            ],
-            max_tokens: 10000, // Increase for retry
-            temperature: 0.7,
-          };
-
-          const retryResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(retryRequestBody),
-          });
-
-          if (retryResponse.ok) {
-            const retryData = await retryResponse.json();
-            resultText = retryData.choices[0].message.content.trim();
+          try {
+            const { text: retryText } = await generateText({
+              model: modelHandle,
+              system: retrySystemPrompt,
+              prompt: retryUserPrompt,
+              maxTokens: 10000,
+              temperature: 0.7,
+            });
+            resultText = retryText.trim();
             const retryValidation = validateRewriteResponse(resultText, resumeText);
 
             if (!retryValidation.isComplete) {
@@ -1475,24 +1148,23 @@ DO NOT SKIP ANY CERTIFICATIONS, PROJECTS, OR OTHER SECTIONS.`;
                 ...retryValidation.missingItems,
                 ...retryValidation.warnings,
               ];
-              return new Response(
-                JSON.stringify({
-                  result: resultText,
-                  warning: "Response may be incomplete. Issues detected: " + allWarnings.join("; "),
-                  validationDetails: {
-                    missingSections: retryValidation.missingSections,
-                    missingItems: retryValidation.missingItems,
-                    warnings: retryValidation.warnings,
-                  }
-                }),
-                { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-              );
+              return json({
+                result: resultText,
+                warning: "Response may be incomplete. Issues detected: " + allWarnings.join("; "),
+                validationDetails: {
+                  missingSections: retryValidation.missingSections,
+                  missingItems: retryValidation.missingItems,
+                  warnings: retryValidation.warnings,
+                }
+              });
             } else {
               // Retry succeeded, but still log warnings if any
               if (retryValidation.warnings.length > 0) {
                 console.warn("Retry succeeded but with warnings:", retryValidation.warnings);
               }
             }
+          } catch (retryError) {
+            console.warn("Retry generation failed, using original rewrite:", retryError);
           }
         }
 
@@ -1508,18 +1180,9 @@ DO NOT SKIP ANY CERTIFICATIONS, PROJECTS, OR OTHER SECTIONS.`;
       // HUMAN IMPERFECTION PASS: Soften ~20% of bullets for auto-rewrite
       if (analysisType === "auto-rewrite" && resultText.length > 200) {
         try {
-          const imperfectionResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: model,
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a human editor doing a quick pass on your own resume before submitting.
+          const { text: imperfectionText } = await generateText({
+            model: modelHandle,
+            system: `You are a human editor doing a quick pass on your own resume before submitting.
 Your ONLY task: pick roughly 20% of the bullet points and make them slightly shorter, weaker, or more casual. This breaks AI-detection patterns.
 
 Rules:
@@ -1529,29 +1192,17 @@ Rules:
 - Do NOT remove any sections or bullets entirely.
 - Do NOT add new content.
 - Keep all facts accurate.
-- Return the COMPLETE resume with your edits. Do not explain changes.`
-                },
-                {
-                  role: "user",
-                  content: resultText
-                }
-              ],
-              max_tokens: 8000,
-              temperature: 0.8,
-            }),
+ - Return the COMPLETE resume with your edits. Do not explain changes.`,
+            prompt: resultText,
+            maxTokens: 8000,
+            temperature: 0.8,
           });
-
-          if (imperfectionResponse.ok) {
-            const imperfectionData = await imperfectionResponse.json();
-            const softened = imperfectionData.choices?.[0]?.message?.content?.trim();
-            if (softened && softened.length > resultText.length * 0.5) {
-              resultText = softened;
-              console.log("Imperfection pass applied successfully");
-            } else {
-              console.warn("Imperfection pass returned too-short result, skipping");
-            }
+          const softened = imperfectionText?.trim();
+          if (softened && softened.length > resultText.length * 0.5) {
+            resultText = softened;
+            console.log("Imperfection pass applied successfully");
           } else {
-            console.warn("Imperfection pass failed, using original rewrite:", imperfectionResponse.status);
+            console.warn("Imperfection pass returned too-short result, skipping");
           }
         } catch (imperfectionError) {
           console.warn("Imperfection pass error, using original rewrite:", imperfectionError);
@@ -1564,27 +1215,18 @@ Rules:
         if (recoveredSections.length > 0) {
           console.warn("Recovered missing sections from original:", recoveredSections);
           resultText = mergedText;
-          return new Response(
-            JSON.stringify({
-              result: resultText,
-              recoveredSections,
-              warning: `The following sections were preserved from your original resume: ${recoveredSections.join(", ")}`,
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return json({
+            result: resultText,
+            recoveredSections,
+            warning: `The following sections were preserved from your original resume: ${recoveredSections.join(", ")}`,
+          });
         }
       }
       
-      return new Response(
-        JSON.stringify({ result: resultText }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json({ result: resultText });
     }
   } catch (error) {
     console.error("Error in ats-analyze function:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
   }
-});
+}, { name: "ats-analyze", allowedMethods: ["POST"] }));
