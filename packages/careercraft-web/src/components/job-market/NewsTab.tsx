@@ -43,6 +43,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { NewsArticle } from "./types";
+import { MatchMeter } from "@/components/craft/MatchMeter";
+import type { MatchBand } from "@/hooks/usePersonalization";
 
 const NEWS_CATEGORIES = [
   { name: "All News", value: "all", icon: Newspaper, color: "from-slate-500 to-slate-600" },
@@ -74,6 +76,8 @@ interface NewsTabProps {
   hasMore?: boolean;
   loadingMore?: boolean;
   currentTimeRange?: string;
+  /** Optional per-article likeliness rating, shown when the profile is set. */
+  rateArticle?: (a: NewsArticle) => { match: number; band: MatchBand; reasons?: string[] } | null;
 }
 
 export default function NewsTab({
@@ -86,6 +90,7 @@ export default function NewsTab({
   hasMore,
   loadingMore,
   currentTimeRange = "week",
+  rateArticle,
 }: NewsTabProps) {
   const [timeRange, setTimeRange] = useState(currentTimeRange);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
@@ -304,7 +309,8 @@ export default function NewsTab({
           {news.slice(1).map((article, index) => {
             const config = getCategoryConfig(article.category);
             const isHovered = hoveredCard === article.id;
-            
+            const rated = rateArticle ? rateArticle(article) : null;
+
             return (
               <div
                 key={article.id}
@@ -406,10 +412,14 @@ export default function NewsTab({
                           <Share2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Eye className="w-3.5 h-3.5" />
-                        {Math.floor(Math.random() * 5000) + 500}
-                      </span>
+                      {rated ? (
+                        <MatchMeter match={rated.match} band={rated.band} reasons={rated.reasons} size={34} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Eye className="w-3.5 h-3.5" />
+                          {Math.floor(Math.random() * 5000) + 500}
+                        </span>
+                      )}
                     </div>
                   </div>
 

@@ -3,16 +3,17 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Brain,
   Briefcase,
   CheckCircle2,
   FileCheck,
   Loader2,
-  MapPin,
   RefreshCw,
   Sparkles,
   Target,
+  X,
 } from 'lucide-react';
 import type { OnboardingAnalysis } from './types';
 
@@ -20,7 +21,7 @@ interface Props {
   analysis: OnboardingAnalysis | null;
   loading: boolean;
   runsRemaining: number;
-  onConfirm: () => void;
+  onConfirm: (analysis: OnboardingAnalysis) => void;
   onReanalyze: () => void;
   onBack: () => void;
   saving?: boolean;
@@ -32,6 +33,13 @@ const LOADING_MESSAGES = [
   'Inferring your career targets…',
   'Mapping your skills…',
   'Building your CV standards…',
+];
+
+const REMOTE_OPTIONS = [
+  { value: 'remote', label: 'Remote' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'onsite', label: 'On-site' },
+  { value: 'any', label: 'Any' },
 ];
 
 export function AnalyzeStep({
@@ -102,20 +110,29 @@ function LoadingPanel({ message }: { message: string }) {
 interface RevealProps {
   analysis: OnboardingAnalysis;
   runsRemaining: number;
-  onConfirm: () => void;
+  onConfirm: (analysis: OnboardingAnalysis) => void;
   onReanalyze: () => void;
   onBack: () => void;
   saving: boolean;
 }
 
 function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, saving }: RevealProps) {
+  // A local, editable copy so the visitor can correct anything before we save.
+  const [edited, setEdited] = useState<OnboardingAnalysis>(analysis);
+  useEffect(() => setEdited(analysis), [analysis]);
+
+  const setTargets = (patch: Partial<OnboardingAnalysis['targets']>) =>
+    setEdited((p) => ({ ...p, targets: { ...p.targets, ...patch } }));
+  const setPrefs = (patch: Partial<OnboardingAnalysis['jobPreferences']>) =>
+    setEdited((p) => ({ ...p, jobPreferences: { ...p.jobPreferences, ...patch } }));
+
   const stagger = (i: number) => ({
     initial: { opacity: 0, y: 12 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: 0.35, delay: i * 0.08 },
   });
 
-  const { persona, inferredProfile, targets, skills, cvStandards, confidence } = analysis;
+  const { persona, inferredProfile, skills, cvStandards, confidence } = analysis;
   const confidencePct = Math.round((confidence?.overall ?? 0) * 100);
 
   return (
@@ -128,12 +145,10 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
               <Badge variant="outline" className="font-normal">
                 <Sparkles className="mr-1 h-3 w-3" /> Step 2 of 2
               </Badge>
-              <Badge variant="secondary">
-                {confidencePct}% confidence
-              </Badge>
+              <Badge variant="secondary">{confidencePct}% confidence</Badge>
               {runsRemaining > 0 && (
                 <Badge variant="outline" className="ml-auto text-xs font-normal text-muted-foreground">
-                  {runsRemaining} re-analysis {runsRemaining === 1 ? 'left' : 'left'} today
+                  {runsRemaining} re-analysis left today
                 </Badge>
               )}
             </div>
@@ -178,32 +193,111 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
         </SectionCard>
       </motion.div>
 
-      {/* Targets */}
+      {/* Targets — editable */}
       <motion.div {...stagger(2)}>
-        <SectionCard icon={Target} title="What you're targeting">
-          <div className="space-y-3">
-            <ChipRow label="Target roles" items={targets.target_job_titles} />
-            <ChipRow label="Target companies" items={targets.target_companies} />
-            <ChipRow label="Work arrangement" items={targets.work_arrangement} />
-            <ChipRow
-              label="Preferred locations"
-              items={targets.preferred_locations}
-              icon={MapPin}
-            />
-            {(targets.desired_salary_min || targets.desired_salary_max) && (
-              <p className="text-sm text-muted-foreground">
-                Salary target:{' '}
-                <span className="font-medium text-foreground">
-                  {fmtSalary(targets.desired_salary_min, targets.desired_salary_max, targets.desired_salary_currency)}
-                </span>
-              </p>
-            )}
+        <SectionCard
+          icon={Target}
+          title="What you're targeting"
+          subtitle="Adjust anything — this is what drives your job, market & news matches."
+        >
+          <div className="space-y-4">
+            <EditField label="Target roles">
+              <EditableChips
+                items={edited.targets.target_job_titles}
+                onChange={(v) => setTargets({ target_job_titles: v })}
+                placeholder="Add a role…"
+              />
+            </EditField>
+            <EditField label="Target companies">
+              <EditableChips
+                items={edited.targets.target_companies}
+                onChange={(v) => setTargets({ target_companies: v })}
+                placeholder="Add a company…"
+              />
+            </EditField>
+            <EditField label="Preferred locations">
+              <EditableChips
+                items={edited.targets.preferred_locations}
+                onChange={(v) => setTargets({ preferred_locations: v })}
+                placeholder="Add a location…"
+              />
+            </EditField>
+            <EditField label="Work arrangement">
+              <EditableChips
+                items={edited.targets.work_arrangement}
+                onChange={(v) => setTargets({ work_arrangement: v })}
+                placeholder="e.g. remote, hybrid…"
+              />
+            </EditField>
+            <div className="grid grid-cols-2 gap-3">
+              <EditField label="Min salary">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={edited.targets.desired_salary_min ?? ''}
+                  onChange={(e) =>
+                    setTargets({ desired_salary_min: e.target.value ? Number(e.target.value) : null })
+                  }
+                  placeholder="e.g. 90000"
+                  className="h-9"
+                />
+              </EditField>
+              <EditField label="Max salary">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={edited.targets.desired_salary_max ?? ''}
+                  onChange={(e) =>
+                    setTargets({ desired_salary_max: e.target.value ? Number(e.target.value) : null })
+                  }
+                  placeholder="e.g. 130000"
+                  className="h-9"
+                />
+              </EditField>
+            </div>
+          </div>
+        </SectionCard>
+      </motion.div>
+
+      {/* Job preferences — editable */}
+      <motion.div {...stagger(3)}>
+        <SectionCard icon={Briefcase} title="Job preferences">
+          <div className="space-y-4">
+            <EditField label="Industries">
+              <EditableChips
+                items={edited.jobPreferences.industries}
+                onChange={(v) => setPrefs({ industries: v })}
+                placeholder="Add an industry…"
+              />
+            </EditField>
+            <EditField label="Remote preference">
+              <div className="flex flex-wrap gap-1.5">
+                {REMOTE_OPTIONS.map((opt) => {
+                  const active = edited.jobPreferences.remote_preference === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setPrefs({ remote_preference: opt.value })}
+                      className={
+                        'rounded-md border px-3 py-1 text-sm transition-colors ' +
+                        (active
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border/70 text-muted-foreground hover:border-foreground/40')
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </EditField>
           </div>
         </SectionCard>
       </motion.div>
 
       {/* Skills */}
-      <motion.div {...stagger(3)}>
+      <motion.div {...stagger(4)}>
         <SectionCard icon={Sparkles} title={`Skills (${skills.length})`}>
           <div className="flex flex-wrap gap-1.5">
             {skills.slice(0, 24).map((s) => (
@@ -222,7 +316,7 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
       </motion.div>
 
       {/* CV Standards */}
-      <motion.div {...stagger(4)}>
+      <motion.div {...stagger(5)}>
         <SectionCard
           icon={FileCheck}
           title="Your CV standards"
@@ -267,7 +361,7 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
       </motion.div>
 
       {/* Action bar */}
-      <motion.div {...stagger(5)}>
+      <motion.div {...stagger(6)}>
         <Card className="border-border/60">
           <CardContent className="flex flex-col-reverse gap-2 py-4 sm:flex-row sm:justify-between">
             <Button variant="ghost" onClick={onBack} disabled={saving}>
@@ -283,14 +377,14 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Re-analyze
               </Button>
-              <Button onClick={onConfirm} disabled={saving} size="lg">
+              <Button onClick={() => onConfirm(edited)} disabled={saving} size="lg">
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" /> Looks good — save
+                    <CheckCircle2 className="mr-2 h-4 w-4" /> Save &amp; personalise
                   </>
                 )}
               </Button>
@@ -354,26 +448,65 @@ function DefList({ rows }: { rows: [string, string | null][] }) {
   );
 }
 
-function ChipRow({
-  label,
-  items,
-  icon: Icon,
-}: {
-  label: string;
-  items: string[];
-  icon?: typeof MapPin;
-}) {
-  if (!items?.length) return null;
+function EditField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {items.map((it) => (
-          <Badge key={it} variant="secondary" className="font-normal">
-            {Icon && <Icon className="mr-1 h-3 w-3" />}
-            {it}
-          </Badge>
-        ))}
+      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function EditableChips({
+  items,
+  onChange,
+  placeholder,
+}: {
+  items: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+}) {
+  const [val, setVal] = useState('');
+  const add = () => {
+    const v = val.trim();
+    if (v && !items.some((x) => x.toLowerCase() === v.toLowerCase())) onChange([...items, v]);
+    setVal('');
+  };
+  return (
+    <div>
+      {items.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {items.map((it) => (
+            <Badge key={it} variant="secondary" className="gap-1 font-normal">
+              {it}
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((x) => x !== it))}
+                aria-label={`Remove ${it}`}
+                className="ml-0.5 opacity-60 transition-opacity hover:opacity-100"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Input
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder={placeholder}
+          className="h-9"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add} className="shrink-0">
+          Add
+        </Button>
       </div>
     </div>
   );
@@ -386,13 +519,4 @@ function KV({ label, value }: { label: string; value: string }) {
       <p className="text-sm font-medium capitalize">{value}</p>
     </div>
   );
-}
-
-function fmtSalary(min: number | null, max: number | null, currency: string | null): string {
-  const ccy = currency || 'AUD';
-  const fmt = (n: number) => new Intl.NumberFormat('en-AU').format(n);
-  if (min && max) return `${ccy} ${fmt(min)}–${fmt(max)}`;
-  if (min) return `${ccy} ${fmt(min)}+`;
-  if (max) return `Up to ${ccy} ${fmt(max)}`;
-  return '—';
 }

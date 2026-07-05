@@ -6,7 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { FileText, MessageSquare, Sparkles, Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { parseResume } from '@/lib/resumeParser';
+import {
+  extractResumeFromFile,
+  formatResumeDataAsText,
+} from '@/lib/resumeParser';
 import type { OnboardingMode } from './types';
 
 interface Props {
@@ -34,11 +37,14 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
       setResumeFile(file);
       setExtracting(true);
       try {
-        const extracted = await parseResume(file);
+        const aiData = await extractResumeFromFile(file, (p) => {
+          if (p >= 100) return;
+        });
+        const extracted = formatResumeDataAsText(aiData);
         setResumeText(extracted);
         toast({
           title: 'Resume ready',
-          description: `Extracted ${extracted.length.toLocaleString()} characters.`,
+          description: `AI extracted ${extracted.length.toLocaleString()} characters.`,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Could not read this file';

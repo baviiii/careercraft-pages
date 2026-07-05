@@ -47,9 +47,10 @@ interface TrendsTabProps {
   trends: TrendItem[];
   skillDemand: SkillDemand[];
   loading?: boolean;
+  rateSkill?: (name: string) => { match: number } | null;
 }
 
-export default function TrendsTab({ trends, skillDemand }: TrendsTabProps) {
+export default function TrendsTab({ trends, skillDemand, rateSkill }: TrendsTabProps) {
   const [selectedTrend, setSelectedTrend] = useState<TrendItem | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillDemand | null>(null);
   const [hoveredStat, setHoveredStat] = useState<number | null>(null);
@@ -390,6 +391,9 @@ export default function TrendsTab({ trends, skillDemand }: TrendsTabProps) {
                       <span className={`text-xs ${isTop ? "text-white/80" : "opacity-60"}`}>
                         ({skill.jobCount})
                       </span>
+                      {rateSkill && rateSkill(skill.skill)?.match ? (
+                        <Star className={`w-3.5 h-3.5 ${isTop ? "text-amber-200" : "text-amber-500"}`} />
+                      ) : null}
                     </div>
                     {skill.growth > 0 && (
                       <div

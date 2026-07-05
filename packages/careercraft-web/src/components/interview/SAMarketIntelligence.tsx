@@ -56,6 +56,26 @@ const FIELD_QUERIES: Record<string, { query: string; sector: string; saLabel: st
     sector: "Technology",
     saLabel: "SA Data & Analytics",
   },
+  "Data Engineering": {
+    query: "data engineering pipelines analytics workforce South Australia",
+    sector: "Technology",
+    saLabel: "SA Data & Analytics",
+  },
+  "Security": {
+    query: "cybersecurity information security workforce South Australia government",
+    sector: "Technology",
+    saLabel: "SA Cyber & Security",
+  },
+  "Networking": {
+    query: "network infrastructure telecommunications ICT workforce South Australia",
+    sector: "Technology",
+    saLabel: "SA Technology & Digital",
+  },
+  "IT Support": {
+    query: "information technology support helpdesk workforce South Australia",
+    sector: "Technology",
+    saLabel: "SA Technology & Digital",
+  },
   "Product Management": {
     query: "product management digital innovation technology South Australia",
     sector: "Technology",

@@ -15,6 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/useSecurity";
 import { RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { auditLog } from "@/lib/security/auditLog";
+import {
+  interviewCoach,
+  COACH_AVAILABLE,
+  type WeeklyInsight,
+} from "@/lib/interviewCoach";
 import { gsap } from "gsap";
 import {
   Brain,
@@ -92,6 +97,8 @@ export default function InterviewDashboard() {
   const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [weeklyActivity, setWeeklyActivity] = useState<WeeklyActivity[]>([]);
+  const [weeklyInsight, setWeeklyInsight] = useState<WeeklyInsight | null>(null);
+  const [loadingInsight, setLoadingInsight] = useState(false);
   
   // Rate limiting for data fetching
   const { checkLimit, isLimited } = useRateLimit({
@@ -349,6 +356,26 @@ export default function InterviewDashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  useEffect(() => {
+    if (!COACH_AVAILABLE || loading) return;
+    let cancelled = false;
+    setLoadingInsight(true);
+    interviewCoach
+      .weeklyInsight({})
+      .then((insight) => {
+        if (!cancelled) setWeeklyInsight(insight);
+      })
+      .catch(() => {
+        if (!cancelled) setWeeklyInsight(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingInsight(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loading]);
+
   // GSAP animations
   useEffect(() => {
     if (loading || error) return;
@@ -483,6 +510,28 @@ export default function InterviewDashboard() {
           Start Practice Session
         </Button>
       </div>
+
+      {/* MCP weekly insight — only when coach is connected and returns data */}
+      {COACH_AVAILABLE && (loadingInsight || weeklyInsight?.headline) && (
+        <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+          {loadingInsight ? (
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-2/3" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          ) : weeklyInsight ? (
+            <div>
+              <h3 className="font-semibold text-lg mb-1">{weeklyInsight.headline}</h3>
+              {weeklyInsight.summary && (
+                <p className="text-sm text-muted-foreground mb-3">{weeklyInsight.summary}</p>
+              )}
+              {weeklyInsight.motivationalMessage && (
+                <p className="text-sm italic text-foreground/80">{weeklyInsight.motivationalMessage}</p>
+              )}
+            </div>
+          ) : null}
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -4,36 +4,60 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 import mammoth from 'mammoth';
 import { parseImageWithOCR, isImageFile } from './ocrParser';
-import { enhancedParseResume, cleanAndFormatResume, ParsedResume } from './enhancedResumeParser';
+import { enhancedParseResume, type ParsedResume } from './enhancedResumeParser';
 import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 
 // Configure PDF.js worker using bundled worker URL
 (pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfWorkerSrc as unknown as string;
 
-export async function parseResume(
-  file: File,
-  onProgress?: (progress: number) => void
-): Promise<string> {
-  const fileType = file.type;
-  
-  let rawText = '';
-  
-  if (fileType === 'application/pdf') {
-    rawText = await parsePDF(file);
-  } else if (
-    fileType === 'application/msword' || 
-    fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ) {
-    rawText = await parseDOC(file);
-  } else if (isImageFile(file)) {
-    rawText = await parseImageWithOCR(file, onProgress);
-  } else {
-    throw new Error('Unsupported file type. Please upload PDF, DOC, DOCX, or image files.');
+/** Serialise structured AI resume data into plain text (onboarding, ATS, rewrite). */
+export function formatResumeDataAsText(data: AIResumeData): string {
+  let text = '';
+  if (data.contact) {
+    text += `${data.contact.name || ''}\n`;
+    text += `${data.contact.email || ''} | ${data.contact.phone || ''} | ${data.contact.location || ''}\n`;
+    if (data.contact.linkedin) text += `${data.contact.linkedin}\n`;
+    text += '\n';
   }
-  
-  // Enhanced parsing and formatting
-  const parsed = enhancedParseResume(rawText);
-  return cleanAndFormatResume(parsed);
+  if (data.summary) text += `SUMMARY\n${data.summary}\n\n`;
+  if (data.experience?.length) {
+    text += 'EXPERIENCE\n';
+    data.experience.forEach((exp) => {
+      text += `${exp.title} at ${exp.company}\n`;
+      text += `${exp.startDate} - ${exp.endDate}${exp.location ? ` | ${exp.location}` : ''}\n`;
+      exp.bullets?.forEach((b) => {
+        text += `• ${b}\n`;
+      });
+      text += '\n';
+    });
+  }
+  if (data.education?.length) {
+    text += 'EDUCATION\n';
+    data.education.forEach((edu) => {
+      text += `${edu.degree} - ${edu.school}\n`;
+      text += `${edu.graduationDate}${edu.gpa ? ` | GPA: ${edu.gpa}` : ''}\n\n`;
+    });
+  }
+  if (data.skills?.length) text += `SKILLS\n${data.skills.join(', ')}\n`;
+  return text;
+}
+
+/**
+ * Single entry point for resume extraction — always routes through parse-resume edge fn.
+ * TXT → text body; everything else → FormData (Azure Document Intelligence + Azure OpenAI).
+ */
+export async function extractResumeFromFile(
+  file: File,
+  onProgress?: (progress: number) => void,
+): Promise<AIResumeData> {
+  const isTxt =
+    file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt');
+  if (isTxt) {
+    const rawText = await file.text();
+    if (!rawText.trim()) throw new Error('Text file is empty.');
+    return parseResumeTextWithAI(rawText, file.name, 'text/plain');
+  }
+  return parseResumeWithAI(file, onProgress);
 }
 
 async function parsePDF(file: File): Promise<string> {
@@ -69,33 +93,7 @@ async function parseDOC(file: File): Promise<string> {
   }
 }
 
-// Export structured parsing for the editor
-export async function parseResumeStructured(
-  file: File,
-  onProgress?: (progress: number) => void
-): Promise<ParsedResume> {
-  const fileType = file.type;
-  
-  let rawText = '';
-  
-  if (fileType === 'application/pdf') {
-    rawText = await parsePDF(file);
-  } else if (
-    fileType === 'application/msword' || 
-    fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ) {
-    rawText = await parseDOC(file);
-  } else if (isImageFile(file)) {
-    rawText = await parseImageWithOCR(file, onProgress);
-  } else {
-    throw new Error('Unsupported file type. Please upload PDF, DOC, DOCX, or image files.');
-  }
-  
-  // Return structured data instead of formatted text
-  return enhancedParseResume(rawText);
-}
-
-// AI-powered resume parsing for better extraction
+// AI-powered resume parsing (Azure Document Intelligence + Azure OpenAI via edge function)
 export interface AIResumeData {
   contact: {
     name: string;
@@ -505,5 +503,5 @@ export async function parseResumeTextWithAI(
   }
 }
 
-// Re-export types
+// Re-export legacy regex types (fallback only inside parseResumeTextWithAI)
 export type { ParsedResume };

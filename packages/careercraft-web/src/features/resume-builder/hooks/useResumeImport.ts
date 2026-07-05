@@ -4,14 +4,13 @@ import { useSecureResumeUpload } from "@/hooks/useSecurity";
 import { type ToastActionElement, type ToastProps } from "@/hooks/use-toast";
 import {
   type AIResumeData,
-  parseResumeStructured,
-  parseResumeWithAI,
+  extractResumeFromFile,
+  parseResumeTextWithAI,
 } from "@/lib/resumeParser";
 import { auditFileOperation } from "@/lib/security/auditLog";
 
 import {
   aiDataToResumeData,
-  parseTextToResumeData,
 } from "../lib/resumeData";
 import type { ResumeData, UploadedFileType } from "../types";
 
@@ -35,7 +34,7 @@ export function useResumeImport({
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFileType, setUploadedFileType] = useState<UploadedFileType>(null);
-  const [useAIParsing, setUseAIParsing] = useState(false);
+  const [useAIParsing, setUseAIParsing] = useState(true);
 
   const {
     validateFile: secureValidateFile,
@@ -64,30 +63,13 @@ export function useResumeImport({
       setIsProcessing(true);
       setUploadProgress(20);
       try {
-        let data: ResumeData;
-        if (useAIParsing) {
-          const blob = new Blob([text], { type: "text/plain" });
-          const file = new globalThis.File([blob], "pasted-resume.txt", {
-            type: "text/plain",
-          });
-          setUploadProgress(40);
-          const aiParsed = await parseResumeWithAI(file, (p) =>
-            setUploadProgress(40 + p * 0.5)
-          );
-          data = aiDataToResumeData(aiParsed);
-          toast({
-            title: "AI reading complete",
-            description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
-          });
-        } else {
-          setUploadProgress(60);
-          data = parseTextToResumeData(text);
-          toast({
-            title: "Text processed",
-            description:
-              "Basic extraction complete. Toggle on AI parsing for finer results.",
-          });
-        }
+        setUploadProgress(40);
+        const aiParsed = await parseResumeTextWithAI(text, "pasted-resume.txt", "text/plain");
+        const data = aiDataToResumeData(aiParsed);
+        toast({
+          title: "AI reading complete",
+          description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
+        });
         setUploadProgress(100);
         setResumeData(data);
         setShowPasteDialog(false);
@@ -159,26 +141,12 @@ export function useResumeImport({
           return;
         }
 
-        let data: ResumeData;
-        if (useAIParsing) {
-          const aiParsed = await parseResumeWithAI(file, (p) =>
-            setUploadProgress(p)
-          );
-          data = aiDataToResumeData(aiParsed);
-          toast({
-            title: "AI reading complete",
-            description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
-          });
-        } else {
-          const parsed = await parseResumeStructured(file, (p) =>
-            setUploadProgress(p)
-          );
-          data = parseTextToResumeData(parsed.rawText);
-          toast({
-            title: "Text extracted",
-            description: `Text pulled from ${file.name}. Toggle on AI parsing for finer results.`,
-          });
-        }
+        const aiParsed = await extractResumeFromFile(file, (p) => setUploadProgress(p));
+        const data = aiDataToResumeData(aiParsed);
+        toast({
+          title: "AI reading complete",
+          description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
+        });
 
         setResumeData(data);
         setCurrentStep(1);

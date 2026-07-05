@@ -34,6 +34,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from "recharts";
+import { usePersonalization } from "@/hooks/usePersonalization";
+import { MatchMeter } from "@/components/craft/MatchMeter";
 
 const container = {
   hidden: { opacity: 0 },
@@ -48,6 +50,9 @@ const item = {
 function MarketTrendsContent() {
   const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState("90");
+
+  // Personalisation — rate roles & skills against the visitor's profile.
+  const { hasPersonalizationData, scoreArticle, scoreSkill } = usePersonalization();
 
   // Connect to RAG Intelligence - FULL POWER!
   const { 
@@ -667,6 +672,17 @@ function MarketTrendsContent() {
                           <h3 className="font-display font-bold text-white mb-2 text-lg group-hover:text-pink-200 transition-colors drop-shadow">
                             {role.title}
                           </h3>
+                          {(() => {
+                            const m = hasPersonalizationData ? scoreArticle({ title: role.title, category: role.category }) : null;
+                            return m && m.match > 0 ? (
+                              <div className="flex items-center gap-2 mb-3">
+                                <MatchMeter match={m.match} band={m.band} reasons={m.reasons} size={34} tone="light" />
+                                <span className="text-[11px] font-semibold text-emerald-200">
+                                  {m.reasons[0] || "Matches your profile"}
+                                </span>
+                              </div>
+                            ) : null;
+                          })()}
                           <div className="flex items-center justify-between text-sm mb-3">
                             <div className="flex items-center gap-1.5">
                               <Target className="w-3.5 h-3.5 text-pink-200" />
@@ -798,6 +814,11 @@ function MarketTrendsContent() {
                           </p>
                           {skill.demandLevel && (
                             <p className="text-xs text-blue-100 mt-2 font-medium">{skill.demandLevel} Demand</p>
+                          )}
+                          {hasPersonalizationData && scoreSkill(skill.name).match > 0 && (
+                            <div className="mt-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/30 border border-emerald-400/50 text-emerald-100 text-[10px] font-bold">
+                              ★ You have this
+                            </div>
                           )}
                         </div>
                       </div>

@@ -16,6 +16,7 @@ import {
 import {
   parseResumeTextWithAI,
   parseResumeWithAI,
+  formatResumeDataAsText,
   type AIResumeData,
 } from "@/lib/resumeParser";
 
@@ -32,41 +33,7 @@ import type {
 
 /* ───────────────── helpers (module scope) ───────────────── */
 
-/** Serialise structured AI resume data into newline-delimited plain text. */
-export const formatResumeDataAsText = (data: AIResumeData): string => {
-  let text = "";
-  if (data.contact) {
-    text += `${data.contact.name || ""}\n`;
-    text += `${data.contact.email || ""} | ${data.contact.phone || ""} | ${
-      data.contact.location || ""
-    }\n`;
-    if (data.contact.linkedin) text += `${data.contact.linkedin}\n`;
-    text += "\n";
-  }
-  if (data.summary) text += `SUMMARY\n${data.summary}\n\n`;
-  if (data.experience?.length) {
-    text += "EXPERIENCE\n";
-    data.experience.forEach((exp) => {
-      text += `${exp.title} at ${exp.company}\n`;
-      text += `${exp.startDate} - ${exp.endDate}${
-        exp.location ? ` | ${exp.location}` : ""
-      }\n`;
-      exp.bullets?.forEach((b) => {
-        text += `• ${b}\n`;
-      });
-      text += "\n";
-    });
-  }
-  if (data.education?.length) {
-    text += "EDUCATION\n";
-    data.education.forEach((edu) => {
-      text += `${edu.degree} - ${edu.school}\n`;
-      text += `${edu.graduationDate}${edu.gpa ? ` | GPA: ${edu.gpa}` : ""}\n\n`;
-    });
-  }
-  if (data.skills?.length) text += `SKILLS\n${data.skills.join(", ")}\n`;
-  return text;
-};
+export { formatResumeDataAsText };
 
 /** Validate that a rewrite preserves required sections and isn't truncated. */
 const validateRewriteResult = (

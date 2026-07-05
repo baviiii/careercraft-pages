@@ -32,12 +32,22 @@ interface InsightsTabProps {
   topIndustries: TopIndustry[];
   topCompanies: TopCompany[];
   loading?: boolean;
+  rateIndustry?: (name: string) => { match: number } | null;
+  rateCompany?: (name: string) => { match: number } | null;
 }
+
+const ForYouTag = () => (
+  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 text-[10px] font-semibold">
+    ★ For you
+  </span>
+);
 
 export default function InsightsTab({
   insights,
   topIndustries,
   topCompanies,
+  rateIndustry,
+  rateCompany,
 }: InsightsTabProps) {
   const renderIcon = (iconName: string) => {
     switch (iconName) {
@@ -208,6 +218,7 @@ export default function InsightsTab({
                   <div className="flex-1">
                     <p className="font-semibold group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
                       {company.name}
+                      {rateCompany && rateCompany(company.name)?.match ? <ForYouTag /> : null}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {company.jobCount} open positions
@@ -264,6 +275,7 @@ export default function InsightsTab({
                       <div className="flex items-center gap-2">
                         <div className={`w-3 h-3 rounded-full ${color.dot}`} />
                         <span className="font-medium">{ind.industry}</span>
+                        {rateIndustry && rateIndustry(ind.industry)?.match ? <ForYouTag /> : null}
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-muted-foreground">

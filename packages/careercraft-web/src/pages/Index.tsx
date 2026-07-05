@@ -1,4 +1,4 @@
-import { useEffect, useState, memo, useRef } from "react";
+import { useEffect, useState, memo, useRef, ReactNode, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
@@ -10,54 +10,179 @@ import {
   CraftSectionHead,
   CraftFleuron,
 } from "@/components/landing/CraftShell";
+import { WordsPullUp } from "@/components/ui/prisma-hero";
+
+/* The 3D meadow is heavy (three.js) — load it on demand so it never weighs
+   down first paint. A painted sky placeholder holds its space meanwhile. */
+const MeadowInterlude = lazy(() => import("@/components/landing/MeadowInterlude"));
 
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — Landing (Vol. I · MMXXVI)
+   CareerCraft — Landing
+   "Sunlit" cut — the calm, warm, hand-painted Ghibli mood of the
+   hero carried softly through the whole page: gentle sky washes,
+   drifting clouds, golden light and a painterly grain. Light and
+   calming throughout (no dark/glassy surfaces).
+
    Theme tokens live in src/styles/craft.css.
    Nav / Footer live in src/components/landing/CraftShell.tsx.
    ─────────────────────────────────────────────────────────── */
 
+const HERO_CREAM = "#E1E0CC"; // warm off-white the cinematic type is set in
+
+/* ── The calming, painterly atmosphere shared by every section ─────────────── */
+
+/* A soft, sunlit sky — warm gradient + a low sun, a few drifting clouds and a
+   paper grain. Three times of day give the page a gentle rhythm as you scroll.
+   Pure CSS, so it always renders and stays light + warm (never "AI" dark). */
+const SkyBackdrop = ({ tone = "dawn", clouds = true }: { tone?: "dawn" | "day" | "dusk"; clouds?: boolean }) => {
+  const grad = {
+    dawn: "linear-gradient(180deg,#F5E2CB 0%,#F3EADB 48%,#ECE0CB 100%)",
+    day: "linear-gradient(180deg,#DEE6DC 0%,#F0E9D8 55%,#F3EADB 100%)",
+    dusk: "linear-gradient(180deg,#F1D7AF 0%,#ECD4BE 52%,#E6D2BD 100%)",
+  }[tone];
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0" style={{ background: grad }} />
+      {/* low warm sun */}
+      <div
+        className="absolute -top-32 right-[-8%] h-[520px] w-[520px] rounded-full"
+        style={{ background: "radial-gradient(circle, rgba(245,212,150,0.6) 0%, rgba(245,212,150,0.15) 45%, transparent 70%)" }}
+      />
+      {clouds && (
+        <>
+          <div
+            className="animate-float absolute left-[3%] top-[13%] h-44 w-[46%] rounded-full opacity-70"
+            style={{ background: "radial-gradient(60% 60% at 50% 50%, rgba(255,253,247,0.92), transparent 70%)", filter: "blur(26px)" }}
+          />
+          <div
+            className="animate-float-slow absolute right-[5%] top-[30%] h-36 w-[40%] rounded-full opacity-55"
+            style={{ background: "radial-gradient(60% 60% at 50% 50%, rgba(255,253,247,0.85), transparent 70%)", filter: "blur(30px)" }}
+          />
+          <div
+            className="animate-float absolute left-[24%] bottom-[12%] h-28 w-[34%] rounded-full opacity-45"
+            style={{ background: "radial-gradient(60% 60% at 50% 50%, rgba(255,252,244,0.8), transparent 70%)", filter: "blur(28px)", animationDelay: "2.5s" }}
+          />
+        </>
+      )}
+      {/* painterly grain + a soft vintage vignette */}
+      <div className="cc-grain absolute inset-0" />
+      <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 180px 50px rgba(120,80,40,0.10)" }} />
+    </div>
+  );
+};
+
+/* Soft, cosy card — warm cream that lets the sky glow through a touch, a gentle
+   shadow and rounded corners. The opposite of a hard-edged or glassy panel. */
+const SOFT_CARD =
+  "rounded-[1.25rem] bg-[rgba(250,244,233,0.86)] border border-[rgba(14,12,10,0.06)] " +
+  "shadow-[0_22px_50px_-32px_rgba(70,45,20,0.5)] transition-all duration-500 " +
+  "hover:-translate-y-1.5 hover:shadow-[0_32px_60px_-30px_rgba(70,45,20,0.55)]";
+
+/* Wrap a section in the sunlit atmosphere. */
+const SkySection = ({
+  id,
+  tone,
+  children,
+}: {
+  id?: string;
+  tone?: "dawn" | "day" | "dusk";
+  children: ReactNode;
+}) => (
+  <section id={id} className="relative overflow-hidden py-24 md:py-36">
+    <SkyBackdrop tone={tone} />
+    <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-10">{children}</div>
+  </section>
+);
+
 /* ─────────────────────────── HERO ─────────────────────────── */
 
+/* Cinematic, full-bleed opening — a centred statement over the live, painterly
+   footage. The words pull up into place on load; layered ink washes keep the
+   type legible over any frame. This is the only section that stays dark. */
 const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (to: string) => void }) => {
   return (
-    <section className="relative bg-[color:var(--cc-cream)] pt-28 pb-20 md:pt-36 md:pb-24 overflow-hidden">
-      <div className="max-w-[1200px] mx-auto px-6 md:px-10">
-        <h1 className="cc-font-display text-5xl md:text-7xl leading-[0.95] tracking-tight text-[color:var(--cc-ink)] max-w-4xl">
-          Build your next move with clear, trusted career data.
-        </h1>
+    <section className="relative h-[100svh] min-h-[640px] w-full bg-[color:var(--cc-ink)]">
+      <div className="relative h-full w-full overflow-hidden">
 
-        <p className="mt-6 text-lg md:text-2xl leading-[1.45] text-[color:var(--cc-ink-soft)] max-w-3xl">
-          Resume building, job tracking, and market signals in one calm workspace. No noise, no guesswork.
-        </p>
+        {/* Live background video */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 h-full w-full object-cover"
+          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_170732_8a9ccda6-5cff-4628-b164-059c500a2b41.mp4"
+        />
 
-        <div className="mt-9 flex flex-col sm:flex-row items-start gap-3">
-          {session ? (
-            <button onClick={() => navigate("/dashboard")} className="cc-btn cc-btn-primary w-full sm:w-auto">
-              Open dashboard <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
-            </button>
-          ) : (
-            <>
-              <button onClick={() => navigate("/auth")} className="cc-btn cc-btn-primary w-full sm:w-auto">
-                Get started free <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+        {/* Legibility — vertical ink wash + soft centre veil */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0E0C0A]/45 via-[#0E0C0A]/15 to-[#0E0C0A]/80" />
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: "radial-gradient(ellipse 80% 62% at 50% 50%, rgba(14,12,10,0.5) 0%, rgba(14,12,10,0.15) 45%, transparent 78%)" }}
+        />
+
+        {/* Centred content */}
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
+
+          <h1
+            className="cc-font-display font-medium leading-[0.85] tracking-[-0.05em] text-[19vw] sm:text-[16vw] md:text-[14vw] lg:text-[12vw]"
+            style={{ color: HERO_CREAM, textShadow: "0 2px 50px rgba(0,0,0,0.5)" }}
+          >
+            <div className="flex justify-center"><WordsPullUp text="Your next" immediate /></div>
+            <div className="flex justify-center"><WordsPullUp text="move" immediate className="cc-italic-wonk" /></div>
+          </h1>
+
+          <motion.p
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-7 max-w-2xl cc-font-editorial text-xl leading-snug sm:text-2xl"
+            style={{ color: "rgba(225, 224, 204, 0.92)", textShadow: "0 1px 24px rgba(0,0,0,0.6)" }}
+          >
+            Resume building, job tracking and market signals in one calm, trusted workspace. No noise, no guesswork.
+          </motion.p>
+
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-9 flex flex-col items-center gap-4 sm:flex-row"
+          >
+            {session ? (
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="group inline-flex items-center gap-2 rounded-full py-1 pl-6 pr-1 text-sm font-medium text-[color:var(--cc-ink)] transition-all hover:gap-3 sm:text-base"
+                style={{ backgroundColor: HERO_CREAM }}
+              >
+                Open dashboard
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--cc-ink)] transition-transform group-hover:scale-110">
+                  <ArrowUpRight className="h-4 w-4" style={{ color: HERO_CREAM }} />
+                </span>
               </button>
-              <button onClick={() => navigate("/playground")} className="cc-btn cc-btn-ghost w-full sm:w-auto">
-                Try playground <ArrowRight className="w-4 h-4 cc-arrow-right" />
-              </button>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate("/auth")}
+                  className="group inline-flex items-center gap-2 rounded-full py-1 pl-6 pr-1 text-sm font-medium text-[color:var(--cc-ink)] transition-all hover:gap-3 sm:text-base"
+                  style={{ backgroundColor: HERO_CREAM }}
+                >
+                  Get started free
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--cc-ink)] transition-transform group-hover:scale-110">
+                    <ArrowUpRight className="h-4 w-4" style={{ color: HERO_CREAM }} />
+                  </span>
+                </button>
+                <button
+                  onClick={() => navigate("/playground")}
+                  className="group inline-flex items-center gap-2 text-sm transition-colors sm:text-base"
+                  style={{ color: "rgba(225, 224, 204, 0.85)" }}
+                >
+                  Try the playground
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </button>
+              </>
+            )}
+          </motion.div>
 
-        <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            "Verified public sources",
-            "Private by default",
-            "Built for real job search flow",
-          ].map((item) => (
-            <div key={item} className="ds-surface px-4 py-3 text-sm text-[color:var(--cc-ink-soft)]">
-              {item}
-            </div>
-          ))}
         </div>
       </div>
     </section>
@@ -68,8 +193,7 @@ Hero.displayName = "Hero";
 /* ─────────────────────────── COUNT UP ─────────────────────────── */
 
 /* A small utility: parse a figure like "7,412" / "$2.1B" / "96%" and count
-   up from 0 to target when it enters view. Non-numeric prefixes/suffixes
-   are preserved verbatim. */
+   up from 0 to target when it enters view. */
 const useCountUp = (target: string, inView: boolean, duration = 1400) => {
   const [value, setValue] = useState("0");
   useEffect(() => {
@@ -122,50 +246,13 @@ const Sparkline = memo(({ points, color = "var(--cc-rust)" }: { points: number[]
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-[120px] h-8 block">
       <path d={d} stroke={color} strokeWidth={1.25} fill="none" vectorEffect="non-scaling-stroke" />
-      <circle
-        cx={pad + (points.length - 1) * xStep}
-        cy={scale(points[points.length - 1])}
-        r={2}
-        fill={color}
-      />
+      <circle cx={pad + (points.length - 1) * xStep} cy={scale(points[points.length - 1])} r={2} fill={color} />
     </svg>
   );
 });
 Sparkline.displayName = "Sparkline";
 
 /* ─────────────────────────── FIGURES ─────────────────────────── */
-
-const Figures = memo(() => {
-  const rows = [
-    { fig: "7,412", label: "Roles indexed", sub: "39 SA industries", spark: [4, 6, 5, 7, 8, 6, 9, 11, 10, 12] },
-    { fig: "$2.1B", label: "Tracked investment", sub: "emerging sectors", spark: [3, 4, 3, 5, 6, 5, 7, 8, 9, 10] },
-    { fig: "96%",   label: "Grounded in gov data", sub: "every claim sourced", spark: [7, 8, 7, 9, 9, 10, 10, 11, 11, 12] },
-  ];
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-
-  return (
-    <section id="figures" ref={ref} className="bg-[color:var(--cc-cream)] py-24 md:py-36">
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10">
-        <CraftSectionHead
-          section="§ 01 · The numbers"
-          title={<>The numbers<br /><span className="cc-italic-wonk">behind the work.</span></>}
-        />
-
-        <div className="mt-12 md:mt-16">
-          <CraftFleuron />
-        </div>
-
-        <div className="mt-10 md:mt-12 grid grid-cols-1 md:grid-cols-3 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
-          {rows.map((r, i) => (
-            <FigureCell key={r.label} row={r} index={i} inView={inView} />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-});
-Figures.displayName = "Figures";
 
 const FigureCell = memo(({
   row, index, inView,
@@ -180,13 +267,12 @@ const FigureCell = memo(({
       initial={{ opacity: 0, y: 24 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.8, delay: index * 0.12, ease: [0.2, 0.8, 0.2, 1] }}
-      className="bg-[color:var(--cc-cream)] p-10 md:p-14 relative"
+      className={`${SOFT_CARD} p-10 md:p-12`}
     >
-      <div className="flex items-center justify-between">
-        <div className="cc-label-sm text-[color:var(--cc-ash)]">fig. {String(index + 1).padStart(2, "0")}</div>
+      <div className="flex items-center justify-end">
         <Sparkline points={row.spark} />
       </div>
-      <div className="mt-8 cc-font-display text-6xl md:text-8xl leading-none tracking-tight text-[color:var(--cc-ink)] cc-tabular">
+      <div className="mt-8 cc-font-display text-6xl md:text-7xl leading-none tracking-tight text-[color:var(--cc-ink)] cc-tabular">
         {value}
       </div>
       <div className="mt-6 cc-font-editorial text-xl text-[color:var(--cc-ink-soft)]">{row.label}</div>
@@ -196,45 +282,48 @@ const FigureCell = memo(({
 });
 FigureCell.displayName = "FigureCell";
 
+const Figures = memo(() => {
+  const rows = [
+    { fig: "7,412", label: "Roles indexed", sub: "39 SA industries", spark: [4, 6, 5, 7, 8, 6, 9, 11, 10, 12] },
+    { fig: "$2.1B", label: "Tracked investment", sub: "emerging sectors", spark: [3, 4, 3, 5, 6, 5, 7, 8, 9, 10] },
+    { fig: "96%", label: "Grounded in gov data", sub: "every claim sourced", spark: [7, 8, 7, 9, 9, 10, 10, 11, 11, 12] },
+  ];
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+
+  return (
+    <section id="figures" ref={ref} className="relative overflow-hidden py-24 md:py-36">
+      <SkyBackdrop tone="dawn" />
+      <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-10">
+        <CraftSectionHead
+          section="The numbers"
+          title={<>The numbers<br /><span className="cc-italic-wonk">behind the work.</span></>}
+        />
+
+        <div className="mt-12 md:mt-16 opacity-70">
+          <CraftFleuron />
+        </div>
+
+        <div className="mt-10 md:mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {rows.map((r, i) => (
+            <FigureCell key={r.label} row={r} index={i} inView={inView} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+});
+Figures.displayName = "Figures";
+
 /* ─────────────────────────── TOOLKIT ─────────────────────────── */
 
 const toolkit = [
-  {
-    n: "01",
-    title: ["Policy", "Intelligence"],
-    body: "Every SA policy and budget, parsed and cited line by line.",
-    tags: ["Budget", "Strategy", "Citations"],
-  },
-  {
-    n: "02",
-    title: ["Workforce", "Signals"],
-    body: "Live sector growth, emerging roles, skill premiums.",
-    tags: ["Sectors", "Demand", "Skills"],
-  },
-  {
-    n: "03",
-    title: ["Résumé", "Workshop"],
-    body: "Draft against the live demand signal. ATS-safe, hand-tuned.",
-    tags: ["ATS", "Rewrite", "Templates"],
-  },
-  {
-    n: "04",
-    title: ["Interview", "Practice"],
-    body: "Rehearse with an AI coach who knows your sector.",
-    tags: ["Mock", "Feedback", "Sector"],
-  },
-  {
-    n: "05",
-    title: ["Investment", "Tracker"],
-    body: "See where state funds flow and which skills they need.",
-    tags: ["Grants", "Pipeline", "Forecast"],
-  },
-  {
-    n: "06",
-    title: ["Career", "Pathways"],
-    body: "Find adjacent roles, transferable skills, and clear next steps.",
-    tags: ["Maps", "Adjacency", "Paths"],
-  },
+  { n: "01", title: ["Policy", "Intelligence"], body: "Every SA policy and budget, parsed and cited line by line.", tags: ["Budget", "Strategy", "Citations"] },
+  { n: "02", title: ["Workforce", "Signals"], body: "Live sector growth, emerging roles, skill premiums.", tags: ["Sectors", "Demand", "Skills"] },
+  { n: "03", title: ["Résumé", "Workshop"], body: "Draft against the live demand signal. ATS-safe, hand-tuned.", tags: ["ATS", "Rewrite", "Templates"] },
+  { n: "04", title: ["Interview", "Practice"], body: "Rehearse with an AI coach who knows your sector.", tags: ["Mock", "Feedback", "Sector"] },
+  { n: "05", title: ["Investment", "Tracker"], body: "See where state funds flow and which skills they need.", tags: ["Grants", "Pipeline", "Forecast"] },
+  { n: "06", title: ["Career", "Pathways"], body: "Find adjacent roles, transferable skills, and clear next steps.", tags: ["Maps", "Adjacency", "Paths"] },
 ];
 
 const ToolkitCard = memo(({ item, i }: { item: typeof toolkit[0]; i: number }) => {
@@ -246,10 +335,9 @@ const ToolkitCard = memo(({ item, i }: { item: typeof toolkit[0]; i: number }) =
       initial={{ opacity: 0, y: 32 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.7, delay: (i % 3) * 0.1, ease: [0.2, 0.8, 0.2, 1] }}
-      className="cc-fold group bg-[color:var(--cc-cream)] border border-[color:var(--cc-hair-strong)] p-10 md:p-12 min-h-[300px] flex flex-col overflow-hidden"
+      className={`${SOFT_CARD} group p-10 md:p-12 min-h-[300px] flex flex-col overflow-hidden`}
     >
-      <div className="flex items-center justify-between">
-        <span className="cc-font-display text-2xl italic text-[color:var(--cc-rust)]">N° {item.n}</span>
+      <div className="flex items-center justify-end">
         <ArrowUpRight className="w-5 h-5 text-[color:var(--cc-ash)] transition-all duration-500 group-hover:rotate-45 group-hover:text-[color:var(--cc-rust)]" />
       </div>
 
@@ -268,9 +356,7 @@ const ToolkitCard = memo(({ item, i }: { item: typeof toolkit[0]; i: number }) =
         aria-hidden="true"
       >
         {item.tags.map((t) => (
-          <span key={t} className="cc-tag">
-            {t}
-          </span>
+          <span key={t} className="cc-tag">{t}</span>
         ))}
       </div>
     </motion.article>
@@ -279,22 +365,19 @@ const ToolkitCard = memo(({ item, i }: { item: typeof toolkit[0]; i: number }) =
 ToolkitCard.displayName = "ToolkitCard";
 
 const Toolkit = memo(() => (
-  <section id="toolkit" className="relative bg-[color:var(--cc-cream-2)] py-24 md:py-36 overflow-hidden">
-    <div className="absolute inset-0 cc-grain" />
-    <div className="max-w-[1400px] mx-auto px-6 md:px-10 relative">
-      <CraftSectionHead
-        section="§ 02 · The toolkit"
-        title={<>Six tools.<br /><span className="cc-italic-wonk">One workspace.</span></>}
-        sub={<>Every tool pairs what you want with live South Australian data.</>}
-      />
+  <SkySection id="toolkit" tone="day">
+    <CraftSectionHead
+      section="The toolkit"
+      title={<>Six tools.<br /><span className="cc-italic-wonk">One workspace.</span></>}
+      sub={<>Every tool pairs what you want with live South Australian data.</>}
+    />
 
-      <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
-        {toolkit.map((t, i) => (
-          <ToolkitCard key={t.n} item={t} i={i} />
-        ))}
-      </div>
+    <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {toolkit.map((t, i) => (
+        <ToolkitCard key={t.n} item={t} i={i} />
+      ))}
     </div>
-  </section>
+  </SkySection>
 ));
 Toolkit.displayName = "Toolkit";
 
@@ -302,44 +385,40 @@ Toolkit.displayName = "Toolkit";
 
 const Method = memo(() => {
   const steps = [
-    { tag: "i.", title: "Gather", body: "Every SA policy document ingested and indexed — a structured archive." },
-    { tag: "ii.", title: "Interpret", body: "Policy cross-referenced with workforce data so patterns surface." },
-    { tag: "iii.", title: "Apply", body: "Build your résumé, rehearse interviews and plan your path with live data." },
+    { title: "Gather", body: "Every SA policy document ingested and indexed — a structured archive." },
+    { title: "Interpret", body: "Policy cross-referenced with workforce data so patterns surface." },
+    { title: "Apply", body: "Build your résumé, rehearse interviews and plan your path with live data." },
   ];
   return (
-    <section id="method" className="bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)] py-24 md:py-36 relative overflow-hidden">
-      <div className="absolute inset-0 cc-grain opacity-[0.08]" />
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 relative">
-        <div className="max-w-2xl">
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 03 · How it works</div>
-          <h2 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[0.95] tracking-tight">
-            Three steps to<br />
-            <span className="cc-italic-wonk">your next role.</span>
-          </h2>
-        </div>
-
-        <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-px bg-[color:var(--cc-cream)]/20 border border-[color:var(--cc-cream)]/20">
-          {steps.map((s, i) => (
-            <motion.div
-              key={s.title}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.8, delay: i * 0.15, ease: [0.2, 0.8, 0.2, 1] }}
-              className="bg-[color:var(--cc-ink)] p-10 md:p-14"
-            >
-              <div className="cc-font-display italic text-6xl text-[color:var(--cc-rust)] leading-none">{s.tag}</div>
-              <h3 className="mt-8 cc-font-display text-3xl md:text-4xl tracking-tight text-[color:var(--cc-cream)]">
-                {s.title}
-              </h3>
-              <p className="mt-5 cc-font-editorial text-lg leading-snug text-[color:var(--cc-cream)]/75 max-w-sm">
-                {s.body}
-              </p>
-            </motion.div>
-          ))}
-        </div>
+    <SkySection id="method" tone="dusk">
+      <div className="max-w-2xl">
+        <div className="cc-label text-[color:var(--cc-rust)]">How it works</div>
+        <h2 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[0.95] tracking-tight text-[color:var(--cc-ink)]">
+          Three steps to<br />
+          <span className="cc-italic-wonk text-[color:var(--cc-rust)]">your next role.</span>
+        </h2>
       </div>
-    </section>
+
+      <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {steps.map((s, i) => (
+          <motion.div
+            key={s.title}
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.8, delay: i * 0.15, ease: [0.2, 0.8, 0.2, 1] }}
+            className={`${SOFT_CARD} p-10 md:p-12`}
+          >
+            <h3 className="cc-font-display text-3xl md:text-4xl tracking-tight text-[color:var(--cc-ink)]">
+              {s.title}
+            </h3>
+            <p className="mt-5 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)] max-w-sm">
+              {s.body}
+            </p>
+          </motion.div>
+        ))}
+      </div>
+    </SkySection>
   );
 });
 Method.displayName = "Method";
@@ -347,73 +426,54 @@ Method.displayName = "Method";
 /* ─────────────────────────── DISPATCHES ─────────────────────────── */
 
 const dispatches = [
-  {
-    date: "17 April 2026",
-    dept: "Dept. of Industry & Skills",
-    headline: "Cyber apprenticeships expanded by 320 seats",
-    body: "New intake targeting school leavers and mid-career switchers. Focus: SOC analyst, cloud security, GRC.",
-  },
-  {
-    date: "12 April 2026",
-    dept: "Invest SA",
-    headline: "$144M committed to advanced manufacturing corridor",
-    body: "Elizabeth–Osborne corridor receives funding. Robotics, composites, and low-emissions metals prioritised.",
-  },
-  {
-    date: "04 April 2026",
-    dept: "Dept. for Health",
-    headline: "Regional allied-health roles: +18% forecast",
-    body: "Mid-north regions leading growth. Physio, occupational therapy, and mental-health streams named.",
-  },
+  { date: "17 April 2026", dept: "Dept. of Industry & Skills", headline: "Cyber apprenticeships expanded by 320 seats", body: "New intake targeting school leavers and mid-career switchers. Focus: SOC analyst, cloud security, GRC." },
+  { date: "12 April 2026", dept: "Invest SA", headline: "$144M committed to advanced manufacturing corridor", body: "Elizabeth–Osborne corridor receives funding. Robotics, composites, and low-emissions metals prioritised." },
+  { date: "04 April 2026", dept: "Dept. for Health", headline: "Regional allied-health roles: +18% forecast", body: "Mid-north regions leading growth. Physio, occupational therapy, and mental-health streams named." },
 ];
 
 const Dispatches = memo(() => (
-  <section id="dispatches" className="bg-[color:var(--cc-cream)] py-24 md:py-36">
-    <div className="max-w-[1400px] mx-auto px-6 md:px-10">
-      <CraftSectionHead
-        section="§ 04 · Updates"
-        title={<>Latest from the<br /><span className="cc-italic-wonk">SA government.</span></>}
-        sub={<>A rolling feed of policy, funding and hiring news — sourced, dated, and always current.</>}
-      />
+  <SkySection id="dispatches" tone="dawn">
+    <CraftSectionHead
+      section="Updates"
+      title={<>Latest from the<br /><span className="cc-italic-wonk">SA government.</span></>}
+      sub={<>A rolling feed of policy, funding and hiring news — sourced, dated, and always current.</>}
+    />
 
-      <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
-        {dispatches.map((d, i) => (
-          <motion.article
-            key={d.headline}
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.8, delay: i * 0.12, ease: [0.2, 0.8, 0.2, 1] }}
-            className="cc-telegram cc-font-mono"
-          >
-            <div className="cc-tele-stamp">
-              Update · {String(i + 1).padStart(2, "0")}
-            </div>
+    <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
+      {dispatches.map((d, i) => (
+        <motion.article
+          key={d.headline}
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.8, delay: i * 0.12, ease: [0.2, 0.8, 0.2, 1] }}
+          className="cc-telegram cc-font-mono"
+        >
+          <div className="cc-tele-stamp">Update</div>
 
-            <div className="flex items-center justify-between mt-2 pt-2">
-              <div className="cc-label-sm text-[color:var(--cc-ash)]">{d.date}</div>
-              <div className="cc-label-sm text-[color:var(--cc-rust)]">Published</div>
-            </div>
+          <div className="flex items-center justify-between mt-2 pt-2">
+            <div className="cc-label-sm text-[color:var(--cc-ash)]">{d.date}</div>
+            <div className="cc-label-sm text-[color:var(--cc-rust)]">Published</div>
+          </div>
 
-            <div className="mt-4 cc-label text-[color:var(--cc-ink-soft)]">{d.dept}</div>
+          <div className="mt-4 cc-label text-[color:var(--cc-ink-soft)]">{d.dept}</div>
 
-            <h3 className="mt-5 cc-font-display text-2xl md:text-3xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
-              {d.headline}
-            </h3>
+          <h3 className="mt-5 cc-font-display text-2xl md:text-3xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
+            {d.headline}
+          </h3>
 
-            <p className="mt-4 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
-              {d.body}
-            </p>
+          <p className="mt-4 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+            {d.body}
+          </p>
 
-            <div className="mt-8 pt-4 flex items-center justify-between text-[color:var(--cc-ash)]">
-              <span className="cc-label-sm">—— END ——</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </div>
-          </motion.article>
-        ))}
-      </div>
+          <div className="mt-8 pt-4 flex items-center justify-between text-[color:var(--cc-ash)]">
+            <span className="cc-label-sm">—— END ——</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </div>
+        </motion.article>
+      ))}
     </div>
-  </section>
+  </SkySection>
 ));
 Dispatches.displayName = "Dispatches";
 
@@ -427,38 +487,35 @@ const subjects = [
 ];
 
 const Subjects = memo(() => (
-  <section id="subjects" className="bg-[color:var(--cc-cream-2)] py-24 md:py-36 relative overflow-hidden">
-    <div className="absolute inset-0 cc-grain" />
-    <div className="max-w-[1400px] mx-auto px-6 md:px-10 relative">
-      <CraftSectionHead
-        section="§ 05 · Who it's for"
-        title={<>Four people.<br /><span className="cc-italic-wonk">One platform.</span></>}
-      />
+  <SkySection id="subjects" tone="day">
+    <CraftSectionHead
+      section="Who it's for"
+      title={<>Four people.<br /><span className="cc-italic-wonk">One platform.</span></>}
+    />
 
-      <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-14">
-        {subjects.map((s, i) => (
-          <motion.article
-            key={s.id}
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.7, delay: (i % 2) * 0.1, ease: [0.2, 0.8, 0.2, 1] }}
-            className="border-t border-[color:var(--cc-ink)] pt-8 flex items-start gap-8"
-          >
-            <div className="cc-font-display italic text-7xl md:text-8xl text-[color:var(--cc-rust)] leading-none shrink-0">
-              {s.id}
-            </div>
-            <div className="pt-2">
-              <h3 className="cc-font-display text-3xl tracking-tight text-[color:var(--cc-ink)]">{s.who}</h3>
-              <p className="mt-4 cc-font-editorial text-xl leading-snug text-[color:var(--cc-ink-soft)] max-w-sm">
-                {s.body}
-              </p>
-            </div>
-          </motion.article>
-        ))}
-      </div>
+    <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-14">
+      {subjects.map((s, i) => (
+        <motion.article
+          key={s.id}
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.7, delay: (i % 2) * 0.1, ease: [0.2, 0.8, 0.2, 1] }}
+          className="border-t border-[color:var(--cc-ink)]/40 pt-8 flex items-start gap-8"
+        >
+          <div className="cc-font-display italic text-7xl md:text-8xl text-[color:var(--cc-rust)] leading-none shrink-0">
+            {s.id}
+          </div>
+          <div className="pt-2">
+            <h3 className="cc-font-display text-3xl tracking-tight text-[color:var(--cc-ink)]">{s.who}</h3>
+            <p className="mt-4 cc-font-editorial text-xl leading-snug text-[color:var(--cc-ink-soft)] max-w-sm">
+              {s.body}
+            </p>
+          </div>
+        </motion.article>
+      ))}
     </div>
-  </section>
+  </SkySection>
 ));
 Subjects.displayName = "Subjects";
 
@@ -466,22 +523,40 @@ Subjects.displayName = "Subjects";
 
 const CTA = memo(({ session, navigate }: { session: Session | null; navigate: (to: string) => void }) => {
   return (
-    <section className="relative bg-[color:var(--ds-surface-alt)] text-[color:var(--cc-ink)] py-24 md:py-32 overflow-hidden border-y border-[color:var(--cc-hair)]">
-      <div className="max-w-3xl mx-auto px-6 md:px-10 relative text-center">
+    <section className="relative overflow-hidden py-28 md:py-36 border-y border-[color:var(--cc-hair)]">
+      {/* A soft, faded echo of the hero footage to gently bookend the page */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 h-full w-full object-cover opacity-30"
+        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_170732_8a9ccda6-5cff-4628-b164-059c500a2b41.mp4"
+      />
+      <div
+        className="absolute inset-0"
+        style={{ background: "linear-gradient(180deg, rgba(243,234,219,0.86) 0%, rgba(236,224,203,0.92) 100%)" }}
+      />
+      <div className="cc-grain absolute inset-0" />
+
+      <div className="relative z-10 max-w-3xl mx-auto px-6 md:px-10 text-center">
         <div className="cc-label text-[color:var(--cc-rust)]">Get started</div>
-        <h2 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[1.02] tracking-tight">
+        <h2 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[1.02] tracking-tight text-[color:var(--cc-ink)]">
           Ready to run your career search with less chaos?
         </h2>
-        <p className="mt-6 text-lg md:text-xl leading-snug text-[color:var(--cc-ink-soft)]">
+        <p className="mt-6 cc-font-editorial text-lg md:text-xl leading-snug text-[color:var(--cc-ink-soft)]">
           Build your resume, track applications, and stay aligned with market demand from one place.
         </p>
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <div className="mt-10 flex items-center justify-center">
           <button
             onClick={() => navigate(session ? "/dashboard" : "/auth")}
-            className="cc-btn cc-btn-primary w-full sm:w-auto"
+            className="group inline-flex items-center gap-2 rounded-full py-1 pl-6 pr-1 text-sm font-medium transition-all hover:gap-3 sm:text-base"
+            style={{ backgroundColor: "var(--cc-ink)", color: HERO_CREAM }}
           >
             {session ? "Open dashboard" : "Create free account"}
-            <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-full transition-transform group-hover:scale-110" style={{ backgroundColor: HERO_CREAM }}>
+              <ArrowUpRight className="h-4 w-4" style={{ color: "var(--cc-ink)" }} />
+            </span>
           </button>
         </div>
         <div className="mt-8 cc-label-sm text-[color:var(--cc-ash)]">
@@ -512,14 +587,26 @@ const Index = memo(() => {
   }, [navigate]);
 
   return (
-    <main className="ds-shell cc-root cc-font-sans min-h-screen text-[color:var(--cc-ink)] overflow-x-hidden antialiased">
-      <CraftNav variant="cream" session={session} />
+    <main
+      className="cc-root cc-font-sans min-h-screen overflow-x-hidden antialiased text-[color:var(--cc-ink)]"
+      style={{ backgroundColor: "var(--cc-cream)" }}
+    >
+      <CraftNav variant="ink" session={session} />
       <Hero session={session} navigate={navigate} />
       <Figures />
       <Toolkit />
       <Method />
       <Dispatches />
       <Subjects />
+      <Suspense
+        fallback={
+          <div
+            style={{ height: "min(90vh, 860px)", minHeight: 540, background: "linear-gradient(180deg,#b9cdd6 0%,#f0e2c0 45%,#cdb86f 100%)" }}
+          />
+        }
+      >
+        <MeadowInterlude />
+      </Suspense>
       <CTA session={session} navigate={navigate} />
       <CraftFooter />
     </main>

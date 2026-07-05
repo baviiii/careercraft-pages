@@ -89,6 +89,19 @@ export interface NewsPreferences {
   digestFrequency: string;
 }
 
+/* ── Likeliness / match rating ───────────────────────────────────────────────
+   Raw match scores are an open-ended sum of weighted signals. We map them onto
+   a 0–100 "likeliness" with a saturating curve (diminishing returns) and a band
+   so every surface (jobs, market, news) can show a consistent rating. */
+export type MatchBand = 'strong' | 'good' | 'fair' | 'low';
+
+export function matchLevel(score: number): { match: number; band: MatchBand } {
+  const match = score <= 0 ? 0 : Math.round(100 * (1 - Math.exp(-score / 35)));
+  const band: MatchBand =
+    match >= 75 ? 'strong' : match >= 55 ? 'good' : match >= 35 ? 'fair' : 'low';
+  return { match, band };
+}
+
 // Default values
 const DEFAULT_JOB_PREFERENCES: JobPreferences = {
   industries: [],
@@ -191,6 +204,20 @@ export function usePersonalization() {
         .select('*')
         .eq('user_id', session.user.id);
 
+      // Resolve skill names — user_skills stores only skill_id (FK -> skill_tags.id),
+      // so without this every skill reads as a UUID and never matches a job's skills.
+      const skillIds = Array.from(
+        new Set((skillsData || []).map((s) => s.skill_id).filter((x): x is string => !!x)),
+      );
+      const skillNameById = new Map<string, string>();
+      if (skillIds.length) {
+        const { data: tagRows } = await supabase
+          .from('skill_tags')
+          .select('id,name')
+          .in('id', skillIds);
+        (tagRows || []).forEach((t) => skillNameById.set(t.id, t.name));
+      }
+
       // Parse preferences JSON fields safely
       const jobPrefs = prefsData?.job_preferences as any || DEFAULT_JOB_PREFERENCES;
       const interviewPrefs = prefsData?.interview_preferences as any || DEFAULT_INTERVIEW_PREFERENCES;
@@ -238,7 +265,7 @@ export function usePersonalization() {
         jobChangeTimeline: profileData?.job_change_timeline || null,
         skills: (skillsData || []).map(s => ({
           id: s.id,
-          name: s.skill_id || 'Unknown Skill',
+          name: (s.skill_id ? skillNameById.get(s.skill_id) : undefined) || s.skill_id || 'Unknown Skill',
           proficiency: s.proficiency || 'intermediate',
           category: s.category || 'technical',
           yearsExperience: s.years_experience,
@@ -349,10 +376,10 @@ export function usePersonalization() {
     const reasons: string[] = [];
 
     // Check if company is excluded
-    if (profile.jobPreferences.excludedCompanies.some(c => 
+    if (profile.jobPreferences.excludedCompanies.some(c =>
       job.company?.toLowerCase().includes(c.toLowerCase())
     )) {
-      return { isRecommended: false, score: 0, reasons: ['Company excluded'] };
+      return { isRecommended: false, score: 0, match: 0, band: 'low' as MatchBand, reasons: ['Company excluded'] };
     }
 
     // Match target job titles
@@ -409,8 +436,90 @@ export function usePersonalization() {
     return {
       isRecommended: score >= 20,
       score,
+      ...matchLevel(score),
       reasons,
     };
+  }, [profile]);
+
+  // Rate how relevant a news/market item is to this profile (same 0–100 scale).
+  const scoreArticle = useCallback((article: { title?: string; description?: string; category?: string }) => {
+    const text = `${article.title || ''} ${article.description || ''} ${article.category || ''}`.toLowerCase();
+    let score = 0;
+    const reasons: string[] = [];
+
+    const industries = [
+      profile.industry,
+      ...profile.jobPreferences.industries,
+      ...profile.newsPreferences.followedIndustries,
+    ].filter(Boolean) as string[];
+    if (industries.some((i) => text.includes(i.toLowerCase()))) {
+      score += 25;
+      reasons.push('Your industry');
+    }
+
+    if (profile.targetJobTitles.some((t) => t && text.includes(t.toLowerCase()))) {
+      score += 20;
+      reasons.push('Your target role');
+    }
+
+    const companies = [...profile.targetCompanies, ...profile.newsPreferences.followedCompanies].filter(Boolean);
+    if (companies.some((c) => text.includes(c.toLowerCase()))) {
+      score += 18;
+      reasons.push('A company you follow');
+    }
+
+    const skillNames = profile.skills.map((s) => s.name.toLowerCase()).filter((n) => n.length > 2);
+    const matched = skillNames.filter((s) => text.includes(s));
+    if (matched.length) {
+      score += Math.min(matched.length * 8, 24);
+      reasons.push(`${matched.length} skill${matched.length > 1 ? 's' : ''} mentioned`);
+    }
+
+    if (profile.currentJobTitle && text.includes(profile.currentJobTitle.toLowerCase())) {
+      score += 12;
+      reasons.push('Your current role');
+    }
+
+    return { isRelevant: score >= 18, score, ...matchLevel(score), reasons };
+  }, [profile]);
+
+  // Market widgets — rate a single skill / industry / company against the profile.
+  const scoreSkill = useCallback((skill: string) => {
+    const s = skill.trim().toLowerCase();
+    let score = 0;
+    const reasons: string[] = [];
+    if (s && profile.skills.some((k) => { const n = k.name.toLowerCase(); return n === s || n.includes(s) || s.includes(n); })) {
+      score = 55;
+      reasons.push('You have this skill');
+    } else if (s && (profile.targetJobTitles.some((t) => t.toLowerCase().includes(s)) || profile.currentJobTitle?.toLowerCase().includes(s))) {
+      score = 22;
+      reasons.push('Relevant to your roles');
+    }
+    return { score, ...matchLevel(score), reasons };
+  }, [profile]);
+
+  const scoreIndustry = useCallback((industry: string) => {
+    const s = industry.trim().toLowerCase();
+    const mine = [profile.industry, ...profile.jobPreferences.industries, ...profile.newsPreferences.followedIndustries].filter(Boolean) as string[];
+    let score = 0;
+    const reasons: string[] = [];
+    if (s && mine.some((i) => { const n = i.toLowerCase(); return n === s || n.includes(s) || s.includes(n); })) {
+      score = 60;
+      reasons.push('Your industry');
+    }
+    return { score, ...matchLevel(score), reasons };
+  }, [profile]);
+
+  const scoreCompany = useCallback((company: string) => {
+    const s = company.trim().toLowerCase();
+    const mine = [...profile.targetCompanies, ...profile.newsPreferences.followedCompanies].filter(Boolean);
+    let score = 0;
+    const reasons: string[] = [];
+    if (s && mine.some((c) => { const n = c.toLowerCase(); return n === s || n.includes(s) || s.includes(n); })) {
+      score = 60;
+      reasons.push('A company you follow');
+    }
+    return { score, ...matchLevel(score), reasons };
   }, [profile]);
 
   // Get resume auto-fill data
@@ -525,6 +634,12 @@ export function usePersonalization() {
     
     // News
     getNewsFilters,
+    scoreArticle,
+
+    // Market widgets
+    scoreSkill,
+    scoreIndustry,
+    scoreCompany,
     
     // UI helpers
     getPersonalizationSummary,

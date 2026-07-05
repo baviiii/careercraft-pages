@@ -820,6 +820,15 @@
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
+/* Film-grain / noise overlay — used by cinematic hero blocks (prisma-hero.tsx).
+   A self-contained fractal-noise texture so the component renders without
+   any external asset. Layer it over imagery with mix-blend-overlay. */
+.noise-overlay {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'><filter id='noiseFilter'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23noiseFilter)'/></svg>");
+  background-size: 220px 220px;
+  background-repeat: repeat;
+}
+
 /* Text shadow for glow effect */
 .text-glow-blue {
   text-shadow: 0 0 40px hsl(217 91% 50% / 0.4), 0 0 80px hsl(217 91% 50% / 0.2);

@@ -82,9 +82,51 @@ export default function JobMarketNews() {
     loading: profileLoading,
     hasPersonalizationData,
     getNewsFilters,
+    scoreArticle,
+    scoreSkill,
+    scoreIndustry,
+    scoreCompany,
   } = usePersonalization();
 
   const [showPersonalized, setShowPersonalized] = useState(true);
+  const personalizeOn = hasPersonalizationData && showPersonalized;
+
+  // Per-item likeliness ratings, shown when the profile is set & personalisation is on.
+  const rateArticle = useCallback(
+    (a: NewsArticle) => {
+      if (!personalizeOn) return null;
+      const r = scoreArticle({ title: a.title, description: a.description, category: a.category });
+      return r.match > 0 ? { match: r.match, band: r.band, reasons: r.reasons } : null;
+    },
+    [personalizeOn, scoreArticle],
+  );
+
+  const rateSkill = useCallback(
+    (name: string) => {
+      if (!personalizeOn) return null;
+      const r = scoreSkill(name);
+      return r.match > 0 ? { match: r.match } : null;
+    },
+    [personalizeOn, scoreSkill],
+  );
+
+  const rateIndustry = useCallback(
+    (name: string) => {
+      if (!personalizeOn) return null;
+      const r = scoreIndustry(name);
+      return r.match > 0 ? { match: r.match } : null;
+    },
+    [personalizeOn, scoreIndustry],
+  );
+
+  const rateCompany = useCallback(
+    (name: string) => {
+      if (!personalizeOn) return null;
+      const r = scoreCompany(name);
+      return r.match > 0 ? { match: r.match } : null;
+    },
+    [personalizeOn, scoreCompany],
+  );
 
   /* ───────────── security / rate limit ───────────── */
   const { checkLimit: checkNewsLimit } = useRateLimit({
@@ -542,6 +584,7 @@ export default function JobMarketNews() {
             hasMore={hasMoreNews}
             loadingMore={loadingMoreNews}
             currentTimeRange={newsTimeRange}
+            rateArticle={rateArticle}
           />
         )}
 
@@ -550,6 +593,7 @@ export default function JobMarketNews() {
             trends={trends}
             skillDemand={skillDemand}
             loading={loadingTrends}
+            rateSkill={rateSkill}
           />
         )}
 
@@ -559,6 +603,8 @@ export default function JobMarketNews() {
             topIndustries={topIndustries}
             topCompanies={topCompanies}
             loading={loadingTrends}
+            rateIndustry={rateIndustry}
+            rateCompany={rateCompany}
           />
         )}
       </div>

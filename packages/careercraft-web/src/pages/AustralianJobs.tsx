@@ -17,7 +17,8 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/useSecurity";
-import { usePersonalization } from "@/hooks/usePersonalization";
+import { usePersonalization, type MatchBand } from "@/hooks/usePersonalization";
+import { MatchMeter } from "@/components/craft/MatchMeter";
 import { sanitize } from "@/lib/security/sanitizers";
 import { auditLog } from "@/lib/security/auditLog";
 import { RATE_LIMITS } from "@/lib/security/rateLimiter";
@@ -482,7 +483,7 @@ export default function AustralianJobs() {
 
   const sortedJobs = useMemo(() => {
     if (!hasPersonalizationData) {
-      return jobs.map((job) => ({ ...job, fitsPreferences: false }));
+      return jobs.map((job) => ({ ...job, fitsPreferences: false, match: 0, band: "low" as MatchBand, reasons: [] as string[] }));
     }
     const jobsWithScore = jobs.map((job) => {
       const result = isJobRecommended({
@@ -498,17 +499,14 @@ export default function AustralianJobs() {
       });
       return {
         ...job,
-        fitsPreferences: result.isRecommended && result.score >= 20,
+        fitsPreferences: result.match >= 35,
         matchScore: result.score,
+        match: result.match,
+        band: result.band,
+        reasons: result.reasons,
       };
     });
-    return jobsWithScore.sort((a, b) => {
-      if (a.fitsPreferences && !b.fitsPreferences) return -1;
-      if (!a.fitsPreferences && b.fitsPreferences) return 1;
-      if (a.fitsPreferences && b.fitsPreferences)
-        return (b.matchScore ?? 0) - (a.matchScore ?? 0);
-      return 0;
-    });
+    return jobsWithScore.sort((a, b) => (b.match ?? 0) - (a.match ?? 0));
   }, [jobs, hasPersonalizationData, isJobRecommended]);
 
   const matchingJobsCount = sortedJobs.filter((j) => j.fitsPreferences).length;
@@ -809,6 +807,9 @@ export default function AustralianJobs() {
                   formatSalary={formatSalary}
                   getTimeAgo={getTimeAgo}
                   fitsPreferences={job.fitsPreferences}
+                  match={job.match}
+                  band={job.band}
+                  reasons={job.reasons}
                 />
               ))}
 
@@ -1331,6 +1332,9 @@ interface JobRowProps {
   formatSalary: (job: Job) => string | null;
   getTimeAgo: (date: string) => string;
   fitsPreferences?: boolean;
+  match?: number;
+  band?: MatchBand;
+  reasons?: string[];
 }
 
 const SOURCE_NOTE: Record<string, string> = {
@@ -1347,8 +1351,12 @@ const JobRow = ({
   formatSalary,
   getTimeAgo,
   fitsPreferences = false,
+  match,
+  band,
+  reasons,
 }: JobRowProps) => {
   const salary = formatSalary(job);
+  const hasMatch = typeof match === "number" && match > 0;
   return (
     <article
       className={cn(
@@ -1390,24 +1398,29 @@ const JobRow = ({
               </div>
             </div>
 
-            <button
-              onClick={onToggleSave}
-              className="flex-shrink-0 p-2 border border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)] transition-colors"
-              aria-label={isSaved ? "Unsave" : "Save"}
-            >
-              {isSaved ? (
-                <BookmarkCheck className="w-4 h-4 text-[color:var(--cc-rust)]" />
-              ) : (
-                <Bookmark className="w-4 h-4 text-[color:var(--cc-ash)]" />
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {hasMatch && (
+                <MatchMeter match={match!} band={band ?? "low"} reasons={reasons} />
               )}
-            </button>
+              <button
+                onClick={onToggleSave}
+                className="p-2 border border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)] transition-colors"
+                aria-label={isSaved ? "Unsave" : "Save"}
+              >
+                {isSaved ? (
+                  <BookmarkCheck className="w-4 h-4 text-[color:var(--cc-rust)]" />
+                ) : (
+                  <Bookmark className="w-4 h-4 text-[color:var(--cc-ash)]" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {fitsPreferences && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] cc-label-sm text-[color:var(--cc-ink)]">
                 <Star className="w-3 h-3 text-[color:var(--cc-rust)]" />
-                Matches your profile
+                {reasons && reasons.length > 0 ? reasons[0] : "Matches your profile"}
               </span>
             )}
             {salary && (

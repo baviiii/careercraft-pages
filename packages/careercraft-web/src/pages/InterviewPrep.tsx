@@ -15,6 +15,20 @@ import { usePersonalization } from "@/hooks/usePersonalization";
 import { gsap } from "gsap";
 import InterviewDashboard from "@/components/interview/InterviewDashboard";
 import { SAMarketIntelligence } from "@/components/interview/SAMarketIntelligence";
+import CareerProfilePanel from "@/components/career-dev/CareerProfilePanel";
+import CareerGuidancePanel from "@/components/career-dev/CareerGuidancePanel";
+import CertificationsPanel from "@/components/career-dev/CertificationsPanel";
+import StudyPanel from "@/components/career-dev/StudyPanel";
+import {
+  interviewCoach,
+  COACH_AVAILABLE,
+  CoachUnavailableError,
+  type Proof,
+  type CoachAnswerEvaluation,
+  type CoachFinalEvaluation,
+  type CoachResource,
+  type ProvenTip,
+} from "@/lib/interviewCoach";
 import {
   Select,
   SelectContent,
@@ -66,26 +80,20 @@ import {
   Wand2,
   UserCheck,
   Settings,
+  Compass,
+  Gauge,
+  Route,
 } from "lucide-react";
 
-const FIELDS = [
-  "Software Engineering",
-  "DevOps / SRE",
-  "Cloud / AWS",
-  "Data Science",
-  "Product Management",
-  "UX/UI Design",
-  "Sales",
-  "Marketing",
-  "Finance",
-  "Healthcare / Nursing",
-  "Human Resources",
-  "Legal",
-  "Operations",
-  "Customer Success",
-];
-
-const SENIORITY = ["Junior", "Mid-Level", "Senior", "Lead", "Manager", "Director", "VP", "C-Level"];
+import {
+  CAREER_FIELDS,
+  CAREER_SENIORITY,
+  mapCareerLevelToSeniority,
+  mapIndustryToCareerField,
+  normalizeCareerField,
+  isCareerField,
+  isCareerSeniority,
+} from "@/lib/careerFields";
 
 interface Question {
   id: number;
@@ -95,39 +103,30 @@ interface Question {
   expectedTopics: string[];
 }
 
-interface AnswerEvaluation {
-  score: number;
-  scoreBreakdown: { relevance: number; clarity: number; depth: number; structure: number };
-  validation: { correct: string[]; missing: string[]; redFlags: string[] };
-  bestAnswer: string;
-  faangAnswer: string;
-  confidence: number;
-  tips: string[];
-  improvement: string;
-}
+// Evaluation/eval/resource shapes are owned by the interview-coach client so the
+// page always renders exactly what the MCP returns (normalized), never mock data.
+type AnswerEvaluation = CoachAnswerEvaluation;
+type FinalEval = CoachFinalEvaluation;
+type LearningResource = CoachResource;
 
-interface FinalEval {
-  overallScore: number;
-  grade: string;
-  strengths: string[];
-  weaknesses: string[];
-  mustFix: string[];
-  improvementPlan: { area: string; action: string; timeline: string }[];
-  readiness: string;
-  summary: string;
-}
-
-interface LearningResource {
-  id: string;
-  title: string;
-  description: string;
-  type: 'video' | 'article' | 'course' | 'practice';
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  duration: string;
-  url: string;
-  skill: string;
-  provider: string;
-  rating?: number;
+// Renders a real, vetted source (e.g. a Hacker News thread with points/comments)
+// behind a tip/resource/coaching note. Only shown when the MCP returns proof.
+function ProofChip({ proof }: { proof: Proof | null }) {
+  if (!proof) return null;
+  return (
+    <a
+      href={proof.url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+    >
+      <CheckCircle2 className="w-3 h-3" />
+      <span className="opacity-70">Backed by</span>
+      <span className="font-semibold">{proof.label}</span>
+      {proof.stat && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold">{proof.stat}</span>}
+      <ExternalLink className="w-3 h-3" />
+    </a>
+  );
 }
 
 // Onboarding steps for first-time users
@@ -193,49 +192,16 @@ export default function InterviewPrep() {
     if (hasPersonalizationData && !profileLoading && usePersonalizedSettings && !field) {
       const defaults = getInterviewDefaults();
       if (defaults.field) {
-        // Map industry to field
-        const fieldMap: Record<string, string> = {
-          'technology': 'Software Engineering',
-          'software': 'Software Engineering',
-          'devops': 'DevOps / SRE',
-          'cloud': 'Cloud / AWS',
-          'data': 'Data Science',
-          'product': 'Product Management',
-          'design': 'UX/UI Design',
-          'sales': 'Sales',
-          'marketing': 'Marketing',
-          'finance': 'Finance',
-          'healthcare': 'Healthcare / Nursing',
-          'hr': 'Human Resources',
-          'legal': 'Legal',
-        };
-        const mappedField = Object.entries(fieldMap).find(([key]) => 
-          defaults.field.toLowerCase().includes(key)
-        )?.[1] || defaults.field;
-        
-        if (FIELDS.includes(mappedField)) {
+        const mappedField = normalizeCareerField(mapIndustryToCareerField(defaults.field));
+        if (isCareerField(mappedField)) {
           setField(mappedField);
         }
       }
       
       // Map career level to seniority
       if (userProfile.careerLevel) {
-        const seniorityMap: Record<string, string> = {
-          'entry': 'Junior',
-          'junior': 'Junior',
-          'mid': 'Mid-Level',
-          'senior': 'Senior',
-          'lead': 'Lead',
-          'manager': 'Manager',
-          'director': 'Director',
-          'vp': 'VP',
-          'executive': 'C-Level',
-        };
-        const mappedSeniority = Object.entries(seniorityMap).find(([key]) => 
-          userProfile.careerLevel?.toLowerCase().includes(key)
-        )?.[1];
-        
-        if (mappedSeniority && SENIORITY.includes(mappedSeniority)) {
+        const mappedSeniority = mapCareerLevelToSeniority(userProfile.careerLevel);
+        if (mappedSeniority && isCareerSeniority(mappedSeniority)) {
           setSeniority(mappedSeniority);
         }
       }
@@ -243,6 +209,7 @@ export default function InterviewPrep() {
   }, [hasPersonalizationData, profileLoading, usePersonalizedSettings]);
   
   // Interview state
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<string[]>([]);
@@ -258,7 +225,12 @@ export default function InterviewPrep() {
   // Resources state
   const [resources, setResources] = useState<LearningResource[]>([]);
   const [loadingResources, setLoadingResources] = useState(false);
+  const [resourcesUnavailable, setResourcesUnavailable] = useState(false);
   const [selectedSkillFilter, setSelectedSkillFilter] = useState<string>('all');
+
+  // Proven tips state (source-backed, from the MCP proof layer)
+  const [provenTips, setProvenTips] = useState<ProvenTip[]>([]);
+  const [loadingTips, setLoadingTips] = useState(false);
   
   // UX state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -312,181 +284,103 @@ export default function InterviewPrep() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("interview-ai", {
-        body: { action: "generate_questions", field, seniority, jobDescription },
+      const { sessionId: newSessionId, questions: q } = await interviewCoach.startSession({
+        field,
+        seniority: seniority || undefined,
       });
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (!q.length) {
+        throw new CoachUnavailableError("No questions were returned. Please try again.");
+      }
 
-      setQuestions(data.questions || []);
-      setAnswers(new Array(data.questions?.length || 0).fill(""));
+      setSessionId(newSessionId);
+      setQuestions(q.map((item) => ({
+        id: item.id,
+        question: item.question,
+        type: item.type,
+        difficulty: item.difficulty,
+        expectedTopics: item.expectedTopics,
+      })));
+      setAnswers(new Array(q.length).fill(""));
       setEvaluations([]);
+      setCurrentQuestionIndex(0);
+      setCurrentAnswer("");
+      setCurrentEvaluation(null);
       setActiveTab("interview");
       setSearchParams({ tab: "interview" });
-      
+
       // Start timer
       setInterviewTimer(0);
       setTimerRunning(true);
-      
-      toast({ title: "Interview simulation ready!", description: `${data.questions?.length} questions generated. Good luck!` });
-    } catch (error: any) {
+
+      toast({ title: "Interview simulation ready!", description: `${q.length} questions generated. Good luck!` });
+    } catch (error: unknown) {
       console.error("Error generating questions:", error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      const message = error instanceof CoachUnavailableError
+        ? error.message
+        : "Interview coach is not available at the moment.";
+      toast({ title: "Not available", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch AI-powered learning resources
+  // Fetch source-backed learning resources from the MCP — real data only.
+  // skillFocus comes from the filter; weaknesses bias the goal when available.
   const fetchResources = useCallback(async (skillFocus?: string) => {
     setLoadingResources(true);
+    setResourcesUnavailable(false);
     try {
-      // Generate resources based on user's field and weaknesses
-      const { data, error } = await supabase.functions.invoke("interview-ai", {
-        body: { 
-          action: "generate_resources",
-          field: field || "Software Engineering",
-          seniority: seniority || "Mid-Level",
-          weaknesses: finalEvaluation?.weaknesses || [],
-          skillFocus,
-        },
+      const skills =
+        skillFocus && skillFocus !== 'all'
+          ? [skillFocus]
+          : finalEvaluation?.weaknesses?.length
+            ? finalEvaluation.weaknesses
+            : field
+              ? [field]
+              : undefined;
+      const result = await interviewCoach.getResources({
+        skills,
+        goal: field ? `interview prep for ${field}` : undefined,
+        maxResults: 9,
       });
-
-      if (error) throw error;
-      
-      // If AI resources work, use them; otherwise use curated fallback
-      if (data?.resources) {
-        setResources(data.resources);
+      if (result.length > 0) {
+        setResources(result);
       } else {
-        // Curated fallback resources
-        setResources(getCuratedResources(field || "Software Engineering", skillFocus));
+        setResources([]);
+        setResourcesUnavailable(true);
       }
     } catch (error) {
       console.error("Error fetching resources:", error);
-      // Use curated fallback
-      setResources(getCuratedResources(field || "Software Engineering", skillFocus));
+      setResources([]);
+      setResourcesUnavailable(true);
     } finally {
       setLoadingResources(false);
     }
-  }, [field, seniority, finalEvaluation]);
+  }, [field, finalEvaluation]);
 
-  // Curated resources fallback (no AI needed)
-  const getCuratedResources = (userField: string, skillFocus?: string): LearningResource[] => {
-    const baseResources: LearningResource[] = [
-      {
-        id: '1',
-        title: 'STAR Method Masterclass',
-        description: 'Learn to structure behavioral answers that impress interviewers',
-        type: 'video',
-        difficulty: 'beginner',
-        duration: '15 min',
-        url: 'https://www.youtube.com/results?search_query=star+method+interview',
-        skill: 'Behavioral',
-        provider: 'YouTube',
-        rating: 4.8,
-      },
-      {
-        id: '2',
-        title: 'Common Interview Questions & Answers',
-        description: 'Top 50 questions with expert-crafted responses',
-        type: 'article',
-        difficulty: 'beginner',
-        duration: '20 min read',
-        url: 'https://www.indeed.com/career-advice/interviewing/top-interview-questions-and-answers',
-        skill: 'General',
-        provider: 'Indeed',
-        rating: 4.6,
-      },
-      {
-        id: '3',
-        title: 'Body Language in Interviews',
-        description: 'Non-verbal communication tips for confidence',
-        type: 'video',
-        difficulty: 'intermediate',
-        duration: '12 min',
-        url: 'https://www.youtube.com/results?search_query=interview+body+language',
-        skill: 'Communication',
-        provider: 'YouTube',
-        rating: 4.5,
-      },
-      {
-        id: '4',
-        title: 'Salary Negotiation Guide',
-        description: 'How to negotiate your offer with confidence',
-        type: 'article',
-        difficulty: 'advanced',
-        duration: '15 min read',
-        url: 'https://www.glassdoor.com/blog/guide/how-to-negotiate-salary/',
-        skill: 'Negotiation',
-        provider: 'Glassdoor',
-        rating: 4.7,
-      },
-    ];
-
-    // Add field-specific resources
-    if (userField.includes('Software') || userField.includes('DevOps')) {
-      baseResources.push(
-        {
-          id: '5',
-          title: 'System Design Interview Prep',
-          description: 'Learn to design scalable systems step by step',
-          type: 'course',
-          difficulty: 'advanced',
-          duration: '4 hours',
-          url: 'https://www.youtube.com/results?search_query=system+design+interview',
-          skill: 'System Design',
-          provider: 'YouTube',
-          rating: 4.9,
-        },
-        {
-          id: '6',
-          title: 'LeetCode Top Interview Questions',
-          description: 'Practice the most common coding problems',
-          type: 'practice',
-          difficulty: 'intermediate',
-          duration: 'Self-paced',
-          url: 'https://leetcode.com/problem-list/top-interview-questions/',
-          skill: 'Coding',
-          provider: 'LeetCode',
-          rating: 4.8,
-        }
-      );
+  // Fetch proven, source-backed tips from the MCP proof layer.
+  const fetchProvenTips = useCallback(async () => {
+    setLoadingTips(true);
+    try {
+      const skill = finalEvaluation?.weaknesses?.[0] ?? field ?? undefined;
+      const tips = await interviewCoach.getProvenTips({ skill, count: 3 });
+      setProvenTips(tips);
+    } catch (error) {
+      console.error("Error fetching proven tips:", error);
+      setProvenTips([]);
+    } finally {
+      setLoadingTips(false);
     }
+  }, [field, finalEvaluation]);
 
-    if (userField.includes('Product')) {
-      baseResources.push(
-        {
-          id: '7',
-          title: 'Product Sense Interview Guide',
-          description: 'Framework for product design questions',
-          type: 'article',
-          difficulty: 'intermediate',
-          duration: '25 min read',
-          url: 'https://www.productmanagementexercises.com/',
-          skill: 'Product Sense',
-          provider: 'PM Exercises',
-          rating: 4.7,
-        }
-      );
-    }
-
-    // Filter by skill if specified
-    if (skillFocus && skillFocus !== 'all') {
-      return baseResources.filter(r => 
-        r.skill.toLowerCase().includes(skillFocus.toLowerCase())
-      );
-    }
-
-    return baseResources;
-  };
-
-  // Load resources when tab changes to resources
+  // Load resources + proven tips when the resources tab opens
   useEffect(() => {
     if (activeTab === 'resources' && resources.length === 0) {
       fetchResources();
+      fetchProvenTips();
     }
-  }, [activeTab, fetchResources, resources.length]);
+  }, [activeTab, fetchResources, fetchProvenTips, resources.length]);
 
   const submitAnswer = async () => {
     if (!currentAnswer.trim()) {
@@ -500,25 +394,27 @@ export default function InterviewPrep() {
     setAnswers(newAnswers);
 
     try {
-      const { data, error } = await supabase.functions.invoke("interview-ai", {
-        body: {
-          action: "evaluate_answer",
-          field,
-          question: questions[currentQuestionIndex].question,
-          answer: currentAnswer,
-        },
+      const q = questions[currentQuestionIndex];
+      const evaluation = await interviewCoach.submitAnswer({
+        sessionId: sessionId ?? "",
+        questionText: q.question,
+        questionType: q.type,
+        answerText: currentAnswer,
+        field,
+        seniority: seniority || undefined,
+        expectedTopics: q.expectedTopics,
       });
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      setCurrentEvaluation(data);
+      setCurrentEvaluation(evaluation);
       const newEvaluations = [...evaluations];
-      newEvaluations[currentQuestionIndex] = data;
+      newEvaluations[currentQuestionIndex] = evaluation;
       setEvaluations(newEvaluations);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error evaluating answer:", error);
-      toast({ title: "Error evaluating", description: error.message, variant: "destructive" });
+      const message = error instanceof CoachUnavailableError
+        ? error.message
+        : "Interview coach is not available at the moment.";
+      toast({ title: "Not available", description: message, variant: "destructive" });
     } finally {
       setEvaluating(false);
     }
@@ -539,23 +435,18 @@ export default function InterviewPrep() {
     setActiveTab("evaluation");
 
     try {
-      const { data, error } = await supabase.functions.invoke("interview-ai", {
-        body: {
-          action: "final_evaluation",
-          field,
-          seniority,
-          questions,
-          answers,
-        },
+      const evaluation = await interviewCoach.finish({
+        sessionId: sessionId ?? "",
+        field,
+        seniority: seniority || undefined,
       });
-
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      setFinalEvaluation(data);
-    } catch (error: any) {
+      setFinalEvaluation(evaluation);
+    } catch (error: unknown) {
       console.error("Error generating final evaluation:", error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      const message = error instanceof CoachUnavailableError
+        ? error.message
+        : "Interview coach is not available at the moment.";
+      toast({ title: "Not available", description: message, variant: "destructive" });
     } finally {
       setGeneratingFinal(false);
     }
@@ -564,6 +455,7 @@ export default function InterviewPrep() {
   const resetInterview = () => {
     setActiveTab("setup");
     setSearchParams({ tab: "setup" });
+    setSessionId(null);
     setQuestions([]);
     setAnswers([]);
     setEvaluations([]);
@@ -750,12 +642,43 @@ export default function InterviewPrep() {
               <History className="w-5 h-5" />Session History
             </button>
             
-            <button 
+            <button
               ref={(el) => { if (el) navItemsRef.current[6] = el; }}
-              onClick={() => handleTabChange("resources")} 
+              onClick={() => handleTabChange("resources")}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'resources' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
             >
               <BookOpen className="w-5 h-5" />Learning Resources
+            </button>
+
+            <div className="border-t my-4" />
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-3">Career Development</p>
+
+            <button
+              onClick={() => handleTabChange("profile")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'profile' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <Gauge className="w-5 h-5" />My Profile
+            </button>
+
+            <button
+              onClick={() => handleTabChange("career-coach")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'career-coach' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <Compass className="w-5 h-5" />Career Coach
+            </button>
+
+            <button
+              onClick={() => handleTabChange("certifications")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'certifications' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <Award className="w-5 h-5" />Certifications
+            </button>
+
+            <button
+              onClick={() => handleTabChange("study")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:translate-x-1 ${activeTab === 'study' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'}`}
+            >
+              <Route className="w-5 h-5" />Study & Upskill
             </button>
           </nav>
 
@@ -829,6 +752,21 @@ export default function InterviewPrep() {
 
             {/* SETUP TAB - Enhanced with clear steps */}
             <TabsContent value="setup" className="space-y-6">
+              {/* Coach connectivity notice — shown only when the MCP endpoint is not configured */}
+              {!COACH_AVAILABLE && (
+                <Card className="p-4 bg-amber-500/10 border-amber-500/20">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">Interview coach not connected</p>
+                      <p className="text-xs text-muted-foreground">
+                        Set <code className="font-mono">VITE_INTERVIEW_MCP_URL</code> to your running interview-coach-mcp to enable live questions, evaluations and source-backed resources. Until then, those features show "not available at the moment".
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
               {/* How it works - Quick guide */}
               <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
                 <h3 className="font-semibold mb-4 flex items-center gap-2">
@@ -943,7 +881,7 @@ export default function InterviewPrep() {
                         <SelectValue placeholder="Choose your industry or role" />
                       </SelectTrigger>
                       <SelectContent>
-                        {FIELDS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                        {CAREER_FIELDS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">Questions will be tailored to this field</p>
@@ -956,7 +894,7 @@ export default function InterviewPrep() {
                         <SelectValue placeholder="Select your level" />
                       </SelectTrigger>
                       <SelectContent>
-                        {SENIORITY.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {CAREER_SENIORITY.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">Adjusts question difficulty</p>
@@ -1142,27 +1080,44 @@ Example: 'We're looking for a Senior Software Engineer with 5+ years experience 
                             </div>
                           </div>
 
-                          {/* Best Answer */}
-                          <div className="space-y-2">
-                            <h4 className="font-medium flex items-center gap-2"><Award className="w-4 h-4 text-primary" />Industry Best Answer</h4>
-                            <p className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">{currentEvaluation.bestAnswer}</p>
-                          </div>
+                          {/* Improved Answer */}
+                          {currentEvaluation.bestAnswer && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium flex items-center gap-2"><Award className="w-4 h-4 text-primary" />Stronger Answer</h4>
+                              <p className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">{currentEvaluation.bestAnswer}</p>
+                            </div>
+                          )}
 
-                          {/* FAANG Answer */}
-                          <div className="space-y-2">
-                            <h4 className="font-medium flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />FAANG-Optimized Answer</h4>
-                            <p className="text-sm text-muted-foreground bg-gradient-to-r from-primary/5 to-primary/10 p-4 rounded-lg border border-primary/20">{currentEvaluation.faangAnswer}</p>
-                          </div>
+                          {/* Key Improvements */}
+                          {currentEvaluation.faangAnswer && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Key Improvements</h4>
+                              <p className="text-sm text-muted-foreground bg-gradient-to-r from-primary/5 to-primary/10 p-4 rounded-lg border border-primary/20">{currentEvaluation.faangAnswer}</p>
+                            </div>
+                          )}
 
                           {/* Tips */}
-                          <div className="space-y-2">
-                            <h4 className="font-medium">Tips for Improvement</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {currentEvaluation.tips?.map((tip, i) => (
-                                <Badge key={i} variant="secondary">{tip}</Badge>
-                              ))}
+                          {currentEvaluation.tips.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium">Tips for Improvement</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {currentEvaluation.tips.map((tip, i) => (
+                                  <Badge key={i} variant="secondary">{tip}</Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
+
+                          {/* Suggested follow-up + source proof */}
+                          {currentEvaluation.improvement && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium flex items-center gap-2"><HelpCircle className="w-4 h-4 text-primary" />Likely Follow-up</h4>
+                              <p className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">{currentEvaluation.improvement}</p>
+                            </div>
+                          )}
+                          {currentEvaluation.proof && (
+                            <div className="pt-1"><ProofChip proof={currentEvaluation.proof} /></div>
+                          )}
 
                           <Button onClick={nextQuestion} className="w-full" size="lg">
                             {currentQuestionIndex < questions.length - 1 ? <>Next Question<ChevronRight className="w-4 h-4 ml-2" /></> : <>Complete Interview & Get Final Evaluation</>}
@@ -1363,6 +1318,11 @@ Example: 'We're looking for a Senior Software Engineer with 5+ years experience 
                           <span className="text-xs text-muted-foreground">{resource.provider}</span>
                           <Badge variant="secondary" className="text-[10px]">{resource.skill}</Badge>
                         </div>
+                        {resource.proof && (
+                          <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                            <ProofChip proof={resource.proof} />
+                          </div>
+                        )}
                       </Card>
                     );
                   })}
@@ -1373,14 +1333,43 @@ Example: 'We're looking for a Senior Software Engineer with 5+ years experience 
               {!loadingResources && resources.length === 0 && (
                 <Card className="p-12 text-center">
                   <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">No Resources Found</h3>
-                  <p className="text-muted-foreground mb-4">Try a different filter or check back later</p>
+                  <h3 className="text-lg font-semibold mb-2">Resources not available at the moment</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {resourcesUnavailable
+                      ? "We couldn't load live recommendations right now. Please try again."
+                      : "No resources match this filter."}
+                  </p>
                   <Button variant="outline" onClick={() => {
                     setSelectedSkillFilter('all');
                     fetchResources();
                   }}>
-                    <RotateCcw className="w-4 h-4 mr-2" />Reset Filters
+                    <RotateCcw className="w-4 h-4 mr-2" />Try Again
                   </Button>
+                </Card>
+              )}
+
+              {/* Proven tips — source-backed by the MCP proof layer (real only) */}
+              {(loadingTips || provenTips.length > 0) && (
+                <Card className="p-6">
+                  <h3 className="font-semibold mb-1 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    Proven Tips
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">Coaching advice backed by real, vetted sources.</p>
+                  {loadingTips ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {provenTips.map((t, i) => (
+                        <div key={i} className="p-4 bg-muted/50 rounded-lg space-y-2">
+                          <p className="text-sm">{t.tip}</p>
+                          {t.proof && <ProofChip proof={t.proof} />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               )}
 
@@ -1404,6 +1393,24 @@ Example: 'We're looking for a Senior Software Engineer with 5+ years experience 
                   ))}
                 </div>
               </Card>
+            </TabsContent>
+
+            {/* CAREER DEVELOPMENT TABS — the career/certification/study surface,
+                each backed by interview-coach-mcp via the careerCoach client. */}
+            <TabsContent value="profile">
+              <CareerProfilePanel onNavigate={handleTabChange} />
+            </TabsContent>
+
+            <TabsContent value="career-coach">
+              <CareerGuidancePanel field={field || undefined} seniority={seniority || undefined} />
+            </TabsContent>
+
+            <TabsContent value="certifications">
+              <CertificationsPanel field={field || undefined} />
+            </TabsContent>
+
+            <TabsContent value="study">
+              <StudyPanel field={field || undefined} />
             </TabsContent>
           </Tabs>
         </main>

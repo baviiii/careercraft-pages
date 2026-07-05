@@ -107,11 +107,11 @@ export default function OnboardingPage() {
     if (pending) void runAnalysis(pending);
   }, [pending, runAnalysis]);
 
-  const handleConfirm = useCallback(async () => {
-    if (!userId || !analysis || !pending) return;
+  const handleConfirm = useCallback(async (edited: OnboardingAnalysis) => {
+    if (!userId || !pending) return;
     setSaving(true);
     try {
-      await applyOnboarding({ userId, analysis, source: pending.mode });
+      await applyOnboarding({ userId, analysis: edited, source: pending.mode });
       toast({
         title: 'You\'re all set',
         description: 'Your profile is now personalised across CareerCraft.',
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
     } finally {
       setSaving(false);
     }
-  }, [userId, analysis, pending, toast, navigate]);
+  }, [userId, pending, toast, navigate]);
 
   const handleSkipConfirm = useCallback(async () => {
     if (!userId) return;
