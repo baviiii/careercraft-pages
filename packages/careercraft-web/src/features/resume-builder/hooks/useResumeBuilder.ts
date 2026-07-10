@@ -8,7 +8,6 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
-  useRef,
   useState,
 } from "react";
 
@@ -39,9 +38,6 @@ import type {
 
 /** Full API surface returned by the hook. */
 export interface UseResumeBuilderReturn {
-  // ── refs ──
-  previewRef: React.RefObject<HTMLDivElement>;
-
   // ── state ──
   currentStep: number;
   setCurrentStep: Dispatch<SetStateAction<number>>;
@@ -154,7 +150,6 @@ export function useResumeBuilder(dialogs: {
   setPastedText: Dispatch<SetStateAction<string>>;
 }): UseResumeBuilderReturn {
   const { toast } = useToast();
-  const previewRef = useRef<HTMLDivElement>(null);
 
   // ── Core state ──────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(0);
@@ -632,8 +627,6 @@ export function useResumeBuilder(dialogs: {
   void dialogs.openSaveDialog;
 
   return {
-    previewRef,
-
     currentStep,
     setCurrentStep,
 

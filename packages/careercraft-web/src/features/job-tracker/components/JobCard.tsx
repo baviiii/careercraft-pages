@@ -67,14 +67,14 @@ export const JobCard = ({
       exit={{ opacity: 0, y: -8 }}
       transition={{ delay: Math.min(index * 0.03, 0.2), duration: 0.35 }}
       layout
-      className="group relative bg-[color:var(--cc-cream)] border border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)] transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-[2px]"
-      style={{
-        boxShadow:
-          "inset 4px 0 0 0 " +
-          accent.edge +
-          ", 0 0 0 0 transparent",
-      }}
+      className="cc-surface cc-lift group relative overflow-hidden"
     >
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-1"
+        style={{ background: accent.edge }}
+      />
+
       {/* Folio + glyph + status pill — runs along a quiet sublabel rail */}
       <div className="flex items-center justify-between pl-5 pr-2 pt-3">
         <div className="flex items-center gap-3 min-w-0">

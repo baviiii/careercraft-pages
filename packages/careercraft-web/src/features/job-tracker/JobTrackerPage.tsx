@@ -1,12 +1,10 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { ArrowUpRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  CraftAppBody,
-  CraftAppHeader,
-  CraftAppShell,
-  CraftEmpty,
-} from "@/components/craft/AppPrimitives";
+import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
+import { CraftEmpty } from "@/components/craft/AppPrimitives";
+import { usePersonalization } from "@/hooks/usePersonalization";
 
 import { AutomationDialog } from "./components/AutomationDialog";
 import { AutomationStrip } from "./components/AutomationStrip";
@@ -43,7 +41,23 @@ export default function JobTrackerPage() {
     refreshApplications,
     mutations,
   } = useJobTracker();
-  const discovery = useJobDiscovery(refreshApplications);
+  const perso = usePersonalization();
+  // Only send a real city — never the "australia" fallback. Adzuna stores
+  // state names ("New South Wales", "Victoria"), so a country-wide `ilike`
+  // filter matches almost nothing and silently empties the feed.
+  const personalizedCity = (
+    perso.profile.preferredLocations[0] ||
+    perso.profile.location ||
+    ""
+  )
+    .split(",")[0]
+    .trim();
+  const discovery = useJobDiscovery(refreshApplications, {
+    query: perso.hasPersonalizationData ? perso.getPersonalizedJobQuery() : undefined,
+    location:
+      perso.hasPersonalizationData && personalizedCity ? personalizedCity : undefined,
+    ready: !perso.loading,
+  });
   const fitScoring = useJobFitScoring();
   const automation = useJobAutomation();
 
@@ -77,6 +91,27 @@ export default function JobTrackerPage() {
     [pipelineApplications],
   );
 
+  // Rank the discovery feed by how well each role fits the profile (target
+  // role, location, salary, remote pref) so the strongest matches sit on top,
+  // instead of the raw date order the catalog returns.
+  const rankedDiscoveryJobs = useMemo(() => {
+    if (!perso.hasPersonalizationData) return discovery.jobs;
+    return [...discovery.jobs]
+      .map((job) => ({
+        job,
+        score: perso.isJobRecommended({
+          title: job.title,
+          company: job.company,
+          location: job.location ?? undefined,
+          salaryMin: job.salary_min ?? undefined,
+          salaryMax: job.salary_max ?? undefined,
+          isRemote: job.is_remote,
+        }).score,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.job);
+  }, [discovery.jobs, perso.hasPersonalizationData, perso.isJobRecommended]);
+
   useEffect(() => {
     automation.loadSettings().catch(() => undefined);
   }, [automation.loadSettings]);
@@ -90,16 +125,14 @@ export default function JobTrackerPage() {
   /* ───── Loading state ─────────────────────────────────────── */
   if (loading) {
     return (
-      <CraftAppShell>
-        <div className="min-h-screen grid place-items-center">
+      <CraftAppLayout>
+        <div className="grid place-items-center py-32">
           <div className="text-center">
-            <div className="cc-label text-[color:var(--cc-rust)] mb-3">
-              Loading applications...
-            </div>
-            <div className="w-10 h-10 border-2 border-[color:var(--cc-ink)] border-t-transparent rounded-full animate-spin mx-auto" />
+            <div className="cc-kicker mb-3">Loading applications</div>
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--cc-hair-strong)] border-t-[color:var(--cc-rust)]" />
           </div>
         </div>
-      </CraftAppShell>
+      </CraftAppLayout>
     );
   }
 
@@ -107,20 +140,27 @@ export default function JobTrackerPage() {
   const visible = pipelineApplications.length;
 
   return (
-    <CraftAppShell>
-      <CraftAppHeader
-        kicker="§ 03 · Job tracker"
-        title={
-          <>
-            Track every job in one clear board.
-          </>
-        }
-        sub="Use this page to log applications, move them through stages, and spot what needs action today."
-        ctaLabel="File application"
-        onCta={() => setAddOpen(true)}
-      />
+    <CraftAppLayout
+      topBarLeft={
+        <div className="cc-label-sm text-[color:var(--cc-ash)]">Job tracker</div>
+      }
+      headerActions={
+        <button onClick={() => setAddOpen(true)} className="cc-action cc-action--sm">
+          File application <ArrowUpRight className="h-3.5 w-3.5" />
+        </button>
+      }
+    >
+      <header className="mb-9">
+        <div className="cc-kicker">Job tracker</div>
+        <h1 className="mt-3 cc-font-display text-4xl leading-[0.95] tracking-tight md:text-5xl">
+          Track every job in <span className="cc-italic-wonk">one</span> clear board.
+        </h1>
+        <p className="mt-4 max-w-2xl cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] md:text-xl">
+          Log applications, move them through stages, and spot what needs action today.
+        </p>
+      </header>
 
-      <CraftAppBody className="!py-8 md:!py-10 space-y-12" data-ds-tokenized="true">
+      <div className="space-y-12" data-ds-tokenized="true">
         {/* ── § A. LEDGER SUMMARY ─────────────────────────────────────── */}
         <section className="space-y-4">
           <LedgerRule
@@ -155,31 +195,21 @@ export default function JobTrackerPage() {
           />
 
           {pipelineApplications.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-4">
-                <div className="cc-font-sans text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--cc-ash)]">
-                  Step 1
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {[
+                { n: "Step 1", t: "Find a role using search and status filters." },
+                { n: "Step 2", t: "Open a card to review notes, fit score, and timeline." },
+                { n: "Step 3", t: "Use card actions to move status as your process changes." },
+              ].map((s) => (
+                <div key={s.n} className="cc-surface p-4">
+                  <div className="cc-font-sans text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--cc-ash)]">
+                    {s.n}
+                  </div>
+                  <p className="mt-1 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
+                    {s.t}
+                  </p>
                 </div>
-                <p className="mt-1 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
-                  Find a role using search and status filters.
-                </p>
-              </div>
-              <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-4">
-                <div className="cc-font-sans text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--cc-ash)]">
-                  Step 2
-                </div>
-                <p className="mt-1 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
-                  Open a card to review notes, fit score, and timeline.
-                </p>
-              </div>
-              <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-4">
-                <div className="cc-font-sans text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--cc-ash)]">
-                  Step 3
-                </div>
-                <p className="mt-1 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
-                  Use card actions to move status as your process changes.
-                </p>
-              </div>
+              ))}
             </div>
           )}
 
@@ -220,13 +250,13 @@ export default function JobTrackerPage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: laneIndex * 0.05, duration: 0.4 }}
-                    className="bg-[color:var(--cc-cream)] border border-[color:var(--cc-hair-strong)]"
+                    className="cc-surface overflow-hidden"
                   >
                     {/* Lane header */}
                     <header
-                      className="flex items-center justify-between px-4 py-3 border-b"
+                      className="flex items-center justify-between border-b px-4 py-3"
                       style={{
-                        borderColor: "var(--cc-hair-strong)",
+                        borderColor: "var(--cc-hair)",
                         background: `linear-gradient(90deg, ${accent.soft} 0%, transparent 70%)`,
                       }}
                     >
@@ -316,7 +346,7 @@ export default function JobTrackerPage() {
             right={discovery.jobs.length > 0 ? `${discovery.jobs.length} results` : "—"}
           />
           <WireDispatch
-            jobs={discovery.jobs}
+            jobs={rankedDiscoveryJobs}
             filters={discovery.filters}
             setFilters={discovery.setFilters}
             isLoading={discovery.isLoading}
@@ -330,14 +360,14 @@ export default function JobTrackerPage() {
 
         {/* End rule */}
         {pipelineApplications.length > 0 && (
-          <div className="cc-font-sans text-xs text-[color:var(--cc-ash)] pt-3 border-t border-[color:var(--cc-hair)] flex items-center justify-between">
+          <div className="flex items-center justify-between border-t border-[color:var(--cc-hair)] pt-3 cc-font-sans text-xs text-[color:var(--cc-ash)]">
             <span>Board summary</span>
             <span className="cc-tabular">
               {visible} of {total}
             </span>
           </div>
         )}
-      </CraftAppBody>
+      </div>
 
       {/* Dialogs */}
       <AddJobDialog
@@ -394,6 +424,6 @@ export default function JobTrackerPage() {
         isBusy={automation.isBusy}
         onSave={automation.saveSettings}
       />
-    </CraftAppShell>
+    </CraftAppLayout>
   );
 }

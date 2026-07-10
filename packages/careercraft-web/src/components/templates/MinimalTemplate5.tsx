@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { TemplateProps, defaultTemplateData } from "./types";
 
-export const MinimalTemplate5 = ({ data, isPreview = true }: TemplateProps) => {
+export const MinimalTemplate5 = ({ data }: TemplateProps) => {
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-neutral-50 text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
+    <Card className={`bg-neutral-50 text-black w-[794px] min-h-[1123px] p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       <div className="space-y-5">
         {/* Swiss Style Header */}
         <div className="grid grid-cols-3 gap-4 pb-4 border-b-2 border-black">

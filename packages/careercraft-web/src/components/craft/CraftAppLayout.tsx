@@ -131,7 +131,7 @@ export const CraftAppLayout = memo(function CraftAppLayout({
       />
 
       {/* Main column */}
-      <div className="lg:pl-[300px] relative z-10 min-h-screen flex flex-col">
+      <div className="lg:pl-[272px] relative z-10 min-h-screen flex flex-col">
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-[color:var(--cc-cream)]/90 backdrop-blur-sm border-b border-[color:var(--cc-hair)]">
           <div className="flex items-center justify-between px-6 md:px-10 h-16">

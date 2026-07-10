@@ -23,6 +23,7 @@ import {
 import type { ComponentType, Dispatch, SetStateAction } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
+import { ScaledResumeFrame } from "@/components/templates/ScaledResumeFrame";
 import type { TemplateData } from "@/components/templates/types";
 import { getTemplate } from "@/lib/templateMap";
 
@@ -141,11 +142,11 @@ export const EditStep = ({
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
         <div>
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Compose</div>
-          <h2 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
-            Assemble the <span className="cc-italic-wonk">narrative</span>.
+          <div className="cc-label text-[color:var(--cc-rust)]">02 · Edit</div>
+          <h2 className="mt-3 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight">
+            Fill in your details
           </h2>
-          <p className="mt-3 cc-font-editorial italic text-xl text-[color:var(--cc-ink-soft)]">
+          <p className="mt-2 text-[15px] text-[color:var(--cc-ink-soft)]">
             {autoSaveStatusLabel(autoSaveStatus)}
           </p>
         </div>
@@ -159,7 +160,7 @@ export const EditStep = ({
             style={{ padding: "0.8rem 1.1rem" }}
           >
             <Target className="w-4 h-4" />
-            {jobDescription ? "Target filed" : "Add target role"}
+            {jobDescription ? "Edit job description" : "Add job description"}
           </button>
           <button
             onClick={() => setShowLivePreview(!showLivePreview)}
@@ -290,18 +291,10 @@ export const EditStep = ({
               <span>Live proof</span>
               <Sparkles className="w-3.5 h-3.5 text-[color:var(--cc-rust)]" />
             </div>
-            <div className="border border-[color:var(--cc-hair-strong)] bg-white overflow-hidden">
-              <div
-                style={{
-                  transform: "scale(0.42)",
-                  transformOrigin: "top left",
-                  width: "238%",
-                  height: "calc(0.42 * 1123px)",
-                }}
-                className="pointer-events-none"
-              >
-                {Template && <Template data={templateData} isPreview />}
-              </div>
+            <div className="border border-[color:var(--cc-hair-strong)] bg-white">
+              <ScaledResumeFrame>
+                {Template && <Template data={templateData} />}
+              </ScaledResumeFrame>
             </div>
           </aside>
         )}

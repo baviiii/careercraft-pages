@@ -337,8 +337,8 @@ const ReviewPanel = ({ parsed }: { parsed: AIResumeData }) => {
         })}
       </div>
 
-      <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-        Apply when ready — every line can still be edited in § 02.
+      <p className="text-sm text-[color:var(--cc-ink-soft)]">
+        Apply when ready — you can still edit everything in the next step.
       </p>
     </motion.div>
   );

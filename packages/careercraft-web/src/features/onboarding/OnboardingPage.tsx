@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { applyAccent, resolveAccent } from '@/lib/personaTheme';
 import { ChoosePathStep } from './ChoosePathStep';
 import { AnalyzeStep } from './AnalyzeStep';
 import { SkipWarningDialog } from './SkipWarningDialog';
@@ -24,6 +25,8 @@ interface PendingInput {
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isRedo = searchParams.get('redo') === '1';
   const { toast } = useToast();
   const [stage, setStage] = useState<Stage>('choose');
   const [userId, setUserId] = useState<string | null>(null);
@@ -54,7 +57,8 @@ export default function OnboardingPage() {
         .single();
       const isExplicitlySkipped = profile?.onboarding_source === 'skipped';
       const isCompleted = !!profile?.onboarding_completed_at && !isExplicitlySkipped;
-      if (!cancelled && isCompleted) {
+      // `?redo=1` lets an already-onboarded user re-run the flow from Settings.
+      if (!cancelled && isCompleted && !isRedo) {
         navigate('/dashboard', { replace: true });
         return;
       }
@@ -63,7 +67,7 @@ export default function OnboardingPage() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, isRedo]);
 
   const runAnalysis = useCallback(
     async (input: PendingInput) => {
@@ -112,6 +116,16 @@ export default function OnboardingPage() {
     setSaving(true);
     try {
       await applyOnboarding({ userId, analysis: edited, source: pending.mode });
+      // Re-tint the app to their world right away — the dashboard they land
+      // on should already feel like theirs.
+      applyAccent(
+        resolveAccent({
+          personaFunction: edited.persona.function,
+          subFunction: edited.persona.subFunction,
+          vertical: edited.persona.vertical,
+          industry: edited.inferredProfile.industry,
+        }),
+      );
       toast({
         title: 'You\'re all set',
         description: 'Your profile is now personalised across CareerCraft.',
@@ -141,8 +155,30 @@ export default function OnboardingPage() {
   }, [userId, navigate, toast]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30 px-4 py-10 md:py-16">
-      <div className="mx-auto max-w-3xl">
+    <div className="cc-root cc-font-sans relative min-h-screen overflow-hidden bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased">
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          background:
+            'radial-gradient(circle at 82% 8%, rgba(200,67,30,0.18), transparent 32%), radial-gradient(circle at 14% 22%, rgba(255,253,247,0.62), transparent 30%)',
+        }}
+      />
+      <div className="cc-grain pointer-events-none absolute inset-0" aria-hidden />
+
+      {/* Masthead */}
+      <header className="relative border-b border-[color:var(--cc-hair-strong)]">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-5">
+          <span className="cc-font-display text-xl tracking-tight text-[color:var(--cc-ink)]">
+            CareerCraft
+          </span>
+          <span className="cc-label-sm text-[color:var(--cc-ash)]">
+            {stage === 'choose' ? 'Step 1 · Setup' : 'Step 2 · Review'}
+          </span>
+        </div>
+      </header>
+
+      <div className="relative mx-auto max-w-5xl px-4 py-10 md:py-14">
         {stage === 'choose' && (
           <ChoosePathStep
             onAnalyze={handleAnalyze}

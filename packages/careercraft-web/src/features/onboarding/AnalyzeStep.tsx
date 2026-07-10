@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
-  Brain,
   Briefcase,
   CheckCircle2,
   FileCheck,
@@ -15,6 +10,12 @@ import {
   Target,
   X,
 } from 'lucide-react';
+import {
+  CAREER_LEVELS,
+  EMPLOYMENT_STATUS,
+  INDUSTRIES,
+  YEARS_OF_EXPERIENCE,
+} from '@/hooks/useUserProfile';
 import type { OnboardingAnalysis } from './types';
 
 interface Props {
@@ -32,7 +33,7 @@ const LOADING_MESSAGES = [
   'Categorising your role and seniority…',
   'Inferring your career targets…',
   'Mapping your skills…',
-  'Building your CV standards…',
+  'Setting your CV standards…',
 ];
 
 const REMOTE_OPTIONS = [
@@ -77,17 +78,19 @@ export function AnalyzeStep({
 
 function LoadingPanel({ message }: { message: string }) {
   return (
-    <Card className="border-border/60 bg-card/80 backdrop-blur-sm">
-      <CardContent className="flex flex-col items-center gap-6 py-16 text-center">
-        <div className="relative">
-          <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
-          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Brain className="h-8 w-8 text-primary" />
-          </div>
+    <div className="cc-card p-10 md:p-14">
+      <div className="flex flex-col items-center gap-6 text-center">
+        <div className="relative flex h-16 w-16 items-center justify-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-[color:var(--cc-rust-soft)]" />
+          <span className="relative flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream-2)]">
+            <Sparkles className="h-7 w-7 text-[color:var(--cc-rust)]" />
+          </span>
         </div>
-        <div className="space-y-1">
-          <p className="text-lg font-medium">Claude is analysing your background</p>
-          <div className="flex h-6 items-center justify-center gap-2 text-sm text-muted-foreground">
+        <div className="space-y-3">
+          <p className="cc-font-display text-2xl tracking-tight text-[color:var(--cc-ink)]">
+            Reading your career
+          </p>
+          <div className="flex h-6 items-center justify-center gap-2 cc-label-sm text-[color:var(--cc-ash)]">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             <AnimatePresence mode="wait">
               <motion.span
@@ -102,8 +105,8 @@ function LoadingPanel({ message }: { message: string }) {
             </AnimatePresence>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -125,282 +128,382 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
     setEdited((p) => ({ ...p, targets: { ...p.targets, ...patch } }));
   const setPrefs = (patch: Partial<OnboardingAnalysis['jobPreferences']>) =>
     setEdited((p) => ({ ...p, jobPreferences: { ...p.jobPreferences, ...patch } }));
+  const setProfile = (patch: Partial<OnboardingAnalysis['inferredProfile']>) =>
+    setEdited((p) => ({ ...p, inferredProfile: { ...p.inferredProfile, ...patch } }));
 
   const stagger = (i: number) => ({
     initial: { opacity: 0, y: 12 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.35, delay: i * 0.08 },
+    transition: { duration: 0.35, delay: i * 0.07 },
   });
 
-  const { persona, inferredProfile, skills, cvStandards, confidence } = analysis;
+  const { persona, inferredProfile, skills, cvStandards, confidence } = edited;
   const confidencePct = Math.round((confidence?.overall ?? 0) * 100);
 
   return (
     <div className="space-y-4">
-      {/* Persona — the headline card */}
+      {/* Persona — the headline plate */}
       <motion.div {...stagger(0)}>
-        <Card className="border-primary/30 bg-gradient-to-br from-primary/5 via-card to-card">
-          <CardHeader className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="font-normal">
-                <Sparkles className="mr-1 h-3 w-3" /> Step 2 of 2
-              </Badge>
-              <Badge variant="secondary">{confidencePct}% confidence</Badge>
-              {runsRemaining > 0 && (
-                <Badge variant="outline" className="ml-auto text-xs font-normal text-muted-foreground">
-                  {runsRemaining} re-analysis left today
-                </Badge>
-              )}
-            </div>
-            <div>
-              <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                Here's how we're categorising you
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">
+        <div className="cc-card border-[color:var(--cc-ink)] p-6 md:p-8">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Your profile</div>
+            {runsRemaining > 0 && (
+              <span className="cc-label-sm text-[color:var(--cc-ash)]">
+                {runsRemaining} re-analyses left today
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="cc-label-sm text-[color:var(--cc-ash)]">Here's how we read you</p>
+              <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[0.95] tracking-[-0.02em] text-[color:var(--cc-ink)]">
                 {persona.archetype}
               </h2>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-base text-foreground/90">{persona.narrative}</p>
-            <div className="flex flex-wrap gap-2">
-              <PersonaPill label="Seniority" value={persona.seniority} />
-              <PersonaPill label="Function" value={persona.function} />
-              {persona.subFunction && <PersonaPill label="Focus" value={persona.subFunction} />}
-              {persona.vertical && <PersonaPill label="Vertical" value={persona.vertical} />}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* Profile inference */}
-      <motion.div {...stagger(1)}>
-        <SectionCard icon={Briefcase} title="What we picked up">
-          <DefList
-            rows={[
-              ['Current role', inferredProfile.current_job_title],
-              ['Current company', inferredProfile.current_company],
-              ['Experience', inferredProfile.years_of_experience],
-              ['Industry', inferredProfile.industry],
-              [
-                'Location',
-                [inferredProfile.location_city, inferredProfile.location_country]
-                  .filter(Boolean)
-                  .join(', ') || null,
-              ],
-            ]}
-          />
-        </SectionCard>
-      </motion.div>
-
-      {/* Targets — editable */}
-      <motion.div {...stagger(2)}>
-        <SectionCard
-          icon={Target}
-          title="What you're targeting"
-          subtitle="Adjust anything — this is what drives your job, market & news matches."
-        >
-          <div className="space-y-4">
-            <EditField label="Target roles">
-              <EditableChips
-                items={edited.targets.target_job_titles}
-                onChange={(v) => setTargets({ target_job_titles: v })}
-                placeholder="Add a role…"
-              />
-            </EditField>
-            <EditField label="Target companies">
-              <EditableChips
-                items={edited.targets.target_companies}
-                onChange={(v) => setTargets({ target_companies: v })}
-                placeholder="Add a company…"
-              />
-            </EditField>
-            <EditField label="Preferred locations">
-              <EditableChips
-                items={edited.targets.preferred_locations}
-                onChange={(v) => setTargets({ preferred_locations: v })}
-                placeholder="Add a location…"
-              />
-            </EditField>
-            <EditField label="Work arrangement">
-              <EditableChips
-                items={edited.targets.work_arrangement}
-                onChange={(v) => setTargets({ work_arrangement: v })}
-                placeholder="e.g. remote, hybrid…"
-              />
-            </EditField>
-            <div className="grid grid-cols-2 gap-3">
-              <EditField label="Min salary">
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  value={edited.targets.desired_salary_min ?? ''}
-                  onChange={(e) =>
-                    setTargets({ desired_salary_min: e.target.value ? Number(e.target.value) : null })
-                  }
-                  placeholder="e.g. 90000"
-                  className="h-9"
-                />
-              </EditField>
-              <EditField label="Max salary">
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  value={edited.targets.desired_salary_max ?? ''}
-                  onChange={(e) =>
-                    setTargets({ desired_salary_max: e.target.value ? Number(e.target.value) : null })
-                  }
-                  placeholder="e.g. 130000"
-                  className="h-9"
-                />
-              </EditField>
-            </div>
+            <ConfidenceRing pct={confidencePct} />
           </div>
-        </SectionCard>
+
+          <p className="mt-5 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+            {persona.narrative}
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <PersonaPill label="Seniority" value={persona.seniority} />
+            <PersonaPill label="Function" value={persona.function} />
+            {persona.subFunction && <PersonaPill label="Focus" value={persona.subFunction} />}
+            {persona.vertical && <PersonaPill label="Vertical" value={persona.vertical} />}
+          </div>
+        </div>
       </motion.div>
 
-      {/* Job preferences — editable */}
-      <motion.div {...stagger(3)}>
-        <SectionCard icon={Briefcase} title="Job preferences">
-          <div className="space-y-4">
-            <EditField label="Industries">
-              <EditableChips
-                items={edited.jobPreferences.industries}
-                onChange={(v) => setPrefs({ industries: v })}
-                placeholder="Add an industry…"
-              />
-            </EditField>
-            <EditField label="Remote preference">
-              <div className="flex flex-wrap gap-1.5">
-                {REMOTE_OPTIONS.map((opt) => {
-                  const active = edited.jobPreferences.remote_preference === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setPrefs({ remote_preference: opt.value })}
-                      className={
-                        'rounded-md border px-3 py-1 text-sm transition-colors ' +
-                        (active
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border/70 text-muted-foreground hover:border-foreground/40')
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
+        <div className="space-y-4">
+          {/* Targets — editable */}
+          <motion.div {...stagger(1)}>
+            <SectionCard
+              icon={Target}
+              title="Tune your targets"
+              subtitle="These are the details worth checking before saving."
+            >
+              <div className="space-y-5">
+                <EditField label="Target roles">
+                  <EditableChips
+                    items={edited.targets.target_job_titles}
+                    onChange={(v) => setTargets({ target_job_titles: v })}
+                    placeholder="Add a role…"
+                  />
+                </EditField>
+                <EditField label="Preferred locations">
+                  <EditableChips
+                    items={edited.targets.preferred_locations}
+                    onChange={(v) => setTargets({ preferred_locations: v })}
+                    placeholder="Add a location…"
+                  />
+                </EditField>
+                <EditField label="Work arrangement">
+                  <EditableChips
+                    items={edited.targets.work_arrangement}
+                    onChange={(v) => setTargets({ work_arrangement: v })}
+                    placeholder="e.g. remote, hybrid…"
+                  />
+                </EditField>
+                <div className="grid grid-cols-2 gap-4">
+                  <EditField label="Min salary">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={edited.targets.desired_salary_min ?? ''}
+                      onChange={(e) =>
+                        setTargets({ desired_salary_min: e.target.value ? Number(e.target.value) : null })
                       }
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
+                      placeholder="90000"
+                      className="cc-field"
+                    />
+                  </EditField>
+                  <EditField label="Max salary">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={edited.targets.desired_salary_max ?? ''}
+                      onChange={(e) =>
+                        setTargets({ desired_salary_max: e.target.value ? Number(e.target.value) : null })
+                      }
+                      placeholder="130000"
+                      className="cc-field"
+                    />
+                  </EditField>
+                </div>
               </div>
-            </EditField>
-          </div>
-        </SectionCard>
-      </motion.div>
+            </SectionCard>
+          </motion.div>
 
-      {/* Skills */}
-      <motion.div {...stagger(4)}>
-        <SectionCard icon={Sparkles} title={`Skills (${skills.length})`}>
-          <div className="flex flex-wrap gap-1.5">
-            {skills.slice(0, 24).map((s) => (
-              <Badge key={s.name} variant="outline" className="font-normal">
-                {s.name}
-                <span className="ml-1.5 text-[10px] text-muted-foreground">{s.category}</span>
-              </Badge>
-            ))}
-            {skills.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No skills inferred — try the resume path or describe in more detail.
-              </p>
-            )}
-          </div>
-        </SectionCard>
-      </motion.div>
+          <motion.div {...stagger(2)}>
+            <SectionCard icon={Briefcase} title="Preferences">
+              <div className="space-y-5">
+                <EditField label="Target companies">
+                  <EditableChips
+                    items={edited.targets.target_companies}
+                    onChange={(v) => setTargets({ target_companies: v })}
+                    placeholder="Add a company…"
+                  />
+                </EditField>
+                <EditField label="Industries">
+                  <EditableChips
+                    items={edited.jobPreferences.industries}
+                    onChange={(v) => setPrefs({ industries: v })}
+                    placeholder="Add an industry…"
+                  />
+                </EditField>
+                <EditField label="Remote preference">
+                  <div className="flex flex-wrap gap-2">
+                    {REMOTE_OPTIONS.map((opt) => {
+                      const active = edited.jobPreferences.remote_preference === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setPrefs({ remote_preference: opt.value })}
+                          className={
+                            'cc-pill transition-colors ' +
+                            (active ? 'cc-pill-filled' : 'hover:border-[color:var(--cc-ink)]')
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </EditField>
+              </div>
+            </SectionCard>
+          </motion.div>
+        </div>
 
-      {/* CV Standards */}
-      <motion.div {...stagger(5)}>
-        <SectionCard
-          icon={FileCheck}
-          title="Your CV standards"
-          accent
-          subtitle="Use these rules when we generate or rewrite your resume."
-        >
-          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-            <KV label="Recommended length" value={cvStandards.recommended_length} />
-            <KV label="Format" value={cvStandards.format} />
-          </div>
-          {cvStandards.ats_notes?.length > 0 && (
-            <div className="mt-3">
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                ATS notes
-              </p>
-              <ul className="space-y-1 text-sm">
-                {cvStandards.ats_notes.slice(0, 5).map((n, i) => (
-                  <li key={i} className="flex gap-2">
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                    <span>{n}</span>
-                  </li>
+        <div className="space-y-4">
+          <motion.div {...stagger(3)}>
+            <SectionCard
+              icon={Briefcase}
+              title="Your details"
+              subtitle="Saved straight into your profile — fix anything we misread."
+            >
+              <div className="space-y-4">
+                <EditField label="Full name">
+                  <input
+                    value={inferredProfile.full_name ?? ''}
+                    onChange={(e) => setProfile({ full_name: e.target.value || null })}
+                    placeholder="Your name"
+                    className="cc-field"
+                  />
+                </EditField>
+                <div className="grid grid-cols-2 gap-3">
+                  <EditField label="Current role">
+                    <input
+                      value={inferredProfile.current_job_title ?? ''}
+                      onChange={(e) => setProfile({ current_job_title: e.target.value || null })}
+                      placeholder="Job title"
+                      className="cc-field"
+                    />
+                  </EditField>
+                  <EditField label="Company">
+                    <input
+                      value={inferredProfile.current_company ?? ''}
+                      onChange={(e) => setProfile({ current_company: e.target.value || null })}
+                      placeholder="Company"
+                      className="cc-field"
+                    />
+                  </EditField>
+                </div>
+                <EditField label="Industry">
+                  <CanonicalSelect
+                    value={inferredProfile.industry}
+                    onChange={(v) => setProfile({ industry: v })}
+                    options={INDUSTRIES.map((i) => ({ value: i, label: i }))}
+                  />
+                </EditField>
+                <div className="grid grid-cols-2 gap-3">
+                  <EditField label="Career level">
+                    <CanonicalSelect
+                      value={inferredProfile.career_level}
+                      onChange={(v) => setProfile({ career_level: v })}
+                      options={CAREER_LEVELS}
+                    />
+                  </EditField>
+                  <EditField label="Experience">
+                    <CanonicalSelect
+                      value={inferredProfile.years_of_experience}
+                      onChange={(v) => setProfile({ years_of_experience: v })}
+                      options={YEARS_OF_EXPERIENCE}
+                    />
+                  </EditField>
+                </div>
+                <EditField label="Status">
+                  <CanonicalSelect
+                    value={inferredProfile.employment_status}
+                    onChange={(v) => setProfile({ employment_status: v })}
+                    options={EMPLOYMENT_STATUS}
+                  />
+                </EditField>
+                <div className="grid grid-cols-2 gap-3">
+                  <EditField label="City">
+                    <input
+                      value={inferredProfile.location_city ?? ''}
+                      onChange={(e) => setProfile({ location_city: e.target.value || null })}
+                      placeholder="Adelaide"
+                      className="cc-field"
+                    />
+                  </EditField>
+                  <EditField label="Country">
+                    <input
+                      value={inferredProfile.location_country ?? ''}
+                      onChange={(e) => setProfile({ location_country: e.target.value || null })}
+                      placeholder="Australia"
+                      className="cc-field"
+                    />
+                  </EditField>
+                </div>
+              </div>
+            </SectionCard>
+          </motion.div>
+
+          <motion.div {...stagger(4)}>
+            <SectionCard icon={Sparkles} title={`Skills · ${skills.length}`}>
+              <div className="flex flex-wrap gap-2">
+                {skills.slice(0, 18).map((s) => (
+                  <span key={s.name} className="cc-pill">
+                    {s.name}
+                  </span>
                 ))}
-              </ul>
-            </div>
-          )}
-          {cvStandards.improvements?.length > 0 && (
-            <div className="mt-3">
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Top improvements
-              </p>
-              <ul className="space-y-1 text-sm">
-                {cvStandards.improvements.slice(0, 5).map((n, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="mt-0.5 text-primary">→</span>
-                    <span>{n}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </SectionCard>
-      </motion.div>
+                {skills.length === 0 && (
+                  <p className="cc-font-editorial text-base text-[color:var(--cc-ash)]">
+                    No skills inferred — try the résumé path or describe in more detail.
+                  </p>
+                )}
+              </div>
+            </SectionCard>
+          </motion.div>
+
+          <motion.div {...stagger(5)}>
+            <SectionCard
+              icon={FileCheck}
+              title="CV standards"
+              accent
+              subtitle="Used when we generate or rewrite your résumé."
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <KV label="Length" value={cvStandards.recommended_length} />
+                <KV label="Format" value={cvStandards.format} />
+              </div>
+              {cvStandards.improvements?.length > 0 && (
+                <div className="mt-5">
+                  <p className="cc-label-sm text-[color:var(--cc-rust)] mb-2">Top improvements</p>
+                  <ul className="space-y-1.5">
+                    {cvStandards.improvements.slice(0, 4).map((n, i) => (
+                      <li key={i} className="flex gap-2 cc-font-editorial text-base text-[color:var(--cc-ink-soft)]">
+                        <span className="mt-0.5 text-[color:var(--cc-rust)]">→</span>
+                        <span>{n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {cvStandards.ats_notes?.length > 0 && (
+                <div className="mt-5">
+                  <p className="cc-label-sm text-[color:var(--cc-rust)] mb-2">ATS notes</p>
+                  <ul className="space-y-1.5">
+                    {cvStandards.ats_notes.slice(0, 3).map((n, i) => (
+                      <li key={i} className="flex gap-2 cc-font-editorial text-base text-[color:var(--cc-ink-soft)]">
+                        <CheckCircle2 className="mt-1 h-3.5 w-3.5 shrink-0 text-[color:var(--cc-signal)]" />
+                        <span>{n}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </SectionCard>
+          </motion.div>
+        </div>
+      </div>
 
       {/* Action bar */}
       <motion.div {...stagger(6)}>
-        <Card className="border-border/60">
-          <CardContent className="flex flex-col-reverse gap-2 py-4 sm:flex-row sm:justify-between">
-            <Button variant="ghost" onClick={onBack} disabled={saving}>
-              Back
-            </Button>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={onReanalyze}
-                disabled={saving || runsRemaining <= 0}
-                title={runsRemaining <= 0 ? 'Daily limit reached' : 'Re-run AI analysis'}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Re-analyze
-              </Button>
-              <Button onClick={() => onConfirm(edited)} disabled={saving} size="lg">
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" /> Save &amp; personalise
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="cc-card p-4 md:p-5 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button onClick={onBack} disabled={saving} className="cc-btn cc-btn-ghost">
+            Back
+          </button>
+          <div className="flex flex-col-reverse gap-3 sm:flex-row">
+            <button
+              onClick={onReanalyze}
+              disabled={saving || runsRemaining <= 0}
+              title={runsRemaining <= 0 ? 'Daily limit reached' : 'Re-run AI analysis'}
+              className="cc-btn cc-btn-ghost"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Re-analyse
+            </button>
+            <button onClick={() => onConfirm(edited)} disabled={saving} className="cc-btn cc-btn-signal">
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Saving…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" /> Save &amp; personalise
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </motion.div>
+    </div>
+  );
+}
+
+function ConfidenceRing({ pct }: { pct: number }) {
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  const offset = c - (pct / 100) * c;
+  const tone = pct >= 75 ? 'good' : pct >= 45 ? 'warn' : 'poor';
+  return (
+    <div className="flex shrink-0 items-center gap-3">
+      <svg className="cc-ring" viewBox="0 0 72 72" style={{ width: 64, height: 64 }}>
+        <circle className="cc-ring-track" cx="36" cy="36" r={r} />
+        <circle
+          className={`cc-ring-fill-${tone}`}
+          cx="36"
+          cy="36"
+          r={r}
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)' }}
+        />
+        <text
+          x="36"
+          y="41"
+          textAnchor="middle"
+          className="cc-font-display cc-tabular"
+          style={{ fontSize: 18, fill: 'var(--cc-ink)' }}
+        >
+          {pct}
+        </text>
+      </svg>
+      <div className="cc-label-sm text-[color:var(--cc-ash)] leading-tight">
+        AI
+        <br />
+        confidence
+      </div>
     </div>
   );
 }
 
 function PersonaPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border/80 bg-background/60 px-2.5 py-1 text-xs">
-      <span className="text-muted-foreground">{label}:</span>{' '}
-      <span className="font-medium capitalize">{value}</span>
+    <div className="cc-meta border border-[color:var(--cc-hair-strong)] px-3 py-1.5">
+      <span className="cc-meta-label">{label}</span>
+      <span className="cc-meta-value capitalize" style={{ fontSize: 14 }}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -419,39 +522,58 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card className={accent ? 'border-primary/30 bg-primary/[0.03]' : 'border-border/60'}>
-      <CardHeader className="pb-3">
+    <div
+      className="cc-card p-5 md:p-6"
+      style={accent ? { borderColor: 'var(--cc-rust)', background: 'var(--cc-rust-soft)' } : undefined}
+    >
+      <div className="mb-4">
         <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold">{title}</h3>
+          <Icon className="h-4 w-4 text-[color:var(--cc-rust)]" />
+          <h3 className="cc-label text-[color:var(--cc-ink)]">{title}</h3>
         </div>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+        {subtitle && (
+          <p className="mt-1.5 cc-font-editorial text-base text-[color:var(--cc-ash)]">{subtitle}</p>
+        )}
+      </div>
+      {children}
+    </div>
   );
 }
 
-function DefList({ rows }: { rows: [string, string | null][] }) {
-  const visible = rows.filter(([, v]) => !!v && String(v).trim().length > 0);
-  if (visible.length === 0)
-    return <p className="text-sm text-muted-foreground">Nothing inferred yet — try the resume path.</p>;
+function CanonicalSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+}) {
+  // The AI may hand us a value we don't recognise (older runs); surface it
+  // rather than silently blanking the field.
+  const known = options.some((o) => o.value === value);
   return (
-    <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-      {visible.map(([k, v]) => (
-        <div key={k} className="flex justify-between gap-4 border-b border-border/40 pb-1.5 last:border-0">
-          <dt className="text-muted-foreground">{k}</dt>
-          <dd className="text-right font-medium">{v}</dd>
-        </div>
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value || null)}
+      className="cc-field"
+      style={{ appearance: 'none', cursor: 'pointer' }}
+    >
+      <option value="">Not set</option>
+      {!known && value && <option value={value}>{value}</option>}
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
       ))}
-    </dl>
+    </select>
   );
 }
 
 function EditField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="cc-field-label">{label}</p>
       {children}
     </div>
   );
@@ -475,24 +597,24 @@ function EditableChips({
   return (
     <div>
       {items.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
+        <div className="mb-2.5 flex flex-wrap gap-2">
           {items.map((it) => (
-            <Badge key={it} variant="secondary" className="gap-1 font-normal">
+            <span key={it} className="cc-pill gap-1.5">
               {it}
               <button
                 type="button"
                 onClick={() => onChange(items.filter((x) => x !== it))}
                 aria-label={`Remove ${it}`}
-                className="ml-0.5 opacity-60 transition-opacity hover:opacity-100"
+                className="opacity-60 transition-opacity hover:opacity-100"
               >
                 <X className="h-3 w-3" />
               </button>
-            </Badge>
+            </span>
           ))}
         </div>
       )}
       <div className="flex gap-2">
-        <Input
+        <input
           value={val}
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => {
@@ -502,11 +624,15 @@ function EditableChips({
             }
           }}
           placeholder={placeholder}
-          className="h-9"
+          className="cc-field"
         />
-        <Button type="button" variant="outline" size="sm" onClick={add} className="shrink-0">
+        <button
+          type="button"
+          onClick={add}
+          className="shrink-0 border border-[color:var(--cc-ink)] bg-transparent px-4 cc-label text-[color:var(--cc-ink)] transition-colors hover:bg-[color:var(--cc-ink)] hover:text-[color:var(--cc-cream)]"
+        >
           Add
-        </Button>
+        </button>
       </div>
     </div>
   );
@@ -515,8 +641,8 @@ function EditableChips({
 function KV({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium capitalize">{value}</p>
+      <p className="cc-label-sm text-[color:var(--cc-ash)]">{label}</p>
+      <p className="mt-1 cc-font-display text-lg capitalize text-[color:var(--cc-ink)]">{value}</p>
     </div>
   );
 }

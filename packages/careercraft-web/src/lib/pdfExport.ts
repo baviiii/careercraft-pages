@@ -16,7 +16,9 @@ import { createElement } from "react";
 
 import { toTemplateData } from "@/lib/templateMap";
 
+import { registerPdfFontsForWeb } from "./pdf/fonts.web";
 import { ResumeDocument } from "./pdf/ResumeDocument";
+import { hasPdfTemplate } from "./pdf/templates";
 
 export interface ExportResumePdfOptions {
   resume: {
@@ -27,9 +29,18 @@ export interface ExportResumePdfOptions {
   };
 }
 
+export interface RenderResumePdfResult {
+  blob: Blob;
+  pageCount: number;
+  fileName: string;
+  /** True when template_id had no PDF layout and Modern 1 was substituted. */
+  usedFallbackTemplate: boolean;
+}
+
 export interface ExportResumePdfResult {
   pageCount: number;
   fileName: string;
+  usedFallbackTemplate: boolean;
 }
 
 interface ConversationMessage {
@@ -66,12 +77,17 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
 }
 
 /**
- * Render the resume's template as a vector PDF and save it.
+ * Render the resume's template as a vector PDF blob — the exact bytes a
+ * download would produce. Used by both the WYSIWYG preview and the export.
  */
-export async function exportResumeToPdf({
+export async function renderResumePdfBlob({
   resume,
-}: ExportResumePdfOptions): Promise<ExportResumePdfResult> {
+}: ExportResumePdfOptions): Promise<RenderResumePdfResult> {
+  registerPdfFontsForWeb();
+
   const data = toTemplateData(resume.content);
+  const usedFallbackTemplate =
+    Boolean(resume.template_id) && !hasPdfTemplate(resume.template_id);
 
   const doc = createElement(ResumeDocument, {
     data,
@@ -88,9 +104,21 @@ export async function exportResumeToPdf({
     data.contact.name || resume.name || "resume"
   )}.pdf`;
 
+  return { blob, pageCount, fileName, usedFallbackTemplate };
+}
+
+/**
+ * Render the resume's template as a vector PDF and save it.
+ */
+export async function exportResumeToPdf({
+  resume,
+}: ExportResumePdfOptions): Promise<ExportResumePdfResult> {
+  const { blob, pageCount, fileName, usedFallbackTemplate } =
+    await renderResumePdfBlob({ resume });
+
   triggerBlobDownload(blob, fileName);
 
-  return { pageCount, fileName };
+  return { pageCount, fileName, usedFallbackTemplate };
 }
 
 /**

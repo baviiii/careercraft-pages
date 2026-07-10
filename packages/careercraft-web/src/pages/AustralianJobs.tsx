@@ -226,9 +226,14 @@ export default function AustralianJobs() {
   useEffect(() => {
     if (hasPersonalizationData && !profileLoading) {
       const filters = getPersonalizedJobFilters();
-      if (filters.location && filters.location !== "australia") setSelectedCity(filters.location);
+      // Only prefill values the selects actually contain, or they render blank.
+      if (filters.location && AU_CITIES.some((c) => c.value === filters.location))
+        setSelectedCity(filters.location);
       if (filters.industry) setSelectedIndustry(filters.industry);
-      if (filters.experienceLevel && filters.experienceLevel !== "all")
+      if (
+        filters.experienceLevel &&
+        EXPERIENCE_LEVELS.some((l) => l.value === filters.experienceLevel && l.value !== "all")
+      )
         setSelectedLevel(filters.experienceLevel);
     }
   }, [hasPersonalizationData, profileLoading]);

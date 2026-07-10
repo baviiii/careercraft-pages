@@ -1,7 +1,7 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — The Atelier (Dashboard)
-   Editorial, cream/ink/rust, Fraunces + Instrument Serif.
-   Keeps the same data wiring: session, stats, tools, activity.
+   CareerCraft — Dashboard (Atelier)
+   Editorial command center: one hero, one primary move,
+   supporting paths, living color. Data wiring unchanged.
    ─────────────────────────────────────────────────────────── */
 
 import {
@@ -9,27 +9,22 @@ import {
   useState,
   useMemo,
   useCallback,
-  useRef,
   memo,
 } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
-import { motion, AnimatePresence, useInView } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  FileText,
   Upload,
   BarChart3,
   Sparkles,
   Mail,
   Briefcase,
-  Layout,
   LogOut,
-  Home,
   Brain,
   Newspaper,
   MessageSquareText,
-  Settings as SettingsIcon,
   TrendingUp,
   Search,
   Zap,
@@ -38,11 +33,13 @@ import {
   Menu,
   Bell,
   CheckCircle2,
+  FileText,
+  Compass,
 } from "lucide-react";
 import { CraftSidebar, CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
 import { OnboardingBanner } from "@/features/onboarding/OnboardingBanner";
-
-/* ────────────────────────────── types ─────────────────────────── */
+import { usePersonalization } from "@/hooks/usePersonalization";
+import { clearAccent } from "@/lib/personaTheme";
 
 interface ResumeStats {
   totalResumes: number;
@@ -62,33 +59,9 @@ interface Dispatch {
   actionPath?: string;
 }
 
-/* ──────────────────────── small hook: count-up ─────────────────── */
+type Tone = "cobalt" | "sage" | "wheat" | "ink";
 
-const useCountUp = (target: number, durationMs = 900) => {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-30% 0px" });
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    if (!inView) return;
-    const from = 0;
-    const to = target;
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min((now - start) / durationMs, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setValue(Math.round(from + (to - from) * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, target, durationMs]);
-
-  return { ref, value };
-};
-
-/* ────────────────────────────── page ──────────────────────────── */
+const ease = [0.2, 0.8, 0.2, 1] as const;
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -103,28 +76,61 @@ export default function Dashboard() {
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
-  const [dispatches, setDispatches] = useState<Dispatch[]>([
-    {
-      id: "1",
-      kind: "insight",
-      title: "New career insight available",
-      body: "We've analysed your résumé. View your personalised notes in Career Insights.",
-      when: new Date(Date.now() - 300000),
-      read: false,
-      actionLabel: "View insights",
-      actionPath: "/intelligence",
-    },
-    {
-      id: "2",
-      kind: "success",
-      title: "Résumé saved",
-      body: "Your résumé ‘Senior Software Engineer’ was saved at 14:02.",
-      when: new Date(Date.now() - 3600000),
-      read: false,
-    },
-  ]);
+  const [dispatches, setDispatches] = useState<Dispatch[]>([]);
 
-  /* session ---------------------------------------------------- */
+  const {
+    profile: perso,
+    loading: persoLoading,
+    hasPersonalizationData: personalized,
+  } = usePersonalization();
+  const persona = perso.aiPersona;
+  const targetRole = perso.targetJobTitles[0] || perso.currentJobTitle || null;
+
+  useEffect(() => {
+    if (persoLoading) return;
+    const now = new Date();
+    const next: Dispatch[] = [];
+    if (personalized) {
+      if (persona?.narrative) {
+        next.push({
+          id: "persona",
+          kind: "insight",
+          title: `Our read: ${persona.archetype}`,
+          body: persona.narrative,
+          when: now,
+          read: false,
+          actionLabel: "Review your profile",
+          actionPath: "/settings",
+        });
+      }
+      if (perso.jobChangeTimeline === "immediately" || perso.jobChangeTimeline === "1-3_months") {
+        next.push({
+          id: "tracker-nudge",
+          kind: "info",
+          title: "Keep applications moving",
+          body: `You're targeting a move ${
+            perso.jobChangeTimeline === "immediately" ? "now" : "within 1–3 months"
+          } — log each application so nothing slips.`,
+          when: now,
+          read: false,
+          actionLabel: "Open tracker",
+          actionPath: "/tracker",
+        });
+      }
+    } else {
+      next.push({
+        id: "onboard",
+        kind: "insight",
+        title: "Personalise CareerCraft",
+        body: "Two minutes of questions — jobs, news and interview prep tune to your profile.",
+        when: now,
+        read: false,
+        actionLabel: "Start onboarding",
+        actionPath: "/onboarding?redo=1",
+      });
+    }
+    setDispatches(next);
+  }, [persoLoading, personalized, persona, perso.jobChangeTimeline]);
 
   useEffect(() => {
     const {
@@ -140,8 +146,6 @@ export default function Dashboard() {
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
-
-  /* stats ------------------------------------------------------ */
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -171,13 +175,12 @@ export default function Dashboard() {
           totalResumes: resumes.length,
           totalCoverLetters: coverLetters.length,
           totalApplications: applications.length,
-          recentActivity: resumes.slice(0, 3).map((r: any) => ({
+          recentActivity: resumes.slice(0, 4).map((r) => ({
             type: "resume",
             name: r.name,
             date: new Date(r.created_at).toLocaleDateString(undefined, {
               day: "2-digit",
               month: "short",
-              year: "numeric",
             }),
           })),
         });
@@ -188,11 +191,10 @@ export default function Dashboard() {
     fetchStats();
   }, [session]);
 
-  /* handlers --------------------------------------------------- */
-
   const handleSignOut = useCallback(async () => {
     try {
       localStorage.removeItem("horus_session_token");
+      clearAccent();
       await supabase.auth.signOut({ scope: "global" });
       setSession(null);
       setTimeout(() => navigate("/auth", { replace: true }), 100);
@@ -208,12 +210,12 @@ export default function Dashboard() {
 
   const clearDispatches = useCallback(() => setDispatches([]), []);
 
-  /* copy ------------------------------------------------------- */
-
-  const userName =
+  const fullName =
+    perso.fullName ||
     session?.user?.user_metadata?.full_name ||
     session?.user?.email?.split("@")[0] ||
     "friend";
+  const userName = fullName.split(" ")[0];
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -222,111 +224,201 @@ export default function Dashboard() {
     return "Good evening";
   }, []);
 
-  const todayStamp = useMemo(() => {
-    const d = new Date();
-    return d
-      .toLocaleDateString("en-GB", {
+  const todayStamp = useMemo(
+    () =>
+      new Date().toLocaleDateString("en-GB", {
         weekday: "long",
-        day: "2-digit",
+        day: "numeric",
         month: "long",
-        year: "numeric",
-      })
-      .toUpperCase();
-  }, []);
-
-  /* nav + tools ------------------------------------------------ */
-
-  const sidebarLinks = CRAFT_SIDEBAR_LINKS;
-
-  const statPlates = useMemo(
-    () => [
-      {
-        n: "i.",
-        label: "Résumés",
-        value: stats.totalResumes,
-        path: "/my-resumes",
-        note: "saved",
-      },
-      {
-        n: "ii.",
-        label: "Cover letters",
-        value: stats.totalCoverLetters,
-        path: "/cover-letter",
-        note: "written",
-      },
-      {
-        n: "iii.",
-        label: "Applications",
-        value: stats.totalApplications,
-        path: "/tracker",
-        note: "sent",
-      },
-    ],
-    [stats.totalResumes, stats.totalCoverLetters, stats.totalApplications]
+      }),
+    []
   );
 
-  const sections = useMemo(
-    () => [
-      {
-        id: "resume",
-        section: "Resume",
-        title: "Build a resume that gets interviews.",
-        sub: "Write, polish, and score your resume with practical tools in one place.",
-        tools: [
-          { icon: Zap, tag: "Build", title: "Résumé Builder", description: "Start from a template and fill in your details.", path: "/builder" },
-          { icon: Upload, tag: "Library", title: "My Résumés", description: "View and edit every résumé you've saved.", path: "/my-resumes", badge: stats.totalResumes > 0 ? `${stats.totalResumes}` : undefined },
-          { icon: BarChart3, tag: "ATS Check", title: "ATS Analysis", description: "See how well your résumé scores with applicant tracking systems.", path: "/analysis" },
-          { icon: Sparkles, tag: "Rewrite", title: "Bullet Rewrite", description: "Improve weak bullet points into stronger impact statements.", path: "/rewrite" },
-          { icon: Layout, tag: "Templates", title: "Template Builder", description: "Design your own custom résumé template.", path: "/templates" },
-        ],
-      },
-      {
-        id: "career",
-        section: "Career",
-        title: "Understand what the market is saying.",
-        sub: "Use trusted career signals and local market data to make better decisions.",
-        tools: [
-          { icon: Brain, tag: "Coach", title: "Career Coach", description: "Get personalised career advice based on South Australian data.", path: "/career-coach" },
-          { icon: TrendingUp, tag: "Insights", title: "Career Insights", description: "In-demand skills, funding opportunities and industry growth.", path: "/intelligence" },
-          { icon: Newspaper, tag: "News", title: "Market News", description: "This week's job market news and hiring trends.", path: "/job-market-news" },
-        ],
-      },
-      {
-        id: "applications",
-        section: "Applications",
-        title: "Apply with confidence and stay organized.",
-        sub: "Write cover letters, apply for jobs and keep track of every application you send.",
-        tools: [
-          { icon: Mail, tag: "Letter", title: "Cover Letters", description: "Write a tailored cover letter for any job.", path: "/cover-letter", badge: stats.totalCoverLetters > 0 ? `${stats.totalCoverLetters}` : undefined },
-          { icon: Briefcase, tag: "Track", title: "Job Tracker", description: "Track the status of every application you send.", path: "/tracker", badge: stats.totalApplications > 0 ? `${stats.totalApplications}` : undefined },
-          { icon: MessageSquareText, tag: "Practice", title: "Interview Prep", description: "Practice interviews with AI feedback and coaching.", path: "/interview-prep" },
-          { icon: Search, tag: "Jobs", title: "Browse Jobs", description: "Find live jobs from SEEK, Indeed and other sources.", path: "/au-jobs" },
-        ],
-      },
-    ],
-    [stats.totalResumes, stats.totalCoverLetters, stats.totalApplications]
-  );
+  const heroCopy = useMemo(() => {
+    if (personalized && targetRole) {
+      return {
+        eyebrow: persona?.archetype || "Your workspace",
+        title: (
+          <>
+            Ready for your next{" "}
+            <em className="cc-italic-wonk not-italic text-[color:var(--cc-rust)]">{targetRole}</em>{" "}
+            move.
+          </>
+        ),
+        body: "Profile tuned. Build the résumé, chase the roles, keep the pipeline honest.",
+        primary: {
+          label: stats.totalResumes > 0 ? "Sharpen résumé" : "Build résumé",
+          path: "/builder",
+        },
+        secondary: { label: `Find ${targetRole} roles`, path: "/au-jobs" },
+      };
+    }
+    if (stats.totalResumes > 0) {
+      return {
+        eyebrow: "Your workspace",
+        title: (
+          <>
+            {greeting},{" "}
+            <em className="cc-italic-wonk not-italic text-[color:var(--cc-rust)]">{userName}</em>.
+          </>
+        ),
+        body: "Pick up where you left off — résumés, applications, and market signals in one calm place.",
+        primary: { label: "Create new résumé", path: "/builder" },
+        secondary: { label: "Open job tracker", path: "/tracker" },
+      };
+    }
+    return {
+      eyebrow: "Welcome to CareerCraft",
+      title: (
+        <>
+          Start with one{" "}
+          <em className="cc-italic-wonk not-italic text-[color:var(--cc-rust)]">strong résumé</em>.
+        </>
+      ),
+      body: "Everything else — ATS, cover letters, interviews — builds on that first draft.",
+      primary: { label: "Create my first résumé", path: "/builder" },
+      secondary: { label: "Browse career insights", path: "/intelligence" },
+    };
+  }, [personalized, targetRole, persona, stats.totalResumes, greeting, userName]);
 
-  /* loading ---------------------------------------------------- */
+  const featuredMoves = useMemo(() => {
+    const role = targetRole || persona?.function || "your field";
+    const loc = perso.preferredLocations[0] || perso.location || "Australia";
+    if (personalized) {
+      return [
+        {
+          tone: "cobalt" as Tone,
+          icon: Zap,
+          kicker: "Do this next",
+          title: stats.totalResumes > 0 ? "Polish your résumé" : `Craft a ${role} résumé`,
+          body:
+            stats.totalResumes > 0
+              ? "Tailor bullets and layout for the roles you're chasing."
+              : "Start from a template — your profile fills most of it in.",
+          path: "/builder",
+          cta: "Open builder",
+        },
+        {
+          tone: "sage" as Tone,
+          icon: Search,
+          kicker: "Jobs",
+          title: `${role} openings`,
+          body: `Live listings near ${loc}.`,
+          path: "/au-jobs",
+          cta: "Browse",
+        },
+        {
+          tone: "wheat" as Tone,
+          icon: Briefcase,
+          kicker: "Pipeline",
+          title: "Job tracker",
+          body: `${stats.totalApplications} in motion.`,
+          path: "/tracker",
+          cta: "Open",
+        },
+        {
+          tone: "ink" as Tone,
+          icon: MessageSquareText,
+          kicker: "Practice",
+          title: "Interview prep",
+          body: `Rehearse ${persona?.function || "role"} questions.`,
+          path: "/interview-prep",
+          cta: "Practice",
+        },
+      ];
+    }
+    return [
+      {
+        tone: "cobalt" as Tone,
+        icon: Zap,
+        kicker: "Do this next",
+        title: "Build your first résumé",
+        body: "Templates, guided editing, and a clean PDF export.",
+        path: "/builder",
+        cta: "Start building",
+      },
+      {
+        tone: "sage" as Tone,
+        icon: BarChart3,
+        kicker: "Score",
+        title: "ATS analysis",
+        body: "See how tracking systems read your résumé.",
+        path: "/analysis",
+        cta: "Analyse",
+      },
+      {
+        tone: "wheat" as Tone,
+        icon: TrendingUp,
+        kicker: "Market",
+        title: "Career insights",
+        body: "Skills, funding and growth signals for SA.",
+        path: "/intelligence",
+        cta: "Explore",
+      },
+      {
+        tone: "ink" as Tone,
+        icon: Brain,
+        kicker: "Coach",
+        title: "Career coach",
+        body: "Ask anything — grounded in local market data.",
+        path: "/career-coach",
+        cta: "Ask",
+      },
+    ];
+  }, [
+    personalized,
+    targetRole,
+    persona,
+    perso.preferredLocations,
+    perso.location,
+    stats.totalResumes,
+    stats.totalApplications,
+  ]);
+
+  const toolGrid = useMemo(
+    () => [
+      { icon: Upload, title: "My Résumés", path: "/my-resumes", tone: "cobalt" as Tone, meta: stats.totalResumes ? `${stats.totalResumes}` : undefined },
+      { icon: Sparkles, title: "Bullet Rewrite", path: "/rewrite", tone: "cobalt" as Tone },
+      { icon: Mail, title: "Cover Letters", path: "/cover-letter", tone: "wheat" as Tone, meta: stats.totalCoverLetters ? `${stats.totalCoverLetters}` : undefined },
+      { icon: Newspaper, title: "Market News", path: "/job-market-news", tone: "sage" as Tone },
+      { icon: Search, title: "Browse Jobs", path: "/au-jobs", tone: "sage" as Tone },
+    ],
+    [stats.totalResumes, stats.totalCoverLetters]
+  );
 
   if (loading) {
     return (
-      <div className="ds-shell cc-root cc-font-sans min-h-screen flex items-center justify-center">
+      <div className="cc-root cc-font-sans flex min-h-screen items-center justify-center bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border border-[color:var(--cc-ink)] border-t-[color:var(--cc-rust)] animate-spin" />
-          <div className="cc-label-sm text-[color:var(--cc-ash)]">Loading your workspace…</div>
+          <div className="relative h-12 w-12">
+            <div className="absolute inset-0 rounded-full border-2 border-[color:var(--cc-hair-strong)]" />
+            <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-[color:var(--cc-rust)]" />
+          </div>
+          <p className="cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">Opening your atelier…</p>
         </div>
       </div>
     );
   }
 
   const unread = dispatches.filter((d) => !d.read).length;
-
-  /* ────────────────────────── render ──────────────────────────── */
+  const featured = featuredMoves[0];
+  const sideMoves = featuredMoves.slice(1);
+  const lastResume = stats.recentActivity[0];
 
   return (
-    <main className="ds-shell cc-root cc-font-sans min-h-screen text-[color:var(--cc-ink)] overflow-x-hidden antialiased" data-ds-tokenized="true">
-      {/* Mobile sidebar overlay */}
+    <main className="cc-root cc-font-sans min-h-screen overflow-x-hidden bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased">
+      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div
+          className="absolute -right-20 -top-28 h-[28rem] w-[28rem] rounded-full blur-3xl"
+          style={{ background: "radial-gradient(circle, rgba(42,82,204,0.08), transparent 70%)" }}
+        />
+        <div
+          className="absolute left-[-6%] top-[42%] h-[22rem] w-[22rem] rounded-full blur-3xl"
+          style={{ background: "radial-gradient(circle, rgba(63,122,92,0.06), transparent 70%)" }}
+        />
+        <div className="cc-grain absolute inset-0 opacity-[0.025]" />
+      </div>
+
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -334,16 +426,15 @@ export default function Dashboard() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 bg-[color:var(--cc-ink)]/40 z-40 lg:hidden"
+            className="fixed inset-0 z-40 bg-[color:var(--cc-ink)]/40 backdrop-blur-sm lg:hidden"
           />
         )}
       </AnimatePresence>
 
-      {/* ────────────── Sidebar ────────────── */}
       <CraftSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        links={sidebarLinks}
+        links={CRAFT_SIDEBAR_LINKS}
         currentPath={location.pathname}
         userName={userName}
         userEmail={session?.user?.email || ""}
@@ -351,66 +442,76 @@ export default function Dashboard() {
         navigate={navigate}
       />
 
-      {/* ────────────── Main ────────────── */}
-      <div className="lg:pl-[300px] relative z-10 min-h-screen flex flex-col">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 ds-nav">
-          <div className="flex items-center justify-between px-6 md:px-10 h-16">
-            <div className="flex items-center gap-4">
+      <div className="relative z-10 flex min-h-screen flex-col lg:pl-[272px]">
+        <header className="sticky top-0 z-30 border-b border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)]/80 backdrop-blur-2xl">
+          <div className="flex h-16 items-center justify-between px-5 md:px-8">
+            <div className="flex items-center gap-3">
               <button
-                className="lg:hidden -ml-2 p-2"
+                className="rounded-xl p-2 transition-colors hover:bg-[color:var(--cc-cream-2)] lg:hidden"
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open navigation"
               >
-                <Menu className="w-5 h-5" />
+                <Menu className="h-5 w-5" />
               </button>
-              <div className="cc-label-sm text-[color:var(--cc-ash)]">
-                <span className="cc-tabular">{todayStamp}</span>
+              <div>
+                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--cc-ash)]">
+                  Atelier
+                </div>
+                <div className="text-sm text-[color:var(--cc-ink-soft)]">{todayStamp}</div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Bell */}
+            <div className="flex items-center gap-2">
+              {personalized && targetRole && (
+                <button
+                  onClick={() => navigate("/settings")}
+                  className="hidden max-w-[220px] items-center gap-2 rounded-full border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]/80 px-3 py-1.5 text-left transition-colors hover:border-[color:var(--cc-hair-strong)] md:inline-flex"
+                >
+                  <Compass className="h-3.5 w-3.5 shrink-0 text-[color:var(--cc-rust)]" />
+                  <span className="truncate text-xs font-medium text-[color:var(--cc-ink-soft)]">
+                    {targetRole}
+                  </span>
+                </button>
+              )}
+
               <div className="relative">
                 <button
                   onClick={() => setBellOpen((v) => !v)}
-                  className="relative p-2.5 rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--ds-surface)] hover:border-[color:var(--cc-hair-strong)] transition-colors"
+                  className="relative rounded-xl border border-transparent p-2.5 transition-colors hover:border-[color:var(--cc-hair-strong)] hover:bg-[color:var(--cc-cream-2)]"
                   aria-label="Notifications"
                 >
-                  <Bell className="w-4 h-4" />
+                  <Bell className="h-4 w-4 text-[color:var(--cc-ink-soft)]" />
                   {unread > 0 && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[color:var(--cc-rust)]" />
+                    <span className="absolute right-2 top-2 flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--cc-rust)] opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-[color:var(--cc-rust)]" />
+                    </span>
                   )}
                 </button>
                 <AnimatePresence>
                   {bellOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: -6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      className="absolute right-0 mt-3 w-[22rem] ds-surface rounded-2xl z-50 overflow-hidden"
+                      initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                      className="absolute right-0 z-50 mt-2 w-[22rem] overflow-hidden rounded-2xl border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] shadow-[0_28px_70px_-30px_rgba(20,22,26,0.5)]"
                     >
-                      <div className="p-4 border-b border-[color:var(--cc-hair)] flex items-center justify-between">
-                        <div>
-                          <div className="cc-label text-[color:var(--cc-rust)]">Notifications</div>
-                          <div className="mt-1 text-base font-medium text-[color:var(--cc-ink)]">Latest updates</div>
-                        </div>
+                      <div className="flex items-center justify-between border-b border-[color:var(--cc-hair)] px-4 py-3">
+                        <span className="text-sm font-semibold">Notifications</span>
                         {dispatches.length > 0 && (
                           <button
                             onClick={clearDispatches}
-                            className="cc-label-sm text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
+                            className="text-xs text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
                           >
-                            Clear all
+                            Clear
                           </button>
                         )}
                       </div>
                       <div className="max-h-[60vh] overflow-y-auto">
                         {dispatches.length === 0 ? (
                           <div className="p-8 text-center">
-                            <CheckCircle2 className="w-5 h-5 mx-auto text-[color:var(--cc-ash)]" />
-                            <p className="mt-3 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">
-                              You're all caught up.
-                            </p>
+                            <CheckCircle2 className="mx-auto h-5 w-5 text-[color:var(--cc-signal)]" />
+                            <p className="mt-3 text-sm text-[color:var(--cc-ink-soft)]">You're all caught up.</p>
                           </div>
                         ) : (
                           dispatches.map((d) => (
@@ -423,35 +524,19 @@ export default function Dashboard() {
                                   navigate(d.actionPath);
                                 }
                               }}
-                              className={`w-full text-left p-4 border-b border-[color:var(--cc-hair)] hover:bg-[color:var(--cc-cream-2)] transition-colors ${
-                                d.read ? "opacity-70" : ""
+                              className={`w-full border-b border-[color:var(--cc-hair)] px-4 py-3.5 text-left transition-colors hover:bg-[color:var(--cc-cream-2)] ${
+                                d.read ? "opacity-55" : ""
                               }`}
                             >
-                              <div className="flex items-start gap-3">
-                                <span
-                                  className="mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                  style={{
-                                    background:
-                                      d.kind === "insight" || d.kind === "success"
-                                        ? "var(--cc-rust)"
-                                        : "var(--cc-ash)",
-                                  }}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="cc-label-sm text-[color:var(--cc-ash)]">
-                                    {d.when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                                  </div>
-                                  <div className="mt-1 text-[15px] font-semibold leading-tight">{d.title}</div>
-                                  <p className="mt-1.5 cc-font-editorial text-[15px] leading-snug text-[color:var(--cc-ink-soft)]">
-                                    {d.body}
-                                  </p>
-                                  {d.actionLabel && (
-                                    <span className="mt-2 inline-flex items-center gap-1 cc-label text-[color:var(--cc-ink)] cc-link">
-                                      {d.actionLabel} <ArrowUpRight className="w-3 h-3" />
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
+                              <div className="text-[13px] font-semibold leading-snug">{d.title}</div>
+                              <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+                                {d.body}
+                              </p>
+                              {d.actionLabel && (
+                                <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--cc-rust)]">
+                                  {d.actionLabel} <ArrowRight className="h-3 w-3" />
+                                </span>
+                              )}
                             </button>
                           ))
                         )}
@@ -463,284 +548,256 @@ export default function Dashboard() {
 
               <button
                 onClick={() => navigate("/builder")}
-                className="cc-btn cc-btn-primary hidden md:inline-flex"
-                style={{ padding: "0.8rem 1.1rem" }}
+                className="cc-action cc-action--sm hidden md:inline-flex"
               >
-                New résumé <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+                New résumé <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
         </header>
 
-        {/* Body */}
-        <div className="flex-1 px-6 md:px-10 py-12 md:py-16">
-          <div className="max-w-[1400px] mx-auto">
+        <div className="flex-1 px-5 py-7 md:px-8 md:py-9">
+          <div className="mx-auto max-w-[1120px]">
             <OnboardingBanner />
-            {/* ─────────────── Masthead ─────────────── */}
-            <section>
-              <div className="grid grid-cols-12 gap-6 md:gap-8 items-start pb-6">
-                <div className="col-span-12 md:col-span-8">
-                  <div className="cc-label text-[color:var(--cc-rust)]">
-                    Dashboard
-                  </div>
-                  <h1 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[1.02] tracking-tight">
-                    {greeting}, {userName}
-                  </h1>
-                  <p className="mt-5 text-lg md:text-xl leading-[1.45] text-[color:var(--cc-ink-soft)] max-w-2xl">
-                    {stats.totalResumes > 0 ? (
-                      <>
-                        You have{" "}
-                        <span className="cc-font-display italic text-[color:var(--cc-ink)]">
-                          {stats.totalResumes}{" "}
-                          {stats.totalResumes === 1 ? "résumé" : "résumés"}
-                        </span>{" "}
-                        saved and{" "}
-                        <span className="cc-font-display italic text-[color:var(--cc-ink)]">
-                          {stats.totalApplications}
-                        </span>{" "}
-                        {stats.totalApplications === 1 ? "application" : "applications"} sent.
-                      </>
-                    ) : (
-                      <>
-                        Let's get started. Build your first résumé, or browse the job
-                        market to see what's out there.
-                      </>
-                    )}
-                  </p>
 
-                  <div className="mt-10 flex flex-wrap items-center gap-3">
-                    <button onClick={() => navigate("/builder")} className="cc-btn cc-btn-primary">
-                      {stats.totalResumes > 0 ? "Create new résumé" : "Create my first résumé"}
-                      <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
-                    </button>
-                    {stats.totalResumes > 0 ? (
-                      <button onClick={() => navigate("/my-resumes")} className="cc-btn cc-btn-ghost">
-                        View my résumés <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
-                      </button>
-                    ) : (
-                      <button onClick={() => navigate("/intelligence")} className="cc-btn cc-btn-ghost">
-                        Browse career insights <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
-                      </button>
-                    )}
-                  </div>
-                </div>
+            {/* Hero — light paper composition */}
+            <motion.section
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease }}
+              className="cc-hero text-[color:var(--cc-ink)]"
+            >
+              <div className="relative px-6 pb-0 pt-9 md:px-11 md:pt-11">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.08, duration: 0.5, ease }}
+                  className="cc-eyebrow cc-tone-cobalt"
+                >
+                  {heroCopy.eyebrow}
+                </motion.div>
 
-                {/* Right: workshop ticket */}
-                <div className="col-span-12 md:col-span-4">
-                  <div className="ds-panel p-6 md:p-7">
-                    <div className="flex items-center justify-between">
-                      <div className="cc-label text-[color:var(--cc-rust)]">Today</div>
-                      <div className="cc-label-sm text-[color:var(--cc-ash)]">Quick summary</div>
-                    </div>
-                    <div className="mt-4 text-lg font-semibold leading-tight">
-                      Welcome back, {userName}.
-                    </div>
-                    <div className="mt-6 space-y-3 cc-label-sm">
-                      <Row k="Session" v="Active" dot />
-                      <Row k="Tools available" v="9" />
-                      <Row k="Notifications" v={`${unread} new`} />
-                    </div>
-                    <div className="mt-6 pt-5 border-t border-[color:var(--cc-hair-strong)]">
-                      <div className="cc-font-mono text-[10px] tracking-[0.28em] uppercase text-[color:var(--cc-ash)]">
-                        Need help?
-                      </div>
-                      <button
-                        onClick={() => navigate("/career-coach")}
-                        className="mt-1 cc-font-display italic text-xl text-[color:var(--cc-ink)] cc-link"
-                      >
-                        Ask the career coach →
-                      </button>
-                    </div>
-                  </div>
+                <motion.h1
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.14, duration: 0.55, ease }}
+                  className="mt-5 max-w-2xl cc-font-display text-[2.6rem] leading-[0.96] tracking-[-0.035em] text-[color:var(--cc-ink)] md:text-[3.4rem]"
+                >
+                  {heroCopy.title}
+                </motion.h1>
+
+                <motion.p
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.22, duration: 0.5, ease }}
+                  className="mt-4 max-w-xl cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)] md:text-[1.3rem]"
+                >
+                  {heroCopy.body}
+                </motion.p>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3, duration: 0.45, ease }}
+                  className="mt-8 flex flex-wrap items-center gap-3"
+                >
+                  <button
+                    onClick={() => navigate(heroCopy.primary.path)}
+                    className="cc-action cc-action--lg"
+                  >
+                    {heroCopy.primary.label}
+                    <ArrowUpRight className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => navigate(heroCopy.secondary.path)}
+                    className="cc-action cc-action--ghost cc-action--lg"
+                  >
+                    {heroCopy.secondary.label}
+                  </button>
+                </motion.div>
+
+                {lastResume && (
+                  <motion.button
+                    type="button"
+                    onClick={() => navigate("/my-resumes")}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4, duration: 0.4 }}
+                    className="mt-6 inline-flex items-center gap-2 text-sm text-[color:var(--cc-ash)] transition-colors hover:text-[color:var(--cc-ink)]"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Continue <span className="font-medium text-[color:var(--cc-ink-soft)]">{lastResume.name}</span>
+                    <span className="text-[color:var(--cc-ash)]">· {lastResume.date}</span>
+                  </motion.button>
+                )}
+              </div>
+
+              <div className="relative mt-9 grid grid-cols-3 border-t border-[color:var(--cc-hair)] bg-white/40">
+                <Metric
+                  label="Résumés"
+                  value={stats.totalResumes}
+                  onClick={() => navigate("/my-resumes")}
+                  delay={0.35}
+                />
+                <Metric
+                  label="Applications"
+                  value={stats.totalApplications}
+                  onClick={() => navigate("/tracker")}
+                  delay={0.4}
+                  border
+                />
+                <Metric
+                  label="Letters"
+                  value={stats.totalCoverLetters}
+                  onClick={() => navigate("/cover-letter")}
+                  delay={0.45}
+                  border
+                />
+              </div>
+            </motion.section>
+
+            {/* Next moves */}
+            <section className="mt-10">
+              <SectionHead
+                kicker={personalized ? "For you" : "Start here"}
+                title="Your next moves"
+                sub="One primary action. Three supporting paths."
+              />
+
+              <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
+                <FeaturedCard
+                  tone={featured.tone}
+                  icon={featured.icon}
+                  kicker={featured.kicker}
+                  title={featured.title}
+                  body={featured.body}
+                  cta={featured.cta}
+                  onClick={() => navigate(featured.path)}
+                />
+                <div className="flex flex-col gap-3">
+                  {sideMoves.map((m, i) => (
+                    <MoveRow
+                      key={m.path}
+                      index={i}
+                      tone={m.tone}
+                      icon={m.icon}
+                      kicker={m.kicker}
+                      title={m.title}
+                      body={m.body}
+                      cta={m.cta}
+                      onClick={() => navigate(m.path)}
+                    />
+                  ))}
                 </div>
               </div>
             </section>
 
-            {/* ─────────────── Figures ─────────────── */}
-            <section className="mt-16 md:mt-24">
-              <div className="mb-10 flex items-end justify-between gap-6">
-                <div>
-                  <div className="cc-label text-[color:var(--cc-rust)]">Your numbers</div>
-                  <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[1.05] tracking-tight">
-                    Progress so far
-                  </h2>
-                </div>
-                <div className="hidden md:block cc-label-sm text-[color:var(--cc-ash)] text-right max-w-xs">
-                  Counts update automatically.<br />Click any tile to view details.
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {statPlates.map((p, i) => (
-                  <FigurePlate
-                    key={p.label}
-                    index={i}
-                    n={p.n}
-                    label={p.label}
-                    note={p.note}
-                    value={p.value}
-                    onClick={() => navigate(p.path)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {/* ─────────────── Toolkit sections ─────────────── */}
-            {sections.map((sec, si) => (
-              <section key={sec.id} className="mt-16 md:mt-24">
-                <div className="grid grid-cols-12 gap-6 md:gap-8 items-end pb-3 mb-8">
-                  <div className="col-span-12 md:col-span-5">
-                    <div className="cc-label text-[color:var(--cc-rust)]">{sec.section}</div>
-                    <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[1.05] tracking-tight">
-                      {sec.title}
-                    </h2>
-                  </div>
-                  <div className="col-span-12 md:col-span-7 md:pl-6">
-                    <p className="text-lg leading-snug text-[color:var(--cc-ink-soft)] max-w-xl">
-                      {sec.sub}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sec.tools.map((t, ti) => (
-                    <ToolFold
+            {/* Workshop + pulse */}
+            <section className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+              <div>
+                <SectionHead kicker="Workshop" title="All tools" sub="Everything else, one tap away." />
+                <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {toolGrid.map((t, i) => (
+                    <ToolChip
                       key={t.path}
-                      index={ti + si * 10}
+                      index={i}
                       icon={t.icon}
-                      tag={t.tag}
                       title={t.title}
-                      description={t.description}
-                      badge={t.badge}
+                      tone={t.tone}
+                      meta={t.meta}
                       onClick={() => navigate(t.path)}
                     />
                   ))}
                 </div>
-              </section>
-            ))}
-
-            {/* ─────────────── Dispatches (recent activity) ─────────────── */}
-            {(stats.recentActivity.length > 0 || dispatches.length > 0) && (
-              <section className="mt-16 md:mt-24">
-                <div className="mb-10">
-                  <div className="cc-label text-[color:var(--cc-rust)]">Recent activity</div>
-                  <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[1.05] tracking-tight">
-                    What changed recently
-                  </h2>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Activity column */}
-                  {stats.recentActivity.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="cc-label-sm text-[color:var(--cc-ash)] border-b border-[color:var(--cc-hair)] pb-3">
-                        Recent résumés
-                      </div>
-                      {stats.recentActivity.map((a, i) => (
-                        <motion.button
-                          key={`${a.name}-${i}`}
-                          initial={{ opacity: 0, y: 8 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true, margin: "-20%" }}
-                          transition={{ delay: i * 0.06 }}
-                          onClick={() => navigate("/my-resumes")}
-                          className="ds-surface w-full text-left group p-5"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="cc-label-sm text-[color:var(--cc-ash)]">Resume updated</div>
-                              <div className="mt-1 text-xl font-semibold leading-tight">
-                                {a.name}
-                              </div>
-                              <div className="mt-1 cc-label-sm text-[color:var(--cc-ash)]">
-                                Saved <span className="cc-tabular">{a.date}</span>
-                              </div>
-                            </div>
-                            <ArrowUpRight className="w-5 h-5 text-[color:var(--cc-ash)] group-hover:text-[color:var(--cc-rust)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
-                          </div>
-                        </motion.button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Dispatches column */}
-                  {dispatches.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="cc-label-sm text-[color:var(--cc-ash)] border-b border-[color:var(--cc-hair)] pb-3">
-                        Notifications
-                      </div>
-                      {dispatches.map((d, i) => (
-                        <motion.button
-                          key={d.id}
-                          initial={{ opacity: 0, y: 8 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true, margin: "-20%" }}
-                          transition={{ delay: i * 0.06 }}
-                          onClick={() => {
-                            markDispatchRead(d.id);
-                            if (d.actionPath) navigate(d.actionPath);
-                          }}
-                          className="ds-surface w-full text-left group p-5"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="cc-label-sm text-[color:var(--cc-ash)]">
-                                {d.kind === "success"
-                                  ? "Saved"
-                                  : d.kind === "insight"
-                                  ? "Insight"
-                                  : d.kind === "warning"
-                                  ? "Warning"
-                                  : "Info"}
-                              </div>
-                              <div className="mt-1 text-xl font-semibold leading-tight">
-                                {d.title}
-                              </div>
-                              <p className="mt-2 cc-font-editorial text-[17px] leading-snug text-[color:var(--cc-ink-soft)]">
-                                {d.body}
-                              </p>
-                            </div>
-                            <ArrowUpRight className="w-5 h-5 text-[color:var(--cc-ash)] group-hover:text-[color:var(--cc-rust)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
-                          </div>
-                        </motion.button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* ─────────────── Footer meta ─────────────── */}
-            <section className="mt-20 border-t border-[color:var(--cc-hair)] pt-8">
-              <div className="grid grid-cols-12 gap-6 md:gap-10">
-                <div className="col-span-12 md:col-span-5">
-                  <div className="cc-label text-[color:var(--cc-rust)]">About</div>
-                  <p className="mt-4 text-lg leading-[1.6] text-[color:var(--cc-ink-soft)]">
-                    CareerCraft is built for people looking for work in South Australia.
-                    Every tool and every insight here is grounded in real market data —
-                    designed to help you get noticed and get hired.
-                  </p>
-                </div>
-                <div className="col-span-12 md:col-span-7 grid grid-cols-2 md:grid-cols-4 gap-8">
-                  <Meta k="Based in" v="Adelaide" />
-                  <Meta k="Set in" v="Fraunces" />
-                  <Meta k="Version" v="1.0" />
-                  <Meta k="Signed in as" v={session?.user?.email?.split("@")[0] || "—"} />
-                </div>
               </div>
 
-              <div className="mt-12 flex items-center justify-between">
-                <div className="cc-label-sm text-[color:var(--cc-ash)]">
-                  © 2026 · CareerCraft · Adelaide, SA
+              <div>
+                <SectionHead kicker="Pulse" title="Recent" sub="What moved in your workspace." />
+                <div className="cc-surface mt-5 overflow-hidden">
+                  {stats.recentActivity.length === 0 && dispatches.length === 0 ? (
+                    <div className="px-5 py-11 text-center">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--cc-rust-soft)] text-[color:var(--cc-rust)]">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <p className="mt-4 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+                        Quiet so far. Your first résumé starts the story.
+                      </p>
+                      <button
+                        onClick={() => navigate("/builder")}
+                        className="mt-4 text-sm font-semibold text-[color:var(--cc-rust)] hover:underline"
+                      >
+                        Open builder →
+                      </button>
+                    </div>
+                  ) : (
+                    <ul className="relative">
+                      <span
+                        aria-hidden
+                        className="absolute bottom-4 left-[1.4rem] top-4 w-px bg-[color:var(--cc-hair)]"
+                      />
+                      {stats.recentActivity.map((a, i) => (
+                        <li key={`r-${a.name}-${i}`}>
+                          <button
+                            onClick={() => navigate("/my-resumes")}
+                            className="group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[color:var(--cc-cream-2)]"
+                          >
+                            <span className="relative z-10 mt-1.5 flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-[color:var(--cc-cream)] ring-2 ring-[color:var(--cc-rust)]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--cc-rust)]" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[14px] font-semibold">{a.name}</span>
+                              <span className="mt-0.5 block text-[12px] text-[color:var(--cc-ash)]">
+                                Résumé · {a.date}
+                              </span>
+                            </span>
+                            <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 text-[color:var(--cc-ash)] opacity-0 transition-opacity group-hover:opacity-100" />
+                          </button>
+                        </li>
+                      ))}
+                      {dispatches.slice(0, 2).map((d) => (
+                        <li key={d.id}>
+                          <button
+                            onClick={() => {
+                              markDispatchRead(d.id);
+                              if (d.actionPath) navigate(d.actionPath);
+                            }}
+                            className="group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[color:var(--cc-cream-2)]"
+                          >
+                            <span className="relative z-10 mt-1.5 flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-[color:var(--cc-cream)] ring-2 ring-[color:var(--cc-signal)]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--cc-signal)]" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[14px] font-semibold leading-snug">{d.title}</span>
+                              <span className="mt-0.5 block line-clamp-2 text-[12px] text-[color:var(--cc-ash)]">
+                                {d.body}
+                              </span>
+                            </span>
+                            <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 text-[color:var(--cc-ash)] opacity-0 transition-opacity group-hover:opacity-100" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <button
+                    onClick={() => navigate("/career-coach")}
+                    className="flex w-full items-center justify-between border-t border-[color:var(--cc-hair)] bg-gradient-to-r from-[color:var(--cc-rust-soft)] via-transparent to-transparent px-4 py-3.5 text-left text-sm font-semibold text-[color:var(--cc-rust-deep)] transition-colors hover:from-[rgba(42,82,204,0.2)]"
+                  >
+                    Ask the career coach
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={handleSignOut}
-                  className="cc-label text-[color:var(--cc-ink)] cc-link inline-flex items-center gap-2"
-                >
-                  <LogOut className="w-3.5 h-3.5" /> Sign out
-                </button>
               </div>
             </section>
+
+            <footer className="mt-14 flex items-center justify-between border-t border-[color:var(--cc-hair)] pt-6">
+              <p className="text-xs text-[color:var(--cc-ash)]">© 2026 CareerCraft · Adelaide</p>
+              <button
+                onClick={handleSignOut}
+                className="inline-flex items-center gap-1.5 text-xs text-[color:var(--cc-ash)] transition-colors hover:text-[color:var(--cc-ink)]"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign out
+              </button>
+            </footer>
           </div>
         </div>
       </div>
@@ -748,137 +805,213 @@ export default function Dashboard() {
   );
 }
 
-/* ────────────────────────── subcomponents ────────────────────── */
+/* ────────────────────────── pieces ────────────────────── */
 
-/* — FigurePlate — */
-
-interface FigurePlateProps {
-  index: number;
-  n: string;
-  label: string;
-  note: string;
-  value: number;
-  onClick: () => void;
+function SectionHead({
+  kicker,
+  title,
+  sub,
+}: {
+  kicker: string;
+  title: string;
+  sub: string;
+}) {
+  return (
+    <div>
+      <div className="cc-kicker">{kicker}</div>
+      <h2 className="mt-1.5 cc-font-display text-2xl tracking-tight md:text-[1.85rem]">{title}</h2>
+      <p className="mt-1 text-sm text-[color:var(--cc-ash)]">{sub}</p>
+    </div>
+  );
 }
 
-const FigurePlate = memo(function FigurePlate({
-  index,
-  n,
+const Metric = memo(function Metric({
   label,
-  note,
   value,
   onClick,
-}: FigurePlateProps) {
-  const { ref, value: counted } = useCountUp(value, 900 + index * 60);
-
+  delay,
+  border,
+}: {
+  label: string;
+  value: number;
+  onClick: () => void;
+  delay: number;
+  border?: boolean;
+}) {
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4 }}
+      className={`group px-4 py-4 text-left transition-colors hover:bg-white/70 md:px-6 md:py-5 ${
+        border ? "border-l border-[color:var(--cc-hair)]" : ""
+      }`}
+    >
+      <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--cc-ash)]">
+        {label}
+      </div>
+      <div className="mt-1.5 flex items-end justify-between gap-2">
+        <span className="cc-metric text-3xl md:text-[2.35rem]">{value}</span>
+        <ArrowUpRight className="mb-1 h-3.5 w-3.5 text-[color:var(--cc-ash)] transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[color:var(--cc-rust)]" />
+      </div>
+    </motion.button>
+  );
+});
+
+const FeaturedCard = memo(function FeaturedCard({
+  tone,
+  icon: Icon,
+  kicker,
+  title,
+  body,
+  cta,
+  onClick,
+}: {
+  tone: Tone;
+  icon: React.ComponentType<{ className?: string }>;
+  kicker: string;
+  title: string;
+  body: string;
+  cta: string;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      initial={{ opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ delay: index * 0.08, duration: 0.6 }}
-      className="ds-surface hover:bg-[color:var(--cc-cream-2)] transition-colors p-7 md:p-8 text-left group"
+      transition={{ duration: 0.5, ease }}
+      className={`cc-tint cc-lift group min-h-[280px] p-7 text-left lg:min-h-full cc-tone-${tone}`}
     >
-      <div className="flex items-start justify-between">
-        <div className="cc-font-display text-2xl text-[color:var(--cc-rust)] leading-none">
-          {n}
+      <div
+        aria-hidden
+        className="absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-80 blur-3xl transition-transform duration-700 group-hover:scale-110"
+        style={{ background: "var(--cc-t-wash)" }}
+      />
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-start justify-between">
+          <span className="cc-icon-chip h-12 w-12">
+            <Icon className="h-5 w-5" />
+          </span>
+          <span
+            className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+            style={{ background: "var(--cc-t-soft)", color: "var(--cc-t-deep)" }}
+          >
+            {kicker}
+          </span>
         </div>
-        <ArrowUpRight className="w-5 h-5 text-[color:var(--cc-ash)] group-hover:text-[color:var(--cc-rust)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
-      </div>
-
-      <div className="mt-10">
-        <span
-          ref={ref}
-          className="cc-font-display text-5xl md:text-6xl leading-none tracking-tight cc-tabular text-[color:var(--cc-ink)] block"
+        <h3 className="relative mt-8 cc-font-display text-[1.75rem] leading-[1.08] tracking-tight text-[color:var(--cc-ink)] md:text-[2rem]">
+          {title}
+        </h3>
+        <p className="relative mt-3 max-w-sm text-[15px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+          {body}
+        </p>
+        <div
+          className="relative mt-auto flex items-center gap-2 pt-8 text-sm font-semibold"
+          style={{ color: "var(--cc-t-deep)" }}
         >
-          {String(counted).padStart(2, "0")}
-        </span>
-        <div className="mt-4 cc-label text-[color:var(--cc-ink)]">{label}</div>
-        <div className="mt-1 text-[15px] text-[color:var(--cc-ink-soft)]">
-          {note}
+          {cta}
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
         </div>
       </div>
     </motion.button>
   );
 });
 
-/* — ToolFold — */
-
-interface ToolFoldProps {
-  index: number;
-  icon: React.ComponentType<{ className?: string }>;
-  tag: string;
-  title: string;
-  description: string;
-  badge?: string;
-  onClick: () => void;
-}
-
-const ToolFold = memo(function ToolFold({
+const MoveRow = memo(function MoveRow({
   index,
+  tone,
   icon: Icon,
-  tag,
+  kicker,
   title,
-  description,
-  badge,
+  body,
+  cta,
   onClick,
-}: ToolFoldProps) {
+}: {
+  index: number;
+  tone: Tone;
+  icon: React.ComponentType<{ className?: string }>;
+  kicker: string;
+  title: string;
+  body: string;
+  cta: string;
+  onClick: () => void;
+}) {
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      initial={{ opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-10%" }}
-      transition={{ delay: (index % 6) * 0.05, duration: 0.55 }}
-      className="ds-surface hover:bg-[color:var(--cc-cream-2)] p-7 text-left group relative"
+      initial={{ opacity: 0, x: 10 }}
+      whileInView={{ opacity: 1, x: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: 0.06 + index * 0.05, duration: 0.4, ease }}
+      className={`cc-surface cc-lift group relative flex flex-1 items-center gap-4 overflow-hidden px-4 py-4 pl-5 text-left cc-tone-${tone}`}
     >
-      <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-xl border border-[color:var(--cc-hair-strong)] flex items-center justify-center bg-[color:var(--ds-surface)] group-hover:border-[color:var(--cc-rust)] transition-colors">
-          <Icon className="w-4 h-4" />
-        </div>
-        {badge && (
-          <span className="cc-label-sm px-2 py-1 rounded-full border border-[color:var(--cc-hair-strong)] text-[color:var(--cc-ink)] bg-[color:var(--ds-surface)]">
-            {badge}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-8">
-        <div className="cc-label text-[color:var(--cc-rust)]">{tag}</div>
-        <h3 className="mt-3 cc-font-display text-2xl leading-[1.1] tracking-tight text-[color:var(--cc-ink)]">
-          {title}
-        </h3>
-        <p className="mt-3 text-[15px] leading-snug text-[color:var(--cc-ink-soft)]">
-          {description}
-        </p>
-      </div>
-
-      <div className="mt-8 flex items-center justify-between">
-        <span className="cc-label-sm text-[color:var(--cc-ash)]">Open</span>
-        <ArrowUpRight className="w-4 h-4 text-[color:var(--cc-ash)] group-hover:text-[color:var(--cc-rust)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-all" />
-      </div>
+      <div
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-1 opacity-80"
+        style={{ background: "var(--cc-t)" }}
+      />
+      <span className="cc-icon-chip h-11 w-11 rounded-xl">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--cc-t)" }}>
+          {kicker}
+        </span>
+        <span className="mt-0.5 block truncate text-[15px] font-semibold leading-snug">{title}</span>
+        <span className="mt-0.5 block truncate text-[13px] text-[color:var(--cc-ink-soft)]">{body}</span>
+      </span>
+      <span
+        className="hidden shrink-0 items-center gap-1 text-xs font-semibold sm:inline-flex"
+        style={{ color: "var(--cc-t-deep)" }}
+      >
+        {cta}
+        <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+      </span>
     </motion.button>
   );
 });
 
-/* — tiny row for the Bench ticket — */
-
-const Row = ({ k, v, dot = false }: { k: string; v: string; dot?: boolean }) => (
-  <div className="flex items-center justify-between text-[color:var(--cc-ink)]">
-    <span className="text-[color:var(--cc-ash)]">{k}</span>
-    <span className="flex items-center gap-2">
-      {dot && <span className="cc-blink w-1.5 h-1.5 rounded-full bg-[color:var(--cc-rust)]" />}
-      <span className="cc-tabular">{v}</span>
-    </span>
-  </div>
-);
-
-const Meta = ({ k, v }: { k: string; v: string }) => (
-  <div>
-    <div className="cc-label-sm text-[color:var(--cc-ash)]">{k}</div>
-    <div className="mt-2 cc-font-display italic text-xl text-[color:var(--cc-ink)]">{v}</div>
-  </div>
-);
+const ToolChip = memo(function ToolChip({
+  index,
+  icon: Icon,
+  title,
+  tone,
+  meta,
+  onClick,
+}: {
+  index: number;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  tone: Tone;
+  meta?: string;
+  onClick: () => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      initial={{ opacity: 0, y: 8 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ delay: index * 0.04, duration: 0.35 }}
+      className={`cc-surface cc-lift group flex items-center gap-3 px-3.5 py-3.5 text-left cc-tone-${tone}`}
+    >
+      <span className="cc-icon-chip h-9 w-9 rounded-xl transition-transform group-hover:scale-105">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] font-semibold leading-tight">{title}</span>
+        {meta != null && (
+          <span className="mt-0.5 block text-[11px] text-[color:var(--cc-ash)]">{meta} saved</span>
+        )}
+      </span>
+      <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--cc-ash)] opacity-0 transition-opacity group-hover:opacity-100" />
+    </motion.button>
+  );
+});

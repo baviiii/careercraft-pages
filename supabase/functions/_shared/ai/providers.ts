@@ -12,8 +12,7 @@ import { ConfigError } from "./errors.ts";
 import { optEnv, reqEnv } from "../env.ts";
 
 // ---------- Anthropic (direct API) ----------
-// Used by: onboard-analyze. Default provider for greenfield work until
-// Anthropic models are made available via Foundry.
+// Used by: (reserved). Most functions use Lovable/Gemini or Azure OpenAI.
 export function getAnthropic() {
   return createAnthropic({ apiKey: reqEnv("ANTHROPIC_API_KEY") });
 }

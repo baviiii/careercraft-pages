@@ -6,19 +6,19 @@
 // (enforced via SECURITY DEFINER RPC `onboarding_runs_in_last_24h`).
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { generateObject, NoObjectGeneratedError } from "npm:ai@4";
+import { generateObject, generateText, NoObjectGeneratedError } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
-import { getAnthropic } from "../_shared/ai/providers.ts";
-import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
+import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { ProviderError, RateLimitError, ValidationError } from "../_shared/ai/errors.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { adminClient } from "../_shared/db/supabase.ts";
-import { enforceDailyLimit } from "../_shared/db/rate-limit.ts";
+import { optEnv, reqEnv } from "../_shared/env.ts";
 
-const DAILY_LIMIT = 4;
-const MODEL = "claude-sonnet-4-6";
-const MAX_OUTPUT_TOKENS = 4096;
+const DAILY_LIMIT = 10;
+const ONBOARD_MODEL = () => optEnv("ONBOARD_ANALYZE_MODEL", "google/gemini-2.5-flash")!;
+const MAX_OUTPUT_TOKENS = 6144;
 
 // ----- Request schema -----
 const RequestSchema = z
@@ -33,100 +33,275 @@ const RequestSchema = z
   });
 
 // ----- Output schema (matches the columns + UI shape) -----
+// Lenient by design: LLMs vary enum casing/format ("junior", "3-6 months"),
+// return numbers as strings, or omit fields. We accept loose input here and
+// normalise downstream, rather than 502-ing on a single mismatch.
+// `function` is reserved in JSON Schema — use job_function, map on response.
+
+const looseStr = z.string().nullish().transform((v) => v ?? null);
+const strArray = z
+  .array(z.union([z.string(), z.number()]).transform(String))
+  .nullish()
+  .transform((v) => v ?? []);
+const nullableNumber = z.preprocess((v) => {
+  if (v === null || v === undefined || v === "") return null;
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : null;
+}, z.number().nullable());
+const confNumber = z.preprocess((v) => {
+  if (v === null || v === undefined || v === "") return 0.5;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return 0.5;
+  return Math.min(1, Math.max(0, n));
+}, z.number().min(0).max(1));
+
 const PersonaSchema = z.object({
-  archetype: z.string().describe("e.g. 'Senior Backend Engineer', 'Marketing Manager in transition'"),
-  seniority: z.enum(["student", "entry", "mid", "senior", "lead", "principal", "exec"]),
-  function: z.string().describe("Engineering | Product | Design | Data | Marketing | Sales | Operations | Finance | HR | Legal | Customer Success | Consulting | Education | Healthcare | Research | Other"),
-  subFunction: z.string().nullable().describe("e.g. 'Backend', 'Growth', 'Brand'"),
-  vertical: z.string().nullable().describe("Fintech | Healthtech | Edtech | Enterprise SaaS | Consumer | Gaming | Crypto | Climate | Government | E-commerce | Media | Manufacturing | Retail | Other"),
-  narrative: z.string().describe("1-2 sentences in their voice — what they do + what they want"),
+  archetype: looseStr,
+  seniority: looseStr,
+  job_function: looseStr,
+  subFunction: looseStr,
+  vertical: looseStr,
+  narrative: looseStr,
 });
 
 const InferredProfileSchema = z.object({
-  headline: z.string().nullable().describe("≤80 char LinkedIn-style headline"),
-  bio: z.string().nullable().describe("2-3 sentence personal summary"),
-  current_job_title: z.string().nullable(),
-  current_company: z.string().nullable(),
-  years_of_experience: z.string().nullable().describe("Range string, e.g. '5-7'"),
-  industry: z.string().nullable(),
-  career_level: z
-    .enum(["entry", "mid", "senior", "lead", "principal", "executive"])
-    .nullable(),
-  location_city: z.string().nullable(),
-  location_country: z.string().nullable(),
-  employment_status: z
-    .enum(["employed", "unemployed", "student", "freelance"])
-    .nullable(),
+  full_name: looseStr,
+  phone: looseStr,
+  headline: looseStr,
+  bio: looseStr,
+  current_job_title: looseStr,
+  current_company: looseStr,
+  years_of_experience: looseStr,
+  industry: looseStr,
+  career_level: looseStr,
+  location_city: looseStr,
+  location_country: looseStr,
+  employment_status: looseStr,
 });
 
 const TargetsSchema = z.object({
-  target_job_titles: z.array(z.string()).default([]),
-  target_companies: z.array(z.string()).default([]),
-  preferred_locations: z.array(z.string()).default([]),
-  work_arrangement: z.array(z.enum(["remote", "hybrid", "onsite"])).default([]),
-  desired_salary_min: z.number().nullable(),
-  desired_salary_max: z.number().nullable(),
-  desired_salary_currency: z.string().nullable().describe("ISO 4217. Default 'AUD'."),
-  job_change_timeline: z
-    .enum(["now", "1-3_months", "3-6_months", "6-12_months", "exploring"])
-    .nullable(),
+  target_job_titles: strArray,
+  target_companies: strArray,
+  preferred_locations: strArray,
+  work_arrangement: strArray,
+  desired_salary_min: nullableNumber,
+  desired_salary_max: nullableNumber,
+  desired_salary_currency: looseStr,
+  job_change_timeline: looseStr,
 });
 
 const JobPreferencesSchema = z.object({
-  industries: z.array(z.string()).default([]),
-  job_types: z
-    .array(z.enum(["full-time", "part-time", "contract", "internship"]))
-    .default([]),
-  company_sizes: z.array(z.enum(["startup", "midsize", "enterprise"])).default([]),
-  remote_preference: z.enum(["remote", "hybrid", "onsite", "any"]),
-  min_salary: z.number().nullable(),
+  industries: strArray,
+  job_types: strArray,
+  company_sizes: strArray,
+  remote_preference: z.string().nullish().transform((v) => v ?? "any"),
+  min_salary: nullableNumber,
 });
 
 const SkillSchema = z.object({
   name: z.string(),
-  category: z.enum(["technical", "behavioral", "leadership", "domain", "language"]),
-  proficiency: z.enum(["beginner", "intermediate", "advanced", "expert"]),
-  years_experience: z.number().nullable(),
+  category: z.string().nullish().transform((v) => v ?? "domain"),
+  proficiency: z.string().nullish().transform((v) => v ?? "intermediate"),
+  years_experience: nullableNumber,
 });
 
 const CertificationSchema = z.object({
   name: z.string(),
-  issuer: z.string().nullable(),
-  issue_date: z.string().nullable().describe("YYYY-MM-DD or null"),
-  expiry_date: z.string().nullable().describe("YYYY-MM-DD or null"),
+  issuer: looseStr,
+  issue_date: looseStr,
+  expiry_date: looseStr,
 });
 
 const CVStandardsSchema = z.object({
-  recommended_length: z.enum(["1 page", "2 pages", "3+ pages"]),
-  format: z.enum(["reverse-chronological", "functional", "hybrid"]),
-  ats_notes: z.array(z.string()).default([]),
-  improvements: z.array(z.string()).default([]),
+  recommended_length: z.string().nullish().transform((v) => v ?? "1 page"),
+  format: z.string().nullish().transform((v) => v ?? "reverse-chronological"),
+  ats_notes: strArray,
+  improvements: strArray,
 });
 
 const ConfidenceSchema = z.object({
-  overall: z.number().min(0).max(1),
-  persona: z.number().min(0).max(1),
-  skills: z.number().min(0).max(1),
-});
+  overall: confNumber,
+  persona: confNumber,
+  skills: confNumber,
+}).nullish().transform((v) => v ?? { overall: 0.5, persona: 0.5, skills: 0.5 });
 
 const AnalysisSchema = z.object({
   persona: PersonaSchema,
   inferredProfile: InferredProfileSchema,
   targets: TargetsSchema,
   jobPreferences: JobPreferencesSchema,
-  skills: z.array(SkillSchema).max(20).default([]),
-  certifications: z.array(CertificationSchema).default([]),
+  skills: z.array(SkillSchema).max(20).nullish().transform((v) => v ?? []),
+  certifications: z.array(CertificationSchema).nullish().transform((v) => v ?? []),
   cvStandards: CVStandardsSchema,
   confidence: ConfidenceSchema,
 });
 
-const SYSTEM_PROMPT = `You are CareerCraft's onboarding analyst. Read either a free-text self-description, a parsed resume, or both, and produce a structured categorisation of the person's career persona, current state, what they're targeting, and the standards their CV should follow.
+type RawAnalysis = z.infer<typeof AnalysisSchema>;
+
+/** Map model output (job_function) to the client/DB shape (function). */
+function toClientAnalysis(raw: RawAnalysis) {
+  const { job_function, ...personaRest } = raw.persona;
+  return {
+    ...raw,
+    persona: { ...personaRest, function: job_function },
+  };
+}
+
+type OnboardModel = ReturnType<ReturnType<typeof getLovableGateway>>;
+
+function getOnboardModel(): { id: string; model: OnboardModel } {
+  reqEnv("LOVABLE_API_KEY");
+  const id = ONBOARD_MODEL();
+  return { id, model: getLovableGateway()(id) };
+}
+
+/** Only successful analyses count toward the daily cap — failed debug runs don't burn quota. */
+async function enforceOnboardingLimit(userId: string): Promise<number> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await adminClient()
+    .from("onboarding_runs")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "completed")
+    .gte("created_at", since);
+
+  if (error) throw new Error(`Rate-limit check failed: ${error.message}`);
+
+  const used = count ?? 0;
+  if (used >= DAILY_LIMIT) {
+    throw new RateLimitError(
+      `Daily limit reached for Onboarding analysis (${DAILY_LIMIT} per 24h). Try again later.`,
+      undefined,
+      DAILY_LIMIT,
+    );
+  }
+  return Math.max(0, DAILY_LIMIT - used - 1);
+}
+
+function parseJsonFromModelText(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = (fenced?.[1] ?? trimmed).trim();
+  return JSON.parse(candidate);
+}
+
+const JSON_SYSTEM =
+  "You must respond with a single JSON object matching the OnboardingAnalysis shape. " +
+  "Use job_function (not function) for career function. " +
+  "Use null for unknown fields. No markdown fences, no commentary.";
+
+async function runAnalysis(userMessage: string) {
+  const { id, model } = getOnboardModel();
+  const errors: string[] = [];
+
+  // 1. Plain JSON text — most reliable through Lovable/Gemini gateway.
+  try {
+    console.log(`[onboard-analyze] trying ${id} (json-text)`);
+    const { text, usage } = await generateText({
+      model,
+      system: `${SYSTEM_PROMPT}\n\n${JSON_SYSTEM}`,
+      prompt: userMessage,
+      temperature: 0.2,
+      maxTokens: MAX_OUTPUT_TOKENS,
+    });
+    const parsed = AnalysisSchema.safeParse(parseJsonFromModelText(text));
+    if (parsed.success) {
+      return { analysis: toClientAnalysis(parsed.data), usage, modelId: `${id}+json` };
+    }
+    const preview = parsed.error.issues
+      .slice(0, 8)
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    console.warn(`[onboard-analyze] json-text schema issues: ${preview}`);
+    console.warn(`[onboard-analyze] json-text raw (first 800): ${text.slice(0, 800)}`);
+    errors.push(`json-text: schema validation failed (${parsed.error.issues.length} issues) — ${preview}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`json-text: ${msg}`);
+    console.warn(`[onboard-analyze] ${id} json-text failed: ${msg}`);
+  }
+
+  // 2. Structured output fallback.
+  try {
+    console.log(`[onboard-analyze] trying ${id} (generateObject)`);
+    const { object, usage } = await generateObject({
+      model,
+      schema: AnalysisSchema,
+      schemaName: "OnboardingAnalysis",
+      schemaDescription: "Structured career persona + targets + CV standards.",
+      system: SYSTEM_PROMPT,
+      prompt: userMessage,
+      temperature: 0.2,
+      maxTokens: MAX_OUTPUT_TOKENS,
+    });
+    return { analysis: toClientAnalysis(object), usage, modelId: id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`generateObject: ${msg}`);
+    console.warn(`[onboard-analyze] ${id} generateObject failed: ${msg}`);
+  }
+
+  throw new Error(errors.join(" | "));
+}
+
+const SYSTEM_PROMPT = `You are CareerCraft's onboarding analyst. Read either a free-text self-description, a parsed resume, or both, and produce a COMPLETE, properly categorised profile: who this person is, where they are in their career, what they're targeting, and the standards their CV should follow. Your output is written directly into their profile settings, so every field you can justify from the input MUST be filled — a missed field is a broken profile page.
+
+CANONICAL VOCABULARY — these fields are dropdowns in the product. You MUST use these EXACT strings (case-sensitive). Pick the closest match; never output variants like "Tech", "Junior", "7 years" or "Employed".
+- inferredProfile.industry — one of: "Technology" | "Healthcare" | "Finance & Banking" | "Education" | "Manufacturing" | "Retail" | "Consulting" | "Media & Entertainment" | "Real Estate" | "Government" | "Non-Profit" | "Energy" | "Transportation" | "Hospitality" | "Legal" | "Agriculture" | "Construction" | "Telecommunications" | "Pharmaceuticals" | "Other"
+- inferredProfile.career_level — one of: "entry" | "mid" | "senior" | "lead" | "manager" | "director" | "vp" | "c-level"
+- inferredProfile.years_of_experience — one of: "0-1" | "1-3" | "3-5" | "5-10" | "10-15" | "15+" (bucket their total professional experience; count from earliest job/graduation)
+- inferredProfile.employment_status — one of: "employed" | "actively_looking" | "open" | "not_looking" ("actively_looking" if unemployed, a student seeking work, or clearly hunting; "open" if employed but receptive)
+- targets.work_arrangement — array drawn ONLY from: "remote" | "hybrid" | "onsite"
+- targets.job_change_timeline — one of: "immediately" | "1-3_months" | "3-6_months" | "exploring"
+- jobPreferences.remote_preference — one of: "remote" | "hybrid" | "onsite" | "any"
+- jobPreferences.job_types — array from: "full-time" | "part-time" | "contract" | "freelance" | "internship"
+- jobPreferences.company_sizes — array from: "startup" | "small" | "medium" | "large" | "enterprise"
+- jobPreferences.industries — array using the SAME canonical industry list as above
+- skills[].category — one of: "technical" | "behavioral" | "leadership" | "domain" | "language"
+- skills[].proficiency — one of: "beginner" | "intermediate" | "advanced" | "expert"
+- persona.seniority — one of: "student" | "entry" | "mid" | "senior" | "lead" | "principal" | "exec"
+
+PERSONA
+- archetype: a vivid 2-4 word title that captures their professional identity (e.g. "Systems-Minded Builder", "Emerging Care Professional") — not their literal job title.
+- job_function: broad function ("Software Engineering", "Nursing", "Marketing", "Accounting", "Operations", "Design", "Data & Analytics", "Sales", "Education", "Trades", "Legal", "Human Resources", ...).
+- subFunction: the specialisation within it ("Backend", "Aged Care", "Performance Marketing") or null.
+- vertical: the industry vertical they operate in ("FinTech", "Public Health", "Construction") or null.
+- narrative: 2-3 sentences, second person ("You are..."), warm but concrete: where they are, what stands out, where they're heading. This is the first thing they read about themselves — make it feel accurate, not generic.
+
+INFERRED PROFILE — mine the input hard before giving up on a field:
+- full_name / phone: extract from resume contact block if present (never invent).
+- headline: a crisp professional headline ≤ 80 chars, "Title with focus" style (e.g. "Senior Backend Engineer — Distributed Systems"). Write one even from sparse input.
+- bio: 2-3 first-person sentences summarising experience and strengths, usable as their profile bio.
+- current_job_title / current_company: most recent role. If unemployed/student, title can still be their profession ("Registered Nurse"), company null.
+- location_city / location_country: from contact block or context. An Australian city implies country "Australia". Capitalise properly ("Adelaide", "Australia").
+
+TARGETS — what they want next. Infer sensibly when not stated:
+- target_job_titles: 2-4 concrete, searchable role titles. If they only gave a resume, propose the natural next step(s) for their trajectory (e.g. mid engineer → "Senior Software Engineer"). Use real job-board titles, not fantasy titles.
+- target_companies: only companies they name or obvious sector leaders they reference. Empty array if none.
+- preferred_locations: stated locations, else their current city. Format "City" or "City, Country".
+- desired_salary_min/max: ONLY if stated or strongly implied. Otherwise null. Currency default "AUD".
+- work_arrangement: what they'd accept; if unstated, infer from their field's norms (e.g. trades → ["onsite"], software → ["remote","hybrid"]).
+
+JOB PREFERENCES
+- industries: 1-3 canonical industries they fit or aspire to (always include their primary industry).
+- job_types: default ["full-time"] unless input suggests otherwise (student → add "internship"/"part-time").
+- company_sizes: only when signalled (startup background, enterprise history), else [].
+
+SKILLS — be exhaustive, this drives job matching:
+- Extract EVERY distinct skill the input evidences: hard tools/technologies (technical), domain expertise (domain), soft skills with evidence (behavioral), people/leadership signals (leadership), spoken languages (language).
+- From a full resume expect 12-20 skills; from one sentence maybe 2-5. Max 20, ordered by relevance to the target roles.
+- proficiency: judge from years, seniority, and how central the skill is — don't default everything to "intermediate".
+- years_experience: set when derivable from dates; else null.
+- Use canonical skill names ("PowerPoint" not "MS PPT", "Stakeholder Management" not "dealing with stakeholders").
+
+CERTIFICATIONS
+- Every certification, licence, registration, or credential (e.g. "AHPRA Registration", "White Card", "AWS Solutions Architect") with issuer and dates when present (dates as YYYY-MM-DD or YYYY-MM or YYYY).
 
 CV STANDARDS RUBRIC
 - recommended_length: "1 page" if <5y experience, "2 pages" if 5-15y, "3+ pages" only for exec/principal or 15+y
 - format: "reverse-chronological" by default; "functional" for career changers; "hybrid" for those with gaps or non-linear careers
 - ats_notes: actionable rules (e.g. "Use standard section headers", "Avoid tables/columns", "Include exact keywords from target_job_titles")
-- improvements: specific, prioritised actions (e.g. "Quantify the impact of your Q3 launch — include a metric", "Add a one-line summary at the top")
+- improvements: specific, prioritised actions grounded in THEIR input (e.g. "Quantify the impact of your Q3 launch — include a metric"), not generic advice.
 
 CONFIDENCE
 - One sentence of self-description → persona confidence ~0.3-0.5
@@ -134,20 +309,22 @@ CONFIDENCE
 - Be honest. Lower is fine if the input is sparse.
 
 RULES
-- Do NOT invent companies, salaries, dates, or specifics not implied by the input. Use null.
+- Do NOT invent companies, salaries, dates, phone numbers, or specifics not implied by the input. Use null.
 - Default desired_salary_currency to "AUD" (CareerCraft is Australia-focused) unless the input clearly suggests otherwise.
 - For sparse input, return shorter skills/certifications arrays — do not pad.
-- skills array: max 20 entries, ordered by relevance to their target role.`;
+- Every enum field above MUST use the exact canonical string. This is a hard contract, not a suggestion.`;
 
 function buildUserMessage(input: z.infer<typeof RequestSchema>): string {
+  const resumeText = (input.resumeText ?? "").slice(0, 16_000);
+  const text = (input.text ?? "").slice(0, 4_000);
   return [
     "<input>",
     `<mode>${input.mode}</mode>`,
     "<self_description>",
-    input.text || "(none)",
+    text || "(none)",
     "</self_description>",
     "<resume_text>",
-    input.resumeText || "(none)",
+    resumeText || "(none)",
     "</resume_text>",
     "</input>",
   ].join("\n");
@@ -163,12 +340,7 @@ serve(handler(async (req) => {
   }
   const input = parsed.data;
 
-  const { remaining } = await enforceDailyLimit({
-    rpcName: "onboarding_runs_in_last_24h",
-    userId,
-    limit: DAILY_LIMIT,
-    resourceLabel: "Onboarding analysis",
-  });
+  const remaining = await enforceOnboardingLimit(userId);
 
   const admin = adminClient();
 
@@ -192,31 +364,13 @@ serve(handler(async (req) => {
     .eq("id", runRow.id);
 
   try {
-    const anthropic = getAnthropic();
-    const { object, usage } = await generateObject({
-      model: anthropic(MODEL),
-      schema: AnalysisSchema,
-      schemaName: "OnboardingAnalysis",
-      schemaDescription: "Structured career persona + targets + CV standards.",
-      maxTokens: MAX_OUTPUT_TOKENS,
-      messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT,
-          // Long system prompt is reused across re-runs — ephemeral cache cuts cost.
-          providerOptions: {
-            anthropic: { cacheControl: { type: "ephemeral" } },
-          },
-        },
-        { role: "user", content: buildUserMessage(input) },
-      ],
-    });
+    const { analysis, usage, modelId } = await runAnalysis(buildUserMessage(input));
 
     await admin.from("onboarding_runs")
       .update({
         status: "completed",
-        ai_analysis: object,
-        model: MODEL,
+        ai_analysis: analysis,
+        model: modelId,
         input_tokens: usage?.promptTokens ?? null,
         output_tokens: usage?.completionTokens ?? null,
         completed_at: new Date().toISOString(),
@@ -226,7 +380,7 @@ serve(handler(async (req) => {
     return json({
       ok: true,
       runId: runRow.id,
-      analysis: object,
+      analysis,
       runsRemaining: remaining,
     });
   } catch (err) {
@@ -243,8 +397,8 @@ serve(handler(async (req) => {
       .eq("id", runRow.id);
 
     if (NoObjectGeneratedError.isInstance(err)) {
-      throw new ProviderError("Model returned unparseable output", "anthropic");
+      throw new ProviderError("Model returned unparseable output", "gemini");
     }
-    throw new ProviderError(`AI analysis failed: ${msg}`, "anthropic");
+    throw new ProviderError(`AI analysis failed: ${msg}`, "gemini");
   }
 }, { name: "onboard-analyze" }));

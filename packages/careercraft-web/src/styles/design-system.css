@@ -61,25 +61,26 @@
   --ring: 246 100% 67%;
   --radius: 0.875rem;
 
-  /* Legacy compatibility bridge: craft */
-  --cc-cream: var(--ds-bg);
-  --cc-cream-2: #f3f7fd;
-  --cc-cream-3: #eef4fc;
-  --cc-ink: var(--ds-fg);
-  --cc-ink-2: #1e293b;
-  --cc-ink-soft: var(--ds-fg-muted);
-  --cc-rust: var(--ds-primary);
-  --cc-rust-deep: var(--ds-primary-strong);
-  --cc-rust-soft: rgba(99, 91, 255, 0.12);
-  --cc-ash: #64748b;
-  --cc-hair: rgba(15, 23, 42, 0.1);
-  --cc-hair-strong: rgba(15, 23, 42, 0.18);
-  --cc-signal: var(--ds-success);
-  --cc-signal-deep: #0a7f50;
-  --cc-signal-soft: rgba(15, 157, 99, 0.14);
-  --cc-wheat: var(--ds-warning);
-  --cc-wheat-deep: #9a6100;
-  --cc-wheat-soft: rgba(194, 129, 0, 0.12);
+  /* CareerCraft editorial bridge: paper white, carbon ink, cobalt.
+     Token names are historical (cream/rust) — values are the theme. */
+  --cc-cream: #F7F7F4;
+  --cc-cream-2: #EFEFEA;
+  --cc-cream-3: #E5E5DE;
+  --cc-ink: #14161A;
+  --cc-ink-2: #1E2126;
+  --cc-ink-soft: #40454E;
+  --cc-rust: #2A52CC;
+  --cc-rust-deep: #1E3D9E;
+  --cc-rust-soft: rgba(42, 82, 204, 0.10);
+  --cc-ash: #737882;
+  --cc-hair: rgba(20, 22, 26, 0.12);
+  --cc-hair-strong: rgba(20, 22, 26, 0.28);
+  --cc-signal: #3F7A5C;
+  --cc-signal-deep: #2F5B44;
+  --cc-signal-soft: rgba(63, 122, 92, 0.14);
+  --cc-wheat: #B4872C;
+  --cc-wheat-deep: #8A6620;
+  --cc-wheat-soft: rgba(180, 135, 44, 0.16);
 
   /* Legacy compatibility bridge: astral */
   --as-void: #f8fafc;
@@ -99,6 +100,43 @@
   --as-aurora-3: #8b80ff;
   --as-signal: var(--ds-success);
   --as-gold: #f5c451;
+}
+
+/* ── Persona accent palettes ─────────────────────────────────────────────
+   Set via document.documentElement.dataset.ccAccent (src/lib/personaTheme.ts)
+   after onboarding reads the user. Paper and ink never change; only the
+   accent family re-tints, so every rust-accented surface follows the user's
+   professional world. html[data-cc-accent] outranks the :root declarations
+   here and in craft.css. */
+
+html[data-cc-accent='sage'] {
+  --cc-rust: #3F7A5C;
+  --cc-rust-deep: #2F5B44;
+  --cc-rust-soft: rgba(63, 122, 92, 0.14);
+}
+
+html[data-cc-accent='harbor'] {
+  --cc-rust: #31518F;
+  --cc-rust-deep: #24406F;
+  --cc-rust-soft: rgba(49, 81, 143, 0.13);
+}
+
+html[data-cc-accent='plum'] {
+  --cc-rust: #8E3B6B;
+  --cc-rust-deep: #6E2C52;
+  --cc-rust-soft: rgba(142, 59, 107, 0.13);
+}
+
+html[data-cc-accent='petrol'] {
+  --cc-rust: #2F6D74;
+  --cc-rust-deep: #235257;
+  --cc-rust-soft: rgba(47, 109, 116, 0.14);
+}
+
+html[data-cc-accent='ochre'] {
+  --cc-rust: #96601B;
+  --cc-rust-deep: #71470F;
+  --cc-rust-soft: rgba(150, 96, 27, 0.15);
 }
 
 .dark {
@@ -174,29 +212,24 @@
   box-shadow: 0 10px 24px rgba(99, 91, 255, 0.34);
 }
 
-/* Compatibility normalization for old class sets */
-.cc-root,
+/* Compatibility normalization for legacy astral classes ONLY.
+   cc-* classes are the canonical cream/ink/rust editorial system (craft.css).
+   This file loads last, so restyling cc-* here silently hijacks every
+   editorial page with Stripe-look pills and slate backgrounds — don't. */
 .as-root {
   background: var(--ds-bg);
   color: var(--ds-fg);
 }
 
-.cc-btn,
 .as-btn {
   border-radius: 999px;
   border-color: var(--ds-border-strong);
 }
 
-.cc-btn-primary,
 .as-btn-primary {
   background: var(--ds-gradient-primary);
   border-color: transparent;
   color: #fff;
-}
-
-.cc-btn-ghost {
-  background: var(--ds-surface);
-  color: var(--ds-fg);
 }
 
 .as-panel,

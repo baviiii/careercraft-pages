@@ -2,11 +2,11 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { TemplateProps, defaultTemplateData } from "./types";
 
-export const ModernTemplate1 = ({ data, isPreview = true }: TemplateProps) => {
+export const ModernTemplate1 = ({ data }: TemplateProps) => {
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-white text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
+    <Card className={`bg-white text-black w-[794px] min-h-[1123px] p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       <div className="space-y-6">
         {/* Header with accent bar */}
         <div className="border-l-4 border-blue-600 pl-4">

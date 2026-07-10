@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { TemplateProps, defaultTemplateData } from "./types";
 
-export const MinimalTemplate2 = ({ data, isPreview = true }: TemplateProps) => {
+export const MinimalTemplate2 = ({ data }: TemplateProps) => {
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-gray-50 text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
+    <Card className={`bg-gray-50 text-black w-[794px] min-h-[1123px] p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       <div className="max-w-xl mx-auto space-y-6">
         {/* Centered Simple Header */}
         <div className="text-center pb-4 border-b border-gray-200">

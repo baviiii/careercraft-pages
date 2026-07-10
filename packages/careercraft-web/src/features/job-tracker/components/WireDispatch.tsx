@@ -1,4 +1,16 @@
-import { ArrowUpRight, Loader2, Search } from "lucide-react";
+import {
+  ArrowUpRight,
+  Banknote,
+  BookmarkPlus,
+  Building2,
+  Clock,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Search,
+  Signal,
+  Sparkles,
+} from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 
 import type { JobCatalogJob } from "../types";
@@ -21,9 +33,9 @@ interface WireDispatchProps {
 }
 
 /**
- * The Adzuna discovery feed presented as a stack of telegram dispatches.
- * Compact, scannable, and visually distinct from the user's own ledger
- * cards above — these are *external* signals, not personal records.
+ * The Adzuna discovery feed — a live "wire" of external roles. A polished
+ * search console up top, then a responsive gallery of job cards, styled on
+ * the shared atelier surface system so it sits beside the pipeline cleanly.
  */
 export const WireDispatch = ({
   jobs,
@@ -39,59 +51,119 @@ export const WireDispatch = ({
   const visible = jobs.slice(0, 6);
 
   return (
-    <div className="space-y-5">
-      {/* Filter rail */}
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3 items-end">
-        <FilterField
-          label="Keyword"
-          placeholder="Frontend engineer, designer…"
-          value={filters.query}
-          onChange={(v) => setFilters((f) => ({ ...f, query: v }))}
+    <div className="space-y-6">
+      {/* ── Search console ─────────────────────────────────────── */}
+      <div className="cc-surface cc-tone-cobalt relative overflow-hidden p-5 md:p-6">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full opacity-70 blur-3xl"
+          style={{ background: "var(--cc-t-wash)" }}
         />
-        <FilterField
-          label="Location"
-          placeholder="Sydney, remote, NSW…"
-          value={filters.location}
-          onChange={(v) => setFilters((f) => ({ ...f, location: v }))}
-        />
-        <button
-          type="button"
-          onClick={onSearch}
-          disabled={isLoading}
-          className="cc-btn cc-btn-ghost"
-          style={{ padding: "0.7rem 1rem" }}
+
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="cc-icon-chip h-10 w-10">
+              <Signal className="h-4 w-4" />
+            </span>
+            <div>
+              <div className="cc-kicker">Live wire</div>
+              <p className="mt-0.5 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
+                {filters.query || filters.location ? (
+                  <>
+                    Tuned to{" "}
+                    <span className="font-semibold text-[color:var(--cc-ink)]">
+                      {filters.query || "all roles"}
+                    </span>
+                    {filters.location ? ` · ${filters.location}` : ""}
+                  </>
+                ) : (
+                  "Fresh roles pulled from across the market."
+                )}
+              </p>
+            </div>
+          </div>
+          {jobs.length > 0 && (
+            <span className="cc-font-sans text-xs text-[color:var(--cc-ash)] cc-tabular">
+              {jobs.length} on the wire
+            </span>
+          )}
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSearch();
+          }}
+          className="relative mt-5 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]"
         >
-          {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-          Search
-        </button>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isIngesting}
-          className="cc-btn cc-btn-primary"
-          style={{ padding: "0.7rem 1rem" }}
-        >
-          {isIngesting ? "Refreshing…" : "Pull fresh wire"}
-        </button>
+          <FilterField
+            icon={<Search className="h-4 w-4" />}
+            label="Keyword"
+            placeholder="Frontend engineer, designer…"
+            value={filters.query}
+            onChange={(v) => setFilters((f) => ({ ...f, query: v }))}
+          />
+          <FilterField
+            icon={<MapPin className="h-4 w-4" />}
+            label="Location"
+            placeholder="Sydney, remote, NSW…"
+            value={filters.location}
+            onChange={(v) => setFilters((f) => ({ ...f, location: v }))}
+          />
+
+          <div className="flex items-end gap-2">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="cc-action cc-action--sm h-[46px] flex-1 md:flex-none"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isIngesting}
+              className="cc-action cc-action--ghost cc-action--sm h-[46px] flex-1 md:flex-none"
+              title="Pull the latest roles from the source"
+            >
+              <RefreshCw className={`h-4 w-4 ${isIngesting ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">
+                {isIngesting ? "Refreshing…" : "Pull wire"}
+              </span>
+            </button>
+          </div>
+        </form>
+
+        {lastIngestSummary && (
+          <p className="relative mt-3 inline-flex items-center gap-1.5 cc-font-sans text-xs text-[color:var(--cc-ink-soft)]">
+            <Sparkles className="h-3 w-3 text-[color:var(--cc-rust)]" />
+            {lastIngestSummary}
+          </p>
+        )}
       </div>
 
-      {lastIngestSummary && (
-        <p className="cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
-          {lastIngestSummary}
-        </p>
-      )}
-
+      {/* ── Results ────────────────────────────────────────────── */}
       {visible.length === 0 ? (
-        <div className="border border-dashed border-[color:var(--cc-hair-strong)] px-6 py-10 text-center bg-[color:var(--cc-cream-2)]">
-          <div className="cc-font-sans text-sm font-semibold text-[color:var(--cc-ash)]">No jobs found</div>
-          <p className="mt-2 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
+        <div className="cc-surface flex flex-col items-center px-6 py-12 text-center">
+          <span className="cc-icon-chip cc-tone-cobalt h-12 w-12">
+            <Signal className="h-5 w-5" />
+          </span>
+          <div className="mt-4 cc-font-display text-xl tracking-tight text-[color:var(--cc-ink)]">
+            The wire is quiet
+          </div>
+          <p className="mt-2 max-w-sm cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
             No fresh dispatches in this slice — adjust the filters or pull the wire again.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-3">
-          {visible.map((j) => (
-            <WireCard key={j.id} job={j} onSave={() => onSave(j.id)} />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visible.map((j, i) => (
+            <WireCard key={j.id} job={j} index={i} onSave={() => onSave(j.id)} />
           ))}
         </div>
       )}
@@ -100,32 +172,43 @@ export const WireDispatch = ({
 };
 
 const FilterField = ({
+  icon,
   label,
   placeholder,
   value,
   onChange,
 }: {
+  icon: React.ReactNode;
   label: string;
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
 }) => (
   <label className="flex flex-col gap-1.5">
-    <span className="cc-font-sans text-xs font-semibold text-[color:var(--cc-ash)]">{label}</span>
-    <input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="bg-[color:var(--cc-cream)] border border-[color:var(--cc-hair-strong)] focus:border-[color:var(--cc-ink)] focus:shadow-[0_0_0_3px_var(--cc-rust-soft)] outline-none cc-font-sans text-sm py-2.5 px-3 text-[color:var(--cc-ink)] placeholder:text-[color:var(--cc-ash)] transition-all"
-    />
+    <span className="cc-font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--cc-ash)]">
+      {label}
+    </span>
+    <div className="group relative flex items-center">
+      <span className="pointer-events-none absolute left-3 text-[color:var(--cc-ash)] transition-colors group-focus-within:text-[color:var(--cc-rust)]">
+        {icon}
+      </span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-[46px] w-full rounded-xl border border-[color:var(--cc-hair-strong)] bg-white/80 pl-9 pr-3 cc-font-sans text-sm text-[color:var(--cc-ink)] outline-none transition-all placeholder:text-[color:var(--cc-ash)] focus:border-[color:var(--cc-rust)] focus:bg-white focus:shadow-[0_0_0_3px_var(--cc-rust-soft)]"
+      />
+    </div>
   </label>
 );
 
 const WireCard = ({
   job,
+  index,
   onSave,
 }: {
   job: JobCatalogJob;
+  index: number;
   onSave: () => void;
 }) => {
   const postedAgo = job.posted_at ? humanise(job.posted_at) : null;
@@ -135,59 +218,100 @@ const WireCard = ({
       : job.salary_min
         ? `from ${formatMoney(job.salary_min, job.currency)}`
         : null;
+  const initial = (job.company || job.title || "·").charAt(0).toUpperCase();
 
   return (
-    <article className="bg-[color:var(--cc-cream)] border border-[color:var(--cc-hair-strong)] p-4 hover:border-[color:var(--cc-ink)] transition-colors">
-      <span className="cc-font-sans text-[11px] font-semibold text-[color:var(--cc-ash)] uppercase tracking-[0.08em]">
-        {job.source}
-      </span>
+    <article
+      className="cc-surface cc-lift cc-tone-cobalt group relative flex flex-col overflow-hidden p-5"
+      style={{ animationDelay: `${index * 40}ms` }}
+    >
+      <span
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-[3px] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ background: "linear-gradient(90deg, var(--cc-rust), transparent)" }}
+      />
 
-      <div className="flex flex-col h-full">
-        <div className="mt-1 cc-font-sans text-xs text-[color:var(--cc-ash)] cc-tabular">
+      {/* Header: source + posted */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--cc-rust-soft)] px-2.5 py-1 cc-font-sans text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--cc-rust-deep)]">
+          {job.source}
+        </span>
+        <span className="inline-flex items-center gap-1.5 cc-font-sans text-xs text-[color:var(--cc-ash)] cc-tabular">
+          <Clock className="h-3 w-3" />
           {postedAgo ?? "—"}
-        </div>
-        <h3 className="mt-2 cc-font-sans font-semibold text-lg leading-tight text-[color:var(--cc-ink)]">
-          {job.title}
-        </h3>
-        <p className="mt-1 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
-          {job.company}
-          {job.location ? ` · ${job.location}` : ""}
-          {job.is_remote ? " · remote" : ""}
-        </p>
+        </span>
+      </div>
 
+      {/* Company row */}
+      <div className="mt-4 flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:var(--cc-ink)] cc-font-display text-sm text-[color:var(--cc-cream)]">
+          {initial}
+        </span>
+        <div className="min-w-0">
+          <h3 className="cc-font-sans text-[17px] font-semibold leading-snug text-[color:var(--cc-ink)] line-clamp-2">
+            {job.title}
+          </h3>
+          <p className="mt-1 inline-flex items-center gap-1.5 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
+            <Building2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--cc-ash)]" />
+            <span className="truncate">{job.company}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Meta chips */}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {job.location && (
+          <span className="inline-flex items-center gap-1 rounded-lg border border-[color:var(--cc-hair)] bg-white/70 px-2 py-1 cc-font-sans text-[11px] text-[color:var(--cc-ink-soft)]">
+            <MapPin className="h-3 w-3 text-[color:var(--cc-ash)]" />
+            {job.location}
+          </span>
+        )}
+        {job.is_remote && (
+          <span className="inline-flex items-center gap-1 rounded-lg bg-[color:var(--cc-signal-soft)] px-2 py-1 cc-font-sans text-[11px] font-medium text-[color:var(--cc-signal-deep)]">
+            Remote
+          </span>
+        )}
         {salary && (
-          <p className="mt-2 cc-font-sans text-xs font-semibold text-[color:var(--cc-rust)]">
-            <span className="cc-tabular">{salary}</span>
-          </p>
+          <span className="inline-flex items-center gap-1 rounded-lg bg-[color:var(--cc-rust-soft)] px-2 py-1 cc-font-sans text-[11px] font-semibold text-[color:var(--cc-rust-deep)] cc-tabular">
+            <Banknote className="h-3 w-3" />
+            {salary}
+          </span>
         )}
+      </div>
 
-        {job.description_snippet && (
-          <p className="mt-3 cc-font-sans text-sm leading-relaxed text-[color:var(--cc-ink-soft)] line-clamp-3">
-            {job.description_snippet}
-          </p>
-        )}
+      {job.description_snippet && (
+        <p className="mt-3 cc-font-sans text-sm leading-relaxed text-[color:var(--cc-ink-soft)] line-clamp-3">
+          {job.description_snippet}
+        </p>
+      )}
 
-        <div className="mt-auto pt-4 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={onSave}
-            className="cc-btn cc-btn-ghost"
-            style={{ padding: "0.5rem 0.85rem" }}
+      {/* Footer */}
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-[color:var(--cc-hair)] pt-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (job.canonical_url) {
+              window.open(job.canonical_url, "_blank", "noopener,noreferrer");
+            }
+            onSave();
+          }}
+          className="cc-action cc-action--sm"
+          title="Save to your tracker and open the posting"
+        >
+          <BookmarkPlus className="h-4 w-4" />
+          File &amp; open
+        </button>
+        {job.canonical_url && (
+          <a
+            href={job.canonical_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 cc-font-sans text-xs font-medium text-[color:var(--cc-ink-soft)] transition-colors hover:text-[color:var(--cc-rust)]"
           >
-            File entry
-          </button>
-          {job.canonical_url && (
-            <a
-              href={job.canonical_url}
-              target="_blank"
-              rel="noreferrer"
-              className="cc-link cc-font-sans text-xs text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-rust)] inline-flex items-center gap-1.5"
-            >
-              View source
-              <ArrowUpRight className="w-3 h-3" />
-            </a>
-          )}
-        </div>
+            Source
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </a>
+        )}
       </div>
     </article>
   );

@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { TemplateProps, defaultTemplateData } from "./types";
 
-export const ModernTemplate7 = ({ data, isPreview = true }: TemplateProps) => {
+export const ModernTemplate7 = ({ data }: TemplateProps) => {
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-slate-50 text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
+    <Card className={`bg-slate-50 text-black w-[794px] min-h-[1123px] p-8 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       <div className="space-y-5">
         {/* Header with background card */}
         <div className="bg-white rounded-lg p-5 shadow-sm border border-slate-200">

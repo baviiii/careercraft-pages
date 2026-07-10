@@ -129,7 +129,7 @@
 }
 
 .as-italic {
-  font-family: 'Instrument Serif', serif;
+  font-family: 'Inter', system-ui, sans-serif;
   font-style: italic;
   font-weight: 400;
 }

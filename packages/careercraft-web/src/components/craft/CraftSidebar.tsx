@@ -1,13 +1,11 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — cream editorial sidebar for every logged-in page.
-   Matches the dashboard aesthetic: ink border, rust active rail,
-   Fraunces branding, hand-set nav labels.
+   CareerCraft sidebar — grouped navigation, living accents,
+   clear active state. Shared across logged-in pages.
    ─────────────────────────────────────────────────────────── */
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowRight,
   Brain,
   Briefcase,
   FileText,
@@ -15,32 +13,38 @@ import {
   LogOut,
   MessageSquareText,
   Newspaper,
+  Plus,
   Search,
   Settings,
   TrendingUp,
   X,
+  Sparkles,
 } from "lucide-react";
 
 export interface CraftSidebarLink {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   path: string;
+  group?: "home" | "craft" | "market" | "account";
 }
 
-/**
- * The shared sidebar link list. Add new pages here once and every
- * logged-in screen picks them up.
- */
 export const CRAFT_SIDEBAR_LINKS: CraftSidebarLink[] = [
-  { icon: Home, label: "Home", path: "/dashboard" },
-  { icon: TrendingUp, label: "Career Insights", path: "/intelligence" },
-  { icon: Brain, label: "Career Coach", path: "/career-coach" },
-  { icon: MessageSquareText, label: "Interview Prep", path: "/interview-prep" },
-  { icon: FileText, label: "My Résumés", path: "/my-resumes" },
-  { icon: Briefcase, label: "Job Tracker", path: "/tracker" },
-  { icon: Search, label: "Browse Jobs", path: "/au-jobs" },
-  { icon: Newspaper, label: "Market News", path: "/job-market-news" },
-  { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: Home, label: "Home", path: "/dashboard", group: "home" },
+  { icon: FileText, label: "My Résumés", path: "/my-resumes", group: "craft" },
+  { icon: Briefcase, label: "Job Tracker", path: "/tracker", group: "craft" },
+  { icon: MessageSquareText, label: "Interview Prep", path: "/interview-prep", group: "craft" },
+  { icon: Brain, label: "Career Coach", path: "/career-coach", group: "craft" },
+  { icon: TrendingUp, label: "Career Insights", path: "/intelligence", group: "market" },
+  { icon: Search, label: "Browse Jobs", path: "/au-jobs", group: "market" },
+  { icon: Newspaper, label: "Market News", path: "/job-market-news", group: "market" },
+  { icon: Settings, label: "Settings", path: "/settings", group: "account" },
+];
+
+const GROUPS: { id: CraftSidebarLink["group"]; label: string }[] = [
+  { id: "home", label: "" },
+  { id: "craft", label: "Craft" },
+  { id: "market", label: "Market" },
+  { id: "account", label: "Account" },
 ];
 
 interface CraftSidebarProps {
@@ -66,116 +70,158 @@ export const CraftSidebar = memo(function CraftSidebar({
 }: CraftSidebarProps) {
   const initial = (userName || "·").charAt(0).toUpperCase();
 
+  const grouped = useMemo(() => {
+    return GROUPS.map((g) => ({
+      ...g,
+      items: links.filter((l) => (l.group || "craft") === g.id),
+    })).filter((g) => g.items.length > 0);
+  }, [links]);
+
   return (
     <aside
-      className={`fixed top-0 left-0 h-full w-[300px] z-50 bg-[color:var(--cc-cream)] border-r border-[color:var(--cc-hair-strong)] transform transition-transform duration-400 ease-out lg:translate-x-0 ${
+      className={`fixed top-0 left-0 z-50 h-full w-[272px] border-r border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] transform transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] lg:translate-x-0 ${
         open ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-      <div className="relative h-full flex flex-col p-6">
-        {/* Masthead */}
-        <div className="flex items-center justify-between pb-6 border-b border-[color:var(--cc-hair)]">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full blur-3xl"
+          style={{ background: "radial-gradient(circle, rgba(42,82,204,0.14), transparent 70%)" }}
+        />
+        <div
+          className="absolute bottom-28 -left-16 h-44 w-44 rounded-full blur-3xl"
+          style={{ background: "radial-gradient(circle, rgba(63,122,92,0.1), transparent 70%)" }}
+        />
+      </div>
+
+      <div className="relative flex h-full flex-col px-3.5 py-5">
+        {/* Brand */}
+        <div className="mb-5 flex items-center justify-between px-1.5">
           <button
             onClick={() => {
               navigate("/");
               onClose();
             }}
-            className="flex items-center gap-3"
+            className="group flex items-center gap-3"
           >
-            <div className="w-10 h-10 rounded-full border border-[color:var(--cc-ink)] flex items-center justify-center">
+            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-[color:var(--cc-ink)] shadow-[0_10px_24px_-12px_rgba(20,22,26,0.55)] transition-transform duration-300 group-hover:scale-[1.04]">
               <span
-                className="cc-font-display cc-italic-wonk text-xl leading-none translate-y-[-1px]"
-                style={{ color: "var(--cc-rust)" }}
-              >
+                aria-hidden
+                className="absolute inset-0 opacity-90"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(42,82,204,0.6), transparent 55%), linear-gradient(225deg, rgba(63,122,92,0.4), transparent 50%)",
+                }}
+              />
+              <span className="relative cc-font-display text-xl leading-none text-[color:var(--cc-cream)]">
                 c
               </span>
             </div>
             <div className="text-left">
-              <div className="cc-font-display italic text-xl tracking-tight">
+              <div className="cc-font-display text-[1.15rem] leading-none tracking-tight">
                 CareerCraft
               </div>
-              <div className="cc-label-sm text-[color:var(--cc-ash)] mt-0.5">
-                Your workspace
+              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[color:var(--cc-ash)]">
+                <Sparkles className="h-3 w-3 text-[color:var(--cc-rust)]" />
+                Atelier
               </div>
             </div>
           </button>
           <button
-            className="lg:hidden"
+            className="rounded-xl p-2 text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)] lg:hidden"
             onClick={onClose}
             aria-label="Close navigation"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="mt-8 flex-1 overflow-y-auto -mx-2">
-          <div className="px-2 cc-label-sm text-[color:var(--cc-ash)] mb-4">
-            Menu
-          </div>
-          <ul className="space-y-1">
-            {links.map((l) => {
-              const active = currentPath === l.path;
-              return (
-                <li key={l.path}>
-                  <button
-                    onClick={() => {
-                      navigate(l.path);
-                      onClose();
-                    }}
-                    className={`relative w-full flex items-center gap-3 px-4 py-3 cc-label transition-colors ${
-                      active
-                        ? "text-[color:var(--cc-ink)]"
-                        : "text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
-                    }`}
-                  >
-                    {active && (
-                      <motion.span
-                        layoutId="cc-side-active"
-                        className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-[color:var(--cc-rust)]"
-                        transition={{
-                          type: "spring",
-                          stiffness: 380,
-                          damping: 30,
+        {/* Primary CTA */}
+        <button
+          onClick={() => {
+            navigate("/builder");
+            onClose();
+          }}
+          className="group mb-5 flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-[color:var(--cc-rust)]/25 bg-[color:var(--cc-rust)] px-3.5 py-3 text-left shadow-[0_14px_28px_-16px_rgba(42,82,204,0.55)] transition-all hover:bg-[color:var(--cc-rust-deep)]"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 text-white transition-transform group-hover:scale-105">
+            <Plus className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-white">New résumé</span>
+            <span className="block text-[11px] text-white/70">Builder · templates · PDF</span>
+          </span>
+        </button>
+
+        {/* Nav groups */}
+        <nav className="-mr-1 flex-1 overflow-y-auto pr-1">
+          {grouped.map((group) => (
+            <div key={group.id || "home"} className="mb-4 last:mb-0">
+              {group.label ? (
+                <div className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--cc-ash)]">
+                  {group.label}
+                </div>
+              ) : null}
+              <ul className="space-y-0.5">
+                {group.items.map((l) => {
+                  const active =
+                    currentPath === l.path ||
+                    (l.path !== "/dashboard" && currentPath.startsWith(l.path));
+                  return (
+                    <li key={l.path}>
+                      <button
+                        onClick={() => {
+                          navigate(l.path);
+                          onClose();
                         }}
-                      />
-                    )}
-                    <l.icon className="w-4 h-4" />
-                    <span>{l.label}</span>
-                    {active && (
-                      <ArrowRight className="w-3.5 h-3.5 ml-auto text-[color:var(--cc-rust)]" />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                        className={`cc-nav-item ${active ? "is-active" : ""}`}
+                      >
+                        {active && (
+                          <motion.span
+                            layoutId="cc-side-glow"
+                            className="absolute inset-y-1.5 left-1 w-1 rounded-full bg-[color:var(--cc-rust)]"
+                            transition={{ type: "spring", stiffness: 380, damping: 32 }}
+                          />
+                        )}
+                        <span className="cc-nav-item__icon relative">
+                          <l.icon className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="relative truncate">{l.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
 
-        {/* User card */}
-        <div className="mt-6 pt-6 border-t border-[color:var(--cc-hair)]">
+        {/* User */}
+        <div className="mt-3 rounded-2xl border border-[color:var(--cc-hair)] bg-gradient-to-br from-[color:var(--cc-cream-2)] to-[color:var(--cc-cream)] p-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream-2)] flex items-center justify-center">
-              <span className="cc-font-display italic text-lg text-[color:var(--cc-ink)]">
-                {initial}
-              </span>
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[color:var(--cc-ink)]">
+              <span
+                aria-hidden
+                className="absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(145deg, rgba(42,82,204,0.75), transparent 55%), linear-gradient(320deg, rgba(63,122,92,0.55), transparent 50%)",
+                }}
+              />
+              <span className="relative text-sm font-semibold text-white">{initial}</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="cc-font-display italic text-lg text-[color:var(--cc-ink)] truncate">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-[color:var(--cc-ink)]">
                 {userName || "Guest"}
               </div>
-              <div className="cc-label-sm text-[color:var(--cc-ash)] truncate">
-                {userEmail}
-              </div>
+              <div className="truncate text-[11px] text-[color:var(--cc-ash)]">{userEmail}</div>
             </div>
           </div>
-
           <button
             onClick={onSignOut}
-            className="mt-4 w-full cc-btn cc-btn-ghost"
-            style={{ padding: "0.8rem 1rem" }}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]/90 px-3 py-2 text-xs font-medium text-[color:var(--cc-ink-soft)] transition-colors hover:border-[color:var(--cc-ink)] hover:text-[color:var(--cc-ink)]"
           >
-            <LogOut className="w-3.5 h-3.5" /> Sign out
+            <LogOut className="h-3.5 w-3.5" /> Sign out
           </button>
         </div>
       </div>

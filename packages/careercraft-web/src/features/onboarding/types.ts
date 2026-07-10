@@ -11,6 +11,8 @@ export interface OnboardingPersona {
 }
 
 export interface OnboardingInferredProfile {
+  full_name: string | null;
+  phone: string | null;
   headline: string | null;
   bio: string | null;
   current_job_title: string | null;

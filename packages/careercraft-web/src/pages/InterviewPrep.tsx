@@ -287,6 +287,7 @@ export default function InterviewPrep() {
       const { sessionId: newSessionId, questions: q } = await interviewCoach.startSession({
         field,
         seniority: seniority || undefined,
+        jobDescription: jobDescription.trim() || undefined,
       });
 
       if (!q.length) {
@@ -439,8 +440,19 @@ export default function InterviewPrep() {
         sessionId: sessionId ?? "",
         field,
         seniority: seniority || undefined,
+        questions: questions.map((q) => ({
+          question: q.question,
+          type: q.type,
+          difficulty: q.difficulty,
+        })),
+        answers,
+        evaluations: evaluations
+          .filter(Boolean)
+          .map((e) => ({ score: e.score })),
+        durationSeconds: interviewTimer,
       });
       setFinalEvaluation(evaluation);
+      setTimerRunning(false);
     } catch (error: unknown) {
       console.error("Error generating final evaluation:", error);
       const message = error instanceof CoachUnavailableError

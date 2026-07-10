@@ -1,15 +1,10 @@
 import { AnimatePresence } from "framer-motion";
-import { Plus } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import {
-  CraftAppBody,
-  CraftAppHeader,
-  CraftAppShell,
-  CraftAppStats,
-  CraftEmpty,
-} from "@/components/craft/AppPrimitives";
+import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
+import { CraftAppStats, CraftEmpty } from "@/components/craft/AppPrimitives";
 import { useToast } from "@/hooks/use-toast";
 import { exportResumeToPdf } from "@/lib/pdfExport";
 
@@ -80,38 +75,40 @@ export default function MyResumesPage() {
   /* ───── Loading state ─────────────────────────────────────── */
   if (loading) {
     return (
-      <CraftAppShell>
-        <div className="min-h-screen grid place-items-center">
+      <CraftAppLayout>
+        <div className="grid place-items-center py-32">
           <div className="text-center">
-            <div className="cc-label text-[color:var(--cc-rust)] mb-3">
-              § Loading your resumes
-            </div>
-            <div className="w-10 h-10 border-2 border-[color:var(--cc-ink)] border-t-transparent rounded-full animate-spin mx-auto" />
+            <div className="cc-kicker mb-3">Loading your résumés</div>
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--cc-hair-strong)] border-t-[color:var(--cc-rust)]" />
           </div>
         </div>
-      </CraftAppShell>
+      </CraftAppLayout>
     );
   }
 
   return (
-    <CraftAppShell>
-      <CraftAppHeader
-        kicker="§ 02 · My resumes"
-        title={
-          <>
-            Your <span className="cc-italic-wonk">saved</span>
-            <br />
-            résumés.
-          </>
-        }
-        sub="Every version of you — tagged, dated, ready to reopen."
-        ctaLabel="New resume"
-        onCta={() => goToBuilder()}
-      />
+    <CraftAppLayout
+      topBarLeft={
+        <div className="cc-label-sm text-[color:var(--cc-ash)]">My résumés</div>
+      }
+      headerActions={
+        <button onClick={() => goToBuilder()} className="cc-action cc-action--sm">
+          New résumé <ArrowUpRight className="h-3.5 w-3.5" />
+        </button>
+      }
+    >
+      <header className="mb-9">
+        <div className="cc-kicker">My résumés</div>
+        <h1 className="mt-3 cc-font-display text-4xl leading-[0.95] tracking-tight md:text-5xl">
+          Your <span className="cc-italic-wonk">saved</span> résumés.
+        </h1>
+        <p className="mt-4 max-w-2xl cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] md:text-xl">
+          Every version of you — tagged, dated, ready to reopen.
+        </p>
+      </header>
 
-      <CraftAppBody className="!py-8 md:!py-10">
-        {/* Stats */}
-        <CraftAppStats
+      {/* Stats */}
+      <CraftAppStats
           stats={[
             { label: "Total resumes", value: stats.total, note: "saved" },
             { label: "Favourites", value: stats.favorites, note: "starred" },
@@ -225,7 +222,6 @@ export default function MyResumesPage() {
             </span>
           </div>
         )}
-      </CraftAppBody>
 
       {/* Dialogs */}
       <DeleteResumeDialog
@@ -263,6 +259,6 @@ export default function MyResumesPage() {
         }}
         onDownload={downloadPdf}
       />
-    </CraftAppShell>
+    </CraftAppLayout>
   );
 }

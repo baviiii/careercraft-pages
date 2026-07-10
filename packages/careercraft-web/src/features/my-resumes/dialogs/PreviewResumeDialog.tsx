@@ -113,10 +113,10 @@ export const PreviewResumeDialog = ({
               {canShowTemplate && Template ? (
                 <div className="p-6 flex justify-center" style={{ minWidth: "fit-content" }}>
                   <div
-                    className="bg-white shadow-[0_20px_60px_-20px_rgba(14,12,10,0.5)]"
-                    style={{ transform: "scale(0.75)", transformOrigin: "top center" }}
+                    className="resume-paper bg-white shadow-[0_20px_60px_-20px_rgba(14,12,10,0.5)]"
+                    style={{ width: 794, transform: "scale(0.75)", transformOrigin: "top center" }}
                   >
-                    <Template data={toTemplateData(resume.content)} isPreview={false} />
+                    <Template data={toTemplateData(resume.content)} />
                   </div>
                 </div>
               ) : (

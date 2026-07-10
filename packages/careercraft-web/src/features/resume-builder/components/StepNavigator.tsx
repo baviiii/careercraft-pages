@@ -1,6 +1,6 @@
 /* ───────────────────────────────────────────────────────────
-   The editorial four-step progress rail.
-   § 01 Cover / § 02 Compose / § 03 Template / § 04 Export
+   The four-step progress rail.
+   01 Import / 02 Edit / 03 Template / 04 Export
    ─────────────────────────────────────────────────────────── */
 
 import { STEPS } from "../types";
@@ -31,9 +31,9 @@ export const StepNavigator = ({
                 onClick={() => isReachable && onStepClick(i)}
                 disabled={!isReachable}
                 className={[
-                  "text-left p-5 md:p-6 transition-colors",
+                  "text-left p-4 md:p-5 transition-colors",
                   state === "active"
-                    ? "bg-[color:var(--cc-cream)]"
+                    ? "bg-[color:var(--cc-cream)] shadow-[inset_0_3px_0_0_var(--cc-rust)]"
                     : state === "done"
                     ? "bg-[color:var(--cc-cream)]"
                     : "bg-[color:var(--cc-cream-2)]",
@@ -56,7 +56,7 @@ export const StepNavigator = ({
                 </div>
                 <div
                   className={[
-                    "mt-2 cc-font-display text-2xl md:text-3xl leading-none tracking-tight",
+                    "mt-2 cc-font-display text-xl md:text-2xl leading-none tracking-tight",
                     state === "active"
                       ? "text-[color:var(--cc-rust)]"
                       : state === "done"
@@ -68,7 +68,7 @@ export const StepNavigator = ({
                 </div>
                 <div
                   className={[
-                    "mt-2 cc-font-editorial italic text-[15px] leading-snug",
+                    "mt-1.5 hidden md:block text-[13px] leading-snug",
                     state === "pending"
                       ? "text-[color:var(--cc-ash)]"
                       : "text-[color:var(--cc-ink-soft)]",

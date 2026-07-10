@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { TemplateProps, defaultTemplateData } from "./types";
 
-export const ModernTemplate3 = ({ data, isPreview = true }: TemplateProps) => {
+export const ModernTemplate3 = ({ data }: TemplateProps) => {
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-white text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} p-0 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
+    <Card className={`bg-white text-black w-[794px] min-h-[1123px] p-0 shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       {/* Teal Header */}
       <div className="bg-teal-600 text-white px-8 py-6">
         <h1 className="text-3xl font-bold tracking-tight">{d.contact.name || "Your Name"}</h1>

@@ -226,7 +226,22 @@ serve(async (req) => {
         .order("posted_at", { ascending: false, nullsFirst: false })
         .range(offset, offset + limit - 1);
 
-      if (query) q = q.ilike("title", `%${query}%`);
+      if (query) {
+        // Match on ANY significant word rather than the whole phrase, so word
+        // order and extra words don't hide relevant roles — e.g. a search for
+        // "Full Stack Developer" still returns "Senior Full-Stack Engineer".
+        // Words are sanitized so PostgREST `or()` parsing can't be broken.
+        const words = query
+          .split(/\s+/)
+          .map((w) => w.replace(/[^\p{L}\p{N}+#.]/gu, "").trim())
+          .filter((w) => w.length >= 3);
+        if (words.length) {
+          const orExpr = words.map((w) => `title.ilike.%${w}%`).join(",");
+          q = q.or(orExpr);
+        } else {
+          q = q.ilike("title", `%${query}%`);
+        }
+      }
       if (location) q = q.ilike("location", `%${location}%`);
 
       const { data, error } = await q;

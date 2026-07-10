@@ -2,6 +2,9 @@
   "plugins": {
     "huggingface-skills": {
       "enabled": true
+    },
+    "claude-plugins-official/frontend-design": {
+      "enabled": true
     }
   }
 }

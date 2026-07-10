@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '@/integrations/supabase/client'
+import { extractResumeFromFile } from '@/lib/resumeParser'
 
 export interface ParsedPersonalInfo {
   fullName: string | null
@@ -86,13 +86,12 @@ export function useResumeParser(): UseResumeParserResult {
   const [progress, setProgress] = useState('')
   const [parsedData, setParsedData] = useState<ParsedResume | null>(null)
 
-  const parseResume = async (file: File, mode: 'quick' | 'advanced' = 'advanced'): Promise<ParsedResume | null> => {
+  const parseResume = async (file: File, _mode: 'quick' | 'advanced' = 'advanced'): Promise<ParsedResume | null> => {
     setIsLoading(true)
     setError(null)
     setParsedData(null)
 
     try {
-      // Validate file
       const allowedTypes = [
         'application/pdf',
         'image/jpeg',
@@ -108,104 +107,67 @@ export function useResumeParser(): UseResumeParserResult {
         throw new Error('Unsupported file format. Please upload PDF, Word, image, or text files.')
       }
 
-      // Check file size (max 20MB)
       if (file.size > 20 * 1024 * 1024) {
         throw new Error('File too large. Maximum size is 20MB.')
       }
 
-      let parsedResult: ParsedResume | null = null
+      setProgress('Reading document…')
 
-      if (mode === 'quick') {
-        // Quick mode: Use client-side extraction
-        setProgress('Extracting text from document...')
+      const aiData = await extractResumeFromFile(file, (prog) => {
+        setProgress(`Processing: ${prog}%`)
+      })
 
-        // Import the parseResumeWithAI function
-        const { parseResumeWithAI } = await import('@/lib/resumeParser')
+      setProgress('Transforming to resume format…')
 
-        const aiData = await parseResumeWithAI(file, (prog) => {
-          setProgress(`Processing: ${prog}%`)
-        })
-
-        setProgress('Transforming to resume format...')
-
-        // Transform AIResumeData to ParsedResume format
-        parsedResult = {
-          personalInfo: {
-            fullName: aiData.contact.name || null,
-            email: aiData.contact.email || null,
-            phone: aiData.contact.phone || null,
-            location: aiData.contact.location || null,
-            linkedin: aiData.contact.linkedin || null,
-            website: aiData.contact.website || null,
-            summary: aiData.summary || null,
-          },
-          workExperience: aiData.experience.map(exp => ({
-            company: exp.company,
-            title: exp.title,
-            location: exp.location || null,
-            startDate: exp.startDate || null,
-            endDate: exp.endDate || null,
-            current: exp.current,
-            bullets: exp.bullets,
-          })),
-          education: aiData.education.map(edu => ({
-            institution: edu.school,
-            degree: edu.degree,
-            field: edu.location || null, // Note: AIResumeData uses location for field
-            startDate: null,
-            endDate: edu.graduationDate || null,
-            gpa: edu.gpa || null,
-            achievements: [],
-          })),
-          skills: aiData.skills.length > 0
-            ? [{ category: 'Skills', items: aiData.skills }]
-            : [],
-          certifications: (aiData.certifications || []).map(cert => ({
-            name: typeof cert === 'string' ? cert : cert,
-            issuer: null,
-            date: null,
-            expiryDate: null,
-          })),
-          languages: [],
-          projects: (aiData.projects || []).map(proj => ({
-            name: proj.name,
-            description: proj.description || null,
-            technologies: proj.technologies || [],
-            url: null,
-          })),
-          rawText: '',
-          confidence: 0.85,
-          sourceFile: {
-            name: file.name,
-            type: file.type,
-            pages: 1,
-          },
-        }
-      } else {
-        // Advanced mode: Use Azure Document Intelligence
-        setProgress('Uploading document...')
-
-        // Create form data
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('fileName', file.name)
-
-        setProgress('Analyzing document with Azure AI...')
-
-        // Call the Edge Function
-        const { data, error: fnError } = await supabase.functions.invoke('parse-resume', {
-          body: formData,
-        })
-
-        if (fnError) {
-          throw new Error(fnError.message || 'Failed to parse document')
-        }
-
-        if (!data.success) {
-          throw new Error(data.error || 'Parsing failed')
-        }
-
-        parsedResult = data.parsed
+      const parsedResult: ParsedResume = {
+        personalInfo: {
+          fullName: aiData.contact.name || null,
+          email: aiData.contact.email || null,
+          phone: aiData.contact.phone || null,
+          location: aiData.contact.location || null,
+          linkedin: aiData.contact.linkedin || null,
+          website: aiData.contact.website || null,
+          summary: aiData.summary || null,
+        },
+        workExperience: aiData.experience.map((exp) => ({
+          company: exp.company,
+          title: exp.title,
+          location: exp.location || null,
+          startDate: exp.startDate || null,
+          endDate: exp.endDate || null,
+          current: exp.current,
+          bullets: exp.bullets,
+        })),
+        education: aiData.education.map((edu) => ({
+          institution: edu.school,
+          degree: edu.degree,
+          field: edu.location || null,
+          startDate: null,
+          endDate: edu.graduationDate || null,
+          gpa: edu.gpa || null,
+          achievements: [],
+        })),
+        skills: aiData.skills.length > 0 ? [{ category: 'Skills', items: aiData.skills }] : [],
+        certifications: (aiData.certifications || []).map((cert) => ({
+          name: typeof cert === 'string' ? cert : cert,
+          issuer: null,
+          date: null,
+          expiryDate: null,
+        })),
+        languages: [],
+        projects: (aiData.projects || []).map((proj) => ({
+          name: proj.name,
+          description: proj.description || null,
+          technologies: proj.technologies || [],
+          url: null,
+        })),
+        rawText: '',
+        confidence: 0.85,
+        sourceFile: {
+          name: file.name,
+          type: file.type,
+          pages: 1,
+        },
       }
 
       setProgress('Processing complete!')

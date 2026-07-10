@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { clearAccent } from "@/lib/personaTheme";
 import {
   useUserProfile,
   INDUSTRIES,
@@ -79,6 +80,7 @@ import {
   LogOut,
   AlertTriangle,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
@@ -317,6 +319,7 @@ export default function Settings() {
 
   // Handle sign out
   const handleSignOut = async () => {
+    clearAccent();
     await supabase.auth.signOut();
     navigate("/");
   };
@@ -428,6 +431,10 @@ export default function Settings() {
 
           {/* Footer Actions */}
           <div className="pt-4 border-t border-blue-100/50 dark:border-blue-900/30 space-y-2">
+            <Button variant="ghost" className="w-full justify-start hover:bg-blue-50/50 dark:hover:bg-blue-900/30" onClick={() => navigate('/onboarding?redo=1')}>
+              <Sparkles className="w-4 h-4 mr-2" />
+              Re-run AI Onboarding
+            </Button>
             <Button variant="ghost" className="w-full justify-start hover:bg-blue-50/50 dark:hover:bg-blue-900/30" onClick={exportData}>
               <Download className="w-4 h-4 mr-2" />
               Export My Data
@@ -602,6 +609,45 @@ export default function Settings() {
               {/* Career Section */}
               {activeSection === "career" && (
                 <div className="space-y-6">
+                  {/* AI Persona — written by onboarding, drives personalization app-wide */}
+                  {profile?.ai_persona && (
+                    <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-sky-500/10 border-blue-200/50 dark:border-blue-800/50">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <h3 className="font-semibold flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-blue-500" />
+                          AI Career Persona
+                        </h3>
+                        <Button variant="ghost" size="sm" onClick={() => navigate("/onboarding?redo=1")}>
+                          Re-run analysis
+                        </Button>
+                      </div>
+                      <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
+                        {profile.ai_persona.archetype}
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                        {profile.ai_persona.narrative}
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Badge variant="secondary" className="capitalize">{profile.ai_persona.seniority}</Badge>
+                        <Badge variant="secondary">{profile.ai_persona.function}</Badge>
+                        {profile.ai_persona.subFunction && (
+                          <Badge variant="secondary">{profile.ai_persona.subFunction}</Badge>
+                        )}
+                        {profile.ai_persona.vertical && (
+                          <Badge variant="secondary">{profile.ai_persona.vertical}</Badge>
+                        )}
+                        {profile.cv_standards && (
+                          <Badge variant="outline">
+                            CV: {profile.cv_standards.recommended_length} · {profile.cv_standards.format}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        This persona personalises your jobs, news, interview prep and the app's look. It updates when you re-run onboarding.
+                      </p>
+                    </Card>
+                  )}
+
                   {/* Current Position */}
                   <Card className="p-6">
                     <h3 className="font-semibold mb-4 flex items-center gap-2">

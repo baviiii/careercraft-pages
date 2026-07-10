@@ -47,7 +47,6 @@ export default function ResumeBuilderPage() {
 
   // Short aliases for readability inside JSX
   const {
-    previewRef,
     currentStep,
     setCurrentStep,
     resumeData,
@@ -116,15 +115,12 @@ export default function ResumeBuilderPage() {
     <CraftAppShell>
       {/* Editorial masthead */}
       <CraftAppHeader
-        kicker="§ Résumé builder"
+        kicker="Résumé builder"
         title={
           <>
-            Build your résumé in <span className="cc-italic-wonk">four</span>
-            <br />
-            simple steps.
+            Build your résumé in <span className="cc-italic-wonk">four</span> steps.
           </>
         }
-        sub="Upload an existing résumé, fill in your details, pick a template, and download."
         backTo="/dashboard"
       />
 
@@ -197,7 +193,6 @@ export default function ResumeBuilderPage() {
           {currentStep === 2 && (
             <TemplatePickerStep
               key="step-template"
-              resumeData={resumeData}
               selectedTemplate={selectedTemplate}
               onSelect={setSelectedTemplate}
               onBack={() => setCurrentStep(1)}
@@ -210,7 +205,7 @@ export default function ResumeBuilderPage() {
               key="step-preview"
               resumeData={resumeData}
               selectedTemplate={selectedTemplate}
-              previewRef={previewRef}
+              resumeDisplayName={resumeData.contact.name || "resume"}
               isExporting={isExporting}
               isSaving={isSaving}
               currentResumeId={currentResumeId}

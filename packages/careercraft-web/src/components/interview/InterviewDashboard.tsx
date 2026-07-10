@@ -358,10 +358,23 @@ export default function InterviewDashboard() {
 
   useEffect(() => {
     if (!COACH_AVAILABLE || loading) return;
+    // Only ask for an insight once there's real activity to summarize.
+    if (stats.totalSessions === 0) return;
     let cancelled = false;
     setLoadingInsight(true);
     interviewCoach
-      .weeklyInsight({})
+      .weeklyInsight({
+        weekData: {
+          sessionsCompleted: stats.completedSessions,
+          questionsAnswered: stats.totalQuestions,
+          avgScore: stats.avgScore,
+          previousWeekAvgScore: 0,
+          topSkills: [],
+          weakSkills: [],
+          streakDays: stats.currentStreak,
+          totalPracticeMinutes: 0,
+        },
+      })
       .then((insight) => {
         if (!cancelled) setWeeklyInsight(insight);
       })
@@ -374,7 +387,7 @@ export default function InterviewDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [loading]);
+  }, [loading, stats.totalSessions, stats.completedSessions, stats.totalQuestions, stats.avgScore, stats.currentStreak]);
 
   // GSAP animations
   useEffect(() => {
@@ -644,7 +657,7 @@ export default function InterviewDashboard() {
                 <div 
                   key={session.id}
                   className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                  onClick={() => navigate(`/interview-prep?session=${session.id}`)}
+                  onClick={() => navigate("/interview-prep?tab=setup")}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">

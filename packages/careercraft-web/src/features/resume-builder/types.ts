@@ -139,36 +139,36 @@ export type UploadedFileType = "pdf" | "docx" | "image" | "txt" | null;
 
 export interface BuilderStep {
   id: "upload" | "edit" | "template" | "preview";
-  /** Kicker number e.g. "§ 01". */
+  /** Kicker number e.g. "01". */
   number: string;
   title: string;
-  /** Short italic subtitle. */
+  /** Short subtitle. */
   sub: string;
 }
 
-/** The 4-step editorial journey. */
+/** The 4-step flow. */
 export const STEPS: BuilderStep[] = [
   {
     id: "upload",
-    number: "§ 01",
-    title: "Cover",
-    sub: "Bring a draft — or begin fresh.",
+    number: "01",
+    title: "Import",
+    sub: "Upload, paste or start blank.",
   },
   {
     id: "edit",
-    number: "§ 02",
-    title: "Compose",
-    sub: "Assemble the narrative.",
+    number: "02",
+    title: "Edit",
+    sub: "Fill in your details.",
   },
   {
     id: "template",
-    number: "§ 03",
+    number: "03",
     title: "Template",
-    sub: "Pick the layout.",
+    sub: "Choose a layout.",
   },
   {
     id: "preview",
-    number: "§ 04",
+    number: "04",
     title: "Export",
     sub: "Preview and download.",
   },

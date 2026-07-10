@@ -104,8 +104,7 @@ export const CraftFooter = memo(() => {
               <span className="cc-font-display italic text-2xl">CareerCraft</span>
             </div>
             <p className="mt-6 cc-font-editorial text-xl text-[color:var(--ds-fg-muted)] leading-snug max-w-md">
-              A workspace for your career — built in Adelaide,
-              set in Fraunces and Instrument Serif.
+              A workspace for your career — built in Adelaide.
             </p>
           </div>
 

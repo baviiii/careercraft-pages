@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:tokens": "node ./scripts/check-design-tokens.mjs",
+    "pdf:previews": "node ./scripts/render-pdf-previews.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { applyAccent, resolveAccent } from '@/lib/personaTheme';
+import type { AIPersona } from '@/hooks/useUserProfile';
 
 // Types for personalization
 export interface PersonalizedProfile {
@@ -30,6 +32,9 @@ export interface PersonalizedProfile {
   preferredLocations: string[];
   jobChangeTimeline: string | null;
   
+  // AI persona from onboarding (archetype, function, narrative, ...)
+  aiPersona: AIPersona | null;
+
   // Skills & Certifications
   skills: PersonalizedSkill[];
   certifications: PersonalizedCertification[];
@@ -150,6 +155,7 @@ const DEFAULT_PROFILE: PersonalizedProfile = {
   workArrangement: [],
   preferredLocations: [],
   jobChangeTimeline: null,
+  aiPersona: null,
   skills: [],
   certifications: [],
   jobPreferences: DEFAULT_JOB_PREFERENCES,
@@ -263,6 +269,7 @@ export function usePersonalization() {
         workArrangement: profileData?.work_arrangement || [],
         preferredLocations: profileData?.preferred_locations || [],
         jobChangeTimeline: profileData?.job_change_timeline || null,
+        aiPersona: (profileData?.ai_persona as AIPersona | null) ?? null,
         skills: (skillsData || []).map(s => ({
           id: s.id,
           name: (s.skill_id ? skillNameById.get(s.skill_id) : undefined) || s.skill_id || 'Unknown Skill',
@@ -308,6 +315,18 @@ export function usePersonalization() {
       };
 
       setProfile(personalizedProfile);
+
+      // The whole app's accent follows the persona — recompute on every load
+      // so profile edits and re-runs of onboarding re-tint immediately.
+      const persona = personalizedProfile.aiPersona;
+      applyAccent(
+        resolveAccent({
+          personaFunction: persona?.function,
+          subFunction: persona?.subFunction,
+          vertical: persona?.vertical,
+          industry: personalizedProfile.industry,
+        }),
+      );
     } catch (error) {
       console.error('Error fetching personalization data:', error);
     } finally {
@@ -319,40 +338,36 @@ export function usePersonalization() {
     fetchProfile();
   }, [fetchProfile]);
 
-  // Get personalized job search query based on profile
+  // Get personalized job search query based on profile.
+  // Job boards match a single phrase best — "A OR B" style strings return noise,
+  // so lead with the top target title and fall back gracefully.
   const getPersonalizedJobQuery = useCallback(() => {
-    const queries: string[] = [];
-    
-    // Add target job titles
-    if (profile.targetJobTitles.length > 0) {
-      queries.push(...profile.targetJobTitles.slice(0, 2));
-    }
-    
-    // Add current job title if no targets
-    if (queries.length === 0 && profile.currentJobTitle) {
-      queries.push(profile.currentJobTitle);
-    }
-    
-    // Add primary skills
-    const primarySkills = profile.skills.filter(s => s.isPrimary).slice(0, 2);
-    if (primarySkills.length > 0) {
-      queries.push(...primarySkills.map(s => s.name));
-    }
-    
-    // Fallback
-    if (queries.length === 0) {
-      return 'developer'; // Default search
-    }
-    
-    return queries.join(' OR ');
+    if (profile.targetJobTitles.length > 0) return profile.targetJobTitles[0];
+    if (profile.currentJobTitle) return profile.currentJobTitle;
+    const primarySkill = profile.skills.find(s => s.isPrimary) ?? profile.skills[0];
+    if (primarySkill) return primarySkill.name;
+    if (profile.industry) return profile.industry;
+    return 'developer';
   }, [profile]);
 
-  // Get personalized job filters
+  // Get personalized job filters — values shaped for the AU Jobs selects:
+  // city values are lowercase ("adelaide"), level is entry/mid/senior/executive.
   const getPersonalizedJobFilters = useCallback(() => {
+    const city = (profile.preferredLocations[0] || profile.location || '')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+    const level = profile.careerLevel
+      ? ['entry', 'mid', 'senior'].includes(profile.careerLevel)
+        ? profile.careerLevel
+        : profile.careerLevel === 'lead'
+          ? 'senior'
+          : 'executive'
+      : 'all';
     return {
-      location: profile.preferredLocations[0] || 'australia',
+      location: city || 'australia',
       jobType: profile.jobPreferences.jobTypes[0] || 'all',
-      experienceLevel: profile.careerLevel || 'all',
+      experienceLevel: level,
       industry: profile.industry || profile.jobPreferences.industries[0] || '',
       minSalary: profile.desiredSalaryMin || profile.jobPreferences.minSalary || 0,
       remotePreference: profile.jobPreferences.remotePreference,

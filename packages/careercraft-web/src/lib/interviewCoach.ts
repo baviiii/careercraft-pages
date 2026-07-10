@@ -1,19 +1,26 @@
 /**
- * interviewCoach — typed, REAL-ONLY client for the interview-coach-mcp.
+ * interviewCoach — typed client for the Interview Prep surface.
  *
- * There is no mock path. If VITE_INTERVIEW_MCP_URL is not set, or the MCP is
- * unreachable / errors, calls throw CoachUnavailableError and the UI shows
- * "not available at the moment" — never fabricated data.
+ * Powered by the `interview-ai` Supabase edge function (Gemini via the Lovable
+ * AI gateway). Sessions are persisted to `interview_sessions` (RLS-scoped to the
+ * signed-in user) so the Progress Dashboard reflects real activity.
  *
- * Identity is the user's Supabase access token, forwarded as the bearer; the
- * MCP verifies it and scopes every DB read/write by RLS.
+ * If the edge function is unreachable / errors, calls throw
+ * CoachUnavailableError and the UI shows "not available at the moment" — never
+ * fabricated data.
+ *
+ * NOTE: Source-backed learning resources / proven tips are not provided by the
+ * edge function; those helpers resolve to an empty/unavailable state until a
+ * dedicated backend exists.
  */
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
-const MCP_URL = (import.meta.env.VITE_INTERVIEW_MCP_URL as string | undefined)?.replace(/\/$/, "");
-
-/** True when an MCP endpoint is configured. The UI uses this to decide between live calls and the "not available" state. */
-export const COACH_AVAILABLE = Boolean(MCP_URL);
+/**
+ * The interview engine ships with the app as a Supabase edge function, so the
+ * coach is always "available" (subject to the function's own AI credentials).
+ */
+export const COACH_AVAILABLE = true;
 
 export class CoachUnavailableError extends Error {
   constructor(message = "Interview coach is not available at the moment.") {
@@ -22,7 +29,7 @@ export class CoachUnavailableError extends Error {
   }
 }
 
-/* ── Wire shapes (what the MCP REST routes return) ───────────────────────── */
+/* ── Shared proof type (kept for UI compatibility; edge returns none) ─────── */
 
 export interface Proof {
   kind: string;
@@ -30,6 +37,8 @@ export interface Proof {
   stat: string;
   url: string;
 }
+
+/* ── Wire shapes (what the interview-ai edge function returns) ────────────── */
 
 interface WireQuestion {
   id: number;
@@ -42,37 +51,40 @@ interface WireQuestion {
   timeAllocationMinutes?: number;
 }
 
+interface WireGenerate {
+  sessionId?: string | null;
+  questions?: WireQuestion[];
+}
+
+type WireBreakdownEntry = { score?: number } | number;
+
 interface WireEvaluation {
   score?: number;
-  scoreBreakdown?: Record<string, { score?: number } | number>;
-  validation?: { strengths?: string[]; missing?: string[]; redFlags?: string[] };
+  scoreBreakdown?: Record<string, WireBreakdownEntry>;
+  validation?: {
+    strengths?: string[];
+    correct?: string[];
+    missing?: string[];
+    redFlags?: string[];
+  };
   improvedAnswer?: { rewritten?: string; keyChanges?: string[] };
+  faangAnswer?: { example?: string; whyItWorks?: string };
+  confidenceAssessment?: { overall?: number };
   coachingTips?: Array<{ priority?: string; tip?: string }>;
-  suggestedFollowup?: string;
+  nextQuestionSuggestion?: string;
 }
 
 interface WireFinal {
   overallScore?: number;
   grade?: string;
   readiness?: string;
-  recommendation?: string;
   executiveSummary?: string;
-  strengths?: { top?: string[]; notable?: string[] };
-  developmentAreas?: { critical?: string[]; important?: string[] };
-  competencyMatrix?: Array<{ competency: string; score: number; level: string; developmentNeeded: boolean }>;
+  strengths?: { top?: string[]; notable?: string[]; potential?: string[] };
+  developmentAreas?: { critical?: string[]; important?: string[]; minor?: string[] };
   improvementPlan?: { immediate?: Array<{ area: string; action: string; timeline: string }> };
 }
 
-interface WireResource {
-  title: string;
-  provider?: string;
-  type?: string;
-  url?: string;
-  why?: string;
-  proof?: Proof;
-}
-
-/* ── UI-facing shapes (normalized for InterviewPrep.tsx) ─────────────────── */
+/* ── UI-facing shapes (consumed by InterviewPrep.tsx / dashboard) ─────────── */
 
 export interface CoachQuestion {
   id: number;
@@ -153,60 +165,73 @@ export interface WeeklyInsight {
   weeklyGoals?: Array<{ goal?: string; reason?: string; howToAchieve?: string }>;
 }
 
-/* ── Transport ───────────────────────────────────────────────────────────── */
+/* ── Transport: Supabase edge function ───────────────────────────────────── */
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  if (!MCP_URL) throw new CoachUnavailableError();
-
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-
-  let res: Response;
+async function callEdge<T>(action: string, payload: Record<string, unknown>): Promise<T> {
+  let data: unknown;
+  let error: { message?: string } | null = null;
   try {
-    res = await fetch(`${MCP_URL}${path}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body ?? {}),
+    const res = await supabase.functions.invoke("interview-ai", {
+      body: { action, ...payload },
     });
+    data = res.data;
+    error = res.error;
   } catch {
     throw new CoachUnavailableError();
   }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new CoachUnavailableError(`Interview coach error (${res.status})${text ? `: ${text.slice(0, 200)}` : ""}`);
+  if (error) throw new CoachUnavailableError(error.message);
+  if (data && typeof data === "object" && "error" in data) {
+    throw new CoachUnavailableError(String((data as { error: unknown }).error));
   }
-  return (await res.json()) as T;
+  return data as T;
+}
+
+async function currentUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
 }
 
 /* ── Adapters: wire shape → UI shape ─────────────────────────────────────── */
 
-function flatScore(v: { score?: number } | number | undefined): number {
+function flatScore(v: WireBreakdownEntry | undefined): number {
   if (typeof v === "number") return v;
   return typeof v?.score === "number" ? v.score : 0;
 }
 
-function adaptEvaluation(ev: WireEvaluation, proof: Proof | null): CoachAnswerEvaluation {
+function adaptQuestions(qs: WireQuestion[]): CoachQuestion[] {
+  return qs.map((q, i) => ({
+    id: typeof q.id === "number" ? q.id : i + 1,
+    question: q.question,
+    type: q.type,
+    difficulty: q.difficulty,
+    expectedTopics: q.expectedTopics ?? [],
+    category: q.category,
+    skillsTested: q.skillsTested,
+  }));
+}
+
+function adaptEvaluation(ev: WireEvaluation): CoachAnswerEvaluation {
   const breakdown: Record<string, number> = {};
   for (const [k, v] of Object.entries(ev.scoreBreakdown ?? {})) breakdown[k] = flatScore(v);
   const score = typeof ev.score === "number" ? ev.score : 0;
+  const confidence =
+    typeof ev.confidenceAssessment?.overall === "number"
+      ? Math.max(0, Math.min(100, Math.round(ev.confidenceAssessment.overall)))
+      : Math.max(0, Math.min(100, Math.round(score * 10)));
   return {
     score,
     scoreBreakdown: breakdown,
     validation: {
-      correct: ev.validation?.strengths ?? [],
+      correct: ev.validation?.correct ?? ev.validation?.strengths ?? [],
       missing: ev.validation?.missing ?? [],
       redFlags: ev.validation?.redFlags ?? [],
     },
     bestAnswer: ev.improvedAnswer?.rewritten ?? "",
     faangAnswer: (ev.improvedAnswer?.keyChanges ?? []).join(" · "),
-    confidence: Math.max(0, Math.min(100, Math.round(score * 10))),
+    confidence,
     tips: (ev.coachingTips ?? []).map((t) => t.tip ?? "").filter(Boolean),
-    improvement: ev.suggestedFollowup ?? "",
-    proof,
+    improvement: ev.nextQuestionSuggestion ?? "",
+    proof: null,
   };
 }
 
@@ -223,23 +248,6 @@ function adaptFinal(ev: WireFinal): CoachFinalEvaluation {
   };
 }
 
-const RESOURCE_TYPES = new Set(["video", "article", "course", "practice"]);
-function adaptResource(r: WireResource, i: number, fallbackSkill: string): CoachResource {
-  const type = (r.type ?? "article").toLowerCase();
-  return {
-    id: r.url ?? `res-${i}`,
-    title: r.title,
-    description: r.why ?? "",
-    type: (RESOURCE_TYPES.has(type) ? type : "article") as CoachResource["type"],
-    difficulty: "intermediate",
-    duration: "Self-paced",
-    url: r.url ?? "#",
-    skill: fallbackSkill,
-    provider: r.provider ?? "Web",
-    proof: r.proof ?? null,
-  };
-}
-
 /* ── Public API ──────────────────────────────────────────────────────────── */
 
 export const interviewCoach = {
@@ -249,18 +257,42 @@ export const interviewCoach = {
     field: string;
     seniority?: string;
     questionCount?: number;
+    jobDescription?: string;
   }): Promise<StartSessionResult> {
-    const r = await post<{ sessionId: string | null; questions?: WireQuestion[] }>("/api/interview/start", input);
-    const sessionId = r.sessionId ?? (crypto.randomUUID?.() ?? `${Date.now()}`);
-    const questions = (r.questions ?? []).map((q) => ({
-      id: q.id,
-      question: q.question,
-      type: q.type,
-      difficulty: q.difficulty,
-      expectedTopics: q.expectedTopics ?? [],
-      category: q.category,
-      skillsTested: q.skillsTested,
-    }));
+    const raw = await callEdge<WireGenerate>("generate_questions", {
+      field: input.field,
+      seniority: input.seniority,
+      count: input.questionCount,
+      jobDescription: input.jobDescription,
+    });
+    const questions = adaptQuestions(raw.questions ?? []);
+
+    // Persist a session row so the dashboard reflects real activity. A failure
+    // here (e.g. signed out) must not block the interview — fall back to a
+    // client-side id.
+    let sessionId: string = crypto.randomUUID?.() ?? `${Date.now()}`;
+    try {
+      const uid = await currentUserId();
+      if (uid) {
+        const { data, error } = await supabase
+          .from("interview_sessions")
+          .insert({
+            user_id: uid,
+            field: input.field,
+            seniority: input.seniority ?? null,
+            job_description: input.jobDescription ?? null,
+            questions: questions as unknown as Json,
+            status: "in_progress",
+            question_count: questions.length,
+          })
+          .select("id")
+          .single();
+        if (!error && data?.id) sessionId = data.id;
+      }
+    } catch {
+      /* non-fatal: keep the fallback id */
+    }
+
     return { sessionId, questions };
   },
 
@@ -273,34 +305,114 @@ export const interviewCoach = {
     seniority?: string;
     expectedTopics?: string[];
   }): Promise<CoachAnswerEvaluation> {
-    const r = await post<{ evaluation: WireEvaluation; proof: Proof | null }>("/api/interview/answer", input);
-    return adaptEvaluation(r.evaluation ?? {}, r.proof ?? null);
+    const raw = await callEdge<WireEvaluation>("evaluate_answer", {
+      field: input.field,
+      seniority: input.seniority,
+      question: input.questionText,
+      questionType: input.questionType,
+      answer: input.answerText,
+      expectedTopics: input.expectedTopics,
+    });
+    return adaptEvaluation(raw ?? {});
   },
 
-  async finish(input: { sessionId: string; field: string; seniority?: string }): Promise<CoachFinalEvaluation> {
-    const r = await post<{ evaluation: WireFinal }>("/api/interview/finish", input);
-    return adaptFinal(r.evaluation ?? {});
+  async finish(input: {
+    sessionId: string;
+    field: string;
+    seniority?: string;
+    questions?: Array<{ question: string; type: string; difficulty: string }>;
+    answers?: string[];
+    evaluations?: Array<{ score: number }>;
+    durationSeconds?: number;
+  }): Promise<CoachFinalEvaluation> {
+    const questions = (input.questions ?? []).map((q) => ({
+      question: q.question,
+      type: q.type,
+      difficulty: q.difficulty,
+    }));
+    const answers = input.answers ?? [];
+    const evaluations = (input.evaluations ?? []).map((e) => ({
+      score: e.score,
+      skillsTested: [] as string[],
+    }));
+
+    const raw = await callEdge<WireFinal>("final_evaluation", {
+      field: input.field,
+      seniority: input.seniority,
+      questions,
+      answers,
+      evaluations,
+      sessionDuration: input.durationSeconds
+        ? Math.round(input.durationSeconds / 60)
+        : undefined,
+    });
+    const final = adaptFinal(raw ?? {});
+
+    // Persist the completed session so it shows in history / stats.
+    try {
+      if (input.sessionId) {
+        const scores = evaluations.map((e) => e.score);
+        const avg =
+          scores.length > 0
+            ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+            : null;
+        await supabase
+          .from("interview_sessions")
+          .update({
+            answers: answers as unknown as Json,
+            scores: scores as unknown as Json,
+            final_evaluation: raw as unknown as Json,
+            status: "completed",
+            avg_score: avg,
+            duration_seconds: input.durationSeconds ?? null,
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", input.sessionId);
+      }
+    } catch {
+      /* non-fatal: the evaluation still returns to the UI */
+    }
+
+    return final;
   },
 
-  async getResources(input: { skills?: string[]; goal?: string; maxResults?: number }): Promise<CoachResource[]> {
-    const r = await post<{ skills?: string[]; resources?: WireResource[] }>("/api/resources", input);
-    const fallbackSkill = input.skills?.[0] ?? r.skills?.[0] ?? "General";
-    return (r.resources ?? []).map((res, i) => adaptResource(res, i, fallbackSkill));
+  // Not backed by the edge function yet — resolve to an unavailable/empty state
+  // so the UI degrades gracefully rather than showing fabricated data.
+  async getResources(_input: {
+    skills?: string[];
+    goal?: string;
+    maxResults?: number;
+  }): Promise<CoachResource[]> {
+    return [];
   },
 
-  async getProvenTips(input: { skill?: string; question?: string; count?: number }): Promise<ProvenTip[]> {
-    const r = await post<{ tips?: Array<{ tip: string; proof: Proof | null; verified: boolean }> }>(
-      "/api/proven-tips",
-      input,
-    );
-    return (r.tips ?? []).map((t) => ({ tip: t.tip, proof: t.proof ?? null, verified: Boolean(t.verified) }));
+  async getProvenTips(_input: {
+    skill?: string;
+    question?: string;
+    count?: number;
+  }): Promise<ProvenTip[]> {
+    return [];
   },
 
-  async analyzePatterns(input: { field?: string; seniority?: string }): Promise<PatternAnalysis> {
-    return post<PatternAnalysis>("/api/analytics/patterns", input);
+  async analyzePatterns(input: {
+    field?: string;
+    seniority?: string;
+    recentSessions?: unknown[];
+    skillHistory?: unknown[];
+  }): Promise<PatternAnalysis> {
+    return callEdge<PatternAnalysis>("analyze_patterns", {
+      recentSessions: input.recentSessions ?? [],
+      skillHistory: input.skillHistory ?? [],
+    });
   },
 
-  async weeklyInsight(input: { field?: string; seniority?: string }): Promise<WeeklyInsight> {
-    return post<WeeklyInsight>("/api/analytics/weekly", input);
+  async weeklyInsight(input: {
+    field?: string;
+    seniority?: string;
+    weekData?: Record<string, unknown>;
+  }): Promise<WeeklyInsight> {
+    return callEdge<WeeklyInsight>("weekly_insight", {
+      weekData: input.weekData,
+    });
   },
 };

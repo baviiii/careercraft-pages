@@ -6,18 +6,18 @@
    ─────────────────────────────────────────────────────────── */
 
 :root {
-  --cc-cream: #F3EADB;
-  --cc-cream-2: #ECE0CB;
-  --cc-cream-3: #E3D4B8;
-  --cc-ink: #0E0C0A;
-  --cc-ink-2: #211E1B;
-  --cc-ink-soft: #3A3530;
-  --cc-rust: #C8431E;
-  --cc-rust-deep: #9C3416;
-  --cc-rust-soft: rgba(200, 67, 30, 0.14);
-  --cc-ash: #746A60;
-  --cc-hair: rgba(14, 12, 10, 0.14);
-  --cc-hair-strong: rgba(14, 12, 10, 0.3);
+  --cc-cream: #F7F7F4;
+  --cc-cream-2: #EFEFEA;
+  --cc-cream-3: #E5E5DE;
+  --cc-ink: #14161A;
+  --cc-ink-2: #1E2126;
+  --cc-ink-soft: #40454E;
+  --cc-rust: #2A52CC;
+  --cc-rust-deep: #1E3D9E;
+  --cc-rust-soft: rgba(42, 82, 204, 0.10);
+  --cc-ash: #737882;
+  --cc-hair: rgba(20, 22, 26, 0.12);
+  --cc-hair-strong: rgba(20, 22, 26, 0.28);
 
   /* Status palette — warm, earthy, pairs with rust without shouting.
      Used in the logged-in app (scores, badges, validation). The public
@@ -33,16 +33,16 @@
 .cc-root ::selection { background: var(--cc-rust); color: var(--cc-cream); }
 
 /* Fonts ----------------------------------------------------- */
-.cc-font-display   { font-family: 'Fraunces', 'Times New Roman', serif; font-optical-sizing: auto; }
-.cc-font-editorial { font-family: 'Instrument Serif', 'Times New Roman', serif; }
+.cc-font-display   { font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif; font-optical-sizing: auto; font-weight: 600; font-synthesis: none; font-style: normal; }
+.cc-font-editorial { font-family: 'Inter', system-ui, sans-serif; font-weight: 400; }
 .cc-font-mono      { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 .cc-font-sans      { font-family: 'Inter', system-ui, sans-serif; }
 
-/* Wonky italic display — the signature accent */
+/* Signature accent — was Fraunces wonk-italic, now a heavy upright cut */
 .cc-italic-wonk {
-  font-style: italic;
-  font-variation-settings: 'SOFT' 100, 'WONK' 1;
-  font-weight: 300;
+  font-style: normal;
+  font-weight: 750;
+  letter-spacing: -0.02em;
 }
 
 /* Labels ---------------------------------------------------- */
@@ -174,13 +174,13 @@
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--cc-hair-strong);
-  font-family: 'Instrument Serif', serif;
-  font-size: 20px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 17px;
   color: var(--cc-ink);
   outline: none;
   transition: border-color .3s ease, padding .3s ease;
 }
-.cc-input::placeholder { color: var(--cc-ash); opacity: 0.7; font-style: italic; }
+.cc-input::placeholder { color: var(--cc-ash); opacity: 0.7; }
 .cc-input:focus { border-color: var(--cc-rust); }
 .cc-input.cc-input-error { border-color: var(--cc-rust); }
 
@@ -190,8 +190,8 @@
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--cc-hair-strong);
-  font-family: 'Instrument Serif', serif;
-  font-size: 18px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
   color: var(--cc-ink);
   outline: none;
   resize: vertical;
@@ -199,7 +199,7 @@
   line-height: 1.5;
   transition: border-color .3s ease;
 }
-.cc-textarea::placeholder { color: var(--cc-ash); opacity: 0.7; font-style: italic; }
+.cc-textarea::placeholder { color: var(--cc-ash); opacity: 0.7; }
 .cc-textarea:focus { border-color: var(--cc-rust); }
 
 /* Scroll smoothing on the public pages */
@@ -210,16 +210,14 @@
 /* Editorial drop cap — apply to a paragraph to give its first letter a
    newspaper-style raised initial set in the display serif. */
 .cc-dropcap::first-letter {
-  font-family: 'Fraunces', 'Times New Roman', serif;
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
   font-size: 5.2em;
   float: left;
   line-height: 0.82;
   padding: 0.08em 0.14em 0 0;
   margin: 0.04em 0.06em 0 -0.03em;
   color: var(--cc-rust);
-  font-weight: 300;
-  font-variation-settings: 'SOFT' 100, 'WONK' 1;
-  font-style: italic;
+  font-weight: 700;
 }
 
 /* Small caps — mono label alternative with true small-cap proportions */
@@ -250,8 +248,7 @@
   opacity: 0.4;
 }
 .cc-fleuron > .cc-fleuron-mark {
-  font-family: 'Fraunces', serif;
-  font-style: italic;
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
   color: var(--cc-rust);
   font-size: 18px;
   letter-spacing: 0.08em;
@@ -474,8 +471,9 @@
   color: var(--cc-ash);
 }
 .cc-meta-value {
-  font-family: 'Fraunces', serif;
-  font-size: 16px;
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 15px;
   font-variant-numeric: tabular-nums lining-nums;
   color: var(--cc-ink);
 }
@@ -667,9 +665,9 @@
 
 /* Margin annotation column — used in Workbench right gutter */
 .cc-margin-note {
-  font-family: 'Instrument Serif', serif;
+  font-family: 'Inter', system-ui, sans-serif;
   font-style: italic;
-  font-size: 16px;
+  font-size: 15px;
   color: rgba(243, 234, 219, 0.78);
   line-height: 1.45;
   position: relative;
@@ -923,8 +921,8 @@
   padding: 10px 14px;
   border: 1px solid currentColor;
   background: transparent;
-  font-family: 'Instrument Serif', serif;
-  font-size: 15px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
   line-height: 1.4;
   display: flex;
   align-items: flex-start;
@@ -967,9 +965,8 @@
   margin-bottom: 6px;
 }
 .cc-field-hint {
-  font-family: 'Instrument Serif', serif;
-  font-style: italic;
-  font-size: 13px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12.5px;
   color: var(--cc-ash);
   margin-top: 4px;
 }
@@ -979,6 +976,249 @@
   background: var(--cc-cream-2);
   border: 1px solid var(--cc-hair-strong);
   padding: 1.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ATELIER SURFACE SYSTEM (v2) — the current app UI language.
+
+   Soft rounded paper, hairline borders, cobalt accents, tone-tinted
+   cards. This is the canonical look for logged-in surfaces (dashboard,
+   sidebar, tools). Prefer these classes over ad-hoc utility strings so
+   every page shares one voice.
+
+   HOW TONE WORKS
+   Add a `.cc-tone-*` modifier next to a surface to re-tint it. Components
+   read the tone through --cc-t / --cc-t-deep / --cc-t-soft / --cc-t-wash /
+   --cc-t-border, each falling back to cobalt when no tone is set. Cobalt
+   itself follows the persona accent (html[data-cc-accent]).
+
+   SEPARATION OF CONCERNS
+   These classes own *appearance* (color, border, radius, shadow,
+   background). Keep *layout* (grid/flex/gap/padding/sizing) in Tailwind
+   utilities on the same element.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Tone families -------------------------------------------------------- */
+.cc-tone-cobalt {
+  --cc-t: var(--cc-rust);
+  --cc-t-deep: var(--cc-rust-deep);
+  --cc-t-soft: var(--cc-rust-soft);
+  --cc-t-wash: rgba(42, 82, 204, 0.12);
+  --cc-t-border: rgba(42, 82, 204, 0.22);
+}
+.cc-tone-sage {
+  --cc-t: var(--cc-signal);
+  --cc-t-deep: var(--cc-signal-deep);
+  --cc-t-soft: var(--cc-signal-soft);
+  --cc-t-wash: rgba(63, 122, 92, 0.12);
+  --cc-t-border: rgba(63, 122, 92, 0.26);
+}
+.cc-tone-wheat {
+  --cc-t: var(--cc-wheat);
+  --cc-t-deep: var(--cc-wheat-deep);
+  --cc-t-soft: var(--cc-wheat-soft);
+  --cc-t-wash: rgba(180, 135, 44, 0.12);
+  --cc-t-border: rgba(180, 135, 44, 0.30);
+}
+.cc-tone-ink {
+  --cc-t: var(--cc-ink);
+  --cc-t-deep: var(--cc-ink);
+  --cc-t-soft: rgba(20, 22, 26, 0.06);
+  --cc-t-wash: rgba(20, 22, 26, 0.06);
+  --cc-t-border: rgba(20, 22, 26, 0.16);
+}
+
+/* Surfaces ------------------------------------------------------------- */
+
+/* Plain white card — the default container. */
+.cc-surface {
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.25rem;
+  box-shadow: 0 18px 44px -36px rgba(20, 22, 26, 0.30);
+}
+/* Warmer paper variant for secondary containers / list shells. */
+.cc-surface-muted {
+  background: color-mix(in srgb, var(--cc-cream) 88%, #fff);
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.25rem;
+  box-shadow: 0 16px 40px -34px rgba(20, 22, 26, 0.28);
+}
+
+/* Tone-tinted card — white washing into the tone. Used for feature tiles. */
+.cc-tint {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--cc-t-border, var(--cc-hair));
+  border-radius: 1.5rem;
+  background: linear-gradient(160deg, #fff 0%, var(--cc-t-wash, var(--cc-rust-soft)) 100%);
+  box-shadow: 0 18px 44px -36px rgba(20, 22, 26, 0.30);
+}
+
+/* Interactive lift — pair with any surface for hover response. */
+.cc-lift {
+  transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 48px -32px rgba(20, 22, 26, 0.35);
+}
+
+/* Hero — the light paper headline panel (grid + accent wash + shadow). */
+.cc-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--cc-hair-strong);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(ellipse 70% 80% at 100% 0%, var(--cc-rust-soft), transparent 55%),
+    radial-gradient(ellipse 50% 60% at 0% 100%, var(--cc-signal-soft), transparent 55%),
+    linear-gradient(180deg, #fff 0%, var(--cc-cream) 100%);
+  box-shadow: 0 24px 60px -40px rgba(20, 22, 26, 0.28);
+}
+.cc-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(20, 22, 26, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 22, 26, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(ellipse 85% 75% at 40% 30%, #000, transparent);
+  mask-image: radial-gradient(ellipse 85% 75% at 40% 30%, #000, transparent);
+  pointer-events: none;
+}
+.cc-hero > * { position: relative; }
+
+/* Tokens & accents ----------------------------------------------------- */
+
+/* Icon tile — soft tone background, deep tone glyph. Size with utilities. */
+.cc-icon-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  background: var(--cc-t-soft, var(--cc-rust-soft));
+  color: var(--cc-t-deep, var(--cc-rust-deep));
+}
+
+/* Eyebrow — the dotted status pill above a headline. */
+.cc-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--cc-hair);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.25rem 0.75rem;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cc-ash);
+}
+.cc-eyebrow::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cc-t, var(--cc-rust));
+}
+
+/* Kicker — small tone-colored section label. */
+.cc-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cc-t, var(--cc-rust));
+}
+
+/* Actions — rounded pill buttons (sentence case, not the mono cc-btn).
+   `display` is set at zero specificity so responsive utilities like
+   `hidden md:inline-flex` can still toggle visibility. */
+:where(.cc-action) { display: inline-flex; }
+.cc-action {
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.75rem 1.5rem;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  background: var(--cc-rust);
+  box-shadow: 0 14px 32px -16px rgba(42, 82, 204, 0.6);
+  cursor: pointer;
+  transition: background .25s ease, gap .25s ease, box-shadow .25s ease, transform .25s ease, border-color .25s ease;
+}
+.cc-action:hover:not(:disabled) { background: var(--cc-rust-deep); gap: 0.65rem; }
+.cc-action:disabled { opacity: 0.55; cursor: not-allowed; }
+.cc-action--ghost {
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--cc-ink);
+  border-color: var(--cc-hair-strong);
+  box-shadow: none;
+}
+.cc-action--ghost:hover:not(:disabled) { background: #fff; border-color: var(--cc-ink); }
+.cc-action--ink {
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+  box-shadow: none;
+}
+.cc-action--ink:hover:not(:disabled) { background: var(--cc-rust); }
+.cc-action--sm { padding: 0.5rem 1rem; font-size: 13px; }
+.cc-action--lg { padding: 0.85rem 1.6rem; font-size: 15px; }
+
+/* Nav item — grouped sidebar link with active paper state. */
+.cc-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  padding: 0.625rem;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--cc-ink-soft);
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+  cursor: pointer;
+}
+.cc-nav-item:hover { background: var(--cc-cream-2); color: var(--cc-ink); }
+.cc-nav-item.is-active {
+  background: #fff;
+  color: var(--cc-ink);
+  box-shadow: 0 8px 20px -14px rgba(20, 22, 26, 0.35), inset 0 0 0 1px var(--cc-hair-strong);
+}
+.cc-nav-item__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  background: var(--cc-cream-2);
+  color: var(--cc-ink-soft);
+  transition: background .2s ease, color .2s ease;
+}
+.cc-nav-item.is-active .cc-nav-item__icon {
+  background: var(--cc-rust-soft);
+  color: var(--cc-rust);
+}
+
+/* Big display metric numeral. */
+.cc-metric {
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--cc-ink);
 }
 
 /* Accessibility — respect reduced motion */
@@ -992,6 +1232,9 @@
   .cc-telegram,
   .cc-card,
   .cc-row,
-  .cc-drawer { transition: none !important; }
+  .cc-drawer,
+  .cc-lift,
+  .cc-action { transition: none !important; }
   .cc-card-hover:hover { transform: none !important; box-shadow: none !important; }
+  .cc-lift:hover { transform: none !important; }
 }

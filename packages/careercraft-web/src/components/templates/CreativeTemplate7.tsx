@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { TemplateProps, defaultTemplateData } from "./types";
 
-export const CreativeTemplate7 = ({ data, isPreview = true }: TemplateProps) => {
+export const CreativeTemplate7 = ({ data }: TemplateProps) => {
   const d = data || defaultTemplateData;
   
   return (
-    <Card className={`bg-white text-black ${isPreview ? 'scale-[0.35] origin-top-left w-[794px] min-h-[1123px]' : 'w-[794px] min-h-[1123px]'} shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
+    <Card className={`bg-white text-black w-[794px] min-h-[1123px] shadow-none border-0 overflow-hidden`} style={{ boxSizing: 'border-box' }}>
       {/* Geometric Header */}
       <div className="relative h-24 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500">
         <div className="absolute inset-0 flex items-center justify-center">

@@ -171,6 +171,24 @@
     letter-spacing: -0.02em;
     line-height: 1.2;
   }
+
+  /* ── Resume paper ─────────────────────────────────────────
+     The résumé templates must render in the exact fonts the PDF
+     exporter embeds (Inter + Gelasio), on every OS, so that the
+     downloaded PDF matches the on-screen preview glyph-for-glyph. */
+  .resume-paper {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  .resume-paper :is(h1, h2, h3, h4, h5, h6) {
+    font-family: inherit;
+    font-weight: inherit;
+    letter-spacing: normal;
+  }
+
+  .resume-paper .font-serif {
+    font-family: 'Gelasio', Georgia, 'Times New Roman', serif;
+  }
 }
 
 /* Premium Animation System - Calm & Authoritative */

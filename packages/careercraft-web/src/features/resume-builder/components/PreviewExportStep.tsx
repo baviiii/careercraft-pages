@@ -1,31 +1,35 @@
 /* ───────────────────────────────────────────────────────────
    § 04 · Press — proof and print.
-   On-screen preview of the selected template; export is rendered
-   independently as a vector PDF via @react-pdf/renderer.
+   WYSIWYG: renders the actual export PDF (same bytes as the
+   download) with PDF.js, so preview = file, page for page.
    ─────────────────────────────────────────────────────────── */
 
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   Download,
   Loader2,
   Save,
 } from "lucide-react";
-import type { RefObject } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
-import type { TemplateData } from "@/components/templates/types";
-import { getTemplate } from "@/lib/templateMap";
+import { renderResumePdfBlob } from "@/lib/pdfExport";
 
-import { resumeToTemplateData } from "../lib/resumeData";
+// pdfjs is heavy — load the viewer only when this step is reached.
+const PdfBlobViewer = lazy(() =>
+  import("@/components/pdf/PdfBlobViewer").then((m) => ({ default: m.PdfBlobViewer }))
+);
+
 import type { ResumeData, TemplateId } from "../types";
 import { getTemplateMeta } from "../types";
 
 interface PreviewExportStepProps {
   resumeData: ResumeData;
   selectedTemplate: TemplateId;
-  previewRef: RefObject<HTMLDivElement>;
+  resumeDisplayName: string;
   isExporting: boolean;
   isSaving: boolean;
   currentResumeId: string | null;
@@ -34,10 +38,16 @@ interface PreviewExportStepProps {
   onExportPDF: () => void;
 }
 
+interface PreviewState {
+  blob: Blob;
+  pageCount: number;
+  usedFallbackTemplate: boolean;
+}
+
 export const PreviewExportStep = ({
   resumeData,
   selectedTemplate,
-  previewRef,
+  resumeDisplayName,
   isExporting,
   isSaving,
   currentResumeId,
@@ -45,9 +55,40 @@ export const PreviewExportStep = ({
   onOpenSaveDialog,
   onExportPDF,
 }: PreviewExportStepProps) => {
-  const Template = getTemplate(selectedTemplate);
   const meta = getTemplateMeta(selectedTemplate);
-  const templateData: TemplateData = resumeToTemplateData(resumeData);
+  const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [isRendering, setIsRendering] = useState(true);
+  const [renderFailed, setRenderFailed] = useState(false);
+
+  useEffect(() => {
+    let stale = false;
+    setIsRendering(true);
+    setRenderFailed(false);
+
+    const timer = setTimeout(async () => {
+      try {
+        const { blob, pageCount, usedFallbackTemplate } = await renderResumePdfBlob({
+          resume: {
+            name: resumeDisplayName || "resume",
+            content: resumeData,
+            template_id: selectedTemplate,
+          },
+        });
+        if (stale) return;
+        setPreview({ blob, pageCount, usedFallbackTemplate });
+      } catch (error) {
+        console.error("PDF preview failed:", error);
+        if (!stale) setRenderFailed(true);
+      } finally {
+        if (!stale) setIsRendering(false);
+      }
+    }, 350);
+
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [resumeData, selectedTemplate, resumeDisplayName]);
 
   return (
     <motion.div
@@ -101,21 +142,51 @@ export const PreviewExportStep = ({
         </div>
       </div>
 
-      {/* Paper */}
-      <div className="flex justify-center overflow-auto pb-8">
-        <div
-          ref={previewRef}
-          className="bg-white shadow-[0_30px_90px_-20px_rgba(14,12,10,0.45)] border border-[color:var(--cc-hair-strong)]"
-          style={{ width: "794px" }}
-        >
-          {Template ? (
-            <Template data={templateData} isPreview={false} />
-          ) : (
-            <div className="p-16 text-center cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-              Template missing — return to § 03 to pick one.
-            </div>
-          )}
+      {/* Proof strip */}
+      <div className="flex items-center justify-between gap-4 mb-4 max-w-[840px] mx-auto">
+        <div className="cc-label text-[color:var(--cc-ash)] flex items-center gap-2">
+          What you download
+          {isRendering && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
         </div>
+        {preview && (
+          <div className="cc-label text-[color:var(--cc-ash)]">
+            {preview.pageCount} page{preview.pageCount > 1 ? "s" : ""}
+          </div>
+        )}
+      </div>
+
+      {preview?.usedFallbackTemplate && (
+        <div className="flex items-center gap-2 mb-4 max-w-[840px] mx-auto px-4 py-3 border border-amber-400 bg-amber-50 text-amber-900 text-sm">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          This template has no PDF layout yet, so the export uses Modern 1. Pick another template if that's not what you want.
+        </div>
+      )}
+
+      {/* The actual PDF, page for page */}
+      <div className="max-w-[840px] mx-auto pb-8">
+        {preview ? (
+          <div className={isRendering ? "opacity-60 transition-opacity" : "transition-opacity"}>
+            <Suspense
+              fallback={
+                <div
+                  className="w-full bg-white border border-[color:var(--cc-hair-strong)] animate-pulse"
+                  style={{ aspectRatio: "794 / 1123" }}
+                />
+              }
+            >
+              <PdfBlobViewer blob={preview.blob} />
+            </Suspense>
+          </div>
+        ) : renderFailed ? (
+          <div className="p-16 text-center cc-font-editorial italic text-[color:var(--cc-ink-soft)] border border-[color:var(--cc-hair-strong)] bg-white">
+            Could not render the preview — try Export PDF directly, or reload.
+          </div>
+        ) : (
+          <div
+            className="w-full bg-white border border-[color:var(--cc-hair-strong)] animate-pulse"
+            style={{ aspectRatio: "794 / 1123" }}
+          />
+        )}
       </div>
     </motion.div>
   );
