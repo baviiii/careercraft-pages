@@ -8,14 +8,11 @@
 // (single full-rewrite path, per the 2026-07 resume system cleanup).
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { generateText } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
-import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { horusGenerateText } from "../_shared/ai/horus.ts";
 import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
 import { handler, json } from "../_shared/http/responses.ts";
-
-const MODEL = "google/gemini-2.5-flash";
 
 const RequestSchema = z.object({
   text: z.string().min(1, "text is required").max(40_000),
@@ -50,7 +47,7 @@ Rules:
 - Start with what was done, then the tool/tech used, then result (optional).
 - Prefer natural verbs: "set up", "worked on", "built", "helped with", "maintained", "wrote", "configured"
 - Avoid: architected, spearheaded, orchestrated, leveraged, revolutionized, cutting-edge
-- Include at least one concrete noun (language, framework, service, database, platform).
+- Include at least one concrete noun from the person's actual field — a tool, system, method, piece of equipment, or platform (e.g. a framework for a developer, a clinical procedure for a nurse, a machine for a tradesperson).
 - Results can be approximate: "~20 users", "around 30%"
 - Use past tense for previous roles.
 - Do NOT make it sound like marketing copy. Plain and specific.
@@ -96,11 +93,10 @@ serve(handler(async (req) => {
   }
 
   const prompts = buildPrompts(parsed.data);
-  const lovable = getLovableGateway();
 
   try {
-    const { text } = await generateText({
-      model: lovable(MODEL),
+    const { text } = await horusGenerateText({
+      task: `careercraft.rewrite_${parsed.data.type}`,
       system: prompts.system,
       prompt: prompts.user,
       temperature: 0.7,
@@ -108,7 +104,8 @@ serve(handler(async (req) => {
 
     return json({ rewrittenText: text.trim() });
   } catch (err) {
+    if (err instanceof ProviderError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
-    throw new ProviderError(`AI rewrite failed: ${msg}`, "lovable");
+    throw new ProviderError(`AI rewrite failed: ${msg}`, "horus");
   }
 }, { name: "rewrite-resume" }));

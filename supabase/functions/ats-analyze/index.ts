@@ -1,8 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { generateObject, generateText } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
-import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { horusGenerateObject, horusGenerateText, type HorusTier } from "../_shared/ai/horus.ts";
 import { ValidationError } from "../_shared/ai/errors.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
@@ -341,13 +340,13 @@ serve(handler(async (req) => {
       }
     }
 
-    const lovable = getLovableGateway();
-
     let systemPrompt = "";
     let userPrompt = "";
 
     if (analysisType === "full-analysis") {
-      systemPrompt = `You are an Enterprise-grade ATS Resume Analyzer & Optimizer Engine trained on top recruitment systems (Greenhouse, Lever, Workday, Taleo, BambooHR, Seek, LinkedIn Talent Insights). You evaluate resumes + job descriptions, simulate an ATS scan, and produce a complete breakdown.`;
+      systemPrompt = `You are an Enterprise-grade ATS Resume Analyzer & Optimizer Engine trained on top recruitment systems (Greenhouse, Lever, Workday, Taleo, BambooHR, Seek, LinkedIn Talent Insights). You evaluate resumes + job descriptions, simulate an ATS scan, and produce a complete breakdown.
+
+Resumes come from every profession — healthcare, trades, education, hospitality, finance, retail, engineering. Ground every skill, keyword, and improvement in what the resume and job description actually contain, in the language of that profession. Never inject tech-industry skills or advice into a non-tech resume.`;
       
       userPrompt = `Analyze this resume against the job description and provide a comprehensive ATS analysis.
 
@@ -393,7 +392,7 @@ You write plainly, conservatively, and slightly imperfectly, like a real person 
 - No two consecutive bullets may start with the same verb.
 - Avoid perfect symmetry across bullets -- variation is required.
 - Sentence fragments are allowed if they sound natural.
-- Every bullet must include at least one concrete noun (a language, framework, cloud service, database, or platform).
+- Every bullet must include at least one concrete noun from the person's actual field (a tool, system, method, piece of equipment, or platform — framework for a developer, clinical procedure for a nurse, machine for a tradesperson).
 
 === STRICTLY FORBIDDEN PHRASES ===
 
@@ -414,7 +413,7 @@ To avoid AI-detection patterns:
 - Do NOT make every bullet sound equally strong. Some bullets should be shorter and simpler.
 - Do NOT repeat the same sentence structure more than twice.
 - Do NOT stack multiple achievements into one bullet.
-- Write like someone explaining their work to another engineer, not to HR.
+- Write like someone explaining their work to a colleague in the same trade or profession, not to HR.
 
 === COMPLETENESS REQUIREMENTS (CRITICAL) ===
 
@@ -461,7 +460,7 @@ PRESERVATION REQUIREMENTS:
 
 === FINAL QUALITY CHECK ===
 
-Before outputting, read each bullet and ask: "Could a junior/mid engineer realistically write this?"
+Before outputting, read each bullet and ask: "Could this person, in this profession, realistically write this?"
 If it sounds impressive without being specific, rewrite it.
 If it sounds like marketing, rewrite it.
 If it sounds too clean, simplify it.
@@ -644,7 +643,7 @@ BULLET RULES:
 - Start with what was done, then the tool/tech, then result (optional).
 - Prefer: "worked on", "helped build", "maintained", "set up", "wrote", "updated", "configured", "migrated"
 - Avoid: architected, spearheaded, orchestrated, revolutionized, leveraged, cutting-edge
-- Every bullet must include at least one concrete noun (language, framework, service, database, platform).
+- Every bullet must include at least one concrete noun from the person's actual field (tool, system, method, equipment, or platform).
 - Use approximate numbers where appropriate: "~20 users", "around 30%"
 - Not every bullet should sound equally strong. Some should be shorter and simpler.
 - Do NOT stack multiple achievements into one bullet.
@@ -937,33 +936,30 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
 
     }
 
-    // Get model from environment or use default
-    const REWRITE_MODEL = Deno.env.get('REWRITE_MODEL') || 'google/gemini-2.5-flash';
-    const model = analysisType === "auto-rewrite" || analysisType === "rewrite-structured"
-      ? REWRITE_MODEL
-      : "google/gemini-2.5-flash";
-    const modelHandle = lovable(model);
+    // Rewrites carry whole resumes — use the deep tier; analysis stays fast.
+    const tier: HorusTier =
+      analysisType === "auto-rewrite" || analysisType === "rewrite-structured"
+        ? "deep"
+        : "fast";
 
     console.log(`Processing ${analysisType} request`);
 
     if (analysisType === "full-analysis") {
-      const { object: analysisResult } = await generateObject({
-        model: modelHandle,
-        schema: AtsAnalysisSchema,
-        schemaName: "AtsAnalysis",
+      const { object: analysisResult } = await horusGenerateObject(AtsAnalysisSchema, {
+        task: "careercraft.ats_full_analysis",
         system: systemPrompt,
         prompt: userPrompt,
+        model: tier,
         temperature: 0.3,
         maxTokens: 6000,
       });
       return json({ analysis: analysisResult });
     } else if (analysisType === "rewrite-structured") {
-      const { object: optimizedResume } = await generateObject({
-        model: modelHandle,
-        schema: StructuredResumeSchema,
-        schemaName: "StructuredResume",
+      const { object: optimizedResume } = await horusGenerateObject(StructuredResumeSchema, {
+        task: "careercraft.ats_rewrite_structured",
         system: systemPrompt,
         prompt: userPrompt,
+        model: tier,
         temperature: 0.7,
         maxTokens: 10000,
       });
@@ -1076,10 +1072,11 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         return json({ result: optimizedResume });
     } else {
       // Return text response for other types
-      const { text } = await generateText({
-        model: modelHandle,
+      const { text } = await horusGenerateText({
+        task: `careercraft.ats_${analysisType ?? "text"}`,
         system: systemPrompt,
         prompt: userPrompt,
+        model: tier,
         temperature: 0.7,
         maxTokens:
           analysisType === "auto-rewrite" ||
@@ -1129,10 +1126,11 @@ ${validation.missingItems.length > 0 ? `\n⚠️ You lost some items: ${validati
 DO NOT SKIP ANY CERTIFICATIONS, PROJECTS, OR OTHER SECTIONS.`;
 
           try {
-            const { text: retryText } = await generateText({
-              model: modelHandle,
+            const { text: retryText } = await horusGenerateText({
+              task: "careercraft.ats_rewrite_retry",
               system: retrySystemPrompt,
               prompt: retryUserPrompt,
+              model: tier,
               maxTokens: 10000,
               temperature: 0.7,
             });
@@ -1180,8 +1178,9 @@ DO NOT SKIP ANY CERTIFICATIONS, PROJECTS, OR OTHER SECTIONS.`;
       // HUMAN IMPERFECTION PASS: Soften ~20% of bullets for auto-rewrite
       if (analysisType === "auto-rewrite" && resultText.length > 200) {
         try {
-          const { text: imperfectionText } = await generateText({
-            model: modelHandle,
+          const { text: imperfectionText } = await horusGenerateText({
+            task: "careercraft.ats_imperfection_pass",
+            model: tier,
             system: `You are a human editor doing a quick pass on your own resume before submitting.
 Your ONLY task: pick roughly 20% of the bullet points and make them slightly shorter, weaker, or more casual. This breaks AI-detection patterns.
 

@@ -1,21 +1,24 @@
 // parse-resume — Structured resume extraction.
 //
 // Vision-first with Document Intelligence fallback:
-//   JSON body   → plain text (DOCX/TXT pre-extracted on client) → Gemini/Azure structure
+//   JSON body   → plain text (DOCX/TXT pre-extracted on client) → Azure OpenAI structure
 //   FormData    → page images (+ original file for DI fallback)
-//                 1. Gemini 2.5 Flash multimodal reads the resume visually
+//                 1. Azure OpenAI multimodal (gpt-4o-mini) reads the resume visually
 //                 2. If confidence is low → Azure Document Intelligence → re-structure text
+//
+// This is the one edge function that talks to Azure OpenAI directly instead of
+// the Horus gateway: the vision path needs image inputs, which Horus /api/infer
+// doesn't accept (yet).
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { generateObject } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
-import { getAzure, getLovableGateway } from "../_shared/ai/providers.ts";
+import { getAzure } from "../_shared/ai/providers.ts";
 import { ConfigError, ProviderError, ValidationError } from "../_shared/ai/errors.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
 
-const PARSE_MODEL = () => optEnv("PARSE_RESUME_MODEL", "google/gemini-2.5-flash")!;
 const VISION_CONFIDENCE_FALLBACK = 0.55;
 
 const ParsedResumeSchema = z.object({
@@ -106,10 +109,18 @@ const JsonBodySchema = z.object({
   pageCount: z.number().int().positive().default(1),
 });
 
+const SKILLS_RULES = `SKILLS — resumes come from EVERY profession (nurses, tradespeople, teachers, chefs, accountants, engineers, retail…), not just IT:
+- Extract ONLY skills the resume actually states or clearly evidences. Never invent skills, never infer them from a job title alone, never pad with generic filler ("Hard Working", "Team Player") unless the resume itself claims them.
+- Each skill item is a short noun phrase (1-4 words) in its canonical form ("Wound Care", "Forklift Operation", "MYOB", "Stakeholder Management") — never a sentence, duty description, or fragment of a bullet.
+- Group into categories NAMED FOR THE PROFESSION on the page: "Clinical Skills", "Trade Skills", "Teaching & Curriculum", "Software", "Customer Service", "Languages"… Only use "Programming Languages"/"Technical Skills" when the resume is actually technical.
+- Deduplicate (case-insensitive). Do not repeat a skill across categories.`;
+
 const TEXT_SYSTEM_PROMPT = `You are a precise resume parser. Extract ALL information present. Use null where data is missing — never guess.
 
 Date format: YYYY-MM where available, else YYYY. For currently-held roles set current=true and endDate=null.
-Group skills by logical category (Technical Skills, Soft Skills, Programming Languages, Tools, …).
+
+${SKILLS_RULES}
+
 Confidence (0-1): completeness × clarity × volume extracted.`;
 
 const VISION_SYSTEM_PROMPT = `You are a precise resume parser reading resume page images.
@@ -118,7 +129,8 @@ Read the visual layout (multi-column, Canva templates, sidebars, skill bars) in 
 Extract ALL information present. Use null where data is missing — never guess.
 
 Date format: YYYY-MM where available, else YYYY. For currently-held roles set current=true and endDate=null.
-Group skills by logical category.
+
+${SKILLS_RULES}
 
 Confidence (0-1): rate honestly —
   0.85+ clear digital resume with readable sections
@@ -129,9 +141,6 @@ type ParsedResume = z.infer<typeof ParsedResumeSchema>;
 type ExtractionRoute = "text" | "vision" | "document-intelligence";
 
 function getStructureModel() {
-  if (optEnv("LOVABLE_API_KEY")) {
-    return getLovableGateway()(PARSE_MODEL());
-  }
   const deployment = optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini")!;
   return getAzure()(deployment);
 }

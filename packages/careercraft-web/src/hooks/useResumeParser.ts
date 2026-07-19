@@ -149,12 +149,15 @@ export function useResumeParser(): UseResumeParserResult {
         })),
         skills: aiData.skills.length > 0 ? [{ category: 'Skills', items: aiData.skills }] : [],
         certifications: (aiData.certifications || []).map((cert) => ({
-          name: typeof cert === 'string' ? cert : cert,
-          issuer: null,
-          date: null,
-          expiryDate: null,
+          name: typeof cert === 'string' ? cert : cert.name,
+          issuer: typeof cert === 'string' ? null : cert.issuer || null,
+          date: typeof cert === 'string' ? null : cert.date || null,
+          expiryDate: typeof cert === 'string' ? null : cert.expiryDate || null,
         })),
-        languages: [],
+        languages: (aiData.languages || []).map((lang) => ({
+          language: lang.language,
+          proficiency: lang.proficiency || null,
+        })),
         projects: (aiData.projects || []).map((proj) => ({
           name: proj.name,
           description: proj.description || null,

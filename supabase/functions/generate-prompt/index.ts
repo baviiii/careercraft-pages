@@ -6,14 +6,11 @@
 //   generate_guided  → produce a prompt from full wizard data (audience, tone, citations, …)
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { generateObject, generateText } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
-import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { horusGenerateObject, horusGenerateText } from "../_shared/ai/horus.ts";
 import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
 import { handler, json } from "../_shared/http/responses.ts";
-
-const MODEL = "google/gemini-2.5-flash";
 
 const WizardDataSchema = z.object({
   name: z.string(),
@@ -77,15 +74,11 @@ serve(handler(async (req) => {
   }
   const body = parsed.data;
 
-  const lovable = getLovableGateway();
-
   try {
     if (body.action === "improve") {
       const { system, user } = improvePrompts(body);
-      const { object } = await generateObject({
-        model: lovable(MODEL),
-        schema: ImprovedPromptSchema,
-        schemaName: "ImprovedPrompt",
+      const { object } = await horusGenerateObject(ImprovedPromptSchema, {
+        task: "careercraft.prompt_improve",
         system,
         prompt: user,
         temperature: 0.7,
@@ -104,8 +97,8 @@ serve(handler(async (req) => {
       ? guidedPrompts(body.wizard_data)
       : generatePrompts(body);
 
-    const { text } = await generateText({
-      model: lovable(MODEL),
+    const { text } = await horusGenerateText({
+      task: `careercraft.prompt_${body.action}`,
       system,
       prompt: user,
       temperature: 0.7,
@@ -117,8 +110,9 @@ serve(handler(async (req) => {
       processingTime: Date.now() - startTime,
     });
   } catch (err) {
+    if (err instanceof ProviderError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
-    throw new ProviderError(`Prompt generation failed: ${msg}`, "lovable");
+    throw new ProviderError(`Prompt generation failed: ${msg}`, "horus");
   }
 }, { name: "generate-prompt" }));
 

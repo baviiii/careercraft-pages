@@ -1,8 +1,10 @@
 // Provider factory for the Vercel AI SDK.
 //
 // All edge functions get their model handles from here so swapping providers
-// (Anthropic → Azure-deployed Claude, Lovable → Foundry serverless, etc.) is
-// a one-line change at the call site.
+// (Anthropic → Azure-deployed Claude, Foundry serverless, etc.) is a one-line
+// change at the call site. Text generation now routes through the Horus
+// gateway (see ./horus.ts); this file covers the direct-vendor paths that
+// remain (multimodal parsing, embeddings).
 
 import { createAnthropic } from "npm:@ai-sdk/anthropic@1";
 import { createAzure } from "npm:@ai-sdk/azure@1";
@@ -12,7 +14,7 @@ import { ConfigError } from "./errors.ts";
 import { optEnv, reqEnv } from "../env.ts";
 
 // ---------- Anthropic (direct API) ----------
-// Used by: (reserved). Most functions use Lovable/Gemini or Azure OpenAI.
+// Used by: (reserved). Most functions use Horus inference or Azure OpenAI.
 export function getAnthropic() {
   return createAnthropic({ apiKey: reqEnv("ANTHROPIC_API_KEY") });
 }
@@ -53,18 +55,6 @@ export function getFoundry() {
     name: "azure-foundry",
     baseURL: reqEnv("AZURE_FOUNDRY_BASE_URL"),
     apiKey: reqEnv("AZURE_FOUNDRY_KEY"),
-  });
-}
-
-// ---------- Lovable AI Gateway (legacy / transitional) ----------
-// Existing functions (ats-analyze, job-news, interview-ai, generate-prompt,
-// rewrite-resume) point at this OpenAI-compat proxy. Keep until those callers
-// are migrated to Foundry / Anthropic directly.
-export function getLovableGateway() {
-  return createOpenAICompatible({
-    name: "lovable",
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    apiKey: reqEnv("LOVABLE_API_KEY"),
   });
 }
 

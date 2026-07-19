@@ -6,18 +6,17 @@
 // (enforced via SECURITY DEFINER RPC `onboarding_runs_in_last_24h`).
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { generateObject, generateText, NoObjectGeneratedError } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
-import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { horusGenerateObject, type HorusTier } from "../_shared/ai/horus.ts";
 import { ProviderError, RateLimitError, ValidationError } from "../_shared/ai/errors.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { adminClient } from "../_shared/db/supabase.ts";
-import { optEnv, reqEnv } from "../_shared/env.ts";
+import { optEnv } from "../_shared/env.ts";
 
 const DAILY_LIMIT = 10;
-const ONBOARD_MODEL = () => optEnv("ONBOARD_ANALYZE_MODEL", "google/gemini-2.5-flash")!;
+const ONBOARD_TIER = () => optEnv("ONBOARD_MODEL_TIER", "deep")! as HorusTier;
 const MAX_OUTPUT_TOKENS = 6144;
 
 // ----- Request schema -----
@@ -147,14 +146,6 @@ function toClientAnalysis(raw: RawAnalysis) {
   };
 }
 
-type OnboardModel = ReturnType<ReturnType<typeof getLovableGateway>>;
-
-function getOnboardModel(): { id: string; model: OnboardModel } {
-  reqEnv("LOVABLE_API_KEY");
-  const id = ONBOARD_MODEL();
-  return { id, model: getLovableGateway()(id) };
-}
-
 /** Only successful analyses count toward the daily cap — failed debug runs don't burn quota. */
 async function enforceOnboardingLimit(userId: string): Promise<number> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -178,70 +169,25 @@ async function enforceOnboardingLimit(userId: string): Promise<number> {
   return Math.max(0, DAILY_LIMIT - used - 1);
 }
 
-function parseJsonFromModelText(text: string): unknown {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = (fenced?.[1] ?? trimmed).trim();
-  return JSON.parse(candidate);
-}
-
 const JSON_SYSTEM =
   "You must respond with a single JSON object matching the OnboardingAnalysis shape. " +
   "Use job_function (not function) for career function. " +
   "Use null for unknown fields. No markdown fences, no commentary.";
 
 async function runAnalysis(userMessage: string) {
-  const { id, model } = getOnboardModel();
-  const errors: string[] = [];
-
-  // 1. Plain JSON text — most reliable through Lovable/Gemini gateway.
-  try {
-    console.log(`[onboard-analyze] trying ${id} (json-text)`);
-    const { text, usage } = await generateText({
-      model,
-      system: `${SYSTEM_PROMPT}\n\n${JSON_SYSTEM}`,
-      prompt: userMessage,
-      temperature: 0.2,
-      maxTokens: MAX_OUTPUT_TOKENS,
-    });
-    const parsed = AnalysisSchema.safeParse(parseJsonFromModelText(text));
-    if (parsed.success) {
-      return { analysis: toClientAnalysis(parsed.data), usage, modelId: `${id}+json` };
-    }
-    const preview = parsed.error.issues
-      .slice(0, 8)
-      .map((i) => `${i.path.join(".")}: ${i.message}`)
-      .join("; ");
-    console.warn(`[onboard-analyze] json-text schema issues: ${preview}`);
-    console.warn(`[onboard-analyze] json-text raw (first 800): ${text.slice(0, 800)}`);
-    errors.push(`json-text: schema validation failed (${parsed.error.issues.length} issues) — ${preview}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    errors.push(`json-text: ${msg}`);
-    console.warn(`[onboard-analyze] ${id} json-text failed: ${msg}`);
-  }
-
-  // 2. Structured output fallback.
-  try {
-    console.log(`[onboard-analyze] trying ${id} (generateObject)`);
-    const { object, usage } = await generateObject({
-      model,
-      schema: AnalysisSchema,
-      schemaName: "OnboardingAnalysis",
-      schemaDescription: "Structured career persona + targets + CV standards.",
-      system: SYSTEM_PROMPT,
-      prompt: userMessage,
-      temperature: 0.2,
-      maxTokens: MAX_OUTPUT_TOKENS,
-    });
-    return { analysis: toClientAnalysis(object), usage, modelId: id };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    errors.push(`generateObject: ${msg}`);
-    console.warn(`[onboard-analyze] ${id} generateObject failed: ${msg}`);
-  }
-
-  throw new Error(errors.join(" | "));
+  const tier = ONBOARD_TIER();
+  console.log(`[onboard-analyze] via horus (${tier})`);
+  // horusGenerateObject zod-validates and retries once with the schema issues
+  // fed back — replaces the old json-text + generateObject two-path dance.
+  const { object, usage, modelId } = await horusGenerateObject(AnalysisSchema, {
+    task: "careercraft.onboard_analyze",
+    system: `${SYSTEM_PROMPT}\n\n${JSON_SYSTEM}`,
+    prompt: userMessage,
+    model: tier,
+    temperature: 0.2,
+    maxTokens: MAX_OUTPUT_TOKENS,
+  });
+  return { analysis: toClientAnalysis(object), usage, modelId };
 }
 
 const SYSTEM_PROMPT = `You are CareerCraft's onboarding analyst. Read either a free-text self-description, a parsed resume, or both, and produce a COMPLETE, properly categorised profile: who this person is, where they are in their career, what they're targeting, and the standards their CV should follow. Your output is written directly into their profile settings, so every field you can justify from the input MUST be filled — a missed field is a broken profile page.
@@ -289,6 +235,9 @@ JOB PREFERENCES
 
 SKILLS — be exhaustive, this drives job matching:
 - Extract EVERY distinct skill the input evidences: hard tools/technologies (technical), domain expertise (domain), soft skills with evidence (behavioral), people/leadership signals (leadership), spoken languages (language).
+- Skills exist in every profession — clinical procedures, trade tickets, teaching methods, kitchen sections, bookkeeping software all count. Do NOT bias toward IT skills, and do NOT translate non-IT work into tech-sounding skills.
+- Each skill name is a short noun phrase (1-4 words) — never a sentence, a duty, or a fragment copied from a bullet.
+- Extract ONLY what the input evidences. Never invent skills from a job title alone, and never pad with generic filler ("Hard Working", "Team Player") the input doesn't claim.
 - From a full resume expect 12-20 skills; from one sentence maybe 2-5. Max 20, ordered by relevance to the target roles.
 - proficiency: judge from years, seniority, and how central the skill is — don't default everything to "intermediate".
 - years_experience: set when derivable from dates; else null.
@@ -301,7 +250,7 @@ CV STANDARDS RUBRIC
 - recommended_length: "1 page" if <5y experience, "2 pages" if 5-15y, "3+ pages" only for exec/principal or 15+y
 - format: "reverse-chronological" by default; "functional" for career changers; "hybrid" for those with gaps or non-linear careers
 - ats_notes: actionable rules (e.g. "Use standard section headers", "Avoid tables/columns", "Include exact keywords from target_job_titles")
-- improvements: specific, prioritised actions grounded in THEIR input (e.g. "Quantify the impact of your Q3 launch — include a metric"), not generic advice.
+- improvements: specific, prioritised actions grounded in THEIR input (e.g. "Quantify the impact of your Q3 launch — include a metric"), not generic advice. Each improvement must reference something concrete from their resume or description — a role, project, certification, or gap — and fit their actual profession (a nurse gets clinical-career advice, not software advice).
 
 CONFIDENCE
 - One sentence of self-description → persona confidence ~0.3-0.5
@@ -389,16 +338,12 @@ serve(handler(async (req) => {
       .update({
         status: "failed",
         error_message: msg.slice(0, 1000),
-        ai_analysis: NoObjectGeneratedError.isInstance(err)
-          ? { raw: String((err as unknown as { text?: string }).text ?? "").slice(0, 4000) }
-          : null,
+        ai_analysis: null,
         completed_at: new Date().toISOString(),
       })
       .eq("id", runRow.id);
 
-    if (NoObjectGeneratedError.isInstance(err)) {
-      throw new ProviderError("Model returned unparseable output", "gemini");
-    }
-    throw new ProviderError(`AI analysis failed: ${msg}`, "gemini");
+    if (err instanceof ProviderError) throw err;
+    throw new ProviderError(`AI analysis failed: ${msg}`, "horus");
   }
 }, { name: "onboard-analyze" }));

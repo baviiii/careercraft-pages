@@ -39,16 +39,17 @@ echo "📝 Setting Supabase secrets..."
 supabase secrets set SUPABASE_URL="$SUPABASE_URL"
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
 
-echo "📝 Setting Anthropic Claude API key..."
-if [ ! -z "$ANTHROPIC_API_KEY" ]; then
-    supabase secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+echo "📝 Setting Horus inference gateway secrets..."
+if [ ! -z "$HORUS_INFER_URL" ] && [ ! -z "$HORUS_API_KEY" ]; then
+    supabase secrets set HORUS_INFER_URL="$HORUS_INFER_URL"
+    supabase secrets set HORUS_API_KEY="$HORUS_API_KEY"
 else
-    echo "⚠️  ANTHROPIC_API_KEY not found in .env — onboard-analyze will fail until set"
+    echo "⚠️  HORUS_INFER_URL / HORUS_API_KEY not found in .env — AI edge functions will fail until set"
 fi
 
 echo "📝 Setting optional API keys..."
-if [ ! -z "$LOVABLE_API_KEY" ]; then
-    supabase secrets set LOVABLE_API_KEY="$LOVABLE_API_KEY"
+if [ ! -z "$ANTHROPIC_API_KEY" ]; then
+    supabase secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
 fi
 
 if [ ! -z "$ADZUNA_APP_ID" ]; then

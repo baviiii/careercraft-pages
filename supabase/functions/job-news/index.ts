@@ -1,9 +1,8 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { generateObject } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
-import { getLovableGateway } from "../_shared/ai/providers.ts";
+import { horusGenerateObject } from "../_shared/ai/horus.ts";
 import { handler } from "../_shared/http/responses.ts";
 
 const corsHeaders = {
@@ -1258,11 +1257,8 @@ Return a JSON object with this structure:
   "whatThisMeansForYou": "Personalized advice paragraph based on the industry/field"
 }`;
 
-      const lovable = getLovableGateway();
-      const { object: result } = await generateObject({
-        model: lovable("google/gemini-2.5-flash"),
-        schema: TrendAnalysisSchema,
-        schemaName: "TrendAnalysis",
+      const { object: result } = await horusGenerateObject(TrendAnalysisSchema, {
+        task: "careercraft.job_news_trends",
         system: systemPrompt,
         prompt: `Analyze these job market listings for ${industry || "general"} industry in ${country || "US"}:\n${query}`,
         temperature: 0.4,

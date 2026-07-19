@@ -9,7 +9,13 @@ import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations
 const MAX_VISION_PAGES = 2;
 const PDF_RENDER_SCALE = 1.5;
 
-/** Serialise structured AI resume data into plain text (onboarding, ATS, rewrite). */
+/**
+ * Serialise structured AI resume data into plain text (onboarding, ATS, rewrite).
+ *
+ * Downstream analyzers only ever see THIS text, so every section must survive
+ * the round-trip — dropping certifications or projects here is how a nurse's
+ * AHPRA registration or a tradie's White Card silently vanishes from analysis.
+ */
 export function formatResumeDataAsText(data: AIResumeData): string {
   let text = '';
   if (data.contact) {
@@ -37,8 +43,56 @@ export function formatResumeDataAsText(data: AIResumeData): string {
       text += `${edu.graduationDate}${edu.gpa ? ` | GPA: ${edu.gpa}` : ''}\n\n`;
     });
   }
-  if (data.skills?.length) text += `SKILLS\n${data.skills.join(', ')}\n`;
-  return text;
+  if (data.skills?.length) text += `SKILLS\n${data.skills.join(', ')}\n\n`;
+  if (data.certifications?.length) {
+    text += 'CERTIFICATIONS\n';
+    data.certifications.forEach((cert) => {
+      // Older parse paths return plain strings; newer ones return objects.
+      if (typeof cert === 'string') {
+        text += `${cert}\n`;
+      } else if (cert?.name) {
+        text += `${cert.name}${cert.issuer ? ` — ${cert.issuer}` : ''}${cert.date ? ` (${cert.date})` : ''}\n`;
+      }
+    });
+    text += '\n';
+  }
+  if (data.projects?.length) {
+    text += 'PROJECTS\n';
+    data.projects.forEach((proj) => {
+      text += `${proj.name}${proj.description ? ` — ${proj.description}` : ''}\n`;
+      if (proj.technologies?.length) text += `Technologies: ${proj.technologies.join(', ')}\n`;
+    });
+    text += '\n';
+  }
+  if (data.languages?.length) {
+    text += 'LANGUAGES\n';
+    data.languages.forEach((lang) => {
+      text += `${lang.language}${lang.proficiency ? ` (${lang.proficiency})` : ''}\n`;
+    });
+    text += '\n';
+  }
+  if (data.awards?.length) {
+    text += 'AWARDS\n';
+    data.awards.forEach((award) => {
+      text += `${award.title}${award.issuer ? ` — ${award.issuer}` : ''}${award.date ? ` (${award.date})` : ''}\n`;
+    });
+    text += '\n';
+  }
+  if (data.volunteer?.length) {
+    text += 'VOLUNTEER\n';
+    data.volunteer.forEach((vol) => {
+      text += `${vol.role} at ${vol.organization}${vol.description ? ` — ${vol.description}` : ''}\n`;
+    });
+    text += '\n';
+  }
+  if (data.publications?.length) {
+    text += 'PUBLICATIONS\n';
+    data.publications.forEach((pub) => {
+      text += `${pub.title}${pub.publisher ? ` — ${pub.publisher}` : ''}${pub.date ? ` (${pub.date})` : ''}\n`;
+    });
+    text += '\n';
+  }
+  return text.trimEnd() + '\n';
 }
 
 /**
@@ -112,6 +166,27 @@ async function getResumeParseAuthHeaders(): Promise<HeadersInit> {
   };
 }
 
+/**
+ * Skills come back from the model — keep only clean, short noun phrases.
+ * Drops empties, sentence-length fragments, and case-insensitive duplicates
+ * so junk never reaches the builder, onboarding, or job matching.
+ */
+function sanitizeSkills(items: unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of items) {
+    if (typeof raw !== 'string') continue;
+    const skill = raw.replace(/^[•\-–—*]\s*/, '').trim().replace(/[.;,]+$/, '');
+    if (skill.length < 2 || skill.length > 50) continue;
+    if (skill.split(/\s+/).length > 5) continue;
+    const key = skill.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(skill);
+  }
+  return out;
+}
+
 function mapEdgeParsedToAIResumeData(parsed: Record<string, unknown>): AIResumeData {
   const p = parsed as Record<string, any>;
   return {
@@ -142,8 +217,23 @@ function mapEdgeParsedToAIResumeData(parsed: Record<string, unknown>): AIResumeD
       graduationDate: edu.endDate || '',
       gpa: edu.gpa ?? undefined,
     })),
-    skills: (p.skills ?? []).flatMap((s: any) => s.items ?? []),
-    certifications: (p.certifications ?? []).map((cert: any) => cert.name),
+    skills: sanitizeSkills((p.skills ?? []).flatMap((s: any) => s.items ?? [])),
+    certifications: (p.certifications ?? [])
+      .filter((cert: any) => cert?.name)
+      .map((cert: any, index: number) => ({
+        id: `cert-${index}`,
+        name: cert.name,
+        issuer: cert.issuer ?? undefined,
+        date: cert.date ?? undefined,
+        expiryDate: cert.expiryDate ?? undefined,
+      })),
+    languages: (p.languages ?? [])
+      .filter((lang: any) => lang?.language)
+      .map((lang: any, index: number) => ({
+        id: `lang-${index}`,
+        language: lang.language,
+        proficiency: lang.proficiency || 'Professional',
+      })),
     projects: (p.projects ?? []).map((proj: any, index: number) => ({
       id: `proj-${index}`,
       name: proj.name,
