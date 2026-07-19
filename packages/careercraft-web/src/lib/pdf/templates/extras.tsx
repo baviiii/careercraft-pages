@@ -14,7 +14,7 @@ import type { ComponentType } from "react";
 
 import type { TemplateData } from "@/components/templates/types";
 
-import { BetweenRow, joinPresent, px } from "../primitives";
+import { BetweenRow, joinPresent, px, wrapEntry } from "../primitives";
 
 export interface ExtrasTheme {
   /** Section heading rendered in the template's own style. */
@@ -38,7 +38,7 @@ export function ExtraSections({ data, t }: { data: TemplateData; t: ExtrasTheme 
         <Head>Projects</Head>
         <View style={{ gap: px(8) }}>
           {data.projects.map((p) => (
-            <View key={p.id}>
+            <View key={p.id} wrap={wrapEntry(p)}>
               <Text style={t.title}>{p.name}</Text>
               {p.description ? <Text style={t.body}>{p.description}</Text> : null}
               {p.technologies.length > 0 && (
@@ -80,6 +80,7 @@ export function ExtraSections({ data, t }: { data: TemplateData; t: ExtrasTheme 
           {data.certifications.map((c) => (
             <BetweenRow
               key={c.id}
+              wrap={false}
               left={
                 <View>
                   <Text style={t.title}>{c.name}</Text>
@@ -103,6 +104,7 @@ export function ExtraSections({ data, t }: { data: TemplateData; t: ExtrasTheme 
           {data.awards.map((a) => (
             <BetweenRow
               key={a.id}
+              wrap={false}
               left={
                 <View>
                   <Text style={t.title}>{a.title}</Text>
@@ -125,7 +127,7 @@ export function ExtraSections({ data, t }: { data: TemplateData; t: ExtrasTheme 
         <Head>Publications</Head>
         <View style={{ gap: px(6) }}>
           {data.publications.map((p) => (
-            <View key={p.id}>
+            <View key={p.id} wrap={wrapEntry(p)}>
               <Text style={t.title}>{p.title}</Text>
               {(p.publisher || p.date) && (
                 <Text style={t.sub}>{joinPresent([p.publisher, p.date], " · ")}</Text>
@@ -144,7 +146,7 @@ export function ExtraSections({ data, t }: { data: TemplateData; t: ExtrasTheme 
         <Head>Volunteer</Head>
         <View style={{ gap: px(6) }}>
           {data.volunteer.map((v) => (
-            <View key={v.id}>
+            <View key={v.id} wrap={wrapEntry(v)}>
               <BetweenRow
                 left={
                   <View>
@@ -180,7 +182,7 @@ export function ExtraSections({ data, t }: { data: TemplateData; t: ExtrasTheme 
         <Head>References</Head>
         <View style={{ gap: px(6) }}>
           {data.references.map((r) => (
-            <View key={r.id}>
+            <View key={r.id} wrap={false}>
               <Text style={t.title}>{r.name}</Text>
               {(r.title || r.company) && (
                 <Text style={t.sub}>{joinPresent([r.title, r.company], " · ")}</Text>

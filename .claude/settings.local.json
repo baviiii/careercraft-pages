@@ -95,7 +95,13 @@
       "Bash(sed -n '630,640p' useResumeBuilder.ts)",
       "Bash(POPPLER_PDFTOPPM=/tmp/poppler/poppler-24.08.0/Library/bin/pdftoppm.exe node scripts/generate-template-thumbnails.mjs)",
       "Bash(sed -n '1,30p' App.tsx)",
-      "Bash(sed -n '125,140p' App.tsx)"
+      "Bash(sed -n '125,140p' App.tsx)",
+      "Read(//c/Users/asees/Downloads/free-lance work/interview-coach-mcp/**)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npm start *)",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue; if \\($c\\) { $c | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{ PID=$_.OwningProcess; Name=$p.ProcessName; Path=$p.Path; StartTime=$p.StartTime } } | Format-List } else { \"No listener on 8787\" })",
+      "PowerShell(foreach \\($port in 8080,8081\\) { $c = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if \\($c\\) { $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue; \"Port $port -> PID $\\($c.OwningProcess\\) \\($\\($p.ProcessName\\)\\), started $\\($p.StartTime\\)\" } else { \"Port $port -> free\" } })",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if \\($c\\) { Stop-Process -Id $c.OwningProcess -Force; \"Stopped MCP PID $\\($c.OwningProcess\\)\" } else { \"8787 already free\" }; Start-Sleep -Milliseconds 700)"
     ],
     "deny": [],
     "ask": []

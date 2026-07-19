@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePersonalization } from "@/hooks/usePersonalization";
 import { supabase } from "@/integrations/supabase/client";
 import { rewriteBullet } from "@/lib/aiRewriter";
+import { type PdfDensity } from "@/lib/pdfExport";
 import { type AIResumeData } from "@/lib/resumeParser";
 
 import {
@@ -74,6 +75,8 @@ export interface UseResumeBuilderReturn {
   // export / save
   isExporting: boolean;
   isSaving: boolean;
+  pdfDensity: PdfDensity;
+  setPdfDensity: (density: PdfDensity) => void;
 
   // job description
   jobDescription: string;
@@ -216,10 +219,26 @@ export function useResumeBuilder(dialogs: {
     setAutoSaveStatus,
   });
 
+  // Layout density for the PDF (remembered across sessions — most users
+  // settle on one that makes their resume fit and keep it).
+  const [pdfDensity, setPdfDensityState] = useState<PdfDensity>(() => {
+    const stored = window.localStorage.getItem("cc-pdf-density");
+    return stored === "snug" || stored === "compact" ? stored : "normal";
+  });
+  const setPdfDensity = useCallback((density: PdfDensity) => {
+    setPdfDensityState(density);
+    try {
+      window.localStorage.setItem("cc-pdf-density", density);
+    } catch {
+      /* storage unavailable — session-only */
+    }
+  }, []);
+
   const { isExporting, exportToPDF } = useResumeExport({
     resumeData,
     selectedTemplate,
     resumeDisplayName: resumeData.contact.name || "resume",
+    pdfDensity,
     toast,
   });
 
@@ -704,6 +723,8 @@ export function useResumeBuilder(dialogs: {
     rewriteBulletWithAI,
 
     exportToPDF,
+    pdfDensity,
+    setPdfDensity,
     saveResume,
     applyAIResumeData,
   };

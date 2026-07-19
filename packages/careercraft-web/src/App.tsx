@@ -24,6 +24,7 @@ const JobTracker = lazy(() => import("./features/job-tracker/JobTrackerPage"));
 const ResumeBuilder = lazy(() => import("./features/resume-builder/ResumeBuilderPage"));
 const MyResumes = lazy(() => import("./features/my-resumes/MyResumesPage"));
 const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
+const InterviewRoom = lazy(() => import("./features/interview/InterviewRoomPage"));
 const AustralianJobs = lazy(() => import("./pages/AustralianJobs"));
 const JobMarketNews = lazy(() => import("./pages/JobMarketNews"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -135,6 +136,7 @@ const App = () => (
               <Route path="/builder" element={<ResumeBuilder />} />
               <Route path="/my-resumes" element={<MyResumes />} />
               <Route path="/interview-prep" element={<InterviewPrep />} />
+              <Route path="/interview-prep/room" element={<InterviewRoom />} />
               <Route path="/au-jobs" element={<AustralianJobs />} />
               <Route path="/job-market-news" element={<JobMarketNews />} />
               <Route path="/playground" element={<Playground />} />

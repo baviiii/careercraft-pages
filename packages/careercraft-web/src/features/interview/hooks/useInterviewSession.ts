@@ -1,0 +1,456 @@
+/**
+ * useInterviewSession — the interview room's state machine.
+ *
+ * Owns every coach call for a live session. The hub stages a SessionConfig in
+ * sessionStorage and navigates to the room; this hook boots from that (or
+ * restores an in-flight session after a refresh), then drives:
+ *
+ *   boot → starting → active ⇄ advancing → finishing → debrief
+ *
+ * Realistic mode: submitting an answer fires its evaluation in the BACKGROUND
+ * (queue tracked in a ref) and immediately fetches the adaptive next question —
+ * the interview never stalls on scoring. finish() drains the queue before the
+ * final debrief so nothing is lost. Coached mode: evaluation is awaited and
+ * shown after each answer; questions walk the pre-generated batch.
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  interviewCoach,
+  CoachUnavailableError,
+  type CoachFinalEvaluation,
+  type CoachHint,
+  type CoachQuestion,
+} from "@/lib/interviewCoach";
+import {
+  makeRecord,
+  type AnswerRecord,
+  type RoomPhase,
+  type SessionConfig,
+} from "../types";
+
+const PENDING_KEY = "cc-interview-pending";
+const ACTIVE_KEY = "cc-interview-active";
+const DEBRIEF_KEY = "cc-interview-debrief";
+
+/** Hub → room handoff: stage the config, then navigate to /interview-prep/room. */
+export function stageSession(config: SessionConfig): void {
+  try {
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify(config));
+    sessionStorage.removeItem(ACTIVE_KEY);
+    sessionStorage.removeItem(DEBRIEF_KEY);
+  } catch {
+    /* storage full/blocked — the room will bounce back to the hub */
+  }
+}
+
+export function clearStagedSession(): void {
+  try {
+    sessionStorage.removeItem(PENDING_KEY);
+    sessionStorage.removeItem(ACTIVE_KEY);
+    sessionStorage.removeItem(DEBRIEF_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+interface ActiveSnapshot {
+  config: SessionConfig;
+  sessionId: string;
+  records: AnswerRecord[];
+  batch: CoachQuestion[];
+  sessionStartedAt: number;
+}
+
+interface DebriefSnapshot {
+  config: SessionConfig;
+  records: AnswerRecord[];
+  finalEvaluation: CoachFinalEvaluation;
+  totalSeconds: number;
+}
+
+function readJson<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(key: string, value: unknown): void {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+}
+
+function coachMessage(e: unknown): string {
+  return e instanceof CoachUnavailableError
+    ? e.message
+    : "Interview coach is not available at the moment.";
+}
+
+export interface InterviewSession {
+  phase: RoomPhase;
+  config: SessionConfig | null;
+  records: AnswerRecord[];
+  /** The question currently on the table (last record) — null outside `active`. */
+  current: AnswerRecord | null;
+  questionNumber: number;
+  sessionStartedAt: number;
+  questionStartedAt: number;
+  /** Coached mode: evaluation in flight for the current answer. */
+  evaluating: boolean;
+  /** Coached mode: evaluation arrived — show feedback, wait for Continue. */
+  awaitingContinue: boolean;
+  hint: CoachHint | null;
+  hintLoading: boolean;
+  finalEvaluation: CoachFinalEvaluation | null;
+  totalSeconds: number;
+  error: string | null;
+
+  submit: (answerText: string) => Promise<void>;
+  continueAfterFeedback: () => void;
+  skip: () => void;
+  requestHint: (draft: string) => Promise<void>;
+  wrapUp: () => void;
+  retryFinish: () => void;
+  /** Start a fresh session from the debrief (e.g. drill weak areas). */
+  beginNew: (config: SessionConfig) => void;
+}
+
+export function useInterviewSession(): InterviewSession {
+  const [phase, setPhase] = useState<RoomPhase>("boot");
+  const [config, setConfig] = useState<SessionConfig | null>(null);
+  const [records, setRecords] = useState<AnswerRecord[]>([]);
+  const [evaluating, setEvaluating] = useState(false);
+  const [awaitingContinue, setAwaitingContinue] = useState(false);
+  const [hint, setHint] = useState<CoachHint | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
+  const [finalEvaluation, setFinalEvaluation] = useState<CoachFinalEvaluation | null>(null);
+  const [totalSeconds, setTotalSeconds] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [sessionStartedAt, setSessionStartedAt] = useState(0);
+  const [questionStartedAt, setQuestionStartedAt] = useState(0);
+
+  const sessionIdRef = useRef<string | null>(null);
+  const batchRef = useRef<CoachQuestion[]>([]);
+  const evalQueueRef = useRef<Promise<void>[]>([]);
+  const recordsRef = useRef<AnswerRecord[]>([]);
+  const configRef = useRef<SessionConfig | null>(null);
+  const bootedRef = useRef(false);
+  recordsRef.current = records;
+  configRef.current = config;
+
+  const openQuestion = useCallback((q: CoachQuestion) => {
+    setRecords((prev) => [...prev, makeRecord(q)]);
+    setQuestionStartedAt(Date.now());
+    setHint(null);
+    setAwaitingContinue(false);
+  }, []);
+
+  const start = useCallback(
+    async (cfg: SessionConfig) => {
+      setPhase("starting");
+      setConfig(cfg);
+      setRecords([]);
+      setFinalEvaluation(null);
+      setError(null);
+      evalQueueRef.current = [];
+      try {
+        const { sessionId, questions } = await interviewCoach.startSession({
+          field: cfg.field,
+          seniority: cfg.seniority,
+          jobDescription: cfg.jobDescription,
+          focusAreas: cfg.focusAreas,
+          // Realistic mode goes adaptive after Q1 — only seed the opener.
+          questionCount: cfg.mode === "realistic" ? 1 : cfg.questionCount,
+        });
+        if (!questions.length) throw new CoachUnavailableError("No questions were returned.");
+        sessionIdRef.current = sessionId;
+        batchRef.current = questions;
+        setSessionStartedAt(Date.now());
+        openQuestion(questions[0]);
+        setPhase("active");
+      } catch (e) {
+        setError(coachMessage(e));
+        setPhase("error");
+      }
+    },
+    [openQuestion],
+  );
+
+  // Boot: restore an in-flight session, or consume a staged config.
+  useEffect(() => {
+    if (bootedRef.current) return;
+    bootedRef.current = true;
+
+    const debrief = readJson<DebriefSnapshot>(DEBRIEF_KEY);
+    if (debrief) {
+      setConfig(debrief.config);
+      setRecords(debrief.records);
+      setFinalEvaluation(debrief.finalEvaluation);
+      setTotalSeconds(debrief.totalSeconds);
+      setPhase("debrief");
+      return;
+    }
+
+    const active = readJson<ActiveSnapshot>(ACTIVE_KEY);
+    if (active && active.sessionId && active.records.length) {
+      // Evaluations that were mid-flight when the page unloaded are gone;
+      // their scores are persisted server-side, but the feedback text isn't.
+      const restored = active.records.map((r) =>
+        r.evaluationPending
+          ? { ...r, evaluationPending: false, evaluationFailed: !r.evaluation }
+          : r,
+      );
+      setConfig(active.config);
+      sessionIdRef.current = active.sessionId;
+      batchRef.current = active.batch;
+      setRecords(restored);
+      setSessionStartedAt(active.sessionStartedAt);
+      setQuestionStartedAt(Date.now());
+      setPhase("active");
+      return;
+    }
+
+    const pending = readJson<SessionConfig>(PENDING_KEY);
+    sessionStorage.removeItem(PENDING_KEY);
+    if (pending) {
+      void start(pending);
+    } else {
+      setError("No interview session in progress.");
+      setPhase("error");
+    }
+  }, [start]);
+
+  // Mirror the live session so a refresh doesn't kill the interview.
+  useEffect(() => {
+    if (phase !== "active" && phase !== "advancing") return;
+    if (!config || !sessionIdRef.current) return;
+    writeJson(ACTIVE_KEY, {
+      config,
+      sessionId: sessionIdRef.current,
+      records,
+      batch: batchRef.current,
+      sessionStartedAt,
+    } satisfies ActiveSnapshot);
+  }, [phase, config, records, sessionStartedAt]);
+
+  const patchRecord = useCallback((index: number, patch: Partial<AnswerRecord>) => {
+    setRecords((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  }, []);
+
+  const finish = useCallback(async () => {
+    const cfg = configRef.current;
+    const sessionId = sessionIdRef.current;
+    if (!cfg || !sessionId) return;
+    setPhase("finishing");
+    const seconds = Math.round((Date.now() - sessionStartedAt) / 1000);
+    setTotalSeconds(seconds);
+    // Nothing reaches the debrief until every background evaluation lands.
+    await Promise.allSettled(evalQueueRef.current);
+    try {
+      const evaluation = await interviewCoach.finish({
+        sessionId,
+        field: cfg.field,
+        seniority: cfg.seniority,
+        durationSeconds: seconds,
+      });
+      setFinalEvaluation(evaluation);
+      setPhase("debrief");
+      sessionStorage.removeItem(ACTIVE_KEY);
+      writeJson(DEBRIEF_KEY, {
+        config: cfg,
+        records: recordsRef.current,
+        finalEvaluation: evaluation,
+        totalSeconds: seconds,
+      } satisfies DebriefSnapshot);
+    } catch (e) {
+      setError(coachMessage(e));
+      setPhase("error");
+    }
+  }, [sessionStartedAt]);
+
+  const advance = useCallback(async () => {
+    const cfg = configRef.current;
+    const asked = recordsRef.current.length;
+    if (!cfg) return;
+    if (asked >= cfg.questionCount) {
+      void finish();
+      return;
+    }
+    if (cfg.mode === "coached") {
+      const next = batchRef.current[asked];
+      if (next) openQuestion(next);
+      else void finish();
+      return;
+    }
+    // Realistic: the interviewer "decides" the next question live.
+    setPhase("advancing");
+    try {
+      const { question } = await interviewCoach.nextQuestion({
+        sessionId: sessionIdRef.current ?? "",
+        field: cfg.field,
+        seniority: cfg.seniority,
+        focusAreas: cfg.focusAreas,
+      });
+      openQuestion(question);
+      setPhase("active");
+    } catch {
+      // Can't get another question — wrap up with what we have rather than dying.
+      if (recordsRef.current.some((r) => r.answerText || r.skipped)) void finish();
+      else {
+        setError("Interview coach is not available at the moment.");
+        setPhase("error");
+      }
+    }
+  }, [finish, openQuestion]);
+
+  const submit = useCallback(
+    async (answerText: string) => {
+      const cfg = configRef.current;
+      const index = recordsRef.current.length - 1;
+      const record = recordsRef.current[index];
+      if (!cfg || !record || phase !== "active") return;
+      const text = answerText.trim();
+      if (!text) return;
+
+      const timeTaken = Math.max(1, Math.round((Date.now() - questionStartedAt) / 1000));
+      const call = () =>
+        interviewCoach.submitAnswer({
+          sessionId: sessionIdRef.current ?? "",
+          questionText: record.question.question,
+          questionType: record.question.type,
+          answerText: text,
+          field: cfg.field,
+          seniority: cfg.seniority,
+          expectedTopics: record.question.expectedTopics,
+        });
+
+      if (cfg.mode === "coached") {
+        patchRecord(index, { answerText: text, timeTakenSeconds: timeTaken });
+        setEvaluating(true);
+        try {
+          const evaluation = await call();
+          patchRecord(index, { evaluation });
+          setAwaitingContinue(true);
+        } catch (e) {
+          patchRecord(index, { evaluationFailed: true });
+          setError(coachMessage(e));
+        } finally {
+          setEvaluating(false);
+        }
+        return;
+      }
+
+      // Realistic: score in the background, move on immediately.
+      patchRecord(index, {
+        answerText: text,
+        timeTakenSeconds: timeTaken,
+        evaluationPending: true,
+      });
+      evalQueueRef.current.push(
+        call()
+          .then((evaluation) => patchRecord(index, { evaluation, evaluationPending: false }))
+          .catch(() => patchRecord(index, { evaluationPending: false, evaluationFailed: true })),
+      );
+      void advance();
+    },
+    [phase, questionStartedAt, advance, patchRecord],
+  );
+
+  const continueAfterFeedback = useCallback(() => {
+    setAwaitingContinue(false);
+    setError(null);
+    void advance();
+  }, [advance]);
+
+  const skip = useCallback(() => {
+    if (phase !== "active") return;
+    const index = recordsRef.current.length - 1;
+    patchRecord(index, {
+      skipped: true,
+      timeTakenSeconds: Math.round((Date.now() - questionStartedAt) / 1000),
+    });
+    setAwaitingContinue(false);
+    void advance();
+  }, [phase, questionStartedAt, advance, patchRecord]);
+
+  const requestHint = useCallback(
+    async (draft: string) => {
+      const cfg = configRef.current;
+      const index = recordsRef.current.length - 1;
+      const record = recordsRef.current[index];
+      if (!cfg || !record || hintLoading) return;
+      setHintLoading(true);
+      try {
+        const h = await interviewCoach.getHint({
+          sessionId: sessionIdRef.current ?? undefined,
+          questionText: record.question.question,
+          currentThinking: draft,
+          field: cfg.field,
+        });
+        setHint(h);
+        patchRecord(index, { hintsUsed: record.hintsUsed + 1 });
+      } catch (e) {
+        setError(coachMessage(e));
+      } finally {
+        setHintLoading(false);
+      }
+    },
+    [hintLoading, patchRecord],
+  );
+
+  const wrapUp = useCallback(() => {
+    if (phase === "active" || phase === "advancing") void finish();
+  }, [phase, finish]);
+
+  const retryFinish = useCallback(() => {
+    if (phase === "error" && sessionIdRef.current && recordsRef.current.length) {
+      setError(null);
+      void finish();
+    }
+  }, [phase, finish]);
+
+  const beginNew = useCallback(
+    (cfg: SessionConfig) => {
+      clearStagedSession();
+      sessionIdRef.current = null;
+      batchRef.current = [];
+      setTotalSeconds(0);
+      void start(cfg);
+    },
+    [start],
+  );
+
+  const current =
+    (phase === "active" || phase === "advancing") && records.length
+      ? records[records.length - 1]
+      : null;
+
+  return {
+    phase,
+    config,
+    records,
+    current,
+    questionNumber: records.length,
+    sessionStartedAt,
+    questionStartedAt,
+    evaluating,
+    awaitingContinue,
+    hint,
+    hintLoading,
+    finalEvaluation,
+    totalSeconds,
+    error,
+    submit,
+    continueAfterFeedback,
+    skip,
+    requestHint,
+    wrapUp,
+    retryFinish,
+    beginNew,
+  };
+}

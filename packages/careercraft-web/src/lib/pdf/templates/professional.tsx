@@ -24,6 +24,7 @@ import {
   joinPresent,
   px,
   track,
+  wrapEntry,
 } from "../primitives";
 import { ExtraSections, type ExtrasTheme } from "./extras";
 
@@ -95,7 +96,7 @@ export function Professional1Pdf({ data: d }: { data: TemplateData }) {
             <Head>Professional Experience</Head>
             <View style={{ gap: px(12) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <BetweenRow
                     style={{ marginBottom: px(4) }}
                     left={<Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.black }}>{exp.title}</Text>}
@@ -122,7 +123,7 @@ export function Professional1Pdf({ data: d }: { data: TemplateData }) {
           <View>
             <Head>Education</Head>
             {d.education.map((edu) => (
-              <View key={edu.id} style={{ marginBottom: px(8) }}>
+              <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                 <BetweenRow
                   left={<Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.black }}>{edu.degree}</Text>}
                   right={edu.graduationDate}
@@ -214,7 +215,7 @@ export function Professional2Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...head, marginBottom: px(12) }}>PROFESSIONAL EXPERIENCE</Text>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <BetweenRow
                     left={
                       <View>
@@ -246,6 +247,7 @@ export function Professional2Pdf({ data: d }: { data: TemplateData }) {
             {d.education.map((edu) => (
               <BetweenRow
                 key={edu.id}
+                wrap={false}
                 style={{ marginBottom: px(8) }}
                 left={
                   <View>
@@ -338,7 +340,7 @@ export function Professional3Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...head, marginBottom: px(12) }}>PROFESSIONAL HISTORY</Text>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <BetweenRow
                     left={<Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.gray[900] }}>{exp.title}</Text>}
                     right={dates(exp, " — ")}
@@ -365,7 +367,7 @@ export function Professional3Pdf({ data: d }: { data: TemplateData }) {
             <View style={{ flex: 1 }}>
               <Head>Education</Head>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[500] }}>
@@ -464,7 +466,7 @@ export function Professional4Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...head, marginBottom: px(12) }}>EXPERIENCE</Text>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.gray[900] }}>{exp.title}</Text>
                   <View
                     style={{
@@ -494,7 +496,7 @@ export function Professional4Pdf({ data: d }: { data: TemplateData }) {
           <View>
             <Head>Education</Head>
             {d.education.map((edu) => (
-              <View key={edu.id} style={{ marginBottom: px(8) }}>
+              <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                 <BetweenRow
                   left={<Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>}
                   right={edu.graduationDate}
@@ -614,6 +616,7 @@ export function Professional5Pdf({ data: d }: { data: TemplateData }) {
               {d.experience.map((exp) => (
                 <View
                   key={exp.id}
+                  wrap={wrapEntry(exp)}
                   style={{ paddingLeft: px(16), borderLeftWidth: px(1), borderLeftColor: tw.gray[300] }}
                 >
                   <BetweenRow
@@ -650,6 +653,7 @@ export function Professional5Pdf({ data: d }: { data: TemplateData }) {
               {d.education.map((edu) => (
                 <View
                   key={edu.id}
+                  wrap={false}
                   style={{
                     marginBottom: px(8),
                     paddingLeft: px(16),
@@ -776,7 +780,7 @@ export function Professional6Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...head, marginBottom: px(12) }}>CAREER HISTORY</Text>
             <View style={{ gap: px(12) }}>
               {d.experience.map((exp, index) => (
-                <View key={exp.id} style={{ flexDirection: "row", gap: px(16) }}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={{ flexDirection: "row", gap: px(16) }}>
                   <View style={{ width: px(24), alignItems: "center" }}>
                     <View
                       style={{
@@ -820,7 +824,7 @@ export function Professional6Pdf({ data: d }: { data: TemplateData }) {
             <View style={{ flex: 1 }}>
               <Head>Education</Head>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[500] }}>{edu.graduationDate}</Text>

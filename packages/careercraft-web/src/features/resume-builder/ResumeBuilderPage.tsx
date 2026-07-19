@@ -65,6 +65,8 @@ export default function ResumeBuilderPage() {
     setActiveSection,
     isExporting,
     isSaving,
+    pdfDensity,
+    setPdfDensity,
     jobDescription,
     setJobDescription,
     rewritingBulletId,
@@ -162,6 +164,7 @@ export default function ResumeBuilderPage() {
               setActiveSection={setActiveSection}
               showLivePreview={showLivePreview}
               setShowLivePreview={setShowLivePreview}
+              pdfDensity={pdfDensity}
               updateContact={updateContact}
               updateSummary={updateSummary}
               addExperience={addExperience}
@@ -209,6 +212,9 @@ export default function ResumeBuilderPage() {
               isExporting={isExporting}
               isSaving={isSaving}
               currentResumeId={currentResumeId}
+              pdfDensity={pdfDensity}
+              onDensityChange={setPdfDensity}
+              onEditContent={() => setCurrentStep(1)}
               onChangeTemplate={() => setCurrentStep(2)}
               onOpenSaveDialog={openSaveDialog}
               onExportPDF={exportToPDF}

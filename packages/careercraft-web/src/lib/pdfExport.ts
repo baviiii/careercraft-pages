@@ -17,8 +17,25 @@ import { createElement } from "react";
 import { toTemplateData } from "@/lib/templateMap";
 
 import { registerPdfFontsForWeb } from "./pdf/fonts.web";
+import { setPdfDensityScale } from "./pdf/primitives";
 import { ResumeDocument } from "./pdf/ResumeDocument";
 import { hasPdfTemplate } from "./pdf/templates";
+
+/** Layout density — same paper, tighter type/spacing at each step down.
+    The lever for "this should fit on 2 pages". */
+export type PdfDensity = "normal" | "snug" | "compact";
+
+export const PDF_DENSITIES: Array<{ id: PdfDensity; label: string }> = [
+  { id: "normal", label: "Normal" },
+  { id: "snug", label: "Snug" },
+  { id: "compact", label: "Compact" },
+];
+
+const DENSITY_SCALE: Record<PdfDensity, number> = {
+  normal: 1,
+  snug: 0.95,
+  compact: 0.9,
+};
 
 export interface ExportResumePdfOptions {
   resume: {
@@ -27,6 +44,18 @@ export interface ExportResumePdfOptions {
     content?: any;
     template_id?: string | null;
   };
+  /** Defaults to "normal". */
+  density?: PdfDensity;
+}
+
+/** The density scale is a module-level knob inside the PDF primitives, so
+    renders must not interleave — serialize them through one chain. */
+let renderChain: Promise<unknown> = Promise.resolve();
+
+function renderSerialized<T>(work: () => Promise<T>): Promise<T> {
+  const run = renderChain.then(work, work);
+  renderChain = run.catch(() => undefined);
+  return run;
 }
 
 export interface RenderResumePdfResult {
@@ -82,6 +111,7 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
  */
 export async function renderResumePdfBlob({
   resume,
+  density = "normal",
 }: ExportResumePdfOptions): Promise<RenderResumePdfResult> {
   registerPdfFontsForWeb();
 
@@ -89,12 +119,14 @@ export async function renderResumePdfBlob({
   const usedFallbackTemplate =
     Boolean(resume.template_id) && !hasPdfTemplate(resume.template_id);
 
-  const doc = createElement(ResumeDocument, {
-    data,
-    templateId: resume.template_id,
+  const blob = await renderSerialized(() => {
+    setPdfDensityScale(DENSITY_SCALE[density]);
+    const doc = createElement(ResumeDocument, {
+      data,
+      templateId: resume.template_id,
+    });
+    return pdf(doc).toBlob();
   });
-
-  const blob = await pdf(doc).toBlob();
 
   const bytes = await blob.arrayBuffer();
   const pdfDoc = await PDFDocument.load(bytes);
@@ -112,9 +144,10 @@ export async function renderResumePdfBlob({
  */
 export async function exportResumeToPdf({
   resume,
+  density,
 }: ExportResumePdfOptions): Promise<ExportResumePdfResult> {
   const { blob, pageCount, fileName, usedFallbackTemplate } =
-    await renderResumePdfBlob({ resume });
+    await renderResumePdfBlob({ resume, density });
 
   triggerBlobDownload(blob, fileName);
 

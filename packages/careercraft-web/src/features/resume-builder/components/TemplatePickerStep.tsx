@@ -12,7 +12,7 @@ import { useState } from "react";
 import { CraftButton } from "@/components/craft/AppPrimitives";
 
 import type { TemplateId } from "../types";
-import { TEMPLATE_META } from "../types";
+import { getTemplateMeta, TEMPLATE_META } from "../types";
 
 interface TemplatePickerStepProps {
   selectedTemplate: TemplateId;
@@ -39,6 +39,8 @@ export const TemplatePickerStep = ({
   const visible = filter === "all"
     ? TEMPLATE_META
     : TEMPLATE_META.filter((t) => t.category === filter);
+
+  const selectedMeta = getTemplateMeta(selectedTemplate);
 
   return (
     <motion.div
@@ -124,16 +126,33 @@ export const TemplatePickerStep = ({
         })}
       </div>
 
-      {/* Step nav */}
-      <div className="flex items-center justify-between mt-12">
-        <button onClick={onBack} className="cc-btn cc-btn-ghost">
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
-        <CraftButton onClick={onNext}>
-          Preview &amp; export
-          <ArrowRight className="w-4 h-4" />
-        </CraftButton>
+      {/* Sticky select bar — the chosen template and the next step stay in
+          reach while browsing the gallery (no scroll-to-the-bottom hunt). */}
+      <div className="sticky bottom-0 z-20 mt-10">
+        <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]/95 backdrop-blur-sm shadow-[0_-16px_48px_-28px_rgba(14,12,10,0.5)]">
+          <div className="px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="cc-label text-[color:var(--cc-ash)]">Selected</div>
+              <div className="cc-font-display text-lg leading-tight tracking-tight truncate">
+                {selectedMeta ? `${selectedMeta.title} · ${selectedMeta.category}` : "None yet"}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={onBack}
+                className="cc-btn cc-btn-ghost"
+                style={{ padding: "0.65rem 0.95rem" }}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+              <CraftButton onClick={onNext} size="sm">
+                Preview &amp; export
+                <ArrowRight className="w-4 h-4" />
+              </CraftButton>
+            </div>
+          </div>
+        </div>
       </div>
     </motion.div>
   );

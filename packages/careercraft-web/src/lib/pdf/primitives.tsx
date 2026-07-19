@@ -24,10 +24,23 @@ import { INTER } from "./fonts";
 
 /* ── units ────────────────────────────────────────────────── */
 
-export const px = (n: number): number => n * 0.75;
+const PT_PER_PX = 0.75;
 
-export const PAGE_W = px(794);
-export const PAGE_H = px(1123);
+/** Layout density multiplier applied to every px() measurement (type,
+    gaps, margins, page padding). Page geometry (PAGE_W/H) never scales,
+    so a lower density = same paper, more content per page. Set per
+    render via setPdfDensityScale — renders are serialized in pdfExport
+    so concurrent previews/exports can't bleed scales into each other. */
+let densityScale = 1;
+
+export function setPdfDensityScale(scale: number): void {
+  densityScale = scale;
+}
+
+export const px = (n: number): number => n * PT_PER_PX * densityScale;
+
+export const PAGE_W = 794 * PT_PER_PX;
+export const PAGE_H = 1123 * PT_PER_PX;
 export const PAGE_SIZE: [number, number] = [PAGE_W, PAGE_H];
 
 /** Tailwind text size — fontSize + its paired line height (both CSS px). */
@@ -398,6 +411,23 @@ export function Bullets({
   );
 }
 
+/* ── page-break control ───────────────────────────────────── */
+
+/** Rough rendered height (CSS px) of an entry's text content. */
+function estimateEntryHeightPx(entry: { bullets?: string[]; description?: string }): number {
+  const texts = [...(entry.bullets ?? []), entry.description ?? ""].filter(Boolean);
+  const textLines = texts.reduce((n, t) => n + Math.ceil(t.length / 85), 0);
+  return (2 + textLines) * 22 + 24; // header lines + body lines + spacing
+}
+
+/** `wrap` value for an experience/project entry: keep the whole entry
+    on one page (title, dates and bullets never separate — no orphaned
+    date rows, no lone spilled lines) unless the entry is so tall that
+    forcing it onto one page would waste half the sheet. */
+export function wrapEntry(entry: { bullets?: string[]; description?: string }): boolean {
+  return estimateEntryHeightPx(entry) > 520;
+}
+
 /* ── layout helpers ───────────────────────────────────────── */
 
 /** `flex justify-between items-start/baseline` row where the right
@@ -407,14 +437,20 @@ export function BetweenRow({
   right,
   rightStyle,
   style,
+  wrap,
 }: {
   left: ReactNode;
   right?: string;
   rightStyle?: Style;
   style?: Style;
+  /** Pass false to keep the row atomic — never split across pages. */
+  wrap?: boolean;
 }) {
   return (
-    <View style={[{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, style ?? {}]}>
+    <View
+      {...(wrap === false ? { wrap: false } : {})}
+      style={[{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }, style ?? {}]}
+    >
       <View style={{ flex: 1, paddingRight: px(8) }}>{left}</View>
       {right ? (
         <Text style={[{ flexShrink: 0, textAlign: "right" }, rightStyle ?? {}]}>{right}</Text>

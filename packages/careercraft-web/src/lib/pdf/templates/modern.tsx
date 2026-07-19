@@ -22,6 +22,7 @@ import {
   joinPresent,
   px,
   track,
+  wrapEntry,
 } from "../primitives";
 import { ExtraSections, type ExtrasTheme } from "./extras";
 
@@ -85,7 +86,7 @@ export function Modern1Pdf({ data: d }: { data: TemplateData }) {
             <Head>Experience</Head>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <BetweenRow
                     left={
                       <View minPresenceAhead={36}>
@@ -119,6 +120,7 @@ export function Modern1Pdf({ data: d }: { data: TemplateData }) {
               {d.education.map((edu) => (
                 <BetweenRow
                   key={edu.id}
+                  wrap={false}
                   left={
                     <View>
                       <Text style={{ ...fsize(16, 19.2), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
@@ -245,7 +247,7 @@ export function Modern2Pdf({ data: d }: { data: TemplateData }) {
               <View>
                 <Head>Education</Head>
                 {d.education.map((edu) => (
-                  <View key={edu.id} style={{ marginBottom: px(8) }}>
+                  <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                     <Text style={{ ...fsize(12, 16), fontWeight: 600, color: tw.slate[700] }}>{edu.degree}</Text>
                     <Text style={{ ...fsize(12, 16), color: tw.slate[600] }}>{edu.school}</Text>
                     <Text style={{ ...fsize(12, 16), color: tw.slate[500] }}>{edu.graduationDate}</Text>
@@ -261,7 +263,7 @@ export function Modern2Pdf({ data: d }: { data: TemplateData }) {
                 <Text style={{ ...colHead, marginBottom: px(12) }}>EXPERIENCE</Text>
                 <View style={{ gap: px(12) }}>
                   {d.experience.map((exp) => (
-                    <View key={exp.id}>
+                    <View key={exp.id} wrap={wrapEntry(exp)}>
                       <BetweenRow
                         style={{ marginBottom: px(4) }}
                         left={
@@ -358,6 +360,7 @@ export function Modern3Pdf({ data: d }: { data: TemplateData }) {
               {d.experience.map((exp) => (
                 <View
                   key={exp.id}
+                  wrap={wrapEntry(exp)}
                   style={{ borderLeftWidth: px(2), borderLeftColor: tw.teal[200], paddingLeft: px(16) }}
                 >
                   <BetweenRow
@@ -387,7 +390,7 @@ export function Modern3Pdf({ data: d }: { data: TemplateData }) {
             <View style={{ flex: 1 }}>
               <Head>Education</Head>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(12, 16), color: tw.gray[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(12, 16), color: tw.gray[500] }}>{edu.graduationDate}</Text>
@@ -490,7 +493,7 @@ export function Modern4Pdf({ data: d }: { data: TemplateData }) {
             <Head>Experience</Head>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <BetweenRow
                     left={<Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.gray[900] }}>{exp.title}</Text>}
                     right={dates(exp, " — ")}
@@ -519,6 +522,7 @@ export function Modern4Pdf({ data: d }: { data: TemplateData }) {
             {d.education.map((edu) => (
               <BetweenRow
                 key={edu.id}
+                wrap={false}
                 style={{ marginBottom: px(8) }}
                 left={
                   <View>
@@ -652,7 +656,7 @@ export function Modern5Pdf({ data: d }: { data: TemplateData }) {
             <View style={{ marginTop: px(24) }}>
               <Text style={sideHead}>EDUCATION</Text>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(12) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(12) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 600, color: tw.white }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.emerald[200] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: mix(tw.emerald[200], tw.emerald[400]) }}>
@@ -680,6 +684,7 @@ export function Modern5Pdf({ data: d }: { data: TemplateData }) {
                 {d.experience.map((exp) => (
                   <View
                     key={exp.id}
+                    wrap={wrapEntry(exp)}
                     style={{
                       position: "relative",
                       paddingLeft: px(16),
@@ -789,7 +794,7 @@ export function Modern6Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...secHead, marginBottom: px(12) }}>EXPERIENCE</Text>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id} style={{ alignItems: "center" }}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={{ alignItems: "center" }}>
                   <Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.gray[900] }}>{exp.title}</Text>
                   <Text style={{ ...fsize(12, 16), fontWeight: 500, color: tw.rose[500] }}>{exp.company}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[500] }}>
@@ -813,7 +818,7 @@ export function Modern6Pdf({ data: d }: { data: TemplateData }) {
             <View style={{ flex: 1 }}>
               <Head>Education</Head>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ alignItems: "center", marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ alignItems: "center", marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[500] }}>{edu.graduationDate}</Text>
@@ -911,7 +916,7 @@ export function Modern7Pdf({ data: d }: { data: TemplateData }) {
             <Head>Experience</Head>
             <View style={{ gap: px(12) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id} style={card}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={card}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <View style={{ flex: 1, paddingRight: px(8) }}>
                       <Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.slate[800] }}>{exp.title}</Text>
@@ -947,7 +952,7 @@ export function Modern7Pdf({ data: d }: { data: TemplateData }) {
             <View style={{ ...card, flex: 1 }}>
               <Text style={secLabel}>EDUCATION</Text>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.slate[800] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.slate[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.slate[500] }}>{edu.graduationDate}</Text>

@@ -2,6 +2,8 @@
    § 04 · Press — proof and print.
    WYSIWYG: renders the actual export PDF (same bytes as the
    download) with PDF.js, so preview = file, page for page.
+   A sticky press bar keeps density, page count and the export
+   actions in reach while scrolling the proof.
    ─────────────────────────────────────────────────────────── */
 
 import { motion } from "framer-motion";
@@ -11,18 +13,20 @@ import {
   Check,
   Download,
   Loader2,
+  PenLine,
   Save,
 } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
-import { renderResumePdfBlob } from "@/lib/pdfExport";
+import { PDF_DENSITIES, type PdfDensity } from "@/lib/pdfExport";
 
 // pdfjs is heavy — load the viewer only when this step is reached.
 const PdfBlobViewer = lazy(() =>
   import("@/components/pdf/PdfBlobViewer").then((m) => ({ default: m.PdfBlobViewer }))
 );
 
+import { useResumePdfPreview } from "../hooks/useResumePdfPreview";
 import type { ResumeData, TemplateId } from "../types";
 import { getTemplateMeta } from "../types";
 
@@ -33,15 +37,12 @@ interface PreviewExportStepProps {
   isExporting: boolean;
   isSaving: boolean;
   currentResumeId: string | null;
+  pdfDensity: PdfDensity;
+  onDensityChange: (density: PdfDensity) => void;
+  onEditContent: () => void;
   onChangeTemplate: () => void;
   onOpenSaveDialog: () => void;
   onExportPDF: () => void;
-}
-
-interface PreviewState {
-  blob: Blob;
-  pageCount: number;
-  usedFallbackTemplate: boolean;
 }
 
 export const PreviewExportStep = ({
@@ -51,44 +52,20 @@ export const PreviewExportStep = ({
   isExporting,
   isSaving,
   currentResumeId,
+  pdfDensity,
+  onDensityChange,
+  onEditContent,
   onChangeTemplate,
   onOpenSaveDialog,
   onExportPDF,
 }: PreviewExportStepProps) => {
   const meta = getTemplateMeta(selectedTemplate);
-  const [preview, setPreview] = useState<PreviewState | null>(null);
-  const [isRendering, setIsRendering] = useState(true);
-  const [renderFailed, setRenderFailed] = useState(false);
-
-  useEffect(() => {
-    let stale = false;
-    setIsRendering(true);
-    setRenderFailed(false);
-
-    const timer = setTimeout(async () => {
-      try {
-        const { blob, pageCount, usedFallbackTemplate } = await renderResumePdfBlob({
-          resume: {
-            name: resumeDisplayName || "resume",
-            content: resumeData,
-            template_id: selectedTemplate,
-          },
-        });
-        if (stale) return;
-        setPreview({ blob, pageCount, usedFallbackTemplate });
-      } catch (error) {
-        console.error("PDF preview failed:", error);
-        if (!stale) setRenderFailed(true);
-      } finally {
-        if (!stale) setIsRendering(false);
-      }
-    }, 350);
-
-    return () => {
-      stale = true;
-      clearTimeout(timer);
-    };
-  }, [resumeData, selectedTemplate, resumeDisplayName]);
+  const { preview, isRendering, renderFailed } = useResumePdfPreview({
+    resumeData,
+    selectedTemplate,
+    resumeDisplayName,
+    density: pdfDensity,
+  });
 
   return (
     <motion.div
@@ -98,48 +75,16 @@ export const PreviewExportStep = ({
       exit={{ opacity: 0, y: -16 }}
     >
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10">
-        <div>
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 04 · Preview &amp; export</div>
-          <h2 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
-            Review <span className="cc-italic-wonk">and</span> download.
-          </h2>
-          <p className="mt-3 cc-font-editorial italic text-xl text-[color:var(--cc-ink-soft)]">
-            {meta
-              ? `Using template: ${meta.title} · ${meta.category}`
-              : "Review your résumé before exporting."}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button onClick={onChangeTemplate} className="cc-btn cc-btn-ghost" style={{ padding: "0.8rem 1.1rem" }}>
-            <ArrowLeft className="w-4 h-4" />
-            Change template
-          </button>
-          <button
-            onClick={onOpenSaveDialog}
-            disabled={isSaving}
-            className="cc-btn cc-btn-ghost"
-            style={{ padding: "0.8rem 1.1rem" }}
-          >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : currentResumeId ? (
-              <Check className="w-4 h-4" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {currentResumeId ? "Update" : "Save resume"}
-          </button>
-          <CraftButton onClick={onExportPDF} disabled={isExporting}>
-            {isExporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
-            )}
-            Export PDF
-          </CraftButton>
-        </div>
+      <div className="mb-10">
+        <div className="cc-label text-[color:var(--cc-rust)]">§ 04 · Preview &amp; export</div>
+        <h2 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
+          Review <span className="cc-italic-wonk">and</span> download.
+        </h2>
+        <p className="mt-3 cc-font-editorial italic text-xl text-[color:var(--cc-ink-soft)]">
+          {meta
+            ? `Using template: ${meta.title} · ${meta.category}`
+            : "Review your résumé before exporting."}
+        </p>
       </div>
 
       {/* Proof strip */}
@@ -148,11 +93,6 @@ export const PreviewExportStep = ({
           What you download
           {isRendering && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
         </div>
-        {preview && (
-          <div className="cc-label text-[color:var(--cc-ash)]">
-            {preview.pageCount} page{preview.pageCount > 1 ? "s" : ""}
-          </div>
-        )}
       </div>
 
       {preview?.usedFallbackTemplate && (
@@ -187,6 +127,81 @@ export const PreviewExportStep = ({
             style={{ aspectRatio: "794 / 1123" }}
           />
         )}
+      </div>
+
+      {/* Sticky press bar — density, page count and actions always in reach */}
+      <div className="sticky bottom-0 z-20">
+        <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]/95 backdrop-blur-sm shadow-[0_-16px_48px_-28px_rgba(14,12,10,0.5)]">
+          <div className="px-4 md:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex items-center gap-2">
+                <span className="cc-label text-[color:var(--cc-ash)]">Density</span>
+                <div className="flex gap-1.5">
+                  {PDF_DENSITIES.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => onDensityChange(d.id)}
+                      className={`cc-pill ${pdfDensity === d.id ? "cc-pill-filled" : ""}`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <span className="cc-label text-[color:var(--cc-ash)] inline-flex items-center gap-2 cc-tabular">
+                {isRendering ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : preview ? (
+                  `${preview.pageCount} page${preview.pageCount > 1 ? "s" : ""}`
+                ) : (
+                  "—"
+                )}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={onEditContent}
+                className="cc-btn cc-btn-ghost"
+                style={{ padding: "0.65rem 0.95rem" }}
+              >
+                <PenLine className="w-4 h-4" />
+                Edit content
+              </button>
+              <button
+                onClick={onChangeTemplate}
+                className="cc-btn cc-btn-ghost"
+                style={{ padding: "0.65rem 0.95rem" }}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Change template
+              </button>
+              <button
+                onClick={onOpenSaveDialog}
+                disabled={isSaving}
+                className="cc-btn cc-btn-ghost"
+                style={{ padding: "0.65rem 0.95rem" }}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : currentResumeId ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                {currentResumeId ? "Update" : "Save resume"}
+              </button>
+              <CraftButton onClick={onExportPDF} disabled={isExporting} size="sm">
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                Export PDF
+              </CraftButton>
+            </div>
+          </div>
+        </div>
       </div>
     </motion.div>
   );

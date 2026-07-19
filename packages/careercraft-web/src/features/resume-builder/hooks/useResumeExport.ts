@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { type ToastActionElement, type ToastProps } from "@/hooks/use-toast";
-import { exportResumeToPdf } from "@/lib/pdfExport";
+import { exportResumeToPdf, type PdfDensity } from "@/lib/pdfExport";
 
 import type { ResumeData, TemplateId } from "../types";
 
@@ -11,6 +11,7 @@ interface UseResumeExportParams {
   resumeData: ResumeData;
   selectedTemplate: TemplateId;
   resumeDisplayName: string;
+  pdfDensity: PdfDensity;
   toast: ToastFn;
 }
 
@@ -18,6 +19,7 @@ export function useResumeExport({
   resumeData,
   selectedTemplate,
   resumeDisplayName,
+  pdfDensity,
   toast,
 }: UseResumeExportParams) {
   const [isExporting, setIsExporting] = useState(false);
@@ -31,6 +33,7 @@ export function useResumeExport({
           content: resumeData,
           template_id: selectedTemplate,
         },
+        density: pdfDensity,
       });
 
       toast({
@@ -49,7 +52,7 @@ export function useResumeExport({
     } finally {
       setIsExporting(false);
     }
-  }, [resumeData, selectedTemplate, resumeDisplayName, toast]);
+  }, [resumeData, selectedTemplate, resumeDisplayName, pdfDensity, toast]);
 
   return {
     isExporting,

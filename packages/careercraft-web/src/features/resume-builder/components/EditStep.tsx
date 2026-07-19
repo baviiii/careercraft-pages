@@ -16,17 +16,23 @@ import {
   Layers,
   Loader2,
   Save,
-  Sparkles,
   Target,
   User,
 } from "lucide-react";
-import type { ComponentType, Dispatch, SetStateAction } from "react";
+import { lazy, Suspense, useState, type ComponentType, type Dispatch, type SetStateAction } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
 import { ScaledResumeFrame } from "@/components/templates/ScaledResumeFrame";
 import type { TemplateData } from "@/components/templates/types";
 import { getTemplate } from "@/lib/templateMap";
+import type { PdfDensity } from "@/lib/pdfExport";
 
+// pdfjs is heavy — load the viewer only when the "Pages" proof is used.
+const PdfBlobViewer = lazy(() =>
+  import("@/components/pdf/PdfBlobViewer").then((m) => ({ default: m.PdfBlobViewer }))
+);
+
+import { useResumePdfPreview } from "../hooks/useResumePdfPreview";
 import { resumeToTemplateData } from "../lib/resumeData";
 import type { AutoSaveStatus, ContactInfo, Education, Experience, ResumeData, TemplateId } from "../types";
 import { ContactForm } from "./ContactForm";
@@ -49,6 +55,7 @@ interface EditStepProps {
   // Preview
   showLivePreview: boolean;
   setShowLivePreview: (v: boolean) => void;
+  pdfDensity: PdfDensity;
 
   // Mutations
   updateContact: (field: keyof ContactInfo, value: string) => void;
@@ -105,6 +112,7 @@ export const EditStep = ({
   setActiveSection,
   showLivePreview,
   setShowLivePreview,
+  pdfDensity,
   updateContact,
   updateSummary,
   addExperience,
@@ -131,6 +139,18 @@ export const EditStep = ({
 }: EditStepProps) => {
   const Template = getTemplate(selectedTemplate);
   const templateData: TemplateData = resumeToTemplateData(resumeData);
+
+  // "pages" proofs the ACTUAL export PDF (real page breaks, at the chosen
+  // density) so layout issues are visible — and fixable — while editing.
+  const [previewMode, setPreviewMode] = useState<"pages" | "layout">("pages");
+  const pagesOn = showLivePreview && previewMode === "pages";
+  const { preview, isRendering, renderFailed } = useResumePdfPreview({
+    resumeData,
+    selectedTemplate,
+    resumeDisplayName: resumeData.contact.name || "resume",
+    density: pdfDensity,
+    enabled: pagesOn,
+  });
 
   return (
     <motion.div
@@ -284,24 +304,74 @@ export const EditStep = ({
           </div>
         </div>
 
-        {/* Live preview column */}
+        {/* Live preview column — "Pages" proofs the real export PDF, page
+            for page; "Layout" is the instant single-sheet template view. */}
         {showLivePreview && (
           <aside className="lg:sticky lg:top-20 lg:self-start hidden lg:block">
-            <div className="cc-label text-[color:var(--cc-ash)] mb-3 flex items-center justify-between">
-              <span>Live proof</span>
-              <Sparkles className="w-3.5 h-3.5 text-[color:var(--cc-rust)]" />
+            <div className="cc-label text-[color:var(--cc-ash)] mb-3 flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-2">
+                Live proof
+                {pagesOn &&
+                  (isRendering ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : preview ? (
+                    <span className="cc-tabular">
+                      {preview.pageCount} page{preview.pageCount > 1 ? "s" : ""}
+                    </span>
+                  ) : null)}
+              </span>
+              <span className="flex gap-1">
+                <button
+                  onClick={() => setPreviewMode("pages")}
+                  className={`cc-pill ${previewMode === "pages" ? "cc-pill-filled" : ""}`}
+                >
+                  Pages
+                </button>
+                <button
+                  onClick={() => setPreviewMode("layout")}
+                  className={`cc-pill ${previewMode === "layout" ? "cc-pill-filled" : ""}`}
+                >
+                  Layout
+                </button>
+              </span>
             </div>
-            <div className="border border-[color:var(--cc-hair-strong)] bg-white">
-              <ScaledResumeFrame>
-                {Template && <Template data={templateData} />}
-              </ScaledResumeFrame>
-            </div>
+
+            {previewMode === "layout" ? (
+              <div className="border border-[color:var(--cc-hair-strong)] bg-white">
+                <ScaledResumeFrame>
+                  {Template && <Template data={templateData} />}
+                </ScaledResumeFrame>
+              </div>
+            ) : (
+              <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-3 max-h-[calc(100vh-10rem)] overflow-y-auto overscroll-contain">
+                {preview ? (
+                  <div className={isRendering ? "opacity-60 transition-opacity" : "transition-opacity"}>
+                    <Suspense fallback={<PagesPlaceholder />}>
+                      <PdfBlobViewer blob={preview.blob} pageGap={12} />
+                    </Suspense>
+                  </div>
+                ) : renderFailed ? (
+                  <div className="p-8 text-center cc-font-editorial italic text-[15px] text-[color:var(--cc-ink-soft)]">
+                    Could not render the pages preview.
+                  </div>
+                ) : (
+                  <PagesPlaceholder />
+                )}
+              </div>
+            )}
           </aside>
         )}
       </div>
     </motion.div>
   );
 };
+
+const PagesPlaceholder = () => (
+  <div
+    className="w-full bg-white animate-pulse"
+    style={{ aspectRatio: "794 / 1123" }}
+  />
+);
 
 function autoSaveStatusLabel(status: AutoSaveStatus): string {
   if (status === "saving") return "Filing edits…";

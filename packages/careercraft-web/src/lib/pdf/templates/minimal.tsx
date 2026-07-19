@@ -18,6 +18,7 @@ import {
   joinPresent,
   px,
   track,
+  wrapEntry,
 } from "../primitives";
 import { ExtraSections, type ExtrasTheme } from "./extras";
 
@@ -80,7 +81,7 @@ export function Minimal1Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...label, marginBottom: px(16) }}>EXPERIENCE</Text>
             <View style={{ gap: px(20) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <BetweenRow
                     left={<Text style={{ ...fsize(14, 20), fontWeight: 500, color: tw.gray[900] }}>{exp.title}</Text>}
                     right={dates(exp, " — ")}
@@ -108,6 +109,7 @@ export function Minimal1Pdf({ data: d }: { data: TemplateData }) {
             {d.education.map((edu) => (
               <BetweenRow
                 key={edu.id}
+                wrap={false}
                 style={{ marginBottom: px(8) }}
                 left={
                   <View>
@@ -192,7 +194,7 @@ export function Minimal2Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...head, marginBottom: px(16) }}>WORK</Text>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id} style={{ backgroundColor: tw.white, borderRadius: px(4), padding: px(16) }}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={{ backgroundColor: tw.white, borderRadius: px(4), padding: px(16) }}>
                   <BetweenRow
                     left={
                       <View>
@@ -223,6 +225,7 @@ export function Minimal2Pdf({ data: d }: { data: TemplateData }) {
               {d.education.map((edu) => (
                 <BetweenRow
                   key={edu.id}
+                  wrap={false}
                   left={
                     <View>
                       <Text style={{ ...fsize(12, 16), fontWeight: 600, color: tw.gray[900] }}>{edu.degree}</Text>
@@ -327,7 +330,7 @@ export function Minimal3Pdf({ data: d }: { data: TemplateData }) {
             <View>
               <Text style={sideLabel}>EDUCATION</Text>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(12) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(12) }}>
                   <Text style={{ ...fsize(10), fontWeight: 500, color: tw.gray[700] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(9), color: tw.gray[500] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(9), color: tw.gray[400] }}>{edu.graduationDate}</Text>
@@ -354,7 +357,7 @@ export function Minimal3Pdf({ data: d }: { data: TemplateData }) {
               <Text style={{ ...sideLabel, marginBottom: px(16) }}>EXPERIENCE</Text>
               <View style={{ gap: px(16) }}>
                 {d.experience.map((exp) => (
-                  <View key={exp.id}>
+                  <View key={exp.id} wrap={wrapEntry(exp)}>
                     <BetweenRow
                       left={<Text style={{ ...fsize(14, 20), fontWeight: 500, color: tw.gray[900] }}>{exp.title}</Text>}
                       right={dates(exp, " — ")}
@@ -446,7 +449,7 @@ export function Minimal4Pdf({ data: d }: { data: TemplateData }) {
             <Head>Experience</Head>
             <View style={{ gap: px(12) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <View
                     style={{
                       flexDirection: "row",
@@ -479,6 +482,7 @@ export function Minimal4Pdf({ data: d }: { data: TemplateData }) {
             {d.education.map((edu) => (
               <BetweenRow
                 key={edu.id}
+                wrap={false}
                 style={{ marginBottom: px(4) }}
                 left={
                   <Text style={{ ...fsize(12, 16), color: tw.gray[800] }}>
@@ -578,7 +582,7 @@ export function Minimal5Pdf({ data: d }: { data: TemplateData }) {
           <GridRow title="Experience">
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id}>
+                <View key={exp.id} wrap={wrapEntry(exp)}>
                   <BetweenRow
                     left={<Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.gray[900] }}>{exp.title}</Text>}
                     right={dates(exp, "—")}
@@ -605,6 +609,7 @@ export function Minimal5Pdf({ data: d }: { data: TemplateData }) {
               {d.education.map((edu) => (
                 <BetweenRow
                   key={edu.id}
+                  wrap={false}
                   left={
                     <Text>
                       <Text style={{ ...fsize(12, 16), fontWeight: 500, color: tw.gray[900] }}>{edu.degree}</Text>

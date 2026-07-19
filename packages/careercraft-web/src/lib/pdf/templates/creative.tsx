@@ -24,6 +24,7 @@ import {
   joinPresent,
   px,
   track,
+  wrapEntry,
 } from "../primitives";
 import { ExtraSections, type ExtrasTheme } from "./extras";
 
@@ -176,7 +177,7 @@ export function Creative1Pdf({ data: d }: { data: TemplateData }) {
                   EDUCATION
                 </Text>
                 {d.education.map((edu) => (
-                  <View key={edu.id} style={{ marginBottom: px(8) }}>
+                  <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                     <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.purple[800] }}>{edu.degree}</Text>
                     <Text style={{ ...fsize(12, 16), color: tw.gray[700] }}>{edu.school}</Text>
                     <Text style={{ ...fsize(12, 16), fontWeight: 600, color: tw.purple[600] }}>
@@ -196,7 +197,7 @@ export function Creative1Pdf({ data: d }: { data: TemplateData }) {
                 <Head>Experience</Head>
                 <View style={{ gap: px(16) }}>
                   {d.experience.map((exp) => (
-                    <View key={exp.id} style={{ position: "relative", paddingLeft: px(24) }}>
+                    <View key={exp.id} wrap={wrapEntry(exp)} style={{ position: "relative", paddingLeft: px(24) }}>
                       <View
                         style={{
                           position: "absolute",
@@ -361,6 +362,7 @@ export function Creative2Pdf({ data: d }: { data: TemplateData }) {
                 {d.experience.map((exp) => (
                   <View
                     key={exp.id}
+                    wrap={wrapEntry(exp)}
                     style={{
                       position: "relative",
                       paddingLeft: px(32),
@@ -533,7 +535,7 @@ export function Creative3Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...headStyle, marginBottom: px(12) }}>💼 EXPERIENCE</Text>
             <View style={{ gap: px(12) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id} style={glassCard}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={glassCard}>
                   <Tint color={tw.white} opacity={0.6} radius={12} />
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <View style={{ flex: 1, paddingRight: px(8) }}>
@@ -571,7 +573,7 @@ export function Creative3Pdf({ data: d }: { data: TemplateData }) {
               <Tint color={tw.white} opacity={0.6} radius={12} />
               <Text style={headStyle}>🎓 EDUCATION</Text>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.fuchsia[500] }}>{edu.graduationDate}</Text>
@@ -710,7 +712,7 @@ export function Creative4Pdf({ data: d }: { data: TemplateData }) {
             <Head>Work Experience</Head>
             <View style={{ gap: px(16) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id} style={card}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={card}>
                   <Tint color={tw.white} opacity={0.7} radius={8} />
                   <BetweenRow
                     left={
@@ -744,7 +746,7 @@ export function Creative4Pdf({ data: d }: { data: TemplateData }) {
                 <Text style={{ ...fsize(12, 16), fontWeight: 900, color: tw.amber[700] }}>EDUCATION</Text>
               </View>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.amber[600] }}>{edu.graduationDate}</Text>
@@ -880,7 +882,7 @@ export function Creative5Pdf({ data: d }: { data: TemplateData }) {
             <Text style={{ ...headStyle, marginBottom: px(12) }}>EXPERIENCE</Text>
             <View style={{ gap: px(12) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id} style={card}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={card}>
                   <Tint color={tw.white} opacity={0.05} radius={8} />
                   <BetweenRow
                     left={
@@ -911,7 +913,7 @@ export function Creative5Pdf({ data: d }: { data: TemplateData }) {
               <Tint color={tw.white} opacity={0.05} radius={8} />
               <Text style={headStyle}>EDUCATION</Text>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.white }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[400] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.cyan[500] }}>{edu.graduationDate}</Text>
@@ -1077,7 +1079,7 @@ export function Creative6Pdf({ data: d }: { data: TemplateData }) {
             <View style={{ marginTop: px(24) }}>
               <Text style={sideHead}>EDUCATION</Text>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(12) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(12) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 600, color: tw.white }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.green[200] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.green[300] }}>{edu.graduationDate}</Text>
@@ -1101,7 +1103,7 @@ export function Creative6Pdf({ data: d }: { data: TemplateData }) {
               <Head>Work Experience</Head>
               <View style={{ gap: px(12) }}>
                 {d.experience.map((exp) => (
-                  <View key={exp.id} style={whiteCard}>
+                  <View key={exp.id} wrap={wrapEntry(exp)} style={whiteCard}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <View style={{ flex: 1, paddingRight: px(8) }}>
                         <Text style={{ ...fsize(14, 20), fontWeight: 700, color: tw.gray[900] }}>{exp.title}</Text>
@@ -1253,7 +1255,7 @@ export function Creative7Pdf({ data: d }: { data: TemplateData }) {
             <DashHead>Experience</DashHead>
             <View style={{ gap: px(12) }}>
               {d.experience.map((exp) => (
-                <View key={exp.id} style={{ position: "relative", borderRadius: px(8), overflow: "hidden", padding: px(16) }}>
+                <View key={exp.id} wrap={wrapEntry(exp)} style={{ position: "relative", borderRadius: px(8), overflow: "hidden", padding: px(16) }}>
                   <GradientFill
                     id={`c7xp${exp.id}`}
                     stops={[
@@ -1307,7 +1309,7 @@ export function Creative7Pdf({ data: d }: { data: TemplateData }) {
                 EDUCATION
               </Text>
               {d.education.map((edu) => (
-                <View key={edu.id} style={{ marginBottom: px(8) }}>
+                <View key={edu.id} wrap={false} style={{ marginBottom: px(8) }}>
                   <Text style={{ ...fsize(12, 16), fontWeight: 700, color: tw.gray[900] }}>{edu.degree}</Text>
                   <Text style={{ ...fsize(10), color: tw.gray[600] }}>{edu.school}</Text>
                   <Text style={{ ...fsize(10), color: tw.red[500] }}>{edu.graduationDate}</Text>
