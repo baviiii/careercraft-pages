@@ -97,7 +97,7 @@ export function formatResumeDataAsText(data: AIResumeData): string {
 
 /**
  * Single entry point for resume extraction.
- * TXT/DOCX → text path. PDF/images → vision-first on server (Gemini Flash), DI fallback automatic.
+ * TXT/DOCX → text path. PDF/images → vision-first on server (Azure OpenAI multimodal), DI fallback automatic.
  */
 export async function extractResumeFromFile(
   file: File,
@@ -399,7 +399,7 @@ export interface AIResumeData {
   }[];
 }
 
-/** PDF + images: render/send to vision-first parse-resume (Gemini Flash + DI fallback on server). */
+/** PDF + images: render/send to vision-first parse-resume (Azure OpenAI multimodal + DI fallback on server). */
 export async function parseResumeWithAI(
   file: File,
   onProgress?: (progress: number) => void,
