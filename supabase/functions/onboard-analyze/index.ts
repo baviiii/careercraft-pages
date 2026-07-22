@@ -38,10 +38,14 @@ const RequestSchema = z
 // `function` is reserved in JSON Schema — use job_function, map on response.
 
 const looseStr = z.string().nullish().transform((v) => v ?? null);
-const strArray = z
-  .array(z.union([z.string(), z.number()]).transform(String))
-  .nullish()
-  .transform((v) => v ?? []);
+// Models sometimes emit a bare string where an array belongs — wrap it.
+const strArray = z.preprocess(
+  (v) => (typeof v === "string" ? (v.trim() ? [v] : []) : v),
+  z
+    .array(z.union([z.string(), z.number()]).transform(String))
+    .nullish()
+    .transform((v) => v ?? []),
+);
 const nullableNumber = z.preprocess((v) => {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
