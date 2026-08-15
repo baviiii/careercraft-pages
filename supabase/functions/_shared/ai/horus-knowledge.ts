@@ -21,8 +21,15 @@
 // the envelope is all that is required.
 //
 // Env:
-//   HORUS_BASE_URL — origin of the Horus deployment, e.g. https://horus.example.com
-//   HORUS_API_KEY  — CareerCraft tenant key (read-only scopes)
+//   HORUS_BASE_URL           — origin of the Horus deployment (no path)
+//   HORUS_KNOWLEDGE_API_KEY  — read-only key: rag:read, graph:read,
+//                              entities:read, documents:read
+//   HORUS_API_KEY            — fallback, and what `horus.ts` uses for /api/infer
+//
+// The two keys are deliberately separable. The inference key needs
+// `intelligence:infer` and nothing else; this module needs the read scopes and
+// nothing else. Keeping them apart means widening one never widens the other,
+// and a key minted for retrieval can never spend tokens.
 
 import { ConfigError, ProviderError, RateLimitError } from "./errors.ts";
 import { optEnv, reqEnv } from "../env.ts";
@@ -42,19 +49,36 @@ export type HorusQueryPath =
 export type HorusMutationPath = "rag.query" | "rag.chat";
 
 export function horusKnowledgeConfigured(): boolean {
-  return Boolean(optEnv("HORUS_BASE_URL") && optEnv("HORUS_API_KEY"));
+  return Boolean(
+    optEnv("HORUS_BASE_URL") &&
+      (optEnv("HORUS_KNOWLEDGE_API_KEY") ?? optEnv("HORUS_API_KEY")),
+  );
 }
 
 function baseUrl(): string {
   return reqEnv("HORUS_BASE_URL").replace(/\/+$/, "");
 }
 
+/** Prefer the read-only knowledge key; fall back to the shared tenant key. */
+function apiKey(): string {
+  return optEnv("HORUS_KNOWLEDGE_API_KEY") ?? reqEnv("HORUS_API_KEY");
+}
+
 function authHeaders(): HeadersInit {
-  return {
-    Authorization: `Bearer ${reqEnv("HORUS_API_KEY")}`,
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey()}`,
     "Content-Type": "application/json",
     "x-horus-sdk": "careercraft-edge/1.0.0",
   };
+
+  // Vercel preview deployments sit behind Deployment Protection, which answers
+  // unauthenticated requests with an SSO redirect rather than the API. This
+  // header is the supported machine bypass. Unset in production, where the
+  // deployment is public and no bypass is needed.
+  const bypass = optEnv("HORUS_BYPASS_TOKEN");
+  if (bypass) headers["x-vercel-protection-bypass"] = bypass;
+
+  return headers;
 }
 
 interface TrpcEnvelope<T> {
