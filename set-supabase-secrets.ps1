@@ -50,6 +50,19 @@ if ($env:HORUS_INFER_URL -and $env:HORUS_API_KEY) {
     Write-Host "⚠️  HORUS_INFER_URL / HORUS_API_KEY not found in .env — AI edge functions will fail until set" -ForegroundColor Yellow
 }
 
+Write-Host "📝 Setting Horus knowledge (RAG + graph) secrets..." -ForegroundColor Green
+if ($env:HORUS_BASE_URL) {
+    # Origin only — horus-knowledge.ts appends /api/trpc. A trailing /api/infer
+    # here is the most likely misconfiguration, so reject it loudly.
+    if ($env:HORUS_BASE_URL -match '/api(/|$)') {
+        Write-Host "❌ HORUS_BASE_URL must be the origin only (no /api/... path): $env:HORUS_BASE_URL" -ForegroundColor Red
+        exit 1
+    }
+    supabase secrets set "HORUS_BASE_URL=$env:HORUS_BASE_URL"
+} else {
+    Write-Host "⚠️  HORUS_BASE_URL not found in .env — horus-rag will fall back to legacy retrieval" -ForegroundColor Yellow
+}
+
 Write-Host "📝 Setting optional API keys..." -ForegroundColor Green
 if ($env:ANTHROPIC_API_KEY) {
     supabase secrets set "ANTHROPIC_API_KEY=$env:ANTHROPIC_API_KEY"

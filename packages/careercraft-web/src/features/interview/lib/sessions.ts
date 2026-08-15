@@ -1,10 +1,18 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * A completed session's overall score, normalized to a 0-100 percentage.
- * The MCP (`finish_interview`) writes the debrief to `ai_insights` and the
- * scalar to `avg_score`; older edge-function sessions used `final_evaluation`.
- * Prefer the debrief's overallScore (always 0-100), fall back to avg_score.
+ * Normalize a raw score to 0–100 for hub/history display.
+ * Per-question MCP scores are often 0–10; overall debrief scores are 0–100.
+ */
+export function normalizeScore100(raw: number | null | undefined): number | null {
+  if (raw == null || !(raw > 0)) return null;
+  if (raw <= 10) return Math.round(raw * 10);
+  return Math.round(Math.min(100, raw));
+}
+
+/**
+ * A completed session's overall score (raw). Prefer debrief overallScore,
+ * fall back to avg_score. Use normalizeScore100 for UI /100 labels.
  */
 export function sessionOverallScore(s: {
   avg_score?: number | null;
@@ -13,8 +21,8 @@ export function sessionOverallScore(s: {
 }): number | null {
   const evalObj = (s.ai_insights ?? s.final_evaluation) as { overallScore?: unknown } | null;
   const raw = evalObj && typeof evalObj === "object" ? evalObj.overallScore : undefined;
-  if (typeof raw === "number" && raw > 0) return Math.round(raw);
-  if (typeof s.avg_score === "number" && s.avg_score > 0) return Math.round(s.avg_score);
+  if (typeof raw === "number" && raw > 0) return raw;
+  if (typeof s.avg_score === "number" && s.avg_score > 0) return s.avg_score;
   return null;
 }
 

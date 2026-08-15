@@ -142,6 +142,8 @@ const App = () => (
               <Route path="/playground" element={<Playground />} />
               <Route path="/intelligence" element={<IntelligenceOverview />} />
               <Route path="/career-coach" element={<CareerCoachPage />} />
+              {/* Career/study now live as tabs on /interview-prep. */}
+              <Route path="/career-dev" element={<Navigate to="/interview-prep?tab=profile" replace />} />
               <Route path="/career-explorer" element={<CareerExplorer />} />
               <Route path="/market-trends" element={<MarketTrends />} />
               <Route path="/policy" element={<PolicyVisualizer />} />

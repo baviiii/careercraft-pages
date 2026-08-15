@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import type { CoachAnswerEvaluation } from "@/lib/interviewCoach";
+import type { CoachAnswerEvaluation, StarBreakdown, StarCoverage } from "@/lib/interviewCoach";
 import { ProofChip } from "../ProofChip";
 
 interface FeedbackCardProps {
@@ -48,9 +48,49 @@ function PointList({
   );
 }
 
+const STAR_TONE: Record<StarCoverage, string> = {
+  present: "var(--cc-signal-deep)",
+  thin: "var(--cc-wheat-deep)",
+  missing: "var(--cc-rust-deep)",
+};
+
+/**
+ * STAR completeness, shown only for behavioral answers (the MCP omits the block
+ * entirely for technical ones). This is the thing that makes behavioral practice
+ * actionable — "missing result" is a concrete fix in a way a score isn't.
+ */
+function StarRow({ star }: { star: StarBreakdown }) {
+  const parts: Array<[string, StarCoverage]> = [
+    ["Situation", star.situation],
+    ["Task", star.task],
+    ["Action", star.action],
+    ["Result", star.result],
+  ];
+  return (
+    <div>
+      <p className="cc-label-sm mb-2 text-[color:var(--cc-ink)]">STAR coverage</p>
+      <div className="flex flex-wrap gap-2">
+        {parts.map(([label, coverage]) => (
+          <span
+            key={label}
+            className="cc-label-sm border bg-[color:var(--cc-cream)] px-2.5 py-1.5"
+            style={{ color: STAR_TONE[coverage], borderColor: STAR_TONE[coverage] }}
+          >
+            {label} · {coverage}
+          </span>
+        ))}
+      </div>
+      {star.note && (
+        <p className="mt-2 text-xs leading-relaxed text-[color:var(--cc-ash)]">{star.note}</p>
+      )}
+    </div>
+  );
+}
+
 /** Coached-mode verdict on one answer — shown before moving on. */
 export function FeedbackCard({ evaluation, isLast, onContinue }: FeedbackCardProps) {
   const breakdown = Object.entries(evaluation.scoreBreakdown ?? {});
+  const followUp = evaluation.followUpQuestion || evaluation.improvement;
 
   return (
     <section className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)]">
@@ -64,17 +104,28 @@ export function FeedbackCard({ evaluation, isLast, onContinue }: FeedbackCardPro
 
       <div className="space-y-6 p-5">
         {breakdown.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {breakdown.map(([key, value]) => (
-              <span
-                key={key}
-                className="cc-label-sm border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-2.5 py-1.5 text-[color:var(--cc-ink-soft)]"
-              >
-                {key.replace(/([a-z])([A-Z])/g, "$1 $2")} · {value}
-              </span>
-            ))}
+          <div>
+            <div className="flex flex-wrap gap-2">
+              {breakdown.map(([key, value]) => (
+                <span
+                  key={key}
+                  // The evaluator's justification for this criterion, when it gave one.
+                  title={evaluation.scoreNotes?.[key] || undefined}
+                  className="cc-label-sm border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-2.5 py-1.5 text-[color:var(--cc-ink-soft)]"
+                >
+                  {key.replace(/([a-z])([A-Z])/g, "$1 $2")} · {value}
+                </span>
+              ))}
+            </div>
+            {evaluation.rubricApplied && (
+              <p className="mt-2 text-xs leading-relaxed text-[color:var(--cc-ash)]">
+                {evaluation.rubricApplied}
+              </p>
+            )}
           </div>
         )}
+
+        {evaluation.starBreakdown && <StarRow star={evaluation.starBreakdown} />}
 
         <div className="grid gap-6 md:grid-cols-3">
           <PointList title="What landed" items={evaluation.validation.correct} tone="signal" />
@@ -114,11 +165,13 @@ export function FeedbackCard({ evaluation, isLast, onContinue }: FeedbackCardPro
           </div>
         )}
 
-        {evaluation.improvement && (
+        {followUp && (
           <div>
-            <p className="cc-label-sm mb-1.5 text-[color:var(--cc-ash)]">Likely follow-up</p>
+            <p className="cc-label-sm mb-1.5 text-[color:var(--cc-ash)]">
+              What they'd ask you next
+            </p>
             <p className="text-sm italic leading-relaxed text-[color:var(--cc-ink-soft)]">
-              "{evaluation.improvement}"
+              "{followUp}"
             </p>
           </div>
         )}

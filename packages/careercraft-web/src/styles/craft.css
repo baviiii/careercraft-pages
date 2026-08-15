@@ -936,24 +936,37 @@
    intended for long-form resume/job-tracker fields where scan-ability matters */
 .cc-field {
   width: 100%;
-  padding: 0.75rem 0.9rem;
-  background: var(--cc-cream);
+  padding: 0.85rem 1rem;
+  background: #fff;
   border: 1px solid var(--cc-hair-strong);
+  border-radius: 0.85rem;
   font-family: 'Inter', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--cc-ink);
-  transition: border-color .25s ease, background .25s ease;
-  line-height: 1.4;
+  transition: border-color .25s ease, background .25s ease, box-shadow .25s ease;
+  line-height: 1.45;
   outline: none;
 }
-.cc-field::placeholder { color: var(--cc-ash); }
+.cc-field::placeholder { color: var(--cc-ash); opacity: 0.85; }
 .cc-field:hover { border-color: var(--cc-ink); }
 .cc-field:focus {
   border-color: var(--cc-rust);
-  background: var(--cc-cream);
+  background: #fff;
   box-shadow: 0 0 0 3px var(--cc-rust-soft);
 }
-.cc-field-textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+.cc-field:disabled,
+.cc-field[readonly] {
+  background: var(--cc-cream-2);
+  color: var(--cc-ink-soft);
+  cursor: not-allowed;
+  opacity: 1;
+}
+.cc-field-textarea {
+  min-height: 168px;
+  resize: vertical;
+  line-height: 1.55;
+  padding-top: 0.95rem;
+}
 .cc-field-error { border-color: var(--cc-rust); }
 .cc-field-label {
   display: block;
@@ -962,13 +975,59 @@
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--cc-ink-soft);
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 .cc-field-hint {
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 12.5px;
   color: var(--cc-ash);
-  margin-top: 4px;
+  line-height: 1.35;
+}
+.cc-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.cc-field-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.cc-field-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--cc-ash);
+  white-space: nowrap;
+}
+.cc-field-count.is-long { color: var(--cc-wheat-deep); }
+.cc-field-shell {
+  position: relative;
+}
+.cc-field-shell--icon .cc-field {
+  padding-left: 2.65rem;
+}
+.cc-field-shell__icon {
+  position: absolute;
+  left: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--cc-ash);
+  pointer-events: none;
+}
+.cc-field-locked {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--cc-hair-strong);
+  border-radius: 0.85rem;
+  background: var(--cc-cream-2);
+  color: var(--cc-ink-soft);
+  font-size: 15px;
 }
 
 /* Panel background for long forms — slightly warmer cream for edit surfaces */
@@ -1221,8 +1280,269 @@
   color: var(--cc-ink);
 }
 
+/* Tabs — pill segment control (settings / multi-panel).
+   Soft active fill in rust — same energy as dashboard tool chips. */
+.cc-tabs {
+  display: flex;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.35rem;
+  overflow-x: auto;
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.15rem;
+  background: #fff;
+  box-shadow: 0 18px 44px -36px rgba(20, 22, 26, 0.30);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cc-tabs::-webkit-scrollbar { display: none; }
+.cc-tab {
+  position: relative;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.65rem;
+  min-width: max-content;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 0.85rem;
+  background: transparent;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--cc-ash);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.cc-tab:hover { color: var(--cc-ink); background: var(--cc-cream-2); }
+.cc-tab[data-state="active"],
+.cc-tab.is-active {
+  color: var(--cc-rust-deep);
+  background: var(--cc-rust-soft);
+  box-shadow: inset 0 0 0 1px var(--cc-t-border, rgba(42, 82, 204, 0.22));
+}
+.cc-tab[data-state="active"]::after,
+.cc-tab.is-active::after { display: none; }
+.cc-tab__hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.2rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgba(20, 22, 26, 0.06);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cc-ink-soft);
+  opacity: 1;
+}
+.cc-tab[data-state="active"] .cc-tab__hint,
+.cc-tab.is-active .cc-tab__hint {
+  background: rgba(42, 82, 204, 0.16);
+  color: var(--cc-rust-deep);
+}
+.cc-tabs-panel {
+  outline: none;
+}
+.cc-tabs-panel[data-state="inactive"] {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONSOLE — the carbon instrument surface.
+
+   A dark precision panel set into the cream page, the way a terminal sits
+   in a desk. Used by the Career Coach. Every ink here is contrast-checked
+   against --con-bg: ink 16.7:1, ink-2 10.1:1, ink-3 5.9:1, accent 6.5:1 —
+   the tertiary ramp is the floor and never goes below AA body text.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.cc-console {
+  --con-bg:          #101216;
+  --con-panel:       #171A20;
+  --con-raised:      #1E222A;
+  --con-line:        rgba(242, 242, 238, 0.09);
+  --con-line-2:      rgba(242, 242, 238, 0.17);
+  --con-ink:         #F2F2EE;
+  --con-ink-2:       #B9BFCB;
+  --con-ink-3:       #8B92A0;
+  --con-accent:      #6E92FF;
+  --con-accent-2:    #A8BEFF;
+  --con-accent-soft: rgba(110, 146, 255, 0.14);
+  --con-accent-line: rgba(110, 146, 255, 0.34);
+  --con-sage:        #6FBF95;
+  --con-wheat:       #E0B65C;
+  --con-rose:        #F0899B;
+
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -10%, var(--con-accent-soft), transparent 70%),
+    var(--con-bg);
+  color: var(--con-ink);
+}
+
+/* Per-persona accent swap — one variable, everything downstream follows. */
+.cc-console[data-accent="sage"]  { --con-accent: var(--con-sage);  --con-accent-2: #9BD8B7; --con-accent-soft: rgba(111, 191, 149, 0.14); --con-accent-line: rgba(111, 191, 149, 0.34); }
+.cc-console[data-accent="wheat"] { --con-accent: var(--con-wheat); --con-accent-2: #F0D79A; --con-accent-soft: rgba(224, 182, 92, 0.14);  --con-accent-line: rgba(224, 182, 92, 0.34); }
+.cc-console[data-accent="rose"]  { --con-accent: var(--con-rose);  --con-accent-2: #F7B8C4; --con-accent-soft: rgba(240, 137, 155, 0.14); --con-accent-line: rgba(240, 137, 155, 0.34); }
+
+/* Engineering grid — the faint substrate under everything. */
+.cc-console__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--con-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--con-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 5%, transparent 75%);
+  opacity: 0.6;
+}
+
+/* Registration marks — the four corner crosshairs of a print plate. */
+.cc-console__reg {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  z-index: 1;
+  pointer-events: none;
+  border: 1px solid var(--con-accent-line);
+  opacity: 0.75;
+}
+.cc-console__reg--tl { top: 10px; left: 10px;  border-right: 0; border-bottom: 0; }
+.cc-console__reg--tr { top: 10px; right: 10px; border-left: 0;  border-bottom: 0; }
+.cc-console__reg--bl { bottom: 10px; left: 10px;  border-right: 0; border-top: 0; }
+.cc-console__reg--br { bottom: 10px; right: 10px; border-left: 0;  border-top: 0; }
+
+/* Machine microtype — every label, readout and unit in the console. */
+.con-mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Panel — a raised module inside the console. */
+.con-panel {
+  background: var(--con-panel);
+  border: 1px solid var(--con-line);
+  border-radius: 0.85rem;
+}
+.con-panel--raised { background: var(--con-raised); }
+
+/* Ghost control — the default console button. */
+.con-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  padding: 0.4rem 0.6rem;
+  color: var(--con-ink-2);
+  background: transparent;
+  cursor: pointer;
+  transition: color .18s ease, background .18s ease, border-color .18s ease;
+}
+.con-btn:hover:not(:disabled) {
+  color: var(--con-ink);
+  background: rgba(242, 242, 238, 0.07);
+  border-color: var(--con-line-2);
+}
+.con-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.con-btn[data-active="true"] {
+  color: var(--con-bg);
+  background: var(--con-accent);
+  border-color: var(--con-accent);
+}
+
+/* Accent control — the one loud button on screen. */
+.con-btn--accent {
+  color: var(--con-bg);
+  background: var(--con-accent);
+  border-color: var(--con-accent);
+  font-weight: 600;
+}
+.con-btn--accent:hover:not(:disabled) {
+  color: var(--con-bg);
+  background: var(--con-accent-2);
+  border-color: var(--con-accent-2);
+}
+
+/* Live pip — the breathing status dot. */
+.con-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--con-sage);
+  box-shadow: 0 0 0 0 rgba(111, 191, 149, 0.55);
+  animation: con-pulse 2.4s cubic-bezier(.4, 0, .6, 1) infinite;
+}
+@keyframes con-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(111, 191, 149, 0.5); }
+  50%      { box-shadow: 0 0 0 5px rgba(111, 191, 149, 0); }
+}
+
+/* Reasoning bar — the indeterminate sweep while the model thinks. */
+.con-sweep {
+  position: relative;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--con-line);
+  overflow: hidden;
+}
+.con-sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--con-accent), transparent);
+  animation: con-sweep 1.4s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+@keyframes con-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* Console scrollbars — thin, on-theme, always visible enough to grab. */
+.con-scroll { scrollbar-width: thin; scrollbar-color: rgba(242,242,238,0.22) transparent; }
+.con-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.con-scroll::-webkit-scrollbar-track { background: transparent; }
+.con-scroll::-webkit-scrollbar-thumb {
+  background: rgba(242, 242, 238, 0.18);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+.con-scroll::-webkit-scrollbar-thumb:hover { background: rgba(242, 242, 238, 0.32); background-clip: content-box; }
+
+/* Staggered entrance for the welcome grid. */
+.con-rise { animation: con-rise .55s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes con-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
 /* Accessibility — respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
+  .con-pip,
+  .con-sweep::after,
+  .con-rise { animation: none !important; }
+  .con-btn { transition: none !important; }
   .cc-blink,
   .cc-engrave-anim path,
   .cc-engrave-anim circle,
@@ -1235,6 +1555,7 @@
   .cc-drawer,
   .cc-lift,
   .cc-action { transition: none !important; }
+  .cc-tab { transition: none !important; }
   .cc-card-hover:hover { transform: none !important; box-shadow: none !important; }
   .cc-lift:hover { transform: none !important; }
 }

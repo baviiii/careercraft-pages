@@ -10,6 +10,8 @@ import { z } from "npm:zod@3";
 
 import { horusGenerateObject, horusGenerateText } from "../_shared/ai/horus.ts";
 import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
+import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { requireAdmin } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
 const WizardDataSchema = z.object({
@@ -65,6 +67,15 @@ const ImprovedPromptSchema = z.object({
 });
 
 serve(handler(async (req) => {
+  const { userId } = await requireAdmin(req);
+  await enforceWindowLimit({
+    resource: "generate-prompt",
+    userId,
+    limit: 30,
+    windowMinutes: 60,
+    resourceLabel: "AI prompt generation",
+  });
+
   const startTime = Date.now();
 
   const raw = await req.json().catch(() => null);

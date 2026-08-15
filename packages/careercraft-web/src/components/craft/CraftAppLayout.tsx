@@ -23,6 +23,13 @@ interface CraftAppLayoutProps {
   topBarLeft?: ReactNode;
   /** Extra classes on the main content container. */
   className?: string;
+  /**
+   * Pin the layout to exactly one viewport so the page itself never scrolls —
+   * children get the leftover height and own their scrolling. For app surfaces
+   * like the coach that are a single fixed-height panel; without it a child
+   * that fills the screen produces two nested scrollbars.
+   */
+  fill?: boolean;
 }
 
 export const CraftAppLayout = memo(function CraftAppLayout({
@@ -31,6 +38,7 @@ export const CraftAppLayout = memo(function CraftAppLayout({
   headerActions,
   topBarLeft,
   className = "",
+  fill = false,
 }: CraftAppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -102,7 +110,13 @@ export const CraftAppLayout = memo(function CraftAppLayout({
   }
 
   return (
-    <main className="cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] overflow-x-hidden antialiased">
+    <main
+      className={`cc-root cc-font-sans bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] overflow-x-hidden antialiased ${
+        // dvh, not vh — on mobile browsers 100vh sits behind the URL bar and
+        // would push the input row off-screen.
+        fill ? "h-[100dvh] overflow-hidden" : "min-h-screen"
+      }`}
+    >
       {/* Grain backdrop */}
       <div className="cc-grain pointer-events-none fixed inset-0 z-0" />
 
@@ -131,7 +145,11 @@ export const CraftAppLayout = memo(function CraftAppLayout({
       />
 
       {/* Main column */}
-      <div className="lg:pl-[272px] relative z-10 min-h-screen flex flex-col">
+      <div
+        className={`lg:pl-[272px] relative z-10 flex flex-col ${
+          fill ? "h-full min-h-0" : "min-h-screen"
+        }`}
+      >
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-[color:var(--cc-cream)]/90 backdrop-blur-sm border-b border-[color:var(--cc-hair)]">
           <div className="flex items-center justify-between px-6 md:px-10 h-16">
@@ -155,8 +173,18 @@ export const CraftAppLayout = memo(function CraftAppLayout({
           </div>
         </header>
 
-        <div className={`flex-1 px-6 md:px-10 py-10 md:py-14 ${className}`}>
-          <div className="max-w-[1400px] mx-auto">{children}</div>
+        <div
+          className={`flex-1 px-6 md:px-10 py-10 md:py-14 ${
+            fill ? "min-h-0 overflow-hidden" : ""
+          } ${className}`}
+        >
+          <div
+            className={`max-w-[1400px] mx-auto ${
+              fill ? "flex h-full min-h-0 flex-col" : ""
+            }`}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </main>

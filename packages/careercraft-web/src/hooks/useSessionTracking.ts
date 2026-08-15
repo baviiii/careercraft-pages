@@ -114,29 +114,6 @@ export function useSessionTracking(session: Session | null) {
     };
   }, [session?.user?.id, sendHeartbeat]);
 
-  // Handle page unload - mark session as inactive
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (session?.user?.id && sessionTokenRef.current) {
-        // Use sendBeacon for reliable delivery on page unload
-        const url = `https://hfchxjytxhsiuwqaugmv.supabase.co/functions/v1/track-session`;
-        const data = JSON.stringify({
-          event: 'logout',
-          userId: session.user.id,
-          sessionToken: sessionTokenRef.current,
-        });
-        
-        navigator.sendBeacon(url, data);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [session]);
-
   return {
     trackEvent,
     sessionToken: sessionTokenRef.current,

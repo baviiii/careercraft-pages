@@ -1,4 +1,21 @@
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+import {
+  supabase,
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY,
+} from '@/integrations/supabase/client';
+
+async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (error || !token) {
+    throw new Error('Please sign in to use AI resume analysis.');
+  }
+  return {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${token}`,
+  };
+}
 
 // Helper function to safely parse error responses
 async function parseErrorResponse(response: Response): Promise<{ error?: string }> {
@@ -83,10 +100,7 @@ export async function runATSAIAnalysis(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: await getAuthenticatedHeaders(),
       body: JSON.stringify({
         resumeText,
         jobDescription,
@@ -119,10 +133,7 @@ export async function autoRewriteResume(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: await getAuthenticatedHeaders(),
       body: JSON.stringify({
         resumeText,
         jobDescription,
@@ -154,10 +165,7 @@ export async function rewriteExperienceSection(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: await getAuthenticatedHeaders(),
       body: JSON.stringify({
         resumeText,
         jobDescription,
@@ -189,10 +197,7 @@ export async function generateAchievements(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: await getAuthenticatedHeaders(),
       body: JSON.stringify({
         resumeText,
         jobDescription,
@@ -220,10 +225,7 @@ export async function generateSummaries(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: await getAuthenticatedHeaders(),
       body: JSON.stringify({
         resumeText,
         jobDescription,
@@ -258,10 +260,7 @@ export async function rewriteResumeStructured(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-      },
+      headers: await getAuthenticatedHeaders(),
       body: JSON.stringify({
         resumeData: JSON.stringify(resumeData),
         jobDescription,

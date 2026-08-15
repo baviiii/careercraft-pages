@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { UnauthorizedError } from "../_shared/ai/errors.ts";
+import { requireUser } from "../_shared/http/auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +26,28 @@ type SessionEvent =
   | 'password_reset_failure'
   | 'session_heartbeat' 
   | 'logout';
+
+const SESSION_EVENTS = new Set<SessionEvent>([
+  'login_success',
+  'login_failure',
+  'signup_success',
+  'signup_failure',
+  'password_reset_request',
+  'password_reset_complete',
+  'password_reset_failure',
+  'session_heartbeat',
+  'logout',
+]);
+
+// These happen before a Supabase session exists. They may be recorded as
+// anonymous security signals, but they can never assert a user_id or trigger
+// session mutations.
+const PRE_AUTH_EVENTS = new Set<SessionEvent>([
+  'login_failure',
+  'signup_failure',
+  'password_reset_request',
+  'password_reset_failure',
+]);
 
 interface TrackSessionRequest {
   event: SessionEvent;
@@ -88,6 +112,16 @@ function generateSessionToken(): string {
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+async function sha256(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(input),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function getEventSeverity(event: SessionEvent): string {
   switch (event) {
     case 'login_failure':
@@ -146,19 +180,95 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: TrackSessionRequest = await req.json();
-    const { event, email, userId, userAgent, sessionToken, reason } = body;
+    if (!SESSION_EVENTS.has(body.event)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid event' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const event = body.event;
+    const isPreAuthEvent = PRE_AUTH_EVENTS.has(event);
+    const auth = isPreAuthEvent ? null : await requireUser(req);
+
+    // Authenticated identities always come from the verified JWT. Pre-auth
+    // events are anonymous and cannot forge a database user identity.
+    const userId = auth?.userId ?? null;
+    const email = auth?.email ?? (
+      typeof body.email === 'string'
+        ? body.email.trim().toLowerCase().slice(0, 254)
+        : null
+    );
+    const userAgent = (req.headers.get('user-agent') || body.userAgent || '').slice(0, 500);
+    const sessionToken =
+      !isPreAuthEvent && typeof body.sessionToken === 'string'
+        ? body.sessionToken.slice(0, 128)
+        : null;
+    const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : null;
 
     // Get IP from headers (Supabase edge functions provide this)
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
                req.headers.get('x-real-ip') || 
                'unknown';
 
-    console.log(`Processing ${event} event for ${email || userId}, IP: ${ip}`);
+    if (isPreAuthEvent) {
+      const { data: quotaCount, error: quotaError } = await supabase.rpc(
+        'consume_anonymous_edge_quota',
+        {
+          p_principal_hash: await sha256(ip),
+          p_resource: 'track-session-preauth',
+          p_limit: 30,
+          p_window_minutes: 15,
+        },
+      );
+      if (quotaError) {
+        throw new Error(`Pre-auth rate-limit check failed: ${quotaError.message}`);
+      }
+      if (Number(quotaCount ?? 0) <= 0) {
+        return new Response(
+          JSON.stringify({ error: 'Too many requests. Try again later.' }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+              'Retry-After': '900',
+            },
+          },
+        );
+      }
+    } else if (userId) {
+      const { data: quotaCount, error: quotaError } = await supabase.rpc(
+        'consume_edge_function_quota',
+        {
+          p_user_id: userId,
+          p_resource: 'track-session',
+          p_limit: 300,
+          p_window_minutes: 60,
+        },
+      );
+      if (quotaError) {
+        throw new Error(`Session rate-limit check failed: ${quotaError.message}`);
+      }
+      if (Number(quotaCount ?? 0) <= 0) {
+        return new Response(
+          JSON.stringify({ error: 'Too many requests. Try again later.' }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+              'Retry-After': '3600',
+            },
+          },
+        );
+      }
+    }
+
+    console.log(`Processing ${event} event`);
 
     // Get geo-location
     const geo = await getGeoLocation(ip);
-    console.log('Geo location result:', geo);
-
     const now = new Date().toISOString();
 
     // Log activity for all events
@@ -180,8 +290,6 @@ Deno.serve(async (req) => {
       country_code: geo.country_code,
       city: geo.city,
     };
-
-    console.log('Logging activity:', activityLogData);
 
     const { error: activityError } = await supabase
       .from('activity_logs')
@@ -210,8 +318,6 @@ Deno.serve(async (req) => {
         longitude: geo.longitude,
       };
 
-      console.log('Inserting login attempt:', loginAttemptData);
-
       const { error: loginError } = await supabase
         .from('login_attempts')
         .insert(loginAttemptData);
@@ -238,7 +344,6 @@ Deno.serve(async (req) => {
 
           if (!findError && existingSession) {
             // Update existing session
-            console.log('Updating existing session:', currentSessionToken);
             const { data: updated, error: updateError } = await supabase
               .from('user_sessions')
               .update({
@@ -298,8 +403,6 @@ Deno.serve(async (req) => {
             longitude: geo.longitude,
           };
 
-          console.log('Creating new session:', sessionData);
-
           const { data: newSession, error: sessionError } = await supabase
             .from('user_sessions')
             .insert(sessionData)
@@ -331,7 +434,7 @@ Deno.serve(async (req) => {
     } 
     // Handle signup events - also log to login_attempts for unified admin view
     else if (event === 'signup_success' || event === 'signup_failure') {
-      console.log(`Signup ${event === 'signup_success' ? 'success' : 'failure'} recorded for ${email}`);
+      console.log(`Signup ${event === 'signup_success' ? 'success' : 'failure'} recorded`);
       
       // Record signup attempt to login_attempts for admin visibility
       const signupAttemptData = {
@@ -347,8 +450,6 @@ Deno.serve(async (req) => {
         latitude: geo.latitude,
         longitude: geo.longitude,
       };
-
-      console.log('Inserting signup attempt to login_attempts:', signupAttemptData);
 
       const { error: signupError } = await supabase
         .from('login_attempts')
@@ -379,8 +480,6 @@ Deno.serve(async (req) => {
           longitude: geo.longitude,
         };
 
-        console.log('Creating session for new signup:', sessionData);
-
         const { error: sessionError } = await supabase
           .from('user_sessions')
           .insert(sessionData);
@@ -406,7 +505,7 @@ Deno.serve(async (req) => {
     }
     // Handle password reset events
     else if (event === 'password_reset_request' || event === 'password_reset_complete' || event === 'password_reset_failure') {
-      console.log(`Password reset event ${event} recorded for ${email}`);
+      console.log(`Password reset event ${event} recorded`);
       
       // For password reset complete, if we have a userId, we should invalidate old sessions
       if (event === 'password_reset_complete' && userId) {
@@ -470,11 +569,16 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error('Error in track-session function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const unauthorized = error instanceof UnauthorizedError;
+    const errorMessage = unauthorized
+      ? 'Authentication required'
+      : error instanceof Error
+        ? error.message
+        : 'Unknown error';
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { 
-        status: 500, 
+        status: unauthorized ? 401 : 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );

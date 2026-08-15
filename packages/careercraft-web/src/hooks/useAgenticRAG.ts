@@ -8,13 +8,20 @@
  * - User can switch between modes in UI
  * 
  * BACKEND INTEGRATION:
- * - agentic-planner Azure Function: Query planning with GPT-4 function calling
- * - intersection-reasoning Azure Function: Analyze overlaps & contradictions
- * - graph-query Azure Function: Cosmos DB (Gremlin) and Neo4j graph queries
+ * - PRIMARY: Horus (horus-rag edge function) — Postgres knowledge graph and the
+ *   Content Understanding corpus. Graph edges carry the sentence they were
+ *   extracted from, so relationship claims are auditable.
+ * - LEGACY (fallback only, being archived): agentic-planner /
+ *   intersection-reasoning / graph-query Azure Functions over Cosmos Gremlin.
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRAGMetadata } from "./useRAGMetadata";
+import {
+  horusEntityLookup,
+  horusTraverse,
+  isHorusRagEnabled,
+} from "@/lib/horusKnowledge";
 
 // Reuse types from useEnterpriseRAG for consistency
 export interface ChatMessage {
@@ -432,8 +439,41 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     depth: number = 2
   ): Promise<any[]> => {
     try {
+      // PRIMARY: Horus Postgres knowledge graph. Resolves the entity by name
+      // (exact → alias → contains) then walks a bounded BFS neighbourhood.
+      // Each edge carries the sentence it was extracted from, which is what
+      // buildAgenticContext injects so the model reasons from evidence.
+      if (isHorusRagEnabled()) {
+        try {
+          const result = await horusTraverse(startEntityId, depth);
+          if (result.notFound) {
+            console.log(`[AgenticRAG] ℹ️ Horus graph has no entity matching "${startEntityId}"`);
+            return [];
+          }
+          // Fold edge evidence onto the node rows the planner already consumes,
+          // so relationships survive into the context without a shape change.
+          const evidenceByNode = new Map<string, string[]>();
+          for (const edge of result.edges ?? []) {
+            if (!edge.evidence) continue;
+            for (const node of [edge.from, edge.to]) {
+              const list = evidenceByNode.get(node) ?? [];
+              if (list.length < 3) list.push(`${edge.from} —${edge.type}→ ${edge.to}: ${edge.evidence}`);
+              evidenceByNode.set(node, list);
+            }
+          }
+          const entities = (result.data ?? []).map((node) => ({
+            ...node,
+            description: evidenceByNode.get(node.name)?.join(' | '),
+          }));
+          console.log(`[AgenticRAG] ✅ Horus graph: ${entities.length} entities, ${result.edges?.length ?? 0} edges`);
+          return entities;
+        } catch (horusErr) {
+          console.error("[AgenticRAG] Horus graph traversal failed, falling back:", horusErr);
+        }
+      }
+
       console.log("[AgenticRAG] 🔗 Traversing graph via Azure Function:", { startEntityId, relationships, depth });
-      
+
       // Check if graph query URL is configured
       if (!GRAPH_QUERY_URL) {
         console.warn("[AgenticRAG] ⚠️ Graph query URL not configured, using fallback");
@@ -855,6 +895,21 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         }
 
         case 'entity_lookup':
+          // PRIMARY: Horus careers endpoints. Resolving "nurse" returns the
+          // whole profile — skills, qualifications, employers — each with the
+          // sentence behind it, not just a bare entity row.
+          if (isHorusRagEnabled()) {
+            try {
+              const lookup = await horusEntityLookup(step.query);
+              results = lookup.data ?? [];
+              if (results.length > 0) {
+                console.log(`[AgenticRAG] ✅ Horus entity lookup: ${results.length} rows for "${step.query}"`);
+                break;
+              }
+            } catch (horusErr) {
+              console.error("[AgenticRAG] Horus entity lookup failed, falling back:", horusErr);
+            }
+          }
           // Search for entities by name via Azure Function
           if (GRAPH_QUERY_URL) {
             try {
@@ -882,6 +937,28 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
           break;
 
         case 'get_impacts':
+          // PRIMARY: Horus. There is no dedicated "impacts" endpoint — an
+          // impact IS an edge in the graph, so a neighbourhood walk returns
+          // the same information with evidence attached to each connection.
+          if (isHorusRagEnabled()) {
+            try {
+              const impacts = await horusTraverse(step.query, 2);
+              if (!impacts.notFound && (impacts.data?.length ?? 0) > 0) {
+                results = (impacts.edges ?? []).map((edge) => ({
+                  title: `${edge.from} —${edge.type}→ ${edge.to}`,
+                  description: edge.evidence,
+                  confidence: edge.confidence,
+                }));
+                // A resolved entity with no edges is still a real answer:
+                // the corpus mentions it but records no connections.
+                if (results.length === 0) results = impacts.data ?? [];
+                console.log(`[AgenticRAG] ✅ Horus impacts: ${results.length} for "${step.query}"`);
+                break;
+              }
+            } catch (horusErr) {
+              console.error("[AgenticRAG] Horus impact query failed, falling back:", horusErr);
+            }
+          }
           // Query policy impacts via graph-query Azure Function
           if (GRAPH_QUERY_URL) {
             try {

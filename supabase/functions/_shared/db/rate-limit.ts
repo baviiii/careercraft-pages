@@ -28,6 +28,49 @@ export interface LimitResult {
   remaining: number;
 }
 
+export interface WindowLimitOpts {
+  /** Stable server-owned resource key (never accept this from the request). */
+  resource: string;
+  /** Authenticated user id. */
+  userId: string;
+  /** Maximum requests allowed in the fixed window. */
+  limit: number;
+  /** Fixed-window duration in minutes. */
+  windowMinutes: number;
+  /** Human-readable resource name for error messages. */
+  resourceLabel?: string;
+}
+
+/**
+ * Atomically consumes one request from a fixed-window quota.
+ *
+ * The backing RPC is executable only by the service role. The user id must
+ * always come from requireUser()/requireAdmin(), never from a request body.
+ */
+export async function enforceWindowLimit(opts: WindowLimitOpts): Promise<number> {
+  const { data, error } = await adminClient().rpc("consume_edge_function_quota", {
+    p_user_id: opts.userId,
+    p_resource: opts.resource,
+    p_limit: opts.limit,
+    p_window_minutes: opts.windowMinutes,
+  });
+
+  if (error) {
+    throw new Error(`Rate-limit check failed: ${error.message}`);
+  }
+
+  const used = typeof data === "number" ? data : Number(data ?? 0);
+  if (used <= 0) {
+    throw new RateLimitError(
+      `Rate limit reached for ${opts.resourceLabel ?? "this resource"}. Try again later.`,
+      opts.windowMinutes * 60,
+      opts.limit,
+    );
+  }
+
+  return used;
+}
+
 export async function enforceDailyLimit(opts: LimitOpts): Promise<LimitResult> {
   const { data, error } = await adminClient().rpc(opts.rpcName, {
     p_user_id: opts.userId,

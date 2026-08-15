@@ -12,6 +12,8 @@ import { z } from "npm:zod@3";
 
 import { horusGenerateText } from "../_shared/ai/horus.ts";
 import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
+import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
 const RequestSchema = z.object({
@@ -86,6 +88,15 @@ Key requirements:
 }
 
 serve(handler(async (req) => {
+  const { userId } = await requireUser(req);
+  await enforceWindowLimit({
+    resource: "rewrite-resume",
+    userId,
+    limit: 60,
+    windowMinutes: 60,
+    resourceLabel: "AI rewriting",
+  });
+
   const raw = await req.json().catch(() => null);
   const parsed = RequestSchema.safeParse(raw);
   if (!parsed.success) {

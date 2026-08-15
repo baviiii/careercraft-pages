@@ -1,16 +1,16 @@
 /**
- * Learning resources — live, source-backed recommendations from the MCP
- * (community-vetted, with proof chips). Real data only: unavailable states
- * say so, nothing is fabricated.
+ * Learning resources — field-aware MCP recommendations + proven tips.
  */
 import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, RotateCcw, Star } from "lucide-react";
 import {
+  COACH_AVAILABLE,
   interviewCoach,
   type CoachResource,
   type ProvenTip,
 } from "@/lib/interviewCoach";
 import { ProofChip } from "./ProofChip";
+import { CoachOfflineBanner } from "./CoachOfflineBanner";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -31,11 +31,20 @@ export function ResourcesPanel({ field }: { field?: string }) {
 
   const load = useCallback(
     async (skillFocus?: string) => {
+      if (!COACH_AVAILABLE) {
+        setResources([]);
+        setUnavailable(true);
+        return;
+      }
       setLoading(true);
       setUnavailable(false);
       try {
         const skills =
-          skillFocus && skillFocus !== "all" ? [skillFocus] : field ? [field] : undefined;
+          skillFocus && skillFocus !== "all"
+            ? [skillFocus]
+            : field
+              ? [field]
+              : undefined;
         const result = await interviewCoach.getResources({
           skills,
           goal: field ? `interview prep for ${field}` : "interview prep",
@@ -54,6 +63,10 @@ export function ResourcesPanel({ field }: { field?: string }) {
   );
 
   const loadTips = useCallback(async () => {
+    if (!COACH_AVAILABLE) {
+      setTips([]);
+      return;
+    }
     setTipsLoading(true);
     try {
       setTips(await interviewCoach.getProvenTips({ skill: field, count: 3 }));
@@ -71,27 +84,46 @@ export function ResourcesPanel({ field }: { field?: string }) {
     void loadTips();
   }, [loadedOnce, load, loadTips]);
 
+  // Reload when field personalization arrives after first paint
+  useEffect(() => {
+    if (!loadedOnce || !field) return;
+    void load(filter === "all" ? undefined : filter);
+    void loadTips();
+  }, [field]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="space-y-6">
-      {/* Filter strip */}
+      {!COACH_AVAILABLE && <CoachOfflineBanner />}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-[color:var(--cc-ink-soft)]">
-          Community-vetted material, each with its source on the chip.
-        </p>
-        <div className="inline-flex border border-[color:var(--cc-hair-strong)]">
+        <div>
+          <p className="text-sm text-[color:var(--cc-ink-soft)]">
+            Community-vetted material
+            {field ? (
+              <>
+                {" "}
+                for <span className="font-semibold text-[color:var(--cc-ink)]">{field}</span>
+              </>
+            ) : (
+              ""
+            )}
+            , each with its source on the chip.
+          </p>
+        </div>
+        <div className="inline-flex overflow-hidden rounded-[0.85rem] border border-[color:var(--cc-hair-strong)]">
           {FILTERS.map((f) => (
             <button
               key={f.id}
+              type="button"
               onClick={() => {
                 setFilter(f.id);
                 void load(f.id === "all" ? undefined : f.id);
               }}
-              className={[
-                "cc-label-sm px-3 py-2 transition-colors",
+              className={`px-3 py-2 text-xs font-semibold transition-colors ${
                 filter === f.id
                   ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-                  : "text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]",
-              ].join(" ")}
+                  : "text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]"
+              }`}
             >
               {f.label}
             </button>
@@ -99,11 +131,13 @@ export function ResourcesPanel({ field }: { field?: string }) {
         </div>
       </div>
 
-      {/* Grid */}
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-44 animate-pulse border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]" />
+            <div
+              key={i}
+              className="h-44 animate-pulse rounded-[1.25rem] border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]"
+            />
           ))}
         </div>
       ) : resources.length ? (
@@ -114,11 +148,11 @@ export function ResourcesPanel({ field }: { field?: string }) {
               href={resource.url}
               target="_blank"
               rel="noreferrer"
-              className="group flex flex-col border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-5 transition-colors hover:border-[color:var(--cc-ink)]"
+              className="cc-surface cc-lift group flex flex-col p-5"
             >
               <div className="mb-3 flex items-center justify-between">
                 <span className="cc-label-sm text-[color:var(--cc-rust)]">{resource.type}</span>
-                <ArrowUpRight className="cc-arrow-up h-3.5 w-3.5 text-[color:var(--cc-ash)] transition-transform" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-[color:var(--cc-ash)] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
               </div>
               <p className="cc-font-display text-lg leading-snug text-[color:var(--cc-ink)] group-hover:text-[color:var(--cc-rust)]">
                 {resource.title}
@@ -149,34 +183,38 @@ export function ResourcesPanel({ field }: { field?: string }) {
           ))}
         </div>
       ) : (
-        <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-10 text-center">
-          <p className="cc-label mb-2 text-[color:var(--cc-ink)]">
-            Resources not available at the moment
+        <div className="cc-tint cc-tone-wheat px-6 py-10 text-center">
+          <p className="cc-kicker mb-2">
+            {COACH_AVAILABLE ? "Nothing here yet" : "Coach offline"}
           </p>
-          <p className="text-sm text-[color:var(--cc-ash)]">
+          <p className="text-sm text-[color:var(--cc-ink-soft)]">
             {unavailable
-              ? "Live recommendations couldn't be loaded right now."
+              ? COACH_AVAILABLE
+                ? "Live recommendations couldn't be loaded right now."
+                : "Resources need the interview coach. History still works from Home."
               : "Nothing matches this filter."}
           </p>
-          <button
-            onClick={() => {
-              setFilter("all");
-              void load();
-            }}
-            className="cc-btn cc-btn-ghost mt-5"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Try again
-          </button>
+          {COACH_AVAILABLE && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilter("all");
+                void load();
+              }}
+              className="cc-action cc-action--ghost mt-5"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Try again
+            </button>
+          )}
         </div>
       )}
 
-      {/* Proven tips */}
       {(tipsLoading || tips.length > 0) && (
-        <section className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]">
-          <div className="border-b border-[color:var(--cc-hair)] px-5 py-4">
-            <p className="cc-label text-[color:var(--cc-ink)]">Proven tips</p>
-            <p className="mt-0.5 text-xs text-[color:var(--cc-ash)]">
+        <section className="cc-surface overflow-hidden">
+          <div className="border-b border-[color:var(--cc-hair)] bg-[color:var(--cc-rust-soft)]/30 px-5 py-4">
+            <p className="cc-kicker">Proven tips</p>
+            <p className="mt-1 text-xs text-[color:var(--cc-ash)]">
               Coaching advice backed by real, vetted sources.
             </p>
           </div>

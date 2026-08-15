@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { callRAGMetadata, isAzureFunctionsConfigured } from "@/lib/azureFunctions";
+import { horusSearch, isHorusRagEnabled } from "@/lib/horusKnowledge";
 import { getChatPrompt } from "@/lib/promptLoader";
 
 const queryCache = new Map<string, {
@@ -47,21 +48,46 @@ const executeSemanticSearch = async (
   try {
     /**
      * RAG ARCHITECTURE:
-     * 
-     * PRIMARY: Azure Functions (rag-metadata)
-     *   - Used when VITE_AZURE_FUNCTIONS_URL is set
-     *   - Accepts systemPrompt parameter (database-driven prompts)
-     *   - Better performance and scalability
-     * 
-     * FALLBACK: Supabase Edge Functions (rag-query)
-     *   - Used if Azure Functions not configured
-     *   - See supabase/functions/rag-query/index.ts
-     *   - Uses hardcoded prompts (not database-driven)
-     * 
-     * Prompt System:
-     *   - Database prompts work with Azure Functions (primary)
-     *   - Fallback uses hardcoded prompts
+     *
+     * PRIMARY: Horus (horus-rag edge function → horus-platform)
+     *   - The Content Understanding corpus + Postgres knowledge graph.
+     *   - Answers are grounded and every claim carries a citation.
+     *   - Disable with VITE_HORUS_RAG=off to fall through to the legacy path.
+     *
+     * LEGACY 1: Azure Functions (rag-metadata)
+     *   - Reads the old `sa-gov-documents` index. This infrastructure is being
+     *     archived; kept only as a safety net while Horus is proven in prod.
+     *
+     * LEGACY 2: Supabase Edge Functions (rag-query)
+     *   - Last resort. Hardcoded prompts, not database-driven.
+     *
+     * Once Horus has run clean in production, both legacy tiers and their
+     * VITE_AZURE_* configuration should be deleted outright.
      */
+    if (isHorusRagEnabled()) {
+      try {
+        const horus = await horusSearch(
+          query,
+          filters || {},
+          {
+            topK: options?.topK || 12,
+            systemPrompt: options?.systemPrompt,
+          },
+        );
+
+        queryCache.set(cacheKey, {
+          data: horus,
+          timestamp: Date.now(),
+          expiresAt: Date.now() + CACHE_TTL,
+        });
+        return horus;
+      } catch (horusErr) {
+        // Never let a Horus outage take the product down while the legacy
+        // stack is still deployed — fall through and log loudly.
+        console.error("[semanticSearch] Horus failed, falling back:", horusErr);
+      }
+    }
+
     if (isAzureFunctionsConfigured()) {
       console.log("[semanticSearch] Using Azure Functions (primary)");
       const result = await callRAGMetadata<{

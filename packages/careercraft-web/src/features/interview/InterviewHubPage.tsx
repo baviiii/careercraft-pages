@@ -1,123 +1,224 @@
 /**
- * Interview Prep hub — the calm side of the product. Overview, new session,
- * history, resources, plus the career-development panels. The live interview
- * itself happens in the full-screen room (/interview-prep/room).
+ * Interview Prep hub — practice-only.
+ * Home (hero + start) · History · Resources. Career lives at /career-coach.
+ * Live session: /interview-prep/room
  */
 import { useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  ArrowUpRight,
+  Award,
+  BookOpen,
+  Compass,
+  History,
+  Home,
+  Library,
+  UserCircle,
+} from "lucide-react";
 import CraftAppLayout from "@/components/craft/CraftAppLayout";
-import InterviewDashboard from "@/components/interview/InterviewDashboard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePersonalization } from "@/hooks/usePersonalization";
+import {
+  mapIndustryToCareerField,
+  normalizeCareerField,
+  isCareerField,
+} from "@/lib/careerFields";
+import InterviewHome from "@/components/interview/InterviewDashboard";
+import { HistoryPanel } from "./components/HistoryPanel";
+import { ResourcesPanel } from "./components/ResourcesPanel";
+import { SetupPanel } from "./components/SetupPanel";
 import CareerProfilePanel from "@/components/career-dev/CareerProfilePanel";
 import CareerGuidancePanel from "@/components/career-dev/CareerGuidancePanel";
 import CertificationsPanel from "@/components/career-dev/CertificationsPanel";
 import StudyPanel from "@/components/career-dev/StudyPanel";
-import { HistoryPanel } from "./components/HistoryPanel";
-import { ResourcesPanel } from "./components/ResourcesPanel";
-import { SetupPanel } from "./components/SetupPanel";
 
 type HubTab =
-  | "overview"
-  | "practice"
+  | "home"
   | "history"
   | "resources"
   | "profile"
-  | "career-coach"
+  | "guidance"
   | "certifications"
   | "study";
 
-const TABS: Array<{ id: HubTab; label: string; group: "prep" | "career" }> = [
-  { id: "overview", label: "Overview", group: "prep" },
-  { id: "practice", label: "New session", group: "prep" },
-  { id: "history", label: "History", group: "prep" },
-  { id: "resources", label: "Resources", group: "prep" },
-  { id: "profile", label: "Profile", group: "career" },
-  { id: "career-coach", label: "Career coach", group: "career" },
-  { id: "certifications", label: "Certifications", group: "career" },
-  { id: "study", label: "Study", group: "career" },
+/**
+ * Practice first, then the long game. The career/study tabs are the MCP's
+ * career.* and study.* tools — they live here rather than on their own route so
+ * there's one destination for "getting ready", and no name collision with
+ * /career-coach (the SA Government document chat, a different system entirely).
+ */
+const TABS: Array<{ id: HubTab; label: string; icon: typeof Home }> = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "history", label: "History", icon: History },
+  { id: "resources", label: "Resources", icon: Library },
+  { id: "profile", label: "Profile", icon: UserCircle },
+  { id: "guidance", label: "Guidance", icon: Compass },
+  { id: "certifications", label: "Certifications", icon: Award },
+  { id: "study", label: "Study", icon: BookOpen },
 ];
 
-/** Old deep links (?tab=setup / ?tab=dashboard / ?tab=interview) still land somewhere sane. */
+/** Old deep links still land somewhere sane. */
 const LEGACY_TABS: Record<string, HubTab> = {
-  dashboard: "overview",
-  setup: "practice",
-  interview: "practice",
+  overview: "home",
+  dashboard: "home",
+  practice: "home",
+  setup: "home",
+  interview: "home",
   evaluation: "history",
+  "career-coach": "guidance",
+  roadmap: "guidance",
+  certs: "certifications",
+  learning: "study",
+  pathway: "study",
 };
 
+const ease = [0.2, 0.8, 0.2, 1] as const;
+
 function resolveTab(param: string | null): HubTab {
-  if (!param) return "overview";
+  if (!param) return "home";
   if (TABS.some((t) => t.id === param)) return param as HubTab;
-  return LEGACY_TABS[param] ?? "overview";
+  return LEGACY_TABS[param] ?? "home";
 }
 
 export default function InterviewHubPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = resolveTab(searchParams.get("tab"));
+  const sessionId = searchParams.get("session");
+  const { profile, hasPersonalizationData } = usePersonalization();
 
-  // Normalize legacy tab params in the URL once resolved.
+  const resourceField = useMemo(() => {
+    if (!hasPersonalizationData) return undefined;
+    if (profile.industry) {
+      const mapped = normalizeCareerField(mapIndustryToCareerField(profile.industry));
+      if (isCareerField(mapped)) return mapped;
+    }
+    return profile.targetJobTitles?.[0] || undefined;
+  }, [hasPersonalizationData, profile.industry, profile.targetJobTitles]);
+
+  const seniority = hasPersonalizationData ? profile.careerLevel || undefined : undefined;
+
+  // Normalize legacy tab params in the URL.
   useEffect(() => {
     const raw = searchParams.get("tab");
-    if (raw && raw !== tab) setSearchParams({ tab }, { replace: true });
+    if (raw && raw !== tab) {
+      const next = new URLSearchParams(searchParams);
+      if (tab === "home") next.delete("tab");
+      else next.set("tab", tab);
+      setSearchParams(next, { replace: true });
+    }
   }, [searchParams, tab, setSearchParams]);
 
-  const setTab = (next: HubTab) => setSearchParams(next === "overview" ? {} : { tab: next });
+  const setTab = (next: HubTab) => {
+    const params = new URLSearchParams();
+    if (next !== "home") params.set("tab", next);
+    // Drop session when leaving history
+    if (next === "history" && sessionId) params.set("session", sessionId);
+    setSearchParams(params);
+  };
 
-  const groups = useMemo(
-    () => [
-      { label: "Prep", items: TABS.filter((t) => t.group === "prep") },
-      { label: "Career", items: TABS.filter((t) => t.group === "career") },
-    ],
-    [],
-  );
+  const scrollToSetup = () => {
+    setTab("home");
+    requestAnimationFrame(() => {
+      document.getElementById("interview-setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   return (
-    <CraftAppLayout>
-      {/* Masthead */}
-      <div className="mb-8 border-b border-[color:var(--cc-ink)] pb-6">
-        <p className="cc-label mb-3 text-[color:var(--cc-rust)]">Interview prep</p>
-        <h1 className="cc-font-display text-4xl tracking-tight text-[color:var(--cc-ink)] md:text-5xl">
-          Practice like it counts
-        </h1>
-        <p className="mt-3 max-w-xl text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
-          Structured mock interviews that adapt to how you answer, then a debrief that tells you
-          exactly what to fix.
-        </p>
-      </div>
-
-      {/* Tab nav */}
-      <nav className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-[color:var(--cc-hair-strong)]">
-        {groups.map((group, gi) => (
-          <div key={group.label} className="flex items-center gap-x-6">
-            {gi > 0 && <span className="hidden h-4 w-px bg-[color:var(--cc-hair-strong)] md:block" />}
-            {group.items.map((t) => {
-              const active = tab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={[
-                    "cc-label-sm -mb-px border-b-2 pb-3 transition-colors",
-                    active
-                      ? "border-[color:var(--cc-rust)] text-[color:var(--cc-rust)]"
-                      : "border-transparent text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]",
-                  ].join(" ")}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
+    <CraftAppLayout
+      topBarLeft={<div className="cc-label-sm text-[color:var(--cc-ash)]">Interview prep</div>}
+      headerActions={
+        <button type="button" onClick={scrollToSetup} className="cc-action cc-action--sm">
+          Start practice <ArrowUpRight className="h-3.5 w-3.5" />
+        </button>
+      }
+    >
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, ease }}
+        className="cc-hero text-[color:var(--cc-ink)]"
+      >
+        <div className="relative px-6 pb-8 pt-8 md:px-10 md:pt-10">
+          <div className="cc-eyebrow cc-tone-cobalt">Judgment-free reps</div>
+          <h1 className="mt-5 max-w-2xl cc-font-display text-[2.4rem] leading-[0.96] tracking-[-0.035em] md:text-[3.1rem]">
+            Practice like it{" "}
+            <span className="cc-italic-wonk text-[color:var(--cc-rust)]">counts.</span>
+          </h1>
+          <p className="mt-4 max-w-lg cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+            Pick a situation, sit the loop, then read a debrief that tells you exactly what to fix.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={scrollToSetup} className="cc-action">
+              Practice your first interview
+              <ArrowUpRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("history")}
+              className="cc-action cc-action--ghost"
+            >
+              View history
+            </button>
           </div>
-        ))}
-      </nav>
+        </div>
+      </motion.section>
 
-      {tab === "overview" && <InterviewDashboard />}
-      {tab === "practice" && <SetupPanel />}
-      {tab === "history" && <HistoryPanel />}
-      {tab === "resources" && <ResourcesPanel />}
-      {tab === "profile" && <CareerProfilePanel onNavigate={(t) => setTab(resolveTab(t))} />}
-      {tab === "career-coach" && <CareerGuidancePanel />}
-      {tab === "certifications" && <CertificationsPanel />}
-      {tab === "study" && <StudyPanel />}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as HubTab)} className="mt-8 pb-16">
+        <TabsList className="cc-tabs sticky top-2 z-20 h-auto justify-start p-[0.35rem]">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <TabsTrigger
+              key={id}
+              value={id}
+              className="cc-tab rounded-[0.85rem] shadow-none data-[state=active]:bg-[color:var(--cc-rust-soft)] data-[state=active]:text-[color:var(--cc-rust-deep)] data-[state=active]:shadow-none"
+            >
+              <Icon className="h-3.5 w-3.5 opacity-70" aria-hidden />
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value="home" className="cc-tabs-panel mt-6 space-y-8 focus-visible:ring-0">
+          <div id="interview-setup">
+            <SetupPanel />
+          </div>
+          <InterviewHome
+            onOpenHistory={(id) => {
+              const params = new URLSearchParams({ tab: "history" });
+              if (id) params.set("session", id);
+              setSearchParams(params);
+            }}
+            onStartPractice={scrollToSetup}
+          />
+        </TabsContent>
+
+        <TabsContent value="history" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <HistoryPanel
+            highlightId={sessionId}
+            onStartPractice={scrollToSetup}
+          />
+        </TabsContent>
+
+        <TabsContent value="resources" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <ResourcesPanel field={resourceField} />
+        </TabsContent>
+
+        <TabsContent value="profile" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <CareerProfilePanel onNavigate={(next) => setTab(resolveTab(next))} />
+        </TabsContent>
+
+        <TabsContent value="guidance" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <CareerGuidancePanel field={resourceField} seniority={seniority} />
+        </TabsContent>
+
+        <TabsContent value="certifications" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <CertificationsPanel field={resourceField} />
+        </TabsContent>
+
+        <TabsContent value="study" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <StudyPanel field={resourceField} />
+        </TabsContent>
+      </Tabs>
     </CraftAppLayout>
   );
 }

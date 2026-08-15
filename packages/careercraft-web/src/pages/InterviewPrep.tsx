@@ -1,6 +1,5 @@
 /**
- * /interview-prep — the hub (overview, new session, history, resources,
- * career panels). The live session runs full-screen at /interview-prep/room.
- * Implementation lives in src/features/interview/.
+ * /interview-prep — practice hub (Home, History, Resources).
+ * Live session runs full-screen at /interview-prep/room.
  */
 export { default } from "@/features/interview/InterviewHubPage";

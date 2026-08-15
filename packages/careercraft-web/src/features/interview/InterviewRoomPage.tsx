@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useInterviewSession, clearStagedSession } from "./hooks/useInterviewSession";
 import { AnswerComposer } from "./components/room/AnswerComposer";
 import { Debrief } from "./components/room/Debrief";
@@ -16,14 +16,30 @@ import { QuestionStage } from "./components/room/QuestionStage";
 import { SessionHeader } from "./components/room/SessionHeader";
 import { WrapUpDialog } from "./components/room/WrapUpDialog";
 
-function Overlay({ label, sub }: { label: string; sub?: string }) {
+function Overlay({
+  label,
+  sub,
+  onBack,
+}: {
+  label: string;
+  sub?: string;
+  onBack?: () => void;
+}) {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center gap-5 px-6 text-center">
-      <div className="h-10 w-10 animate-spin rounded-full border border-[color:var(--cc-ink)] border-t-[color:var(--cc-rust)]" />
+      <div className="h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--cc-hair-strong)] border-t-[color:var(--cc-rust)]" />
       <div>
-        <p className="cc-label text-[color:var(--cc-ink)]">{label}</p>
-        {sub && <p className="mt-2 max-w-md text-sm text-[color:var(--cc-ash)]">{sub}</p>}
+        <p className="cc-kicker text-[color:var(--cc-ink)]">{label}</p>
+        {sub && (
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-[color:var(--cc-ash)]">{sub}</p>
+        )}
       </div>
+      {onBack && (
+        <button type="button" onClick={onBack} className="cc-action cc-action--ghost cc-action--sm">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to prep
+        </button>
+      )}
     </div>
   );
 }
@@ -51,12 +67,10 @@ export default function InterviewRoomPage() {
     error,
   } = session;
 
-  // Nothing staged and nothing to restore — this route has no business rendering.
   useEffect(() => {
     if (phase === "error" && !config) navigate("/interview-prep", { replace: true });
   }, [phase, config, navigate]);
 
-  // New hint arrived → make sure it's visible again.
   useEffect(() => {
     if (hint) setHintDismissed(false);
   }, [hint]);
@@ -80,35 +94,39 @@ export default function InterviewRoomPage() {
             label="Preparing your interview"
             sub={
               config
-                ? `Researching how ${config.field} actually interviews and drafting your questions.`
-                : undefined
+                ? `Researching how ${config.field} interviews and drafting your questions. This can take a moment.`
+                : "Getting the room ready…"
             }
+            onBack={() => exitToHub()}
           />
         )}
 
         {phase === "finishing" && (
           <Overlay
             label="Compiling your debrief"
-            sub="Scoring any outstanding answers and writing up the committee verdict."
+            sub="Scoring outstanding answers and writing up the committee verdict."
+            onBack={() => exitToHub("history")}
           />
         )}
 
         {phase === "error" && config && (
           <div className="flex min-h-[70vh] flex-col items-center justify-center gap-6 px-6 text-center">
             <div>
-              <p className="cc-label mb-3 text-[color:var(--cc-rust)]">The coach stepped out</p>
+              <p className="cc-kicker mb-3 text-[color:var(--cc-rust)]">The coach stepped out</p>
               <p className="max-w-md text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
-                {error ?? "Interview coach is not available at the moment."}
+                {error ??
+                  "Interview coach is not available at the moment. Your answers so far are still in this room — try the debrief again, or head back to prep."}
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap justify-center gap-3">
               {records.some((r) => r.answerText) && (
-                <button onClick={session.retryFinish} className="cc-btn cc-btn-primary">
+                <button type="button" onClick={session.retryFinish} className="cc-action">
                   <Loader2 className="h-3.5 w-3.5" />
                   Try the debrief again
                 </button>
               )}
-              <button onClick={() => exitToHub()} className="cc-btn cc-btn-ghost">
+              <button type="button" onClick={() => exitToHub()} className="cc-action cc-action--ghost">
+                <ArrowLeft className="h-3.5 w-3.5" />
                 Back to interview prep
               </button>
             </div>
@@ -126,6 +144,8 @@ export default function InterviewRoomPage() {
                 ...config,
                 focusAreas,
                 roundName: "Weak-area drill",
+                questionCount: Math.min(config.questionCount, 4),
+                mode: "coached",
               })
             }
             onResources={() => exitToHub("resources")}

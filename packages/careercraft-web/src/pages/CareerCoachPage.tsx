@@ -1,68 +1,47 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCoachPage — Horus Career Coach, as a first-class
-   Intelligence destination inside the Astral observatory shell.
+   CareerCoachPage — Horus Career Coach inside the main Craft
+   app layout (shared CraftSidebar). No Astral rail / masthead.
    ─────────────────────────────────────────────────────────── */
 
 import { motion } from "framer-motion";
-import { Download } from "lucide-react";
-import { AstralShell, AstralMasthead, AstralButton } from "@/components/astral";
+import CraftAppLayout from "@/components/craft/CraftAppLayout";
 import CareerCoach from "@/components/rag/CareerCoach";
 
+const ease = [0.2, 0.8, 0.2, 1] as const;
+
 export default function CareerCoachPage() {
-  const headerActions = (
-    <AstralButton title="Download a past conversation">
-      <Download className="w-3.5 h-3.5" />
-      <span className="hidden sm:inline">Export</span>
-    </AstralButton>
-  );
-
   return (
-    <AstralShell
-      title={<span className="as-gradient-text">Career Coach</span>}
-      subtitle="Horus · personalised reasoning"
-      actions={headerActions}
-      backTo="/intelligence"
+    <CraftAppLayout
+      topBarLeft={
+        <div className="cc-label-sm text-[color:var(--cc-ash)]">Career Coach</div>
+      }
+      className="!py-6 md:!py-8"
+      fill
     >
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-10"
+      <motion.section
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease }}
+        className="mb-5 shrink-0"
       >
-        {/* Observatory masthead — tuned to the coaching context */}
-        <AstralMasthead
-          kicker="§ Transmission · Private line"
-          title={
-            <>
-              A private line to
-              <br />
-              <span className="as-italic">your next move.</span>
-            </>
-          }
-          subtitle="Six specialists. One conversation. Grounded in 54+ SA Government documents — budgets, workforce plans, policy, skills, funding and startup programs."
-          nodes={[
-            { label: "Careers",       value: "Jobs · pathways",    ring: 0, angle: 20,  color: "rgba(124,92,255,1)"  },
-            { label: "Funding",       value: "Grants · budget",    ring: 1, angle: 90,  color: "rgba(94,234,212,1)"  },
-            { label: "Skills",        value: "Training · credentials", ring: 0, angle: 160, color: "rgba(252,211,77,1)" },
-            { label: "Policies",      value: "Regulation · reform",ring: 2, angle: 225, color: "rgba(167,139,250,1)" },
-            { label: "Analyst",       value: "Cross-sector signal",ring: 1, angle: 305, color: "rgba(34,211,238,1)"  },
-            { label: "Entrepreneurs", value: "Startup · innovation", ring: 2, angle: 45,  color: "rgba(244,114,182,1)" },
-          ]}
-        />
+        <div className="cc-eyebrow cc-tone-cobalt">Private line</div>
+        <h1 className="mt-3 max-w-2xl cc-font-display text-[1.85rem] leading-[0.98] tracking-[-0.03em] md:text-[2.35rem]">
+          Ask about your{" "}
+          <span className="cc-italic-wonk text-[color:var(--cc-rust)]">next move.</span>
+        </h1>
+        <p className="mt-2 max-w-xl cc-font-editorial text-base leading-snug text-[color:var(--cc-ink-soft)]">
+          Careers, skills, funding, and policy — grounded in SA Government documents.
+        </p>
+      </motion.section>
 
-        {/* The coach — rendered full-bleed inside a glass frame so the
-            observatory nebula continues to feel live behind the chat. */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="as-panel"
-        >
-          <div className="as-panel-inner p-2 md:p-3">
-            <CareerCoach />
-          </div>
-        </motion.div>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.05, ease }}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <CareerCoach />
       </motion.div>
-    </AstralShell>
+    </CraftAppLayout>
   );
 }

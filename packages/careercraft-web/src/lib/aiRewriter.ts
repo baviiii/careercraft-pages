@@ -1,4 +1,21 @@
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+import {
+  supabase,
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY,
+} from '@/integrations/supabase/client';
+
+async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (error || !token) {
+    throw new Error('Please sign in to use AI rewriting.');
+  }
+  return {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${token}`,
+  };
+}
 
 // Helper function to safely parse error responses
 async function parseErrorResponse(response: Response): Promise<{ error?: string }> {
@@ -26,10 +43,7 @@ export async function rewriteBullet(
       `${SUPABASE_URL}/functions/v1/rewrite-resume`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
+        headers: await getAuthenticatedHeaders(),
         body: JSON.stringify({
           text: originalText,
           jobDescription,
@@ -61,10 +75,7 @@ export async function generateCoverLetter(
       `${SUPABASE_URL}/functions/v1/rewrite-resume`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
+        headers: await getAuthenticatedHeaders(),
         body: JSON.stringify({
           text: resumeText,
           jobDescription,

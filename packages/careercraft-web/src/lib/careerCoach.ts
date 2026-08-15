@@ -190,6 +190,68 @@ export interface DrillResult {
   persisted: boolean;
 }
 
+/** Why a pathway is thinner than ideal — surfaced so "empty" never reads as "broken". */
+export interface Degradation {
+  degraded: boolean;
+  reasons: string[];
+}
+
+export interface PathwayTarget {
+  skill: string;
+  from: number;
+  to: number;
+}
+
+export interface PathwayResource {
+  id: string;
+  title: string;
+  type: string;
+  difficulty?: string;
+  provider?: string;
+  /** A real catalogue row, or something the community was found recommending. */
+  source: "catalog" | "community";
+  url?: string;
+  stat?: string | null;
+  priority: number;
+  whyRecommended: string;
+}
+
+export interface PathwayDrill {
+  skill: string;
+  difficulty: string;
+  whyNow: string;
+  nextReviewInDays: number;
+}
+
+/**
+ * One call that always returns something to do — targets, a plan, resources, the
+ * next drill and the next mock — even for a learner with an empty database.
+ */
+export interface LearningPathway {
+  field: string;
+  targetRole: string | null;
+  focus: {
+    skills: string[];
+    /** Where the targets came from: tested matrix, career goal, or research. */
+    source: string;
+    why: string;
+    fromLastInterview: boolean;
+  };
+  targets: PathwayTarget[];
+  plan: StudyPlan;
+  resources: PathwayResource[];
+  /** True when nothing real backed the resources — model suggestions only. */
+  unsourcedResources: boolean;
+  nextDrill: PathwayDrill;
+  nextMock: {
+    field: string;
+    seniority: string | null;
+    focusAreas: string[];
+    questionTypes: string[] | null;
+    why: string;
+  };
+}
+
 export interface ConceptExplanation {
   concept?: string;
   levels?: { intuition?: string; working?: string; interviewGrade?: string };
@@ -214,8 +276,11 @@ export interface InterviewHint {
 async function post<T>(path: string, body: unknown): Promise<T> {
   if (!MCP_URL) throw new CoachUnavailableError();
 
-  const { data } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getSession();
   const token = data.session?.access_token;
+  if (error || !token) {
+    throw new CoachUnavailableError("Please sign in to use the career coach.");
+  }
 
   let res: Response;
   try {
@@ -223,7 +288,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body ?? {}),
     });
@@ -325,6 +390,24 @@ export const careerCoach = {
     persisted: boolean;
   }> {
     return post("/api/career/persona/refresh", input);
+  },
+
+  /**
+   * The whole learning pathway in one call. Unlike buildStudyPlan, this never
+   * errors on a cold start — it derives targets from the career goal or field
+   * research when nothing has been tested yet, and reports what it had to fall
+   * back to in `degraded`.
+   */
+  async getLearningPathway(input: {
+    field?: string;
+    weeks?: number;
+    hoursPerWeek?: number;
+  } = {}): Promise<{
+    pathway: LearningPathway;
+    recommendationId: string | null;
+    _meta?: { degraded?: Degradation };
+  }> {
+    return post("/api/learning/pathway", input);
   },
 
   /** Sequenced week-by-week study plan over the weakest (or chosen) skills. */

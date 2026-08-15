@@ -47,6 +47,21 @@ else
     echo "⚠️  HORUS_INFER_URL / HORUS_API_KEY not found in .env — AI edge functions will fail until set"
 fi
 
+echo "📝 Setting Horus knowledge (RAG + graph) secrets..."
+if [ ! -z "$HORUS_BASE_URL" ]; then
+    # Origin only — horus-knowledge.ts appends /api/trpc. A trailing /api/infer
+    # here is the most likely misconfiguration, so reject it loudly.
+    case "$HORUS_BASE_URL" in
+        */api|*/api/*)
+            echo "❌ HORUS_BASE_URL must be the origin only (no /api/... path): $HORUS_BASE_URL"
+            exit 1
+            ;;
+    esac
+    supabase secrets set HORUS_BASE_URL="$HORUS_BASE_URL"
+else
+    echo "⚠️  HORUS_BASE_URL not found in .env — horus-rag will fall back to legacy retrieval"
+fi
+
 echo "📝 Setting optional API keys..."
 if [ ! -z "$ANTHROPIC_API_KEY" ]; then
     supabase secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"

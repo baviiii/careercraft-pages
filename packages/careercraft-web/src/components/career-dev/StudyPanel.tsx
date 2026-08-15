@@ -44,8 +44,10 @@ import {
   careerCoach,
   CoachUnavailableError,
   type ConceptExplanation,
+  type Degradation,
   type Drill,
   type DrillScheduling,
+  type LearningPathway,
   type Proof,
   type StudyPlan,
 } from "@/lib/careerCoach";
@@ -75,8 +77,11 @@ function ProofChip({ proof }: { proof: Proof | null | undefined }) {
 export default function StudyPanel({ field }: { field?: string }) {
   const { toast } = useToast();
 
-  // Study plan
+  // Study plan — sourced from the pathway call, which also carries the focus
+  // reasoning, ranked resources and the next mock to sit.
   const [plan, setPlan] = useState<StudyPlan | null>(null);
+  const [pathway, setPathway] = useState<LearningPathway | null>(null);
+  const [degraded, setDegraded] = useState<Degradation | null>(null);
   const [planning, setPlanning] = useState(false);
   const [weeks, setWeeks] = useState("4");
   const [hours, setHours] = useState("5");
@@ -101,12 +106,29 @@ export default function StudyPanel({ field }: { field?: string }) {
     toast({ title: "Not available", description: message, variant: "destructive" });
   };
 
+  /**
+   * Uses the pathway endpoint rather than buildStudyPlan directly: it derives
+   * targets from the career goal or field research when nothing has been tested
+   * yet, so a learner with an empty skill matrix gets a plan instead of an error.
+   */
   const buildPlan = async () => {
     setPlanning(true);
     try {
-      const r = await careerCoach.buildStudyPlan({ weeks: Number(weeks) || 4, hoursPerWeek: Number(hours) || 5 });
-      setPlan(r.plan);
-      if (!r.plan?.weeks?.length) toast({ title: "No plan returned", description: "Try again, or run an interview session first to seed your weak skills.", variant: "destructive" });
+      const r = await careerCoach.getLearningPathway({
+        field: field || undefined,
+        weeks: Number(weeks) || 4,
+        hoursPerWeek: Number(hours) || 5,
+      });
+      setPathway(r.pathway);
+      setPlan(r.pathway?.plan ?? null);
+      setDegraded(r._meta?.degraded ?? null);
+      if (!r.pathway?.plan?.weeks?.length) {
+        toast({
+          title: "No plan returned",
+          description: "The coach reached the model but returned no weeks — try again.",
+          variant: "destructive",
+        });
+      }
     } catch (e) {
       notAvailable(e);
     } finally {
@@ -261,6 +283,68 @@ export default function StudyPanel({ field }: { field?: string }) {
             </Button>
           </div>
         </div>
+
+        {/* Why these skills — and, when the data was thin, what the coach fell
+            back to. Makes an under-powered pathway readable instead of looking
+            broken. */}
+        {pathway && (
+          <div className="mb-4 space-y-3 rounded-lg border bg-muted/30 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-[10px]">
+                {pathway.focus.fromLastInterview ? "from your last mock" : pathway.focus.source}
+              </Badge>
+              {pathway.targets.map((t) => (
+                <Badge key={t.skill} variant="secondary" className="text-[10px]">
+                  {t.skill} {t.from}→{t.to}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">{pathway.focus.why}</p>
+            {pathway.nextMock.focusAreas.length > 0 && (
+              <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+                <Target className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                Next mock: {pathway.nextMock.focusAreas.join(", ")} — {pathway.nextMock.why}
+              </p>
+            )}
+            {degraded?.degraded && (
+              <p className="text-xs text-amber-600">
+                Working with partial data — {degraded.reasons.join("; ")}.
+              </p>
+            )}
+          </div>
+        )}
+
+        {pathway?.resources?.length ? (
+          <div className="mb-4 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              Resources for these skills
+              {pathway.unsourcedResources && " (suggestions — nothing real backed these yet)"}
+            </p>
+            {pathway.resources.slice(0, 5).map((r) => (
+              <div key={r.id} className="flex items-start gap-2 rounded-lg bg-muted/40 p-3">
+                <Badge variant="outline" className="shrink-0 text-[9px]">
+                  {r.source}
+                </Badge>
+                <div className="flex-1 min-w-0">
+                  {r.url ? (
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      {r.title}
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </a>
+                  ) : (
+                    <p className="text-sm font-medium">{r.title}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">{r.whyRecommended}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         {plan?.weeks?.length ? (
           <div className="space-y-4">

@@ -1,10 +1,10 @@
 /**
- * The Debrief — a hiring-committee packet for one session. Verdict, score
- * trajectory, assessment, improvement plan, then the full annotated
- * transcript. Everything renders from what the MCP returned; nothing invented.
+ * The Debrief — scorecard first (Strengths / Improve), then details.
+ * Overall scores display as /100; per-question as /10.
  */
 import { ArrowRight, BookOpen, RotateCcw } from "lucide-react";
 import type { CoachFinalEvaluation } from "@/lib/interviewCoach";
+import { normalizeScore100 } from "../../lib/sessions";
 import { formatClock } from "../../lib/format";
 import type { AnswerRecord, SessionConfig } from "../../types";
 import { ProofChip } from "../ProofChip";
@@ -30,6 +30,12 @@ function readinessTone(readiness: string): { color: string; bg: string } {
   return { color: "var(--cc-rust-deep)", bg: "var(--cc-rust-soft)" };
 }
 
+/** Map raw per-question score onto 0–10 for the trajectory chart. */
+function scoreOn10(raw: number): number {
+  if (raw <= 10) return raw;
+  return Math.max(0, Math.min(10, raw / 10));
+}
+
 function Trajectory({ records }: { records: AnswerRecord[] }) {
   const scored = records
     .map((r, i) => ({ i, score: r.evaluation?.score }))
@@ -41,14 +47,24 @@ function Trajectory({ records }: { records: AnswerRecord[] }) {
   const PAD = 8;
   const x = (idx: number) =>
     PAD + (idx / Math.max(1, records.length - 1)) * (W - PAD * 2);
-  const y = (score: number) => H - PAD - (Math.max(0, Math.min(10, score)) / 10) * (H - PAD * 2);
+  const y = (score: number) =>
+    H - PAD - (Math.max(0, Math.min(10, scoreOn10(score))) / 10) * (H - PAD * 2);
   const points = scored.map((p) => `${x(p.i)},${y(p.score)}`).join(" ");
 
   return (
-    <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-5">
-      <p className="cc-label-sm mb-3 text-[color:var(--cc-ash)]">Score trajectory</p>
+    <div className="cc-surface p-5">
+      <p className="cc-label-sm mb-3 text-[color:var(--cc-ash)]">
+        Score trajectory <span className="opacity-70">(per question · /10)</span>
+      </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Per-question scores">
-        <line x1={PAD} y1={y(5)} x2={W - PAD} y2={y(5)} stroke="var(--cc-hair)" strokeDasharray="3 4" />
+        <line
+          x1={PAD}
+          y1={y(5)}
+          x2={W - PAD}
+          y2={y(5)}
+          stroke="var(--cc-hair)"
+          strokeDasharray="3 4"
+        />
         <polyline points={points} fill="none" stroke="var(--cc-rust)" strokeWidth="1.5" />
         {scored.map((p) => (
           <g key={p.i}>
@@ -74,13 +90,18 @@ function AssessmentColumn({
   title,
   items,
   tone,
+  wash,
 }: {
   title: string;
   items: string[];
   tone: string;
+  wash?: string;
 }) {
   return (
-    <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-5">
+    <div
+      className="rounded-[1.25rem] border border-[color:var(--cc-hair)] p-5"
+      style={{ background: wash || "#fff" }}
+    >
       <p className="cc-label-sm mb-3" style={{ color: tone }}>
         {title}
       </p>
@@ -107,9 +128,15 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
   const over =
     record.question.timeAllocationMinutes &&
     record.timeTakenSeconds > record.question.timeAllocationMinutes * 60;
+  const qScore =
+    typeof ev?.score === "number"
+      ? ev.score <= 10
+        ? `${ev.score}/10`
+        : `${Math.round(ev.score / 10)}/10`
+      : null;
 
   return (
-    <details className="group border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]">
+    <details className="group cc-surface overflow-hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
         <div className="flex min-w-0 items-baseline gap-3">
           <span className="cc-label-sm shrink-0 text-[color:var(--cc-ash)]">
@@ -120,7 +147,7 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
           </span>
         </div>
         <span className="cc-font-mono shrink-0 text-xs tabular-nums text-[color:var(--cc-ink-soft)]">
-          {record.skipped ? "skipped" : ev ? `${ev.score}/10` : record.evaluationFailed ? "—" : "…"}
+          {record.skipped ? "skipped" : qScore ?? (record.evaluationFailed ? "—" : "…")}
         </span>
       </summary>
 
@@ -144,7 +171,7 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
         {record.skipped ? (
           <p className="text-sm italic text-[color:var(--cc-ash)]">You skipped this question.</p>
         ) : (
-          <blockquote className="border-l-2 border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
+          <blockquote className="rounded-xl border-l-2 border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
             {record.answerText || "(no answer recorded)"}
           </blockquote>
         )}
@@ -156,7 +183,7 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
                 {Object.entries(ev.scoreBreakdown).map(([key, value]) => (
                   <span
                     key={key}
-                    className="cc-label-sm border border-[color:var(--cc-hair)] px-2 py-1 text-[color:var(--cc-ink-soft)]"
+                    className="cc-label-sm rounded-full border border-[color:var(--cc-hair)] px-2 py-1 text-[color:var(--cc-ink-soft)]"
                   >
                     {key.replace(/([a-z])([A-Z])/g, "$1 $2")} · {value}
                   </span>
@@ -206,7 +233,7 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
             {ev.bestAnswer && (
               <div>
                 <p className="cc-label-sm mb-2 text-[color:var(--cc-ink)]">A stronger answer</p>
-                <blockquote className="border-l-2 border-[color:var(--cc-rust)] bg-[color:var(--cc-cream-2)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
+                <blockquote className="rounded-xl border-l-2 border-[color:var(--cc-rust)] bg-[color:var(--cc-cream-2)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
                   {ev.bestAnswer}
                 </blockquote>
               </div>
@@ -243,7 +270,9 @@ export function Debrief({
   const answered = records.filter((r) => r.answerText && !r.skipped);
   const skipped = records.filter((r) => r.skipped);
   const hints = records.reduce((n, r) => n + r.hintsUsed, 0);
-  const weakFocus = [...evaluation.mustFix, ...evaluation.weaknesses].slice(0, 6);
+  const improveItems = [...evaluation.mustFix, ...evaluation.weaknesses];
+  const weakFocus = improveItems.slice(0, 6);
+  const overall = normalizeScore100(evaluation.overallScore) ?? evaluation.overallScore;
 
   const metaLine = [
     config.roundName,
@@ -258,28 +287,27 @@ export function Debrief({
 
   return (
     <div className="mx-auto max-w-[900px] px-5 py-10 md:px-8 md:py-14">
-      {/* Masthead */}
-      <div className="mb-8 border-b border-[color:var(--cc-ink)] pb-6">
-        <p className="cc-label mb-3 text-[color:var(--cc-rust)]">The debrief</p>
-        <h1 className="cc-font-display text-4xl tracking-tight text-[color:var(--cc-ink)] md:text-5xl">
+      <div className="mb-8">
+        <p className="cc-eyebrow cc-tone-cobalt">The debrief</p>
+        <h1 className="mt-4 cc-font-display text-4xl tracking-tight text-[color:var(--cc-ink)] md:text-5xl">
           How you interviewed
         </h1>
         <p className="cc-label-sm mt-3 text-[color:var(--cc-ash)]">{metaLine}</p>
       </div>
 
       {/* Verdict */}
-      <div className="mb-6 grid border border-[color:var(--cc-ink)] md:grid-cols-[auto_1fr]">
+      <div className="mb-6 overflow-hidden rounded-[1.5rem] border border-[color:var(--cc-ink)] md:grid md:grid-cols-[auto_1fr]">
         <div className="flex items-center gap-6 border-b border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-ink)] p-6 md:border-b-0 md:border-r">
           <span className="cc-font-display text-7xl leading-none text-[color:var(--cc-cream)]">
             {evaluation.grade}
           </span>
           <div>
             <p className="cc-font-mono text-2xl tabular-nums text-[color:var(--cc-cream)]">
-              {evaluation.overallScore}
+              {overall}
               <span className="text-sm opacity-60">/100</span>
             </p>
             <span
-              className="cc-label-sm mt-2 inline-block px-2 py-1"
+              className="cc-label-sm mt-2 inline-block rounded-md px-2 py-1"
               style={{ color: tone.color, background: "var(--cc-cream)" }}
             >
               {evaluation.readiness}
@@ -295,29 +323,49 @@ export function Debrief({
       </div>
 
       <div className="space-y-6">
-        <Trajectory records={records} />
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <AssessmentColumn
-            title="Strengths"
-            items={evaluation.strengths}
-            tone="var(--cc-signal-deep)"
-          />
-          <AssessmentColumn
-            title="Weaknesses"
-            items={evaluation.weaknesses}
-            tone="var(--cc-wheat-deep)"
-          />
-          <AssessmentColumn
-            title="Fix before applying"
-            items={evaluation.mustFix}
-            tone="var(--cc-rust-deep)"
-          />
+        {/* Scorecard first */}
+        <div>
+          <p className="cc-kicker mb-3">Scorecard</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <AssessmentColumn
+              title="Strengths"
+              items={evaluation.strengths}
+              tone="var(--cc-signal-deep)"
+              wash="var(--cc-signal-soft)"
+            />
+            <AssessmentColumn
+              title="Improve"
+              items={improveItems}
+              tone="var(--cc-wheat-deep)"
+              wash="var(--cc-wheat-soft)"
+            />
+          </div>
         </div>
 
+        {weakFocus.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-[1.25rem] border border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-[color:var(--cc-rust-deep)]">Practice your weak areas</p>
+              <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
+                Run a short coached drill focused on what the committee flagged.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onPracticeWeakAreas(weakFocus)}
+              className="cc-action shrink-0"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Drill weak areas
+            </button>
+          </div>
+        )}
+
+        <Trajectory records={records} />
+
         {evaluation.improvementPlan.length > 0 && (
-          <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]">
-            <p className="cc-label border-b border-[color:var(--cc-hair)] px-5 py-4 text-[color:var(--cc-ink)]">
+          <div className="cc-surface overflow-hidden">
+            <p className="cc-kicker border-b border-[color:var(--cc-hair)] px-5 py-4">
               Improvement plan
             </p>
             {evaluation.improvementPlan.map((item, i) => (
@@ -342,8 +390,7 @@ export function Debrief({
           </div>
         )}
 
-        {/* Delivery */}
-        <div className="grid grid-cols-2 gap-px border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-hair-strong)] md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
             { label: "Total time", value: formatClock(totalSeconds) },
             {
@@ -358,7 +405,7 @@ export function Debrief({
               value: `${skipped.length} of ${records.length}`,
             },
           ].map((stat) => (
-            <div key={stat.label} className="bg-[color:var(--cc-cream)] p-4">
+            <div key={stat.label} className="cc-surface p-4">
               <p className="cc-font-mono text-xl tabular-nums text-[color:var(--cc-ink)]">
                 {stat.value}
               </p>
@@ -367,9 +414,8 @@ export function Debrief({
           ))}
         </div>
 
-        {/* Transcript */}
         <div>
-          <p className="cc-label mb-3 text-[color:var(--cc-ink)]">The transcript, annotated</p>
+          <p className="cc-kicker mb-3">The transcript, annotated</p>
           <div className="space-y-3">
             {records.map((record, i) => (
               <TranscriptEntry key={i} record={record} index={i} />
@@ -377,24 +423,14 @@ export function Debrief({
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-col gap-3 border-t border-[color:var(--cc-ink)] pt-6 sm:flex-row">
-          {weakFocus.length > 0 && (
-            <button
-              onClick={() => onPracticeWeakAreas(weakFocus)}
-              className="cc-btn cc-btn-primary flex-1"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Drill your weak areas
-            </button>
-          )}
-          <button onClick={onResources} className="cc-btn cc-btn-ghost flex-1">
-            <BookOpen className="h-3.5 w-3.5" />
+        <div className="flex flex-col gap-3 border-t border-[color:var(--cc-hair-strong)] pt-6 sm:flex-row">
+          <button type="button" onClick={onResources} className="cc-action cc-action--ghost flex-1">
+            <BookOpen className="h-4 w-4" />
             Learning resources
           </button>
-          <button onClick={onExit} className="cc-btn cc-btn-ghost flex-1">
+          <button type="button" onClick={onExit} className="cc-action flex-1">
             Back to interview prep
-            <ArrowRight className="cc-arrow-right h-3.5 w-3.5" />
+            <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </div>

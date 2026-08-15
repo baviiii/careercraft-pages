@@ -1,17 +1,38 @@
-import { useState, useEffect, useCallback } from "react";
+/* ───────────────────────────────────────────────────────────
+   CareerCraft — Settings
+   Dashboard-energy: hero, color tones, pill tabs.
+   Order: Profile → Career → Skills → Alerts → Account.
+   ─────────────────────────────────────────────────────────── */
+
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
+import { motion } from "framer-motion";
+import {
+  AlertTriangle,
+  Award,
+  Bell,
+  Briefcase,
+  Download,
+  ExternalLink,
+  GraduationCap,
+  Loader2,
+  Lock,
+  LogOut,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  Save,
+  Sparkles,
+  Trash2,
+  User,
+  X,
+} from "lucide-react";
+import { Session } from "@supabase/supabase-js";
+
+import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -53,57 +74,266 @@ import {
   JOB_CHANGE_TIMELINE,
   SKILL_PROFICIENCY,
   SKILL_CATEGORIES,
-  COMPANY_SIZES,
-  JOB_TYPES,
-  TIMEZONES,
-  UserSkill,
+  type NotificationSettings,
 } from "@/hooks/useUserProfile";
-import {
-  User,
-  Briefcase,
-  Bell,
-  Lock,
-  ChevronLeft,
-  Save,
-  Loader2,
-  Camera,
-  Plus,
-  X,
-  Trash2,
-  Download,
-  Mail,
-  Building,
-  Target,
-  Award,
-  GraduationCap,
-  Menu,
-  LogOut,
-  AlertTriangle,
-  ExternalLink,
-  Sparkles,
-} from "lucide-react";
-import { Session } from "@supabase/supabase-js";
 
 const APP_BASE_URL =
   (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim().replace(/\/+$/, "") ||
   window.location.origin;
 
-// Sidebar navigation items - simplified to what we actually support
-const SETTINGS_SECTIONS = [
-  { id: "profile", label: "Profile", icon: User, description: "Personal info" },
-  { id: "career", label: "Career", icon: Briefcase, description: "Job & skills" },
-  { id: "notifications", label: "Notifications", icon: Bell, description: "Email alerts" },
-  { id: "security", label: "Account", icon: Lock, description: "Password & data" },
+const ease = [0.2, 0.8, 0.2, 1] as const;
+
+type SettingsTab = "profile" | "career" | "skills" | "alerts" | "account";
+
+const SETTINGS_TABS: {
+  id: SettingsTab;
+  label: string;
+  icon: typeof User;
+}[] = [
+  { id: "profile", label: "Profile", icon: User },
+  { id: "career", label: "Career", icon: Briefcase },
+  { id: "skills", label: "Skills", icon: Award },
+  { id: "alerts", label: "Alerts", icon: Bell },
+  { id: "account", label: "Account", icon: Lock },
 ];
+
+const NOTIFICATION_ITEMS: {
+  key: keyof NotificationSettings;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "email_job_matches",
+    label: "Job matches",
+    description: "Roles that fit your profile and targets",
+  },
+  {
+    key: "email_interview_reminders",
+    label: "Interview reminders",
+    description: "Upcoming practice and application interviews",
+  },
+  {
+    key: "email_application_updates",
+    label: "Application updates",
+    description: "Status changes in your job tracker",
+  },
+  {
+    key: "email_weekly_digest",
+    label: "Weekly digest",
+    description: "Market trends and opportunities summary",
+  },
+  {
+    key: "email_news_alerts",
+    label: "News alerts",
+    description: "Industry news and market updates",
+  },
+  {
+    key: "marketing_emails",
+    label: "Product updates",
+    description: "New features and tips from CareerCraft",
+  },
+];
+
+function FieldLabel({ htmlFor, children }: { htmlFor?: string; children: ReactNode }) {
+  return (
+    <label htmlFor={htmlFor} className="cc-field-label">
+      {children}
+    </label>
+  );
+}
+
+function Field({
+  id,
+  label,
+  hint,
+  count,
+  countWarnAt,
+  icon,
+  children,
+  className = "",
+}: {
+  id?: string;
+  label: string;
+  hint?: string;
+  count?: number;
+  countWarnAt?: number;
+  icon?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  const long = count != null && countWarnAt != null && count > countWarnAt;
+  return (
+    <div className={`cc-field-wrap ${className}`}>
+      <div className="cc-field-meta">
+        <label htmlFor={id} className="cc-field-label">
+          {label}
+        </label>
+        {count != null && (
+          <span className={`cc-field-count ${long ? "is-long" : ""}`}>{count}</span>
+        )}
+      </div>
+      {icon ? (
+        <div className="cc-field-shell cc-field-shell--icon">
+          <span className="cc-field-shell__icon" aria-hidden>
+            {icon}
+          </span>
+          {children}
+        </div>
+      ) : (
+        children
+      )}
+      {hint && <p className="cc-field-hint">{hint}</p>}
+    </div>
+  );
+}
+
+function Panel({
+  title,
+  subtitle,
+  children,
+  actions,
+  tone = "cobalt",
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  actions?: ReactNode;
+  tone?: "cobalt" | "sage" | "wheat" | "ink";
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease }}
+      className={`cc-surface overflow-hidden cc-tone-${tone}`}
+    >
+      <div className="border-b border-[color:var(--cc-hair)] bg-[color:var(--cc-t-wash)]/40 px-5 py-5 md:px-7 md:py-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="cc-kicker">{title}</div>
+            {subtitle && (
+              <p className="mt-2 max-w-xl cc-font-editorial text-[15px] leading-snug text-[color:var(--cc-ink-soft)]">
+                {subtitle}
+              </p>
+            )}
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="p-5 md:p-7">{children}</div>
+    </motion.div>
+  );
+}
+
+function Chip({
+  children,
+  onRemove,
+  active,
+  onClick,
+}: {
+  children: ReactNode;
+  onRemove?: () => void;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <span
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`cc-chip inline-flex items-center gap-2 ${active ? "cc-chip-dark" : ""} ${
+        onClick ? "cursor-pointer" : ""
+      }`}
+    >
+      {children}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="opacity-70 hover:opacity-100"
+          aria-label="Remove"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function SaveBar({
+  onSave,
+  saving,
+  label,
+}: {
+  onSave: () => void;
+  saving: boolean;
+  label: string;
+}) {
+  return (
+    <div className="mt-8 flex justify-end border-t border-[color:var(--cc-hair)] pt-5">
+      <button type="button" onClick={onSave} disabled={saving} className="cc-action">
+        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {label}
+      </button>
+    </div>
+  );
+}
+
+function MetricCell({
+  label,
+  value,
+  onClick,
+  border,
+}: {
+  label: string;
+  value: string | number;
+  onClick?: () => void;
+  border?: boolean;
+}) {
+  const className = `px-4 py-4 text-left transition-colors ${
+    border ? "border-l border-[color:var(--cc-hair)]" : ""
+  } ${onClick ? "hover:bg-white/60" : ""}`;
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        <div className="cc-label-sm text-[color:var(--cc-ash)]">{label}</div>
+        <div className="mt-1.5 cc-font-display text-2xl tracking-tight cc-tabular text-[color:var(--cc-ink)]">
+          {value}
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div className={className}>
+      <div className="cc-label-sm text-[color:var(--cc-ash)]">{label}</div>
+      <div className="mt-1.5 cc-font-display text-2xl tracking-tight cc-tabular text-[color:var(--cc-ink)]">
+        {value}
+      </div>
+    </div>
+  );
+}
 
 export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [session, setSession] = useState<Session | null>(null);
-  const [activeSection, setActiveSection] = useState("profile");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  
-  // Profile hook
+  const [tab, setTab] = useState<SettingsTab>("profile");
+
   const {
     loading,
     saving,
@@ -115,16 +345,13 @@ export default function Settings() {
     updateProfile,
     updatePreferences,
     addSkill,
-    updateSkill,
     deleteSkill,
     addCertification,
     deleteCertification,
     deleteAccount,
     exportData,
-    defaults,
   } = useUserProfile();
 
-  // Local form states
   const [profileForm, setProfileForm] = useState({
     full_name: "",
     headline: "",
@@ -132,7 +359,6 @@ export default function Settings() {
     phone: "",
     location_city: "",
     location_country: "",
-    timezone: "Australia/Sydney",
   });
 
   const [careerForm, setCareerForm] = useState({
@@ -153,9 +379,8 @@ export default function Settings() {
 
   const [newSkill, setNewSkill] = useState({
     skill_name: "",
-    skill_id: null as string | null,
-    proficiency: "intermediate" as string,
-    category: "technical" as string,
+    proficiency: "intermediate",
+    category: "technical",
     is_primary: false,
   });
 
@@ -175,52 +400,50 @@ export default function Settings() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  // Auth check
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      setSession(session);
-      if (!session) navigate("/auth");
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_, next) => {
+      setSession(next);
+      if (!next) navigate("/auth");
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (!session) navigate("/auth");
+    supabase.auth.getSession().then(({ data: { session: current } }) => {
+      setSession(current);
+      if (!current) navigate("/auth");
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Sync profile data to form
   useEffect(() => {
-    if (profile) {
-      setProfileForm({
-        full_name: profile.full_name || "",
-        headline: profile.headline || "",
-        bio: profile.bio || "",
-        phone: profile.phone || "",
-        location_city: profile.location_city || "",
-        location_country: profile.location_country || "",
-        timezone: profile.timezone || "Australia/Sydney",
-      });
-      setCareerForm({
-        current_job_title: profile.current_job_title || "",
-        current_company: profile.current_company || "",
-        years_of_experience: profile.years_of_experience || "",
-        industry: profile.industry || "",
-        career_level: profile.career_level || "",
-        employment_status: profile.employment_status || "employed",
-        target_job_titles: profile.target_job_titles || [],
-        target_companies: profile.target_companies || [],
-        desired_salary_min: profile.desired_salary_min?.toString() || "",
-        desired_salary_max: profile.desired_salary_max?.toString() || "",
-        work_arrangement: profile.work_arrangement || [],
-        preferred_locations: profile.preferred_locations || [],
-        job_change_timeline: profile.job_change_timeline || "",
-      });
-    }
+    if (!profile) return;
+    setProfileForm({
+      full_name: profile.full_name || "",
+      headline: profile.headline || "",
+      bio: profile.bio || "",
+      phone:
+        profile.phone && !/X{2,}/i.test(profile.phone) ? profile.phone : "",
+      location_city: profile.location_city || "",
+      location_country: profile.location_country || "",
+    });
+    setCareerForm({
+      current_job_title: profile.current_job_title || "",
+      current_company: profile.current_company || "",
+      years_of_experience: profile.years_of_experience || "",
+      industry: profile.industry || "",
+      career_level: profile.career_level || "",
+      employment_status: profile.employment_status || "employed",
+      target_job_titles: profile.target_job_titles || [],
+      target_companies: profile.target_companies || [],
+      desired_salary_min: profile.desired_salary_min?.toString() || "",
+      desired_salary_max: profile.desired_salary_max?.toString() || "",
+      work_arrangement: profile.work_arrangement || [],
+      preferred_locations: profile.preferred_locations || [],
+      job_change_timeline: profile.job_change_timeline || "",
+    });
   }, [profile]);
 
-  // Save profile with feedback
   const handleSaveProfile = async () => {
     await updateProfile({
       full_name: profileForm.full_name || null,
@@ -229,15 +452,10 @@ export default function Settings() {
       phone: profileForm.phone || null,
       location_city: profileForm.location_city || null,
       location_country: profileForm.location_country || null,
-      timezone: profileForm.timezone,
     });
-    toast({
-      title: "✓ Profile saved",
-      description: "Your changes have been saved successfully.",
-    });
+    toast({ title: "Profile saved", description: "Your changes have been saved." });
   };
 
-  // Save career info with feedback
   const handleSaveCareer = async () => {
     await updateProfile({
       current_job_title: careerForm.current_job_title || null,
@@ -248,22 +466,22 @@ export default function Settings() {
       employment_status: careerForm.employment_status,
       target_job_titles: careerForm.target_job_titles.length > 0 ? careerForm.target_job_titles : null,
       target_companies: careerForm.target_companies.length > 0 ? careerForm.target_companies : null,
-      desired_salary_min: careerForm.desired_salary_min ? parseInt(careerForm.desired_salary_min) : null,
-      desired_salary_max: careerForm.desired_salary_max ? parseInt(careerForm.desired_salary_max) : null,
+      desired_salary_min: careerForm.desired_salary_min
+        ? parseInt(careerForm.desired_salary_min, 10)
+        : null,
+      desired_salary_max: careerForm.desired_salary_max
+        ? parseInt(careerForm.desired_salary_max, 10)
+        : null,
       work_arrangement: careerForm.work_arrangement.length > 0 ? careerForm.work_arrangement : null,
-      preferred_locations: careerForm.preferred_locations.length > 0 ? careerForm.preferred_locations : null,
+      preferred_locations:
+        careerForm.preferred_locations.length > 0 ? careerForm.preferred_locations : null,
       job_change_timeline: careerForm.job_change_timeline || null,
     });
-    toast({
-      title: "✓ Career info saved",
-      description: "Your career details have been updated.",
-    });
+    toast({ title: "Career info saved", description: "Your career details have been updated." });
   };
 
-  // Add skill handler with feedback
   const handleAddSkill = async () => {
     if (!newSkill.skill_name.trim()) return;
-    
     const created = await addSkill({
       skill_id: null,
       skill_name: newSkill.skill_name.trim(),
@@ -271,17 +489,15 @@ export default function Settings() {
       category: newSkill.category,
       is_primary: newSkill.is_primary,
       years_experience: null,
-    } as any);
+    } as Parameters<typeof addSkill>[0]);
     if (!created) return;
-    
+
     toast({
-      title: "✓ Skill added",
-      description: `"${newSkill.skill_name}" has been added to your profile.`,
+      title: "Skill added",
+      description: `"${newSkill.skill_name}" is on your profile.`,
     });
-    
     setNewSkill({
       skill_name: "",
-      skill_id: null,
       proficiency: "intermediate",
       category: "technical",
       is_primary: false,
@@ -289,10 +505,8 @@ export default function Settings() {
     setShowSkillDialog(false);
   };
 
-  // Add certification handler with feedback
   const handleAddCert = async () => {
     if (!newCert.name.trim()) return;
-    
     await addCertification({
       name: newCert.name.trim(),
       issuer: newCert.issuer || null,
@@ -301,12 +515,10 @@ export default function Settings() {
       credential_id: null,
       credential_url: newCert.credential_url || null,
     });
-    
     toast({
-      title: "✓ Certification added",
-      description: `"${newCert.name}" has been added to your profile.`,
+      title: "Certification added",
+      description: `"${newCert.name}" is on your profile.`,
     });
-    
     setNewCert({
       name: "",
       issuer: "",
@@ -317,906 +529,1046 @@ export default function Settings() {
     setShowCertDialog(false);
   };
 
-  // Handle sign out
   const handleSignOut = async () => {
     clearAccent();
     await supabase.auth.signOut();
     navigate("/");
   };
 
-  // Handle account deletion
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== "DELETE") return;
     await deleteAccount();
     navigate("/");
   };
 
-  const userName = session?.user?.user_metadata?.full_name || profile?.full_name || session?.user?.email?.split('@')[0] || 'User';
+  const handleNotificationToggle = async (key: keyof NotificationSettings, value: boolean) => {
+    const next = {
+      ...(preferences?.notification_settings ?? {}),
+      [key]: value,
+    };
+    await updatePreferences("notification_settings", next);
+    const item = NOTIFICATION_ITEMS.find((n) => n.key === key);
+    toast({
+      title: value ? "Enabled" : "Disabled",
+      description: `${item?.label ?? key} ${value ? "enabled" : "disabled"}.`,
+    });
+  };
+
+  const pushTag = (
+    field: "target_job_titles" | "target_companies" | "preferred_locations",
+    value: string,
+    clear: () => void,
+  ) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setCareerForm((p) => ({
+      ...p,
+      [field]: [...new Set([...p[field], trimmed])],
+    }));
+    clear();
+  };
+
+  const userName =
+    session?.user?.user_metadata?.full_name ||
+    profile?.full_name ||
+    session?.user?.email?.split("@")[0] ||
+    "User";
+
+  const locationLabel =
+    [profileForm.location_city, profileForm.location_country].filter(Boolean).join(", ") || "—";
+
+  const tabHint = (id: SettingsTab) => {
+    if (id === "profile") return `${completeness}%`;
+    if (id === "skills") return String(skills.length);
+    return undefined;
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
+      <CraftAppLayout>
+        <div className="grid place-items-center py-32">
+          <div className="text-center">
+            <div className="cc-kicker mb-3">Loading settings</div>
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--cc-hair-strong)] border-t-[color:var(--cc-rust)]" />
+          </div>
+        </div>
+      </CraftAppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-sky-50/30 dark:from-slate-950 dark:via-blue-950/20 dark:to-slate-900 relative overflow-hidden">
-      {/* Beautiful Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 via-white/50 to-sky-50/60 dark:from-blue-950/30 dark:via-slate-900/50 dark:to-slate-950" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.12),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(14,165,233,0.08),transparent_50%)]" />
-        <div className="absolute top-20 right-[20%] w-[500px] h-[500px] bg-gradient-to-br from-blue-400/15 to-sky-300/10 rounded-full blur-[100px]" style={{ animation: "float-slow 10s ease-in-out infinite" }} />
-        <div className="absolute bottom-20 left-[10%] w-[400px] h-[400px] bg-gradient-to-br from-sky-400/10 to-blue-300/10 rounded-full blur-[80px]" style={{ animation: "float-slower 12s ease-in-out infinite" }} />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.02)_1px,transparent_1px)] bg-[size:60px_60px]" />
-      </div>
-
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-72 z-50 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="absolute inset-0 bg-gradient-to-b from-white via-blue-50/60 to-sky-50/50 dark:from-slate-900 dark:via-blue-950/40 dark:to-slate-900 backdrop-blur-xl border-r border-blue-100/80 dark:border-blue-900/50" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.08),transparent_60%)]" />
-        <div className="relative p-6 h-full flex flex-col">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="hover:bg-blue-50 dark:hover:bg-blue-900/30">
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">Settings</h1>
-              <p className="text-sm text-muted-foreground">Manage your account</p>
+    <CraftAppLayout
+      topBarLeft={<div className="cc-label-sm text-[color:var(--cc-ash)]">Settings</div>}
+      headerActions={
+        <div className="flex items-center gap-2">
+          {saving && (
+            <span className="cc-eyebrow cc-tone-wheat">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Saving
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="cc-action cc-action--ghost cc-action--sm"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </button>
+        </div>
+      }
+    >
+      {/* Hero — same paper composition as dashboard */}
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.55, ease }}
+        className="cc-hero text-[color:var(--cc-ink)]"
+      >
+        <div className="relative grid gap-8 px-6 pb-0 pt-8 md:grid-cols-[1fr_auto] md:items-end md:px-10 md:pt-10">
+          <div>
+            <div className="cc-eyebrow cc-tone-cobalt">Your account</div>
+            <h1 className="mt-5 max-w-2xl cc-font-display text-[2.4rem] leading-[0.96] tracking-[-0.035em] md:text-[3.1rem]">
+              Tune the profile that{" "}
+              <span className="cc-italic-wonk text-[color:var(--cc-rust)]">powers</span> everything.
+            </h1>
+            <p className="mt-4 max-w-lg cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+              Jobs, résumés, and coach all read from here — keep it sharp and personal.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/onboarding?redo=1")}
+                className="cc-action"
+              >
+                <Sparkles className="h-4 w-4" />
+                Re-run onboarding
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  exportData();
+                  toast({ title: "Data exported", description: "Your download has started." });
+                }}
+                className="cc-action cc-action--ghost"
+              >
+                <Download className="h-4 w-4" />
+                Export data
+              </button>
             </div>
           </div>
 
-          {/* Profile Completeness */}
-          <Card className="p-4 mb-6 bg-gradient-to-br from-blue-500/10 to-sky-500/10 border-blue-200/50 dark:border-blue-800/50 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <Avatar className="w-12 h-12">
-                <AvatarImage src={profile?.avatar_url || undefined} />
-                <AvatarFallback className="bg-primary text-primary-foreground">
-                  {userName.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{userName}</p>
-                <p className="text-xs text-muted-foreground truncate">{session?.user?.email}</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Profile Completeness</span>
-                <span className="font-medium">{completeness}%</span>
-              </div>
-              <Progress value={completeness} className="h-2" />
-              {completeness < 100 && (
-                <p className="text-xs text-muted-foreground">
-                  Complete your profile for better recommendations
+          <div className="cc-tint cc-tone-cobalt mb-8 flex items-center gap-4 p-4 md:mb-10 md:min-w-[260px]">
+            <Avatar className="h-14 w-14 ring-2 ring-white/80">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-[color:var(--cc-rust)] text-lg text-white">
+                {userName.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-[color:var(--cc-ink)]">{userName}</p>
+              <p className="truncate text-sm text-[color:var(--cc-ink-soft)]">
+                {session?.user?.email}
+              </p>
+              {(profileForm.location_city || profileForm.location_country) && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-[color:var(--cc-ash)]">
+                  <MapPin className="h-3 w-3" />
+                  {locationLabel}
                 </p>
               )}
             </div>
-          </Card>
-
-          {/* Navigation */}
-          <nav className="flex-1 space-y-1">
-            {SETTINGS_SECTIONS.map((section) => (
-              <button
-                key={section.id}
-                onClick={() => {
-                  setActiveSection(section.id);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                  activeSection === section.id
-                    ? 'bg-gradient-to-r from-blue-500/10 to-sky-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-sm'
-                    : 'text-muted-foreground hover:bg-blue-50/50 dark:hover:bg-slate-800/50'
-                }`}
-              >
-                <section.icon className="w-5 h-5" />
-                <div className="text-left">
-                  <p className="text-sm">{section.label}</p>
-                  <p className="text-xs opacity-70">{section.description}</p>
-                </div>
-              </button>
-            ))}
-          </nav>
-
-          {/* Footer Actions */}
-          <div className="pt-4 border-t border-blue-100/50 dark:border-blue-900/30 space-y-2">
-            <Button variant="ghost" className="w-full justify-start hover:bg-blue-50/50 dark:hover:bg-blue-900/30" onClick={() => navigate('/onboarding?redo=1')}>
-              <Sparkles className="w-4 h-4 mr-2" />
-              Re-run AI Onboarding
-            </Button>
-            <Button variant="ghost" className="w-full justify-start hover:bg-blue-50/50 dark:hover:bg-blue-900/30" onClick={exportData}>
-              <Download className="w-4 h-4 mr-2" />
-              Export My Data
-            </Button>
-            <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive hover:bg-red-50 dark:hover:bg-red-900/20" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
           </div>
         </div>
-      </aside>
 
-      {/* Main Content */}
-      <div className="lg:pl-72 relative z-10">
-        {/* Top Header */}
-        <header className="sticky top-0 z-30 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-blue-100/50 dark:border-blue-900/30">
-          <div className="flex items-center justify-between px-4 sm:px-6 md:px-8 py-3 sm:py-4">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
-                <Menu className="w-5 h-5" />
-              </Button>
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold capitalize">{activeSection}</h2>
-                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-                  {SETTINGS_SECTIONS.find(s => s.id === activeSection)?.description}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {saving && (
-                <Badge variant="outline" className="flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Saving...
-                </Badge>
-              )}
-            </div>
-          </div>
-        </header>
+        <div className="relative mt-2 grid grid-cols-2 border-t border-[color:var(--cc-hair)] bg-white/45 sm:grid-cols-4">
+          <MetricCell
+            label="Complete"
+            value={`${completeness}%`}
+            onClick={() => setTab("profile")}
+          />
+          <MetricCell
+            label="Skills"
+            value={skills.length}
+            onClick={() => setTab("skills")}
+            border
+          />
+          <MetricCell
+            label="Certs"
+            value={certifications.length}
+            onClick={() => setTab("skills")}
+            border
+          />
+          <MetricCell
+            label="Targets"
+            value={careerForm.target_job_titles.length}
+            onClick={() => setTab("career")}
+            border
+          />
+        </div>
+      </motion.section>
 
-        {/* Content */}
-        <main className="p-4 sm:p-6 md:p-8 max-w-4xl">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeSection}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as SettingsTab)}
+        className="mt-8 pb-16"
+      >
+        <TabsList className="cc-tabs sticky top-2 z-20 h-auto justify-start p-[0.35rem]">
+          {SETTINGS_TABS.map(({ id, label, icon: Icon }) => {
+            const hint = tabHint(id);
+            return (
+              <TabsTrigger
+                key={id}
+                value={id}
+                className="cc-tab rounded-[0.85rem] shadow-none data-[state=active]:bg-[color:var(--cc-rust-soft)] data-[state=active]:text-[color:var(--cc-rust-deep)] data-[state=active]:shadow-none"
+              >
+                <Icon className="h-3.5 w-3.5 opacity-70" aria-hidden />
+                {label}
+                {hint != null && <span className="cc-tab__hint">{hint}</span>}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+
+        {/* ── Profile ───────────────────────────────────────── */}
+        <TabsContent value="profile" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <Panel
+            title="Basic information"
+            subtitle="The basics CareerCraft and recruiters read first."
+            tone="cobalt"
+          >
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field id="full_name" label="Full name" hint="How your name appears on résumés and outreach.">
+                <input
+                  id="full_name"
+                  className="cc-field"
+                  value={profileForm.full_name}
+                  onChange={(e) => setProfileForm((p) => ({ ...p, full_name: e.target.value }))}
+                  placeholder="Curvindu Silva"
+                  autoComplete="name"
+                />
+              </Field>
+
+              <Field
+                id="email"
+                label="Email"
+                hint="Tied to your login — change it from your auth provider if needed."
+              >
+                <div className="cc-field-locked" id="email">
+                  <Mail className="h-4 w-4 shrink-0 text-[color:var(--cc-ash)]" aria-hidden />
+                  <span className="min-w-0 truncate">{session?.user?.email || "—"}</span>
+                  <Lock className="ml-auto h-3.5 w-3.5 shrink-0 text-[color:var(--cc-ash)]" aria-hidden />
+                </div>
+              </Field>
+
+              <Field
+                id="headline"
+                label="Professional headline"
+                hint="One crisp line — role + focus. Shows under your name."
+                count={profileForm.headline.length}
+                countWarnAt={90}
+                className="sm:col-span-2"
+              >
+                <input
+                  id="headline"
+                  className="cc-field"
+                  value={profileForm.headline}
+                  onChange={(e) => setProfileForm((p) => ({ ...p, headline: e.target.value }))}
+                  placeholder="Full-Stack Developer · Platform Engineer"
+                  maxLength={140}
+                />
+              </Field>
+
+              <Field
+                id="bio"
+                label="Bio"
+                hint="2–4 short paragraphs work best. Skip keyword stuffing."
+                count={profileForm.bio.length}
+                countWarnAt={900}
+                className="sm:col-span-2"
+              >
+                <textarea
+                  id="bio"
+                  className="cc-field cc-field-textarea"
+                  value={profileForm.bio}
+                  onChange={(e) => setProfileForm((p) => ({ ...p, bio: e.target.value }))}
+                  placeholder="A short professional story — what you build, where you’ve worked, and what you’re aiming for next."
+                  rows={7}
+                />
+              </Field>
+
+              <Field
+                id="phone"
+                label="Phone"
+                hint="Optional. Used only when you choose to share it."
+                icon={<Phone className="h-4 w-4" />}
+              >
+                <input
+                  id="phone"
+                  className="cc-field"
+                  value={profileForm.phone}
+                  onChange={(e) => setProfileForm((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="+61 412 345 678"
+                  autoComplete="tel"
+                  inputMode="tel"
+                />
+              </Field>
+
+              <Field
+                id="location_city"
+                label="City"
+                hint="Suburb or city only — e.g. Plympton."
+                icon={<MapPin className="h-4 w-4" />}
+              >
+                <input
+                  id="location_city"
+                  className="cc-field"
+                  value={profileForm.location_city}
+                  onChange={(e) =>
+                    setProfileForm((p) => ({ ...p, location_city: e.target.value }))
+                  }
+                  placeholder="Plympton"
+                  autoComplete="address-level2"
+                />
+              </Field>
+
+              <Field
+                id="location_country"
+                label="Country"
+                className="sm:col-span-2"
+              >
+                <input
+                  id="location_country"
+                  className="cc-field"
+                  value={profileForm.location_country}
+                  onChange={(e) =>
+                    setProfileForm((p) => ({ ...p, location_country: e.target.value }))
+                  }
+                  placeholder="Australia"
+                  autoComplete="country-name"
+                />
+              </Field>
+            </div>
+            <SaveBar onSave={handleSaveProfile} saving={saving} label="Save profile" />
+          </Panel>
+        </TabsContent>
+
+        {/* ── Career ────────────────────────────────────────── */}
+        <TabsContent value="career" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <div className="space-y-5">
+            <Panel
+              title="Role & experience"
+              subtitle="Your current situation — drives job matching and interview prep."
+              tone="sage"
             >
-              {/* Profile Section */}
-              {activeSection === "profile" && (
-                <div className="space-y-6">
-                  {/* Avatar */}
-                  <Card className="p-6">
-                    <h3 className="font-semibold mb-4">Profile Photo</h3>
-                    <div className="flex items-center gap-6">
-                      <Avatar className="w-24 h-24">
-                        <AvatarImage src={profile?.avatar_url || undefined} />
-                        <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                          {userName.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="space-y-2">
-                        <Button variant="outline" size="sm">
-                          <Camera className="w-4 h-4 mr-2" />
-                          Upload Photo
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          JPG, PNG or GIF. Max 2MB.
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Basic Info */}
-                  <Card className="p-6">
-                    <h3 className="font-semibold mb-4">Basic Information</h3>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="full_name">Full Name</Label>
-                        <Input
-                          id="full_name"
-                          value={profileForm.full_name}
-                          onChange={(e) => setProfileForm(p => ({ ...p, full_name: e.target.value }))}
-                          placeholder="John Doe"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          value={session?.user?.email || ""}
-                          disabled
-                          className="bg-muted"
-                        />
-                      </div>
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label htmlFor="headline">Professional Headline</Label>
-                        <Input
-                          id="headline"
-                          value={profileForm.headline}
-                          onChange={(e) => setProfileForm(p => ({ ...p, headline: e.target.value }))}
-                          placeholder="Senior Software Engineer at Google"
-                        />
-                      </div>
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label htmlFor="bio">Bio</Label>
-                        <Textarea
-                          id="bio"
-                          value={profileForm.bio}
-                          onChange={(e) => setProfileForm(p => ({ ...p, bio: e.target.value }))}
-                          placeholder="Tell us about yourself..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                          id="phone"
-                          value={profileForm.phone}
-                          onChange={(e) => setProfileForm(p => ({ ...p, phone: e.target.value }))}
-                          placeholder="+61 4XX XXX XXX"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="timezone">Timezone</Label>
-                        <Select
-                          value={profileForm.timezone}
-                          onValueChange={(v) => setProfileForm(p => ({ ...p, timezone: v }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TIMEZONES.map((tz) => (
-                              <SelectItem key={tz.value} value={tz.value}>
-                                {tz.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="location_city">City</Label>
-                        <Input
-                          id="location_city"
-                          value={profileForm.location_city}
-                          onChange={(e) => setProfileForm(p => ({ ...p, location_city: e.target.value }))}
-                          placeholder="Sydney"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="location_country">Country</Label>
-                        <Input
-                          id="location_country"
-                          value={profileForm.location_country}
-                          onChange={(e) => setProfileForm(p => ({ ...p, location_country: e.target.value }))}
-                          placeholder="Australia"
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-6 flex justify-end">
-                      <Button onClick={handleSaveProfile} disabled={saving}>
-                        {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        Save Changes
-                      </Button>
-                    </div>
-                  </Card>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <FieldLabel htmlFor="current_job_title">Current job title</FieldLabel>
+                  <input
+                    id="current_job_title"
+                    className="cc-field"
+                    value={careerForm.current_job_title}
+                    onChange={(e) =>
+                      setCareerForm((p) => ({ ...p, current_job_title: e.target.value }))
+                    }
+                    placeholder="Product designer"
+                  />
                 </div>
-              )}
-
-              {/* Career Section */}
-              {activeSection === "career" && (
-                <div className="space-y-6">
-                  {/* AI Persona — written by onboarding, drives personalization app-wide */}
-                  {profile?.ai_persona && (
-                    <Card className="p-6 bg-gradient-to-br from-blue-500/10 to-sky-500/10 border-blue-200/50 dark:border-blue-800/50">
-                      <div className="flex items-start justify-between gap-4 mb-3">
-                        <h3 className="font-semibold flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-blue-500" />
-                          AI Career Persona
-                        </h3>
-                        <Button variant="ghost" size="sm" onClick={() => navigate("/onboarding?redo=1")}>
-                          Re-run analysis
-                        </Button>
-                      </div>
-                      <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
-                        {profile.ai_persona.archetype}
-                      </p>
-                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                        {profile.ai_persona.narrative}
-                      </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Badge variant="secondary" className="capitalize">{profile.ai_persona.seniority}</Badge>
-                        <Badge variant="secondary">{profile.ai_persona.function}</Badge>
-                        {profile.ai_persona.subFunction && (
-                          <Badge variant="secondary">{profile.ai_persona.subFunction}</Badge>
-                        )}
-                        {profile.ai_persona.vertical && (
-                          <Badge variant="secondary">{profile.ai_persona.vertical}</Badge>
-                        )}
-                        {profile.cv_standards && (
-                          <Badge variant="outline">
-                            CV: {profile.cv_standards.recommended_length} · {profile.cv_standards.format}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        This persona personalises your jobs, news, interview prep and the app's look. It updates when you re-run onboarding.
-                      </p>
-                    </Card>
-                  )}
-
-                  {/* Current Position */}
-                  <Card className="p-6">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <Building className="w-5 h-5" />
-                      Current Position
-                    </h3>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>Job Title</Label>
-                        <Input
-                          value={careerForm.current_job_title}
-                          onChange={(e) => setCareerForm(p => ({ ...p, current_job_title: e.target.value }))}
-                          placeholder="Software Engineer"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Company</Label>
-                        <Input
-                          value={careerForm.current_company}
-                          onChange={(e) => setCareerForm(p => ({ ...p, current_company: e.target.value }))}
-                          placeholder="Acme Inc."
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Industry</Label>
-                        <Select
-                          value={careerForm.industry}
-                          onValueChange={(v) => setCareerForm(p => ({ ...p, industry: v }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select industry" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {INDUSTRIES.map((ind) => (
-                              <SelectItem key={ind} value={ind}>{ind}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Career Level</Label>
-                        <Select
-                          value={careerForm.career_level}
-                          onValueChange={(v) => setCareerForm(p => ({ ...p, career_level: v }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select level" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CAREER_LEVELS.map((level) => (
-                              <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Years of Experience</Label>
-                        <Select
-                          value={careerForm.years_of_experience}
-                          onValueChange={(v) => setCareerForm(p => ({ ...p, years_of_experience: v }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select experience" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {YEARS_OF_EXPERIENCE.map((exp) => (
-                              <SelectItem key={exp.value} value={exp.value}>{exp.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Employment Status</Label>
-                        <Select
-                          value={careerForm.employment_status}
-                          onValueChange={(v) => setCareerForm(p => ({ ...p, employment_status: v }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {EMPLOYMENT_STATUS.map((status) => (
-                              <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </Card>
-
-                  {/* Skills */}
-                  <Card className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <Award className="w-5 h-5" />
-                        Skills ({skills.length})
-                      </h3>
-                      <Dialog open={showSkillDialog} onOpenChange={setShowSkillDialog}>
-                        <DialogTrigger asChild>
-                          <Button size="sm">
-                            <Plus className="w-4 h-4 mr-1" />
-                            Add Skill
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add Skill</DialogTitle>
-                            <DialogDescription>Add a new skill to your profile</DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label>Skill Name</Label>
-                              <Input
-                                value={newSkill.skill_name}
-                                onChange={(e) => setNewSkill(s => ({ ...s, skill_name: e.target.value }))}
-                                placeholder="e.g., React, Python, Project Management"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>Category</Label>
-                                <Select
-                                  value={newSkill.category}
-                                  onValueChange={(v: any) => setNewSkill(s => ({ ...s, category: v }))}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {SKILL_CATEGORIES.map((cat) => (
-                                      <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Proficiency</Label>
-                                <Select
-                                  value={newSkill.proficiency}
-                                  onValueChange={(v: any) => setNewSkill(s => ({ ...s, proficiency: v }))}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {SKILL_PROFICIENCY.map((prof) => (
-                                      <SelectItem key={prof.value} value={prof.value}>{prof.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Switch
-                                checked={newSkill.is_primary}
-                                onCheckedChange={(v) => setNewSkill(s => ({ ...s, is_primary: v }))}
-                              />
-                              <Label>Mark as primary skill</Label>
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowSkillDialog(false)}>Cancel</Button>
-                            <Button onClick={handleAddSkill}>Add Skill</Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                    
-                    {skills.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Award className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>No skills added yet</p>
-                        <p className="text-sm">Add your skills to get better job matches</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {skills.map((skill) => (
-                          <Badge
-                            key={skill.id}
-                            variant={skill.is_primary ? "default" : "secondary"}
-                            className="px-3 py-1.5 text-sm flex items-center gap-2"
-                          >
-                            {skill.skill_name}
-                            <span className="text-xs opacity-70">({skill.proficiency})</span>
-                            <button
-                              onClick={() => deleteSkill(skill.id)}
-                              className="ml-1 hover:text-destructive"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-
-                  {/* Certifications */}
-                  <Card className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <GraduationCap className="w-5 h-5" />
-                        Certifications ({certifications.length})
-                      </h3>
-                      <Dialog open={showCertDialog} onOpenChange={setShowCertDialog}>
-                        <DialogTrigger asChild>
-                          <Button size="sm">
-                            <Plus className="w-4 h-4 mr-1" />
-                            Add Certification
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add Certification</DialogTitle>
-                            <DialogDescription>Add a professional certification</DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label>Certification Name</Label>
-                              <Input
-                                value={newCert.name}
-                                onChange={(e) => setNewCert(c => ({ ...c, name: e.target.value }))}
-                                placeholder="e.g., AWS Solutions Architect"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Issuing Organization</Label>
-                              <Input
-                                value={newCert.issuer}
-                                onChange={(e) => setNewCert(c => ({ ...c, issuer: e.target.value }))}
-                                placeholder="e.g., Amazon Web Services"
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label>Issue Date</Label>
-                                <Input
-                                  type="date"
-                                  value={newCert.issue_date}
-                                  onChange={(e) => setNewCert(c => ({ ...c, issue_date: e.target.value }))}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Expiry Date (optional)</Label>
-                                <Input
-                                  type="date"
-                                  value={newCert.expiry_date}
-                                  onChange={(e) => setNewCert(c => ({ ...c, expiry_date: e.target.value }))}
-                                />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Credential URL (optional)</Label>
-                              <Input
-                                value={newCert.credential_url}
-                                onChange={(e) => setNewCert(c => ({ ...c, credential_url: e.target.value }))}
-                                placeholder="https://..."
-                              />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowCertDialog(false)}>Cancel</Button>
-                            <Button onClick={handleAddCert}>Add Certification</Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                    
-                    {certifications.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <GraduationCap className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>No certifications added yet</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {certifications.map((cert) => (
-                          <div key={cert.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                            <div>
-                              <p className="font-medium">{cert.name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {cert.issuer} {cert.issue_date && `• ${new Date(cert.issue_date).toLocaleDateString()}`}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {cert.credential_url && (
-                                <Button variant="ghost" size="icon" asChild>
-                                  <a href={cert.credential_url} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="w-4 h-4" />
-                                  </a>
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="icon" onClick={() => deleteCertification(cert.id)}>
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-
-                  {/* Career Goals */}
-                  <Card className="p-6">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <Target className="w-5 h-5" />
-                      Career Goals
-                    </h3>
-                    <div className="space-y-4">
-                      {/* Target Job Titles */}
-                      <div className="space-y-2">
-                        <Label>Target Job Titles</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={newTargetTitle}
-                            onChange={(e) => setNewTargetTitle(e.target.value)}
-                            placeholder="Add a target job title"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && newTargetTitle.trim()) {
-                                setCareerForm(p => ({
-                                  ...p,
-                                  target_job_titles: [...p.target_job_titles, newTargetTitle.trim()]
-                                }));
-                                setNewTargetTitle("");
-                              }
-                            }}
-                          />
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              if (newTargetTitle.trim()) {
-                                setCareerForm(p => ({
-                                  ...p,
-                                  target_job_titles: [...p.target_job_titles, newTargetTitle.trim()]
-                                }));
-                                setNewTargetTitle("");
-                              }
-                            }}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {careerForm.target_job_titles.map((title, i) => (
-                            <Badge key={i} variant="secondary" className="px-3 py-1">
-                              {title}
-                              <button
-                                onClick={() => setCareerForm(p => ({
-                                  ...p,
-                                  target_job_titles: p.target_job_titles.filter((_, idx) => idx !== i)
-                                }))}
-                                className="ml-2"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Salary Range */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Minimum Salary (AUD)</Label>
-                          <Input
-                            type="number"
-                            value={careerForm.desired_salary_min}
-                            onChange={(e) => setCareerForm(p => ({ ...p, desired_salary_min: e.target.value }))}
-                            placeholder="80000"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Maximum Salary (AUD)</Label>
-                          <Input
-                            type="number"
-                            value={careerForm.desired_salary_max}
-                            onChange={(e) => setCareerForm(p => ({ ...p, desired_salary_max: e.target.value }))}
-                            placeholder="120000"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Work Arrangement */}
-                      <div className="space-y-2">
-                        <Label>Work Arrangement Preferences</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {WORK_ARRANGEMENTS.map((arr) => (
-                            <Badge
-                              key={arr.value}
-                              variant={careerForm.work_arrangement.includes(arr.value) ? "default" : "outline"}
-                              className="cursor-pointer"
-                              onClick={() => {
-                                setCareerForm(p => ({
-                                  ...p,
-                                  work_arrangement: p.work_arrangement.includes(arr.value)
-                                    ? p.work_arrangement.filter(a => a !== arr.value)
-                                    : [...p.work_arrangement, arr.value]
-                                }));
-                              }}
-                            >
-                              {arr.label}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Job Change Timeline */}
-                      <div className="space-y-2">
-                        <Label>Job Change Timeline</Label>
-                        <Select
-                          value={careerForm.job_change_timeline}
-                          onValueChange={(v) => setCareerForm(p => ({ ...p, job_change_timeline: v }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="When are you looking to change?" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {JOB_CHANGE_TIMELINE.map((timeline) => (
-                              <SelectItem key={timeline.value} value={timeline.value}>{timeline.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="mt-6 flex justify-end">
-                      <Button onClick={handleSaveCareer} disabled={saving}>
-                        {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        Save Career Info
-                      </Button>
-                    </div>
-                  </Card>
+                <div>
+                  <FieldLabel htmlFor="current_company">Current company</FieldLabel>
+                  <input
+                    id="current_company"
+                    className="cc-field"
+                    value={careerForm.current_company}
+                    onChange={(e) =>
+                      setCareerForm((p) => ({ ...p, current_company: e.target.value }))
+                    }
+                    placeholder="Company name"
+                  />
                 </div>
-              )}
+                <div>
+                  <FieldLabel>Years of experience</FieldLabel>
+                  <Select
+                    value={careerForm.years_of_experience || undefined}
+                    onValueChange={(v) =>
+                      setCareerForm((p) => ({ ...p, years_of_experience: v }))
+                    }
+                  >
+                    <SelectTrigger className="cc-field h-auto border-[color:var(--cc-hair-strong)]">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS_OF_EXPERIENCE.map((y) => (
+                        <SelectItem key={y.value} value={y.value}>
+                          {y.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Industry</FieldLabel>
+                  <Select
+                    value={careerForm.industry || undefined}
+                    onValueChange={(v) => setCareerForm((p) => ({ ...p, industry: v }))}
+                  >
+                    <SelectTrigger className="cc-field h-auto border-[color:var(--cc-hair-strong)]">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDUSTRIES.map((ind) => (
+                        <SelectItem key={ind.value} value={ind.value}>
+                          {ind.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Career level</FieldLabel>
+                  <Select
+                    value={careerForm.career_level || undefined}
+                    onValueChange={(v) => setCareerForm((p) => ({ ...p, career_level: v }))}
+                  >
+                    <SelectTrigger className="cc-field h-auto border-[color:var(--cc-hair-strong)]">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CAREER_LEVELS.map((level) => (
+                        <SelectItem key={level.value} value={level.value}>
+                          {level.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Employment status</FieldLabel>
+                  <Select
+                    value={careerForm.employment_status}
+                    onValueChange={(v) => setCareerForm((p) => ({ ...p, employment_status: v }))}
+                  >
+                    <SelectTrigger className="cc-field h-auto border-[color:var(--cc-hair-strong)]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMPLOYMENT_STATUS.map((status) => (
+                        <SelectItem key={status.value} value={status.value}>
+                          {status.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Panel>
 
-              {/* Notifications Section */}
-              {activeSection === "notifications" && (
-                <div className="space-y-6">
-                  <Card className="p-6">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <Mail className="w-5 h-5" />
-                      Email Notifications
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Choose which emails you'd like to receive
-                    </p>
-                    <div className="space-y-4">
-                      {[
-                        { key: 'email_weekly_digest', label: 'Weekly Digest', description: 'Summary of job market trends and opportunities' },
-                        { key: 'email_news_alerts', label: 'News Alerts', description: 'Industry news and market updates' },
-                        { key: 'marketing_emails', label: 'Product Updates', description: 'New features and tips' },
-                      ].map((item) => (
-                        <div key={item.key} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                          <div>
-                            <Label className="font-medium">{item.label}</Label>
-                            <p className="text-sm text-muted-foreground">{item.description}</p>
-                          </div>
-                          <Switch
-                            checked={(preferences?.notification_settings as any)?.[item.key] || false}
-                            onCheckedChange={(v) => {
-                              updatePreferences('notification_settings', {
-                                ...preferences?.notification_settings,
-                                [item.key]: v,
-                              });
-                              toast({
-                                title: v ? '✓ Enabled' : '✓ Disabled',
-                                description: `${item.label} ${v ? 'enabled' : 'disabled'}`,
-                              });
-                            }}
-                          />
-                        </div>
+            <Panel
+              title="Goals & preferences"
+              subtitle="Where you’re headed — titles, companies, pay, and work style."
+              tone="wheat"
+            >
+              <div className="space-y-6">
+                <div>
+                  <FieldLabel>Target job titles</FieldLabel>
+                  <div className="flex gap-2">
+                    <input
+                      className="cc-field"
+                      value={newTargetTitle}
+                      onChange={(e) => setNewTargetTitle(e.target.value)}
+                      placeholder="Add a target title"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          pushTag("target_job_titles", newTargetTitle, () =>
+                            setNewTargetTitle(""),
+                          );
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="cc-action cc-action--ghost"
+                      onClick={() =>
+                        pushTag("target_job_titles", newTargetTitle, () => setNewTargetTitle(""))
+                      }
+                      aria-label="Add title"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {careerForm.target_job_titles.map((title) => (
+                      <Chip
+                        key={title}
+                        onRemove={() =>
+                          setCareerForm((p) => ({
+                            ...p,
+                            target_job_titles: p.target_job_titles.filter((t) => t !== title),
+                          }))
+                        }
+                      >
+                        {title}
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div>
+                    <FieldLabel>Target companies</FieldLabel>
+                    <div className="flex gap-2">
+                      <input
+                        className="cc-field"
+                        value={newTargetCompany}
+                        onChange={(e) => setNewTargetCompany(e.target.value)}
+                        placeholder="Add a company"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            pushTag("target_companies", newTargetCompany, () =>
+                              setNewTargetCompany(""),
+                            );
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="cc-action cc-action--ghost"
+                        onClick={() =>
+                          pushTag("target_companies", newTargetCompany, () =>
+                            setNewTargetCompany(""),
+                          )
+                        }
+                        aria-label="Add company"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {careerForm.target_companies.map((company) => (
+                        <Chip
+                          key={company}
+                          onRemove={() =>
+                            setCareerForm((p) => ({
+                              ...p,
+                              target_companies: p.target_companies.filter((c) => c !== company),
+                            }))
+                          }
+                        >
+                          {company}
+                        </Chip>
                       ))}
                     </div>
-                  </Card>
+                  </div>
+
+                  <div>
+                    <FieldLabel>Preferred locations</FieldLabel>
+                    <div className="flex gap-2">
+                      <input
+                        className="cc-field"
+                        value={newLocation}
+                        onChange={(e) => setNewLocation(e.target.value)}
+                        placeholder="City or region"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            pushTag("preferred_locations", newLocation, () => setNewLocation(""));
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="cc-action cc-action--ghost"
+                        onClick={() =>
+                          pushTag("preferred_locations", newLocation, () => setNewLocation(""))
+                        }
+                        aria-label="Add location"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {careerForm.preferred_locations.map((location) => (
+                        <Chip
+                          key={location}
+                          onRemove={() =>
+                            setCareerForm((p) => ({
+                              ...p,
+                              preferred_locations: p.preferred_locations.filter(
+                                (l) => l !== location,
+                              ),
+                            }))
+                          }
+                        >
+                          {location}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <FieldLabel htmlFor="salary_min">Minimum salary (AUD)</FieldLabel>
+                    <input
+                      id="salary_min"
+                      type="number"
+                      className="cc-field"
+                      value={careerForm.desired_salary_min}
+                      onChange={(e) =>
+                        setCareerForm((p) => ({ ...p, desired_salary_min: e.target.value }))
+                      }
+                      placeholder="80000"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel htmlFor="salary_max">Maximum salary (AUD)</FieldLabel>
+                    <input
+                      id="salary_max"
+                      type="number"
+                      className="cc-field"
+                      value={careerForm.desired_salary_max}
+                      onChange={(e) =>
+                        setCareerForm((p) => ({ ...p, desired_salary_max: e.target.value }))
+                      }
+                      placeholder="120000"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel>Work arrangement</FieldLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {WORK_ARRANGEMENTS.map((arr) => {
+                      const active = careerForm.work_arrangement.includes(arr.value);
+                      return (
+                        <Chip
+                          key={arr.value}
+                          active={active}
+                          onClick={() =>
+                            setCareerForm((p) => ({
+                              ...p,
+                              work_arrangement: active
+                                ? p.work_arrangement.filter((a) => a !== arr.value)
+                                : [...p.work_arrangement, arr.value],
+                            }))
+                          }
+                        >
+                          {arr.label}
+                        </Chip>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <FieldLabel>Job change timeline</FieldLabel>
+                  <Select
+                    value={careerForm.job_change_timeline || undefined}
+                    onValueChange={(v) =>
+                      setCareerForm((p) => ({ ...p, job_change_timeline: v }))
+                    }
+                  >
+                    <SelectTrigger className="cc-field h-auto border-[color:var(--cc-hair-strong)]">
+                      <SelectValue placeholder="When are you looking to change?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {JOB_CHANGE_TIMELINE.map((timeline) => (
+                        <SelectItem key={timeline.value} value={timeline.value}>
+                          {timeline.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <SaveBar onSave={handleSaveCareer} saving={saving} label="Save career info" />
+            </Panel>
+          </div>
+        </TabsContent>
+
+        {/* ── Skills ────────────────────────────────────────── */}
+        <TabsContent value="skills" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <div className="space-y-5">
+            <Panel
+              title={`Skills · ${skills.length}`}
+              subtitle="What you bring — stronger lists mean sharper job matches."
+              tone="cobalt"
+              actions={
+                <Dialog open={showSkillDialog} onOpenChange={setShowSkillDialog}>
+                  <DialogTrigger asChild>
+                    <button type="button" className="cc-action cc-action--sm">
+                      <Plus className="h-4 w-4" />
+                      Add skill
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add skill</DialogTitle>
+                      <DialogDescription>Add a skill to improve job matching.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                      <div>
+                        <FieldLabel>Skill name</FieldLabel>
+                        <input
+                          className="cc-field"
+                          value={newSkill.skill_name}
+                          onChange={(e) =>
+                            setNewSkill((s) => ({ ...s, skill_name: e.target.value }))
+                          }
+                          placeholder="e.g. React, Python"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <FieldLabel>Category</FieldLabel>
+                          <Select
+                            value={newSkill.category}
+                            onValueChange={(v) => setNewSkill((s) => ({ ...s, category: v }))}
+                          >
+                            <SelectTrigger className="cc-field h-auto">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SKILL_CATEGORIES.map((cat) => (
+                                <SelectItem key={cat.value} value={cat.value}>
+                                  {cat.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <FieldLabel>Proficiency</FieldLabel>
+                          <Select
+                            value={newSkill.proficiency}
+                            onValueChange={(v) => setNewSkill((s) => ({ ...s, proficiency: v }))}
+                          >
+                            <SelectTrigger className="cc-field h-auto">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SKILL_PROFICIENCY.map((prof) => (
+                                <SelectItem key={prof.value} value={prof.value}>
+                                  {prof.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={newSkill.is_primary}
+                          onCheckedChange={(v) => setNewSkill((s) => ({ ...s, is_primary: v }))}
+                        />
+                        <span className="text-sm text-[color:var(--cc-ink-soft)]">
+                          Primary skill
+                        </span>
+                      </div>
+                    </div>
+                    <DialogFooter className="gap-2">
+                      <button
+                        type="button"
+                        className="cc-action cc-action--ghost"
+                        onClick={() => setShowSkillDialog(false)}
+                      >
+                        Cancel
+                      </button>
+                      <button type="button" className="cc-action" onClick={handleAddSkill}>
+                        Add skill
+                      </button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              }
+            >
+              {skills.length === 0 ? (
+                <div className="cc-tint cc-tone-cobalt px-5 py-10 text-center">
+                  <Award className="mx-auto h-8 w-8 text-[color:var(--cc-rust)] opacity-70" />
+                  <p className="mt-3 text-sm text-[color:var(--cc-ink-soft)]">
+                    No skills yet — add a few to sharpen matches.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {skills.map((skill) => (
+                    <Chip
+                      key={skill.id}
+                      active={skill.is_primary}
+                      onRemove={() => deleteSkill(skill.id)}
+                    >
+                      {skill.skill_name}
+                      <span className="opacity-60">({skill.proficiency})</span>
+                    </Chip>
+                  ))}
                 </div>
               )}
+            </Panel>
 
-              {/* Security Section */}
-              {activeSection === "security" && (
-                <div className="space-y-6">
-                  <Card className="p-6">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <Lock className="w-5 h-5" />
-                      Password
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Change your password to keep your account secure
-                    </p>
-                    <Button variant="outline" onClick={() => {
-                      supabase.auth.resetPasswordForEmail(session?.user?.email || '', {
-                        redirectTo: `${APP_BASE_URL}/auth`,
-                      });
-                      toast({
-                        title: '✓ Password reset email sent',
-                        description: 'Check your email for the reset link',
-                      });
-                    }}>
-                      Change Password
-                    </Button>
-                  </Card>
-
-                  <Card className="p-6">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2">
-                      <Download className="w-5 h-5" />
-                      Export Your Data
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Download all your profile data, skills, and preferences as a JSON file
-                    </p>
-                    <Button variant="outline" onClick={() => {
-                      exportData();
-                      toast({
-                        title: '✓ Data exported',
-                        description: 'Your data has been downloaded.',
-                      });
-                    }}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download My Data
-                    </Button>
-                  </Card>
-
-                  <Card className="p-6 border-destructive/50">
-                    <h3 className="font-semibold mb-4 flex items-center gap-2 text-destructive">
-                      <AlertTriangle className="w-5 h-5" />
-                      Danger Zone
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Once you delete your account, there is no going back. Please be certain.
-                    </p>
-                    <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive">
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete Account
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete your account
-                            and remove all your data from our servers.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <div className="py-4">
-                          <Label>Type DELETE to confirm</Label>
-                          <Input
-                            value={deleteConfirmText}
-                            onChange={(e) => setDeleteConfirmText(e.target.value)}
-                            placeholder="DELETE"
-                            className="mt-2"
+            <Panel
+              title={`Certifications · ${certifications.length}`}
+              subtitle="Credentials that recruiters and ATS scans look for."
+              tone="sage"
+              actions={
+                <Dialog open={showCertDialog} onOpenChange={setShowCertDialog}>
+                  <DialogTrigger asChild>
+                    <button type="button" className="cc-action cc-action--ghost cc-action--sm">
+                      <Plus className="h-4 w-4" />
+                      Add certification
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add certification</DialogTitle>
+                      <DialogDescription>Add a professional certification.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                      <div>
+                        <FieldLabel>Name</FieldLabel>
+                        <input
+                          className="cc-field"
+                          value={newCert.name}
+                          onChange={(e) => setNewCert((c) => ({ ...c, name: e.target.value }))}
+                          placeholder="AWS Solutions Architect"
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel>Issuer</FieldLabel>
+                        <input
+                          className="cc-field"
+                          value={newCert.issuer}
+                          onChange={(e) => setNewCert((c) => ({ ...c, issuer: e.target.value }))}
+                          placeholder="Amazon Web Services"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <FieldLabel>Issue date</FieldLabel>
+                          <input
+                            type="date"
+                            className="cc-field"
+                            value={newCert.issue_date}
+                            onChange={(e) =>
+                              setNewCert((c) => ({ ...c, issue_date: e.target.value }))
+                            }
                           />
                         </div>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel onClick={() => setDeleteConfirmText("")}>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={handleDeleteAccount}
-                            disabled={deleteConfirmText !== "DELETE"}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Delete Account
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </Card>
+                        <div>
+                          <FieldLabel>Expiry (optional)</FieldLabel>
+                          <input
+                            type="date"
+                            className="cc-field"
+                            value={newCert.expiry_date}
+                            onChange={(e) =>
+                              setNewCert((c) => ({ ...c, expiry_date: e.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <FieldLabel>Credential URL</FieldLabel>
+                        <input
+                          className="cc-field"
+                          value={newCert.credential_url}
+                          onChange={(e) =>
+                            setNewCert((c) => ({ ...c, credential_url: e.target.value }))
+                          }
+                          placeholder="https://…"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter className="gap-2">
+                      <button
+                        type="button"
+                        className="cc-action cc-action--ghost"
+                        onClick={() => setShowCertDialog(false)}
+                      >
+                        Cancel
+                      </button>
+                      <button type="button" className="cc-action" onClick={handleAddCert}>
+                        Add certification
+                      </button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              }
+            >
+              {certifications.length === 0 ? (
+                <div className="cc-tint cc-tone-sage px-5 py-10 text-center">
+                  <GraduationCap className="mx-auto h-8 w-8 text-[color:var(--cc-signal)] opacity-70" />
+                  <p className="mt-3 text-sm text-[color:var(--cc-ink-soft)]">
+                    No certifications yet
+                  </p>
                 </div>
+              ) : (
+                <ul className="space-y-3">
+                  {certifications.map((cert) => (
+                    <li
+                      key={cert.id}
+                      className="flex items-center justify-between rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] px-4 py-3"
+                    >
+                      <div>
+                        <p className="font-medium text-[color:var(--cc-ink)]">{cert.name}</p>
+                        <p className="text-sm text-[color:var(--cc-ash)]">
+                          {cert.issuer}
+                          {cert.issue_date
+                            ? ` · ${new Date(cert.issue_date).toLocaleDateString()}`
+                            : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {cert.credential_url && (
+                          <a
+                            href={cert.credential_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="cc-action cc-action--ghost cc-action--sm p-2"
+                            aria-label="Open credential"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          className="cc-action cc-action--ghost cc-action--sm p-2 text-[color:var(--cc-rust)]"
+                          onClick={() => deleteCertification(cert.id)}
+                          aria-label="Delete certification"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
-            </motion.div>
-          </AnimatePresence>
-        </main>
-      </div>
-    </div>
+            </Panel>
+          </div>
+        </TabsContent>
+
+        {/* ── Alerts ────────────────────────────────────────── */}
+        <TabsContent value="alerts" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <Panel
+            title="Email notifications"
+            subtitle="Toggle what lands in your inbox — changes save instantly."
+            tone="wheat"
+          >
+            <ul className="overflow-hidden rounded-xl border border-[color:var(--cc-hair)]">
+              {NOTIFICATION_ITEMS.map((item, i) => {
+                const checked = Boolean(preferences?.notification_settings?.[item.key]);
+                return (
+                  <li
+                    key={item.key}
+                    className={`flex items-center justify-between gap-4 bg-white px-4 py-4 ${
+                      i > 0 ? "border-t border-[color:var(--cc-hair)]" : ""
+                    }`}
+                  >
+                    <div>
+                      <p className="font-medium text-[color:var(--cc-ink)]">{item.label}</p>
+                      <p className="text-sm text-[color:var(--cc-ash)]">{item.description}</p>
+                    </div>
+                    <Switch
+                      checked={checked}
+                      onCheckedChange={(v) => handleNotificationToggle(item.key, v)}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </Panel>
+        </TabsContent>
+
+        {/* ── Account ───────────────────────────────────────── */}
+        <TabsContent value="account" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <div className="space-y-5">
+            <Panel title="Password" subtitle="We’ll email a secure link to reset your password." tone="ink">
+              <button
+                type="button"
+                className="cc-action cc-action--ghost"
+                onClick={async () => {
+                  const email = session?.user?.email;
+                  if (!email) return;
+                  await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${APP_BASE_URL}/reset-password`,
+                  });
+                  toast({
+                    title: "Reset email sent",
+                    description: "Check your inbox for the password reset link.",
+                  });
+                }}
+              >
+                Change password
+              </button>
+            </Panel>
+
+            <Panel title="Your data" subtitle="Download a copy of your profile and preferences." tone="cobalt">
+              <button
+                type="button"
+                className="cc-action cc-action--ghost"
+                onClick={() => {
+                  exportData();
+                  toast({
+                    title: "Data exported",
+                    description: "Your download has started.",
+                  });
+                }}
+              >
+                <Download className="h-4 w-4" />
+                Download my data
+              </button>
+            </Panel>
+
+            <div className="overflow-hidden rounded-[1.25rem] border border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)] p-5 md:p-7">
+              <h2 className="mb-2 flex items-center gap-2 font-semibold text-[color:var(--cc-rust-deep)]">
+                <AlertTriangle className="h-4 w-4" />
+                Danger zone
+              </h2>
+              <p className="mb-4 text-sm text-[color:var(--cc-ink-soft)]">
+                Deleting your account permanently removes your data. This cannot be undone.
+              </p>
+              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogTrigger asChild>
+                  <button type="button" className="cc-action cc-action--ink">
+                    <Trash2 className="h-4 w-4" />
+                    Delete account
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This permanently deletes your account and all associated data.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="py-2">
+                    <FieldLabel htmlFor="delete-confirm">Type DELETE to confirm</FieldLabel>
+                    <input
+                      id="delete-confirm"
+                      className="cc-field"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      placeholder="DELETE"
+                    />
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setDeleteConfirmText("")}>
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAccount}
+                      disabled={deleteConfirmText !== "DELETE"}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete account
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </CraftAppLayout>
   );
 }

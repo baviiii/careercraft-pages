@@ -1,12 +1,19 @@
 /**
- * New Session — shape the loop, pick a mode, sit the interview.
- * "Build my plan" surfaces the MCP's build_interview_plan (weighted rounds +
- * checklist); every round is practicable and seeds question generation via
- * its focusAreas. Quick start skips straight to the room.
+ * Practice setup — situation-first, dual start (drill / full mock).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowRight, Loader2, Map } from "lucide-react";
+import {
+  ArrowRight,
+  Briefcase,
+  ChevronDown,
+  Loader2,
+  Map,
+  MessageSquare,
+  Phone,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePersonalization } from "@/hooks/usePersonalization";
 import {
@@ -29,51 +36,116 @@ import { SAMarketIntelligence } from "@/components/interview/SAMarketIntelligenc
 import { stageSession } from "../hooks/useInterviewSession";
 import type { InterviewMode } from "../types";
 import { PlanCard } from "./PlanCard";
+import { CoachOfflineBanner } from "./CoachOfflineBanner";
 
-const HOW_IT_WORKS = [
-  { step: "01", title: "Shape the loop", sub: "Field, level, and the JD if you have one." },
-  { step: "02", title: "Sit the interview", sub: "One question at a time — it adapts to you." },
-  { step: "03", title: "Read the debrief", sub: "Verdict, transcript, and what to fix." },
-];
+type SituationId = "behavioral" | "technical" | "role" | "screen";
 
-const MODES: Array<{
-  id: InterviewMode;
+const SITUATIONS: Array<{
+  id: SituationId;
   title: string;
   sub: string;
+  icon: typeof MessageSquare;
+  tone: "cobalt" | "sage" | "wheat" | "ink";
+  focusAreas: string[];
+  defaultCount: number;
+  defaultMode: InterviewMode;
 }> = [
+  {
+    id: "behavioral",
+    title: "Behavioral",
+    sub: "STAR stories, conflict, impact",
+    icon: MessageSquare,
+    tone: "cobalt",
+    focusAreas: ["behavioral", "communication"],
+    defaultCount: 6,
+    defaultMode: "coached",
+  },
+  {
+    id: "technical",
+    title: "Technical",
+    sub: "Depth, trade-offs, problem-solving",
+    icon: Wrench,
+    tone: "sage",
+    focusAreas: ["technical"],
+    defaultCount: 6,
+    defaultMode: "realistic",
+  },
+  {
+    id: "role",
+    title: "Role-specific",
+    sub: "Tuned to your field and level",
+    icon: Briefcase,
+    tone: "wheat",
+    focusAreas: [],
+    defaultCount: 6,
+    defaultMode: "realistic",
+  },
+  {
+    id: "screen",
+    title: "Phone screen",
+    sub: "Short, crisp first-round answers",
+    icon: Phone,
+    tone: "ink",
+    focusAreas: ["behavioral", "communication"],
+    defaultCount: 4,
+    defaultMode: "coached",
+  },
+];
+
+const MODES: Array<{ id: InterviewMode; title: string; sub: string }> = [
   {
     id: "realistic",
     title: "Realistic",
-    sub: "Adaptive questions that react to your answers. Feedback stays sealed until the debrief — the closest thing to the real room.",
+    sub: "Feedback sealed until the debrief — closest to the real room.",
   },
   {
     id: "coached",
     title: "Coached",
-    sub: "Full feedback after every answer, hints whenever you're stuck. Learn the patterns before you go realistic.",
+    sub: "Feedback after every answer. Learn patterns before going realistic.",
   },
 ];
 
 const LENGTHS = [4, 6, 8];
 
-const fieldLabel = "block cc-label-sm mb-2 text-[color:var(--cc-ink-soft)]";
-const fieldControl =
-  "w-full border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-3 py-3 text-sm text-[color:var(--cc-ink)] outline-none transition-colors focus:border-[color:var(--cc-ink)]";
+function Field({
+  id,
+  label,
+  hint,
+  children,
+}: {
+  id?: string;
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="cc-field-wrap">
+      <label htmlFor={id} className="cc-field-label">
+        {label}
+      </label>
+      {children}
+      {hint && <p className="cc-field-hint">{hint}</p>}
+    </div>
+  );
+}
 
 export function SetupPanel() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile, loading: profileLoading, hasPersonalizationData } = usePersonalization();
 
+  const [situation, setSituation] = useState<SituationId | null>(null);
   const [field, setField] = useState("");
   const [seniority, setSeniority] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [mode, setMode] = useState<InterviewMode>("realistic");
   const [questionCount, setQuestionCount] = useState(6);
+  const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [plan, setPlan] = useState<InterviewPlan | null>(null);
   const [buildingPlan, setBuildingPlan] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
 
-  // Prefill once from the profile; the selects stay fully editable.
   useEffect(() => {
     if (field || profileLoading || !hasPersonalizationData) return;
     if (profile.industry) {
@@ -90,6 +162,14 @@ export function SetupPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileLoading, hasPersonalizationData]);
 
+  const pickSituation = (id: SituationId) => {
+    const s = SITUATIONS.find((x) => x.id === id)!;
+    setSituation(id);
+    setFocusAreas(s.focusAreas);
+    setQuestionCount(s.defaultCount);
+    setMode(s.defaultMode);
+  };
+
   const config = useMemo(
     () => ({
       field,
@@ -97,8 +177,12 @@ export function SetupPanel() {
       jobDescription: jobDescription.trim() || undefined,
       mode,
       questionCount,
+      focusAreas: focusAreas.length ? focusAreas : undefined,
+      roundName: situation
+        ? SITUATIONS.find((s) => s.id === situation)?.title
+        : undefined,
     }),
-    [field, seniority, jobDescription, mode, questionCount],
+    [field, seniority, jobDescription, mode, questionCount, focusAreas, situation],
   );
 
   const requireField = (): boolean => {
@@ -122,7 +206,7 @@ export function SetupPanel() {
     } catch (e) {
       const message =
         e instanceof CoachUnavailableError
-          ? e.message
+          ? "Coach is temporarily offline. Try again shortly."
           : "Interview coach is not available at the moment.";
       toast({ title: "Not available", description: message, variant: "destructive" });
     } finally {
@@ -130,66 +214,129 @@ export function SetupPanel() {
     }
   };
 
-  const enterRoom = (extra?: { focusAreas?: string[]; roundName?: string }) => {
+  const enterRoom = (extra?: {
+    focusAreas?: string[];
+    roundName?: string;
+    questionCount?: number;
+    mode?: InterviewMode;
+  }) => {
     if (!requireField()) return;
+    if (!COACH_AVAILABLE) {
+      toast({
+        title: "Coach is offline",
+        description: "Live sessions aren’t available right now.",
+        variant: "destructive",
+      });
+      return;
+    }
     stageSession({ ...config, ...extra });
     navigate("/interview-prep/room");
   };
+
+  const quickDrill = () => {
+    enterRoom({
+      questionCount: 1,
+      mode: "coached",
+      roundName: "Quick drill",
+      focusAreas: focusAreas.length ? focusAreas : ["behavioral"],
+    });
+  };
+
+  const fullMock = () => enterRoom();
 
   const practiceRound = (round: PlanRound) => {
     enterRoom({ focusAreas: round.focusAreas, roundName: round.name });
   };
 
-  return (
-    <div className="space-y-6">
-      {!COACH_AVAILABLE && (
-        <div className="flex items-start gap-3 border border-[color:var(--cc-wheat)] bg-[color:var(--cc-wheat-soft)] p-4">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--cc-wheat-deep)]" />
-          <div>
-            <p className="text-sm font-medium text-[color:var(--cc-ink)]">
-              Interview coach not connected
-            </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-[color:var(--cc-ink-soft)]">
-              Set <code className="cc-font-mono">VITE_INTERVIEW_MCP_URL</code> to your running
-              interview-coach-mcp to enable live plans, questions and evaluations.
-            </p>
-          </div>
-        </div>
-      )}
+  const recommendedTitle =
+    profile.targetJobTitles?.[0] ||
+    (field ? field : null) ||
+    "your target role";
 
-      {/* How it works */}
-      <div className="grid grid-cols-1 gap-px border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-hair-strong)] sm:grid-cols-3">
-        {HOW_IT_WORKS.map((item) => (
-          <div key={item.step} className="bg-[color:var(--cc-cream)] p-4">
-            <p className="cc-label-sm text-[color:var(--cc-rust)]">{item.step}</p>
-            <p className="cc-font-display mt-1 text-lg text-[color:var(--cc-ink)]">{item.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-[color:var(--cc-ash)]">{item.sub}</p>
-          </div>
-        ))}
+  return (
+    <div className="space-y-5">
+      {!COACH_AVAILABLE && <CoachOfflineBanner />}
+
+      {/* Dual start */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={quickDrill}
+          disabled={!COACH_AVAILABLE}
+          className="cc-tint cc-tone-cobalt cc-lift group p-5 text-left disabled:cursor-not-allowed disabled:opacity-55"
+        >
+          <div className="cc-kicker">Instant</div>
+          <p className="mt-2 cc-font-display text-xl text-[color:var(--cc-ink)]">Quick drill</p>
+          <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
+            One coached question — warm up in under five minutes.
+          </p>
+          <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--cc-rust)]">
+            Start drill <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={fullMock}
+          disabled={!COACH_AVAILABLE}
+          className="cc-tint cc-tone-sage cc-lift group p-5 text-left disabled:cursor-not-allowed disabled:opacity-55"
+        >
+          <div className="cc-kicker">Full loop</div>
+          <p className="mt-2 cc-font-display text-xl text-[color:var(--cc-ink)]">Full mock</p>
+          <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
+            {questionCount} questions for {recommendedTitle} — then a full debrief.
+          </p>
+          <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--cc-signal-deep)]">
+            Start mock <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </button>
       </div>
 
-      {/* Setup */}
-      <section className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]">
-        <div className="border-b border-[color:var(--cc-hair)] px-5 py-4 md:px-6">
-          <p className="cc-label text-[color:var(--cc-ink)]">New session</p>
-          {prefilled && (
-            <p className="mt-1 text-xs text-[color:var(--cc-ash)]">
-              Prefilled from your profile — change anything below.
-            </p>
-          )}
+      {/* Situation cards */}
+      <div>
+        <p className="cc-field-label mb-3">What are you practicing for?</p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {SITUATIONS.map((s) => {
+            const Icon = s.icon;
+            const active = situation === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => pickSituation(s.id)}
+                className={`cc-surface cc-lift cc-tone-${s.tone} p-4 text-left transition-shadow ${
+                  active ? "ring-2 ring-[color:var(--cc-rust)]" : ""
+                }`}
+              >
+                <Icon className="h-4 w-4 text-[color:var(--cc-t,var(--cc-rust))]" />
+                <p className="mt-3 font-semibold text-[color:var(--cc-ink)]">{s.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-[color:var(--cc-ink-soft)]">
+                  {s.sub}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Targeting + mode */}
+      <section className="cc-surface overflow-hidden">
+        <div className="border-b border-[color:var(--cc-hair)] bg-[color:var(--cc-rust-soft)]/40 px-5 py-4 md:px-6">
+          <div className="cc-kicker">Session setup</div>
+          <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
+            {prefilled
+              ? "Prefilled from your profile — change anything below."
+              : "Field and level shape every question."}
+          </p>
         </div>
 
         <div className="space-y-6 p-5 md:p-6">
           <div className="grid gap-5 md:grid-cols-2">
-            <div>
-              <label htmlFor="iv-field" className={fieldLabel}>
-                Field *
-              </label>
+            <Field id="iv-field" label="Field" hint="Required before you can start.">
               <select
                 id="iv-field"
                 value={field}
                 onChange={(e) => setField(e.target.value)}
-                className={fieldControl}
+                className="cc-field"
               >
                 <option value="" disabled>
                   Choose your field
@@ -200,16 +347,13 @@ export function SetupPanel() {
                   </option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label htmlFor="iv-seniority" className={fieldLabel}>
-                Level
-              </label>
+            </Field>
+            <Field id="iv-seniority" label="Level">
               <select
                 id="iv-seniority"
                 value={seniority}
                 onChange={(e) => setSeniority(e.target.value)}
-                className={fieldControl}
+                className="cc-field"
               >
                 <option value="">Any level</option>
                 {CAREER_SENIORITY.map((s) => (
@@ -218,44 +362,44 @@ export function SetupPanel() {
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
 
-          <div>
-            <label htmlFor="iv-jd" className={fieldLabel}>
-              Job description <span className="normal-case tracking-normal">(optional — sharpens everything)</span>
-            </label>
+          <Field
+            id="iv-jd"
+            label="Job description"
+            hint="Optional — paste a JD to aim questions at this exact role."
+          >
             <textarea
               id="iv-jd"
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
-              placeholder="Paste the JD to get questions aimed at this exact role…"
-              className={`${fieldControl} min-h-[110px] resize-y placeholder:text-[color:var(--cc-ash)]`}
+              placeholder="Paste the JD to sharpen questions…"
+              className="cc-field cc-field-textarea"
+              rows={4}
             />
-          </div>
+          </Field>
 
-          {/* Mode */}
           <div>
-            <p className={fieldLabel}>Mode</p>
+            <p className="cc-field-label mb-2">Mode</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {MODES.map((m) => {
                 const active = mode === m.id;
                 return (
                   <button
                     key={m.id}
+                    type="button"
                     onClick={() => setMode(m.id)}
-                    className={[
-                      "border p-4 text-left transition-colors",
+                    className={`rounded-[0.85rem] border p-4 text-left transition-colors ${
                       active
-                        ? "border-[color:var(--cc-ink)] bg-[color:var(--cc-cream-2)] shadow-[inset_0_3px_0_0_var(--cc-rust)]"
-                        : "border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)]",
-                    ].join(" ")}
+                        ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)]"
+                        : "border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)]"
+                    }`}
                   >
                     <p
-                      className={[
-                        "cc-font-display text-lg",
-                        active ? "text-[color:var(--cc-rust)]" : "text-[color:var(--cc-ink)]",
-                      ].join(" ")}
+                      className={`cc-font-display text-lg ${
+                        active ? "text-[color:var(--cc-rust-deep)]" : "text-[color:var(--cc-ink)]"
+                      }`}
                     >
                       {m.title}
                     </p>
@@ -268,20 +412,19 @@ export function SetupPanel() {
             </div>
           </div>
 
-          {/* Length */}
           <div>
-            <p className={fieldLabel}>Length</p>
-            <div className="inline-flex border border-[color:var(--cc-hair-strong)]">
+            <p className="cc-field-label mb-2">Length</p>
+            <div className="inline-flex overflow-hidden rounded-[0.85rem] border border-[color:var(--cc-hair-strong)]">
               {LENGTHS.map((n) => (
                 <button
                   key={n}
+                  type="button"
                   onClick={() => setQuestionCount(n)}
-                  className={[
-                    "cc-label-sm px-4 py-2.5 transition-colors",
+                  className={`px-4 py-2.5 text-sm font-semibold transition-colors ${
                     questionCount === n
                       ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-                      : "text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]",
-                  ].join(" ")}
+                      : "text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]"
+                  }`}
                 >
                   {n} questions
                 </button>
@@ -291,29 +434,32 @@ export function SetupPanel() {
 
           <div className="flex flex-col gap-3 border-t border-[color:var(--cc-hair)] pt-5 sm:flex-row">
             <button
+              type="button"
               onClick={buildPlan}
               disabled={buildingPlan || !COACH_AVAILABLE}
-              className="cc-btn cc-btn-ghost flex-1"
+              className="cc-action cc-action--ghost flex-1"
             >
               {buildingPlan ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Designing your loop
                 </>
               ) : (
                 <>
-                  <Map className="h-3.5 w-3.5" />
-                  Build my interview plan
+                  <Map className="h-4 w-4" />
+                  Build interview plan
                 </>
               )}
             </button>
             <button
-              onClick={() => enterRoom()}
+              type="button"
+              onClick={fullMock}
               disabled={!COACH_AVAILABLE}
-              className="cc-btn cc-btn-primary flex-1"
+              className="cc-action flex-1"
             >
-              Quick start
-              <ArrowRight className="cc-arrow-right h-3.5 w-3.5" />
+              <Sparkles className="h-4 w-4" />
+              Start full mock
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -321,7 +467,32 @@ export function SetupPanel() {
 
       {plan && <PlanCard plan={plan} onPracticeRound={practiceRound} />}
 
-      {field && <SAMarketIntelligence field={field} seniority={seniority} />}
+      {field && (
+        <div className="cc-surface overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setMarketOpen((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
+          >
+            <div>
+              <p className="cc-kicker">Market context</p>
+              <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
+                Optional SA market intel for {field}
+              </p>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-[color:var(--cc-ash)] transition-transform ${
+                marketOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {marketOpen && (
+            <div className="border-t border-[color:var(--cc-hair)] px-5 py-4">
+              <SAMarketIntelligence field={field} seniority={seniority} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

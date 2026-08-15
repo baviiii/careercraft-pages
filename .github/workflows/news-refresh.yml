@@ -1,0 +1,93 @@
+name: Refresh News Cache
+
+# The news_articles cache has no other writer. Nothing calls prefetch_news on its
+# own, so without this workflow the cache only refreshes when a user happens to
+# load the news page and the TTL has lapsed — which is how it previously froze
+# for three months.
+#
+# One request per category, rather than a single action=all call: each request
+# stays well inside the edge function's wall clock, covers the full taxonomy, and
+# fails independently so one bad category can't lose the whole run.
+
+on:
+  schedule:
+    # Every 6 hours, offset off the hour to avoid GitHub's peak scheduling queue.
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: news-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Prefetch news by category
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check credentials
+        env:
+          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY is not set in repository secrets."
+            echo "Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Service role key found."
+
+      - name: Prefetch each category
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID || 'hfchxjytxhsiuwqaugmv' }}
+          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -uo pipefail
+          ENDPOINT="https://${PROJECT_REF}.supabase.co/functions/v1/job-news"
+          CATEGORIES="hiring tech salary remote ai layoffs education immigration innovation"
+
+          failed=0
+          total_saved=0
+
+          for category in $CATEGORIES; do
+            echo "──────────────────────────────────────────"
+            echo "Prefetching: $category"
+
+            # A service-role JWT satisfies the function's verify_jwt = true,
+            # so no config.toml change is needed.
+            response=$(curl -sS -m 120 -w '\n%{http_code}' -X POST "$ENDPOINT" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${SERVICE_ROLE_KEY}" \
+              -H "apikey: ${SERVICE_ROLE_KEY}" \
+              -d "{\"action\":\"prefetch_news\",\"category\":\"${category}\"}") || {
+                echo "::warning::curl failed for ${category}"
+                failed=$((failed + 1))
+                continue
+              }
+
+            status=$(printf '%s' "$response" | tail -n1)
+            body=$(printf '%s' "$response" | sed '$d')
+
+            if [ "$status" != "200" ]; then
+              echo "::warning::${category} returned HTTP ${status}: ${body}"
+              failed=$((failed + 1))
+            else
+              saved=$(printf '%s' "$body" | python3 -c "import sys,json; print(json.load(sys.stdin).get('totalSaved',0))" 2>/dev/null || echo 0)
+              echo "Saved ${saved} articles for ${category}"
+              total_saved=$((total_saved + saved))
+            fi
+
+            # Stay clear of the Currents API rate limit.
+            sleep 3
+          done
+
+          echo "──────────────────────────────────────────"
+          echo "Total saved this run: ${total_saved}"
+          echo "## 📰 News refresh" >> $GITHUB_STEP_SUMMARY
+          echo "- Articles saved: **${total_saved}**" >> $GITHUB_STEP_SUMMARY
+          echo "- Categories failed: **${failed}**" >> $GITHUB_STEP_SUMMARY
+
+          # Only fail the run if nothing at all got through — individual category
+          # failures are expected when a keyword returns no fresh results.
+          if [ "$failed" -eq 9 ]; then
+            echo "::error::Every category failed — check the function logs and CURRENTS_API_KEY."
+            exit 1
+          fi

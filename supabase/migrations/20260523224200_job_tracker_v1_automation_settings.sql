@@ -34,6 +34,8 @@ ON public.job_automation_settings
 FOR DELETE
 USING (auth.uid() = user_id);
 
+DROP TRIGGER IF EXISTS update_job_automation_settings_updated_at
+ON public.job_automation_settings;
 CREATE TRIGGER update_job_automation_settings_updated_at
 BEFORE UPDATE ON public.job_automation_settings
 FOR EACH ROW

@@ -30,9 +30,13 @@ export function QuestionStage({ question, questionNumber, advancing }: QuestionS
     };
   }, [question.question, advancing]);
 
+  // stage and type often agree ("behavioral"/"behavioral") — dedupe so the meta
+  // line reads as a description rather than a stutter.
+  const descriptors = [...new Set([question.stage, question.type?.replace(/_/g, " ")].filter(Boolean))];
+
   const meta = [
     `Question ${String(questionNumber).padStart(2, "0")}`,
-    question.type?.replace(/_/g, " "),
+    ...descriptors,
     question.difficulty,
     question.timeAllocationMinutes ? `~${question.timeAllocationMinutes} min` : null,
   ].filter(Boolean);
@@ -67,6 +71,15 @@ export function QuestionStage({ question, questionNumber, advancing }: QuestionS
               {" "}
             </span>
           ))}
+        </p>
+      )}
+
+      {/* The coach's reason for aiming this at THIS candidate. Quiet by design —
+          it explains the question, it doesn't compete with it. */}
+      {!advancing && question.whyThisQuestion && (
+        <p className="mt-4 border-l-2 border-[color:var(--cc-hair-strong)] pl-3 text-sm leading-snug text-[color:var(--cc-ash)]">
+          <span className="cc-label-sm text-[color:var(--cc-rust)]">Why you</span>{" "}
+          {question.whyThisQuestion}
         </p>
       )}
     </div>

@@ -63,7 +63,12 @@ export function useJobDiscovery(
   );
 
   const ingest = useCallback(
-    async (override?: Partial<DiscoveryFilters>): Promise<JobCatalogJob[]> => {
+    async (
+      override?: Partial<DiscoveryFilters>,
+      // Automatic ingests on first load report through `lastIngestSummary`
+      // instead of a toast — a page you just opened shouldn't announce itself.
+      opts?: { silent?: boolean },
+    ): Promise<JobCatalogJob[]> => {
       const query = (override?.query ?? filters.query) || undefined;
       const location = (override?.location ?? filters.location) || undefined;
       setIsIngesting(true);
@@ -81,10 +86,12 @@ export function useJobDiscovery(
 
         const summary = `Ingested ${data?.imported ?? 0} jobs`;
         setLastIngestSummary(summary);
-        toast({
-          title: "Discovery refreshed",
-          description: summary,
-        });
+        if (!opts?.silent) {
+          toast({
+            title: "Discovery refreshed",
+            description: summary,
+          });
+        }
         return await listJobs(override);
       } catch (e) {
         toast({
@@ -158,10 +165,20 @@ export function useJobDiscovery(
 
       // 3) Nothing personalized in the catalog → pull fresh from the market.
       if (results.length === 0) {
-        results = await ingest({ query: q, location: loc });
+        results = await ingest({ query: q, location: loc }, { silent: true });
+
+        // Adzuna resolves small suburbs poorly — it answers 200 with zero
+        // results rather than erroring, so a location-scoped miss looks like a
+        // healthy empty feed. Re-ingest nationally instead of re-reading the
+        // catalog we already know has nothing for this role.
         if (results.length === 0 && q && loc) {
           setFilters({ query: q, location: "" });
-          await listJobs({ query: q, location: "" });
+          results = await ingest({ query: q, location: "" }, { silent: true });
+          setLastIngestSummary(
+            results.length > 0
+              ? `No ${q} roles near ${loc} — widened to all of Australia`
+              : `No ${q} roles on the wire right now`,
+          );
         }
       }
     })();

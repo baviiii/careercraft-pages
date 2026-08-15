@@ -37,6 +37,7 @@ import {
   Compass,
 } from "lucide-react";
 import { CraftSidebar, CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
+import { DispatchFeed } from "@/features/dispatch/DispatchFeed";
 import { OnboardingBanner } from "@/features/onboarding/OnboardingBanner";
 import { usePersonalization } from "@/hooks/usePersonalization";
 import { clearAccent } from "@/lib/personaTheme";
@@ -691,6 +692,9 @@ export default function Dashboard() {
                 </div>
               </div>
             </section>
+
+            {/* Dispatch — personalized news + live roles */}
+            <DispatchFeed />
 
             {/* Workshop + pulse */}
             <section className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1.15fr_0.85fr]">

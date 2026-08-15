@@ -1,7 +1,6 @@
 /**
- * Interview overview — the record of your practice. Real database queries
- * only (RLS-scoped); the weekly insight comes from the MCP when connected.
- * Rendered inside the Interview Prep hub.
+ * Interview Home — progress strip below practice setup.
+ * Real DB queries only; weekly insight from MCP when connected.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -12,8 +11,7 @@ import { useRateLimit } from "@/hooks/useSecurity";
 import { RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { auditLog } from "@/lib/security/auditLog";
 import { interviewCoach, COACH_AVAILABLE, type WeeklyInsight } from "@/lib/interviewCoach";
-import { sessionOverallScore } from "@/features/interview/lib/sessions";
-import { gsap } from "gsap";
+import { normalizeScore100, sessionOverallScore } from "@/features/interview/lib/sessions";
 
 interface DashboardStats {
   totalSessions: number;
@@ -24,7 +22,6 @@ interface DashboardStats {
   longestStreak: number;
   lastPracticeDate: string | null;
   weeklySessionCount: number;
-  weeklyGoal: number;
 }
 
 interface RecentSession {
@@ -52,10 +49,14 @@ const DEFAULT_STATS: DashboardStats = {
   longestStreak: 0,
   lastPracticeDate: null,
   weeklySessionCount: 0,
-  weeklyGoal: 5,
 };
 
-export default function InterviewDashboard() {
+interface InterviewHomeProps {
+  onOpenHistory: (sessionId?: string) => void;
+  onStartPractice: () => void;
+}
+
+export default function InterviewHome({ onOpenHistory, onStartPractice }: InterviewHomeProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -81,113 +82,6 @@ export default function InterviewDashboard() {
   const rootRef = useRef<HTMLDivElement>(null);
   const toastRef = useRef(toast);
   toastRef.current = toast;
-
-  const fetchDashboardData = useCallback(async () => {
-    const rateLimitResult = checkLimit();
-    if (!rateLimitResult.allowed) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const {
-        data: { session },
-        error: authError,
-      } = await supabase.auth.getSession();
-
-      if (authError) throw new Error("Authentication error. Please sign in again.");
-      if (!session?.user?.id) {
-        navigate("/auth");
-        return;
-      }
-
-      const userId = session.user.id;
-
-      const { data: sessions, error: sessionsError } = await supabase
-        .from("interview_sessions")
-        .select(
-          "id, field, seniority, questions, scores, final_evaluation, ai_insights, avg_score, status, created_at, updated_at",
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (sessionsError) {
-        console.error("Sessions fetch error:", sessionsError);
-        throw new Error("Failed to load your interview data.");
-      }
-
-      const sessionsList = sessions || [];
-      const completedSessions = sessionsList.filter((s) => s.status === "completed");
-
-      const totalQuestions = sessionsList.reduce((acc, s) => {
-        const questions = Array.isArray(s.questions) ? s.questions : [];
-        return acc + questions.length;
-      }, 0);
-
-      const scores = completedSessions
-        .map(sessionOverallScore)
-        .filter((score): score is number => score !== null && score > 0);
-
-      const avgScore =
-        scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-
-      const { currentStreak, longestStreak } = calculateStreak(sessionsList);
-      const weeklyData = calculateWeeklyActivity(sessionsList);
-      setWeeklyActivity(weeklyData.activity);
-
-      const lastSession = sessionsList[0];
-      const lastPracticeDate = lastSession
-        ? new Date(lastSession.created_at).toLocaleDateString()
-        : null;
-
-      setStats({
-        totalSessions: sessionsList.length,
-        completedSessions: completedSessions.length,
-        totalQuestions,
-        avgScore,
-        currentStreak,
-        longestStreak,
-        lastPracticeDate,
-        weeklySessionCount: weeklyData.count,
-        weeklyGoal: 5,
-      });
-
-      setRecentSessions(
-        sessionsList.slice(0, 5).map((s) => {
-          const questions = Array.isArray(s.questions) ? s.questions : [];
-          return {
-            id: s.id,
-            field: s.field || "Unknown",
-            seniority: s.seniority || null,
-            score: sessionOverallScore(s),
-            questionsCount: questions.length,
-            createdAt: s.created_at,
-            status: s.status || "in_progress",
-          };
-        }),
-      );
-
-      auditLog({
-        type: "DATA_ACCESS",
-        action: "interview_dashboard_view",
-        success: true,
-        resource: "interview_sessions",
-        details: { sessionsCount: sessionsList.length },
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred.";
-      setError(errorMessage);
-      console.error("Dashboard fetch error:", err);
-      toastRef.current({
-        title: "Error Loading Dashboard",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [checkLimit, navigate]);
 
   const calculateStreak = (sessions: Array<{ created_at: string }>) => {
     if (sessions.length === 0) return { currentStreak: 0, longestStreak: 0 };
@@ -263,6 +157,110 @@ export default function InterviewDashboard() {
     return { activity, count: weeklyCount };
   };
 
+  const fetchDashboardData = useCallback(async () => {
+    const rateLimitResult = checkLimit();
+    if (!rateLimitResult.allowed) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const {
+        data: { session },
+        error: authError,
+      } = await supabase.auth.getSession();
+
+      if (authError) throw new Error("Authentication error. Please sign in again.");
+      if (!session?.user?.id) {
+        navigate("/auth");
+        return;
+      }
+
+      const userId = session.user.id;
+
+      const { data: sessions, error: sessionsError } = await supabase
+        .from("interview_sessions")
+        .select(
+          "id, field, seniority, questions, scores, final_evaluation, ai_insights, avg_score, status, created_at, updated_at",
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (sessionsError) {
+        throw new Error("Failed to load your interview data.");
+      }
+
+      const sessionsList = sessions || [];
+      const completedSessions = sessionsList.filter((s) => s.status === "completed");
+
+      const totalQuestions = sessionsList.reduce((acc, s) => {
+        const questions = Array.isArray(s.questions) ? s.questions : [];
+        return acc + questions.length;
+      }, 0);
+
+      const scores = completedSessions
+        .map((s) => normalizeScore100(sessionOverallScore(s)))
+        .filter((score): score is number => score !== null && score > 0);
+
+      const avgScore =
+        scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+
+      const { currentStreak, longestStreak } = calculateStreak(sessionsList);
+      const weeklyData = calculateWeeklyActivity(sessionsList);
+      setWeeklyActivity(weeklyData.activity);
+
+      const lastSession = sessionsList[0];
+      const lastPracticeDate = lastSession
+        ? new Date(lastSession.created_at).toLocaleDateString()
+        : null;
+
+      setStats({
+        totalSessions: sessionsList.length,
+        completedSessions: completedSessions.length,
+        totalQuestions,
+        avgScore,
+        currentStreak,
+        longestStreak,
+        lastPracticeDate,
+        weeklySessionCount: weeklyData.count,
+      });
+
+      setRecentSessions(
+        sessionsList.slice(0, 5).map((s) => {
+          const questions = Array.isArray(s.questions) ? s.questions : [];
+          return {
+            id: s.id,
+            field: s.field || "Unknown",
+            seniority: s.seniority || null,
+            score: normalizeScore100(sessionOverallScore(s)),
+            questionsCount: questions.length,
+            createdAt: s.created_at,
+            status: s.status || "in_progress",
+          };
+        }),
+      );
+
+      auditLog({
+        type: "DATA_ACCESS",
+        action: "interview_dashboard_view",
+        success: true,
+        resource: "interview_sessions",
+        details: { sessionsCount: sessionsList.length },
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred.";
+      setError(errorMessage);
+      toastRef.current({
+        title: "Error Loading Dashboard",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [checkLimit, navigate]);
+
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
@@ -297,19 +295,14 @@ export default function InterviewDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [loading, stats.totalSessions, stats.completedSessions, stats.totalQuestions, stats.avgScore, stats.currentStreak]);
-
-  useEffect(() => {
-    if (loading || error || !rootRef.current) return;
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        rootRef.current!.children,
-        { y: 16, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.45, stagger: 0.08, ease: "power2.out" },
-      );
-    }, rootRef);
-    return () => ctx.revert();
-  }, [loading, error]);
+  }, [
+    loading,
+    stats.totalSessions,
+    stats.completedSessions,
+    stats.totalQuestions,
+    stats.avgScore,
+    stats.currentStreak,
+  ]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -321,28 +314,32 @@ export default function InterviewDashboard() {
     return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
   };
 
-  const weeklyProgress =
-    stats.weeklyGoal > 0 ? Math.min((stats.weeklySessionCount / stats.weeklyGoal) * 100, 100) : 0;
-
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-px md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 animate-pulse border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]" />
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-[1.25rem] border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]"
+            />
           ))}
         </div>
-        <div className="h-72 animate-pulse border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-10 text-center">
-        <p className="cc-label mb-2 text-[color:var(--cc-rust)]">Couldn't load the record</p>
+      <div className="cc-surface p-10 text-center">
+        <p className="cc-kicker mb-2">Couldn't load the record</p>
         <p className="text-sm text-[color:var(--cc-ink-soft)]">{error}</p>
-        <button onClick={fetchDashboardData} disabled={isLimited} className="cc-btn cc-btn-ghost mt-5">
+        <button
+          type="button"
+          onClick={fetchDashboardData}
+          disabled={isLimited}
+          className="cc-action cc-action--ghost mt-5"
+        >
           <RotateCcw className="h-3.5 w-3.5" />
           Try again
         </button>
@@ -350,72 +347,82 @@ export default function InterviewDashboard() {
     );
   }
 
-  return (
-    <div ref={rootRef} className="space-y-6">
-      {/* Top line + CTA */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="cc-label-sm text-[color:var(--cc-ash)]">
-            {stats.lastPracticeDate
-              ? `Last practice ${stats.lastPracticeDate}`
-              : "No sessions on record yet"}
-            {stats.currentStreak > 0 && ` · ${stats.currentStreak}-day streak`}
-          </p>
-        </div>
-        <button
-          onClick={() => navigate("/interview-prep?tab=practice")}
-          className="cc-btn cc-btn-primary"
-        >
-          Sit an interview
-          <ArrowRight className="cc-arrow-right h-3.5 w-3.5" />
+  if (stats.totalSessions === 0) {
+    return (
+      <div className="cc-tint cc-tone-cobalt px-6 py-10 text-center md:px-10">
+        <p className="cc-kicker">Your record</p>
+        <p className="mt-3 cc-font-display text-2xl text-[color:var(--cc-ink)]">
+          Quiet so far — your first debrief starts the story.
+        </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-[color:var(--cc-ink-soft)]">
+          Pick a situation above and run a quick drill. History and coach notes will appear here.
+        </p>
+        <button type="button" onClick={onStartPractice} className="cc-action mt-6">
+          Practice your first interview
+          <ArrowRight className="h-4 w-4" />
         </button>
       </div>
+    );
+  }
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-px border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-hair-strong)] md:grid-cols-4">
+  return (
+    <div ref={rootRef} className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
-          { label: "Sessions", value: String(stats.totalSessions) },
-          { label: "Questions answered", value: String(stats.totalQuestions) },
-          { label: "Average score", value: stats.avgScore ? `${stats.avgScore}%` : "—" },
-          { label: "Current streak", value: `${stats.currentStreak}d` },
+          {
+            label: "Sessions",
+            value: String(stats.totalSessions),
+            onClick: () => onOpenHistory(),
+          },
+          {
+            label: "This week",
+            value: String(stats.weeklySessionCount),
+            onClick: () => onOpenHistory(),
+          },
+          {
+            label: "Avg score",
+            value: stats.avgScore ? `${stats.avgScore}` : "—",
+            hint: stats.avgScore ? "/100" : undefined,
+            onClick: () => onOpenHistory(),
+          },
+          {
+            label: "Streak",
+            value: `${stats.currentStreak}d`,
+            onClick: onStartPractice,
+          },
         ].map((stat) => (
-          <div key={stat.label} className="bg-[color:var(--cc-cream)] p-5">
-            <p className="cc-font-mono text-2xl tabular-nums text-[color:var(--cc-ink)]">
+          <button
+            key={stat.label}
+            type="button"
+            onClick={stat.onClick}
+            className="cc-surface cc-lift p-5 text-left"
+          >
+            <p className="cc-label-sm text-[color:var(--cc-ash)]">{stat.label}</p>
+            <p className="mt-1.5 cc-font-display text-2xl tracking-tight cc-tabular text-[color:var(--cc-ink)]">
               {stat.value}
+              {stat.hint && (
+                <span className="ml-1 text-sm text-[color:var(--cc-ash)]">{stat.hint}</span>
+              )}
             </p>
-            <p className="cc-label-sm mt-1 text-[color:var(--cc-ash)]">{stat.label}</p>
-          </div>
+          </button>
         ))}
       </div>
 
-      {/* Week + insight */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <section className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-5 lg:col-span-2">
+        <section className="cc-surface p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <p className="cc-label text-[color:var(--cc-ink)]">This week</p>
+            <p className="cc-kicker">This week</p>
             <p className="cc-label-sm text-[color:var(--cc-ash)]">
-              {stats.weeklySessionCount}/{stats.weeklyGoal} sessions
+              {stats.lastPracticeDate ? `Last ${stats.lastPracticeDate}` : ""}
             </p>
           </div>
-
-          <div className="mb-1 h-1 w-full bg-[color:var(--cc-cream-3)]">
-            <div
-              className="h-full bg-[color:var(--cc-rust)] transition-all"
-              style={{ width: `${weeklyProgress}%` }}
-            />
-          </div>
-          <p className="mb-5 text-xs text-[color:var(--cc-ash)]">
-            {weeklyProgress >= 100
-              ? "Weekly goal met."
-              : `${stats.weeklyGoal - stats.weeklySessionCount} more to hit your goal.`}
-          </p>
 
           <div className="mb-6 grid grid-cols-7 gap-1.5">
             {weeklyActivity.map((day, i) => (
               <div key={i} className="text-center">
                 <div
                   className={[
-                    "aspect-square w-full border",
+                    "aspect-square w-full rounded-md border",
                     day.practiced
                       ? day.sessionCount > 1
                         ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-rust)]"
@@ -429,53 +436,48 @@ export default function InterviewDashboard() {
             ))}
           </div>
 
-          <p className="cc-label-sm mb-2 text-[color:var(--cc-ash)]">Recent sessions</p>
-          {recentSessions.length > 0 ? (
-            <div className="divide-y divide-[color:var(--cc-hair)] border-t border-[color:var(--cc-hair)]">
-              {recentSessions.slice(0, 4).map((session) => (
-                <button
-                  key={session.id}
-                  onClick={() => navigate("/interview-prep?tab=history")}
-                  className="flex w-full items-center justify-between gap-3 py-3 text-left transition-colors hover:bg-[color:var(--cc-cream-2)]"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[color:var(--cc-ink)]">
-                      {session.field}
-                      {session.seniority ? ` · ${session.seniority}` : ""}
-                    </p>
-                    <p className="cc-label-sm mt-0.5 text-[color:var(--cc-ash)]">
-                      {session.questionsCount} q · {formatDate(session.createdAt)}
-                    </p>
-                  </div>
-                  {session.status === "completed" && session.score !== null ? (
-                    <span className="cc-font-mono shrink-0 text-sm tabular-nums text-[color:var(--cc-ink)]">
-                      {session.score}/100
-                    </span>
-                  ) : session.status === "completed" ? (
-                    <span className="cc-label-sm shrink-0 text-[color:var(--cc-signal-deep)]">done</span>
-                  ) : (
-                    <span className="cc-label-sm shrink-0 text-[color:var(--cc-wheat-deep)]">open</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="py-4 text-sm text-[color:var(--cc-ash)]">
-              Nothing on the record yet — your first session will show up here.
-            </p>
-          )}
+          <p className="cc-field-label mb-2">Recent sessions</p>
+          <div className="divide-y divide-[color:var(--cc-hair)] overflow-hidden rounded-xl border border-[color:var(--cc-hair)]">
+            {recentSessions.slice(0, 4).map((session) => (
+              <button
+                key={session.id}
+                type="button"
+                onClick={() => onOpenHistory(session.id)}
+                className="flex w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition-colors hover:bg-[color:var(--cc-cream-2)]"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-[color:var(--cc-ink)]">
+                    {session.field}
+                    {session.seniority ? ` · ${session.seniority}` : ""}
+                  </p>
+                  <p className="cc-label-sm mt-0.5 text-[color:var(--cc-ash)]">
+                    {session.questionsCount} q · {formatDate(session.createdAt)}
+                  </p>
+                </div>
+                {session.status === "completed" && session.score !== null ? (
+                  <span className="cc-font-mono shrink-0 text-sm tabular-nums text-[color:var(--cc-ink)]">
+                    {session.score}
+                    <span className="text-xs text-[color:var(--cc-ash)]">/100</span>
+                  </span>
+                ) : session.status === "completed" ? (
+                  <span className="cc-label-sm shrink-0 text-[color:var(--cc-signal-deep)]">done</span>
+                ) : (
+                  <span className="cc-label-sm shrink-0 text-[color:var(--cc-wheat-deep)]">open</span>
+                )}
+              </button>
+            ))}
+          </div>
         </section>
 
-        {/* Coach's note (real MCP data only) */}
-        <section className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-5">
-          <p className="cc-label mb-3 text-[color:var(--cc-ink)]">Coach's note</p>
+        <section className="cc-tint cc-tone-wheat p-5">
+          <p className="cc-kicker">Coach's note</p>
           {loadingInsight ? (
-            <div className="space-y-2">
+            <div className="mt-3 space-y-2">
               <div className="h-5 w-2/3 animate-pulse bg-[color:var(--cc-cream-3)]" />
               <div className="h-4 w-full animate-pulse bg-[color:var(--cc-cream-3)]" />
             </div>
           ) : weeklyInsight?.headline ? (
-            <div className="space-y-3">
+            <div className="mt-3 space-y-3">
               <p className="cc-font-display text-lg leading-snug text-[color:var(--cc-ink)]">
                 {weeklyInsight.headline}
               </p>
@@ -485,66 +487,22 @@ export default function InterviewDashboard() {
                 </p>
               )}
               {(weeklyInsight.weeklyGoals ?? []).slice(0, 2).map((g, i) => (
-                <p key={i} className="border-l-2 border-[color:var(--cc-rust)] pl-3 text-sm text-[color:var(--cc-ink-soft)]">
+                <p
+                  key={i}
+                  className="border-l-2 border-[color:var(--cc-rust)] pl-3 text-sm text-[color:var(--cc-ink-soft)]"
+                >
                   {g.goal}
                 </p>
               ))}
             </div>
           ) : (
-            <p className="text-sm leading-relaxed text-[color:var(--cc-ash)]">
-              {stats.totalSessions === 0
-                ? "Sit your first interview and the coach will start tracking patterns in how you answer."
-                : "No note this week."}
+            <p className="mt-3 text-sm leading-relaxed text-[color:var(--cc-ash)]">
+              {COACH_AVAILABLE
+                ? "No note this week — keep practicing and patterns will show up here."
+                : "Coach is offline, so weekly notes are paused. History still works."}
             </p>
           )}
         </section>
-      </div>
-
-      {/* Milestones */}
-      <div className="grid grid-cols-2 gap-px border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-hair-strong)] md:grid-cols-4">
-        {[
-          {
-            name: "First session",
-            achieved: stats.totalSessions > 0,
-            progress: stats.totalSessions > 0 ? 100 : 0,
-          },
-          {
-            name: "3-day streak",
-            achieved: stats.longestStreak >= 3,
-            progress: Math.min((stats.currentStreak / 3) * 100, 100),
-          },
-          {
-            name: "70% average",
-            achieved: stats.avgScore >= 70,
-            progress: Math.min((stats.avgScore / 70) * 100, 100),
-          },
-          {
-            name: "7-day streak",
-            achieved: stats.longestStreak >= 7,
-            progress: Math.min((stats.longestStreak / 7) * 100, 100),
-          },
-        ].map((m) => (
-          <div key={m.name} className="bg-[color:var(--cc-cream)] p-4">
-            <p
-              className={[
-                "cc-label-sm",
-                m.achieved ? "text-[color:var(--cc-signal-deep)]" : "text-[color:var(--cc-ash)]",
-              ].join(" ")}
-            >
-              {m.achieved ? "achieved" : "open"}
-            </p>
-            <p className="mt-1 text-sm font-medium text-[color:var(--cc-ink)]">{m.name}</p>
-            <div className="mt-2 h-0.5 w-full bg-[color:var(--cc-cream-3)]">
-              <div
-                className={[
-                  "h-full",
-                  m.achieved ? "bg-[color:var(--cc-signal)]" : "bg-[color:var(--cc-rust)]",
-                ].join(" ")}
-                style={{ width: `${m.progress}%` }}
-              />
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

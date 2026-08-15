@@ -55,6 +55,11 @@ interface WireQuestion {
   skillsTested?: string[];
   expectedTopics?: string[];
   timeAllocationMinutes?: number;
+  /** Which slot of the deterministic loop blueprint this question fills. */
+  stage?: string;
+  whyThisQuestion?: string;
+  followUps?: string[];
+  signalsSought?: string[];
 }
 
 interface WireStart {
@@ -96,7 +101,15 @@ interface WireHint {
   struggleDetected?: boolean;
 }
 
-type WireBreakdownEntry = { score?: number } | number;
+type WireBreakdownEntry = { score?: number; note?: string } | number;
+
+interface WireStarBreakdown {
+  situation?: string;
+  task?: string;
+  action?: string;
+  result?: string;
+  note?: string;
+}
 
 interface WireEvaluation {
   score?: number;
@@ -111,6 +124,11 @@ interface WireEvaluation {
   coachingTips?: Array<{ priority?: string; tip?: string }>;
   suggestedFollowup?: string;
   nextQuestionSuggestion?: string;
+  /** Which rubric weighting the evaluator used, and why it suits this type. */
+  rubricApplied?: string;
+  /** Present only for behavioral questions — STAR completeness. */
+  starBreakdown?: WireStarBreakdown;
+  followUpQuestion?: string;
 }
 
 /** submit_answer wraps the evaluation and attaches a grounded proof chip. */
@@ -166,6 +184,17 @@ interface WireProvenTips {
 
 /* ── UI-facing shapes (consumed by InterviewPrep.tsx / dashboard) ─────────── */
 
+/** The stages of the MCP's deterministic interview blueprint, in loop order. */
+export type InterviewStage = "warmup" | "behavioral" | "domain" | "situational" | "closing";
+
+export const INTERVIEW_STAGES: InterviewStage[] = [
+  "warmup",
+  "behavioral",
+  "domain",
+  "situational",
+  "closing",
+];
+
 export interface CoachQuestion {
   id: number;
   question: string;
@@ -175,6 +204,13 @@ export interface CoachQuestion {
   category?: string;
   skillsTested?: string[];
   timeAllocationMinutes?: number;
+  /** Which blueprint slot this fills — null when the coach didn't say. */
+  stage: InterviewStage | null;
+  /** One sentence, to the candidate, on why THEY are being asked this. */
+  whyThisQuestion: string;
+  /** Probes the interviewer would push with if the answer stays shallow. */
+  followUps: string[];
+  signalsSought: string[];
 }
 
 export interface StartSessionResult {
@@ -215,9 +251,22 @@ export interface CoachHint {
   struggleDetected: boolean;
 }
 
+/** How completely one STAR element was covered. */
+export type StarCoverage = "present" | "thin" | "missing";
+
+export interface StarBreakdown {
+  situation: StarCoverage;
+  task: StarCoverage;
+  action: StarCoverage;
+  result: StarCoverage;
+  note: string;
+}
+
 export interface CoachAnswerEvaluation {
   score: number;
   scoreBreakdown: Record<string, number>;
+  /** Per-criterion justification, keyed the same as scoreBreakdown. */
+  scoreNotes: Record<string, string>;
   validation: { correct: string[]; missing: string[]; redFlags: string[] };
   bestAnswer: string;
   faangAnswer: string;
@@ -225,6 +274,12 @@ export interface CoachAnswerEvaluation {
   tips: string[];
   improvement: string;
   proof: Proof | null;
+  /** Which weighting the evaluator applied — behavioral answers differ. */
+  rubricApplied: string;
+  /** Non-null only for behavioral questions. */
+  starBreakdown: StarBreakdown | null;
+  /** What a real interviewer would ask next, given this answer. */
+  followUpQuestion: string;
 }
 
 export interface CoachFinalEvaluation {
@@ -284,8 +339,11 @@ export interface WeeklyInsight {
 async function post<T>(path: string, body: unknown): Promise<T> {
   if (!MCP_URL) throw new CoachUnavailableError();
 
-  const { data } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getSession();
   const token = data.session?.access_token;
+  if (error || !token) {
+    throw new CoachUnavailableError("Please sign in to use the interview coach.");
+  }
 
   let res: Response;
   try {
@@ -293,7 +351,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body ?? {}),
     });
@@ -322,6 +380,21 @@ function adaptProof(p: Proof | null | undefined): Proof | null {
   return null;
 }
 
+/** Only accept a stage the blueprint actually defines; anything else is null. */
+function adaptStage(raw: string | undefined): InterviewStage | null {
+  const s = (raw ?? "").toLowerCase().trim();
+  return INTERVIEW_STAGES.find((known) => known === s) ?? null;
+}
+
+/** Trim, drop blanks, cap — model-authored string lists are never trusted raw. */
+function cleanList(raw: string[] | undefined, max: number): string[] {
+  return (raw ?? [])
+    .filter((s): s is string => typeof s === "string")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, max);
+}
+
 function adaptQuestions(qs: WireQuestion[]): CoachQuestion[] {
   return qs.map((q, i) => ({
     id: typeof q.id === "number" ? q.id : i + 1,
@@ -335,18 +408,57 @@ function adaptQuestions(qs: WireQuestion[]): CoachQuestion[] {
       typeof q.timeAllocationMinutes === "number" && q.timeAllocationMinutes > 0
         ? q.timeAllocationMinutes
         : undefined,
+    stage: adaptStage(q.stage),
+    whyThisQuestion: (q.whyThisQuestion ?? "").trim(),
+    followUps: cleanList(q.followUps, 3),
+    signalsSought: cleanList(q.signalsSought, 4),
   }));
+}
+
+function breakdownNote(v: WireBreakdownEntry | undefined): string {
+  if (typeof v === "number" || !v) return "";
+  return typeof v.note === "string" ? v.note.trim() : "";
+}
+
+const STAR_COVERAGE: StarCoverage[] = ["present", "thin", "missing"];
+
+function starPart(raw: string | undefined): StarCoverage {
+  const s = (raw ?? "").toLowerCase().trim();
+  // An unrecognized value means the evaluator didn't commit — treat as missing
+  // rather than crediting the candidate for something unproven.
+  return STAR_COVERAGE.find((known) => known === s) ?? "missing";
+}
+
+/**
+ * STAR is only meaningful when the evaluator actually ran the behavioral rubric.
+ * An absent block means this wasn't a behavioral question — not a failed one.
+ */
+function adaptStar(raw: WireStarBreakdown | undefined): StarBreakdown | null {
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    situation: starPart(raw.situation),
+    task: starPart(raw.task),
+    action: starPart(raw.action),
+    result: starPart(raw.result),
+    note: (raw.note ?? "").trim(),
+  };
 }
 
 function adaptEvaluation(ev: WireEvaluation, proof: Proof | null | undefined): CoachAnswerEvaluation {
   const breakdown: Record<string, number> = {};
-  for (const [k, v] of Object.entries(ev.scoreBreakdown ?? {})) breakdown[k] = flatScore(v);
+  const notes: Record<string, string> = {};
+  for (const [k, v] of Object.entries(ev.scoreBreakdown ?? {})) {
+    breakdown[k] = flatScore(v);
+    const note = breakdownNote(v);
+    if (note) notes[k] = note;
+  }
   const score = typeof ev.score === "number" ? ev.score : 0;
   // The MCP evaluator returns no explicit confidence; derive it from the score.
   const confidence = Math.max(0, Math.min(100, Math.round(score * 10)));
   return {
     score,
     scoreBreakdown: breakdown,
+    scoreNotes: notes,
     validation: {
       correct: ev.validation?.correct ?? ev.validation?.strengths ?? [],
       missing: ev.validation?.missing ?? [],
@@ -358,6 +470,11 @@ function adaptEvaluation(ev: WireEvaluation, proof: Proof | null | undefined): C
     tips: (ev.coachingTips ?? []).map((t) => t.tip ?? "").filter(Boolean),
     improvement: ev.suggestedFollowup ?? ev.nextQuestionSuggestion ?? "",
     proof: adaptProof(proof),
+    rubricApplied: (ev.rubricApplied ?? "").trim(),
+    starBreakdown: adaptStar(ev.starBreakdown),
+    // The real interviewer's next move is the better line to show; the older
+    // suggestedFollowup stays as the fallback for pre-blueprint sessions.
+    followUpQuestion: (ev.followUpQuestion ?? ev.suggestedFollowup ?? "").trim(),
   };
 }
 

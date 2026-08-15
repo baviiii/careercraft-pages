@@ -230,9 +230,12 @@ serve(async (req) => {
         // Match on ANY significant word rather than the whole phrase, so word
         // order and extra words don't hide relevant roles — e.g. a search for
         // "Full Stack Developer" still returns "Senior Full-Stack Engineer".
-        // Words are sanitized so PostgREST `or()` parsing can't be broken.
+        // Hyphens and slashes split words rather than being stripped inside
+        // them, or "Full-Stack" would collapse to the token "FullStack" and
+        // never match a real title. Words are then sanitized so PostgREST
+        // `or()` parsing can't be broken.
         const words = query
-          .split(/\s+/)
+          .split(/[\s\-–—/]+/)
           .map((w) => w.replace(/[^\p{L}\p{N}+#.]/gu, "").trim())
           .filter((w) => w.length >= 3);
         if (words.length) {

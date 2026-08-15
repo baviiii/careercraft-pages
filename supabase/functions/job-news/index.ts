@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
 import { horusGenerateObject } from "../_shared/ai/horus.ts";
+import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { requireUser } from "../_shared/http/auth.ts";
 import { handler } from "../_shared/http/responses.ts";
 
 const corsHeaders = {
@@ -68,6 +70,15 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutM
 };
 
 serve(handler(async (req) => {
+  const { userId } = await requireUser(req);
+  await enforceWindowLimit({
+    resource: "job-news",
+    userId,
+    limit: 120,
+    windowMinutes: 60,
+    resourceLabel: "job and market data",
+  });
+
   try {
     const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber } = await req.json();
     const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
@@ -290,44 +301,58 @@ serve(handler(async (req) => {
       const supabase = getSupabaseClient();
       const requestedCategory = category || "all";
       
-      // Category to query mapping
+      // Category to query mapping. Terms lean Australian — this is an AU careers
+      // product, and the unqualified queries were returning US job listings and
+      // global business filler that no local profile could match against.
       const categoryQueries: Record<string, string> = {
-        hiring: "recruitment hiring",
-        tech: "technology industry",
-        salary: "wages salary",
-        remote: "remote work",
-        ai: "artificial intelligence",
-        layoffs: "unemployment",
-        education: "higher education",
-        immigration: "skilled visa",
-        innovation: "startup ecosystem",
-        all: "job market",
-        general: "employment trends",
+        hiring: "Australia recruitment hiring",
+        tech: "Australia technology industry jobs",
+        salary: "Australia wages salary",
+        remote: "Australia remote work",
+        ai: "Australia artificial intelligence workforce",
+        layoffs: "Australia redundancies unemployment",
+        education: "Australia TAFE university training",
+        immigration: "Australia skilled visa migration",
+        innovation: "Australia startup ecosystem",
+        all: "Australia job market",
+        general: "Australia employment trends",
       };
 
-      const queries = requestedCategory === "all" 
-        ? Object.values(categoryQueries)
-        : [categoryQueries[requestedCategory] || "employment"];
+      // Keep each query paired with the category that produced it. Collapsing
+      // this to a single `requestedCategory` is what stamped every article
+      // "general" and left the taxonomy above unused in the database.
+      const queries: Array<{ category: string; newsQuery: string }> =
+        requestedCategory === "all"
+          ? Object.entries(categoryQueries)
+              .filter(([cat]) => cat !== "all" && cat !== "general")
+              .map(([cat, q]) => ({ category: cat, newsQuery: q }))
+          : [{
+              category: requestedCategory,
+              newsQuery: categoryQueries[requestedCategory] || "employment",
+            }];
 
       let totalSaved = 0;
       let totalFetched = 0;
+      const savedByCategory: Record<string, number> = {};
 
       try {
-        // Fetch multiple pages of historical data
-        for (const newsQuery of queries.slice(0, 5)) { // Limit to 5 queries to avoid rate limits
+        // Capped so a single "all" run stays inside the edge function's wall
+        // clock. The scheduled workflow calls one category per request, so it
+        // covers the full taxonomy without ever relying on this cap.
+        for (const { category: queryCategory, newsQuery } of queries.slice(0, 6)) {
           const url = new URL(NEWS_APIS.currents);
           url.searchParams.set("keywords", newsQuery);
           url.searchParams.set("language", "en");
           url.searchParams.set("apiKey", CURRENTS_API_KEY);
           url.searchParams.set("page_size", "200"); // Max articles per request
-          
+
           if (startDate) url.searchParams.set("start_date", startDate);
           if (endDate) url.searchParams.set("end_date", endDate);
 
-          console.log(`Prefetching: ${newsQuery}`);
-          
+          console.log(`Prefetching [${queryCategory}]: ${newsQuery}`);
+
           try {
-            const res = await fetchWithTimeout(url.toString(), {}, 30000);
+            const res = await fetchWithTimeout(url.toString(), {}, 12000);
             const data = await res.json();
 
             if (data.status === "ok" && data.news?.length) {
@@ -349,7 +374,7 @@ serve(handler(async (req) => {
                   url: article.url,
                   source: article.author || "News",
                   published_at: article.published,
-                  category: requestedCategory === "all" ? "general" : requestedCategory,
+                  category: queryCategory,
                   image_url: article.image !== "None" ? article.image : null,
                   read_time: `${Math.max(2, Math.ceil((article.description?.length || 200) / 500))} min read`,
                   fetched_at: new Date().toISOString(),
@@ -363,6 +388,8 @@ serve(handler(async (req) => {
 
                 if (!error) {
                   totalSaved += articlesToSave.length;
+                  savedByCategory[queryCategory] =
+                    (savedByCategory[queryCategory] || 0) + articlesToSave.length;
                 } else {
                   console.error(`Error saving ${newsQuery}:`, error);
                 }
@@ -376,12 +403,16 @@ serve(handler(async (req) => {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
 
-        console.log(`Prefetch complete: ${totalFetched} fetched, ${totalSaved} saved`);
+        console.log(
+          `Prefetch complete: ${totalFetched} fetched, ${totalSaved} saved`,
+          savedByCategory,
+        );
 
-        return new Response(JSON.stringify({ 
+        return new Response(JSON.stringify({
           success: true,
           totalFetched,
           totalSaved,
+          savedByCategory,
           message: `Prefetched ${totalSaved} articles for ${requestedCategory}`
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -450,25 +481,28 @@ serve(handler(async (req) => {
 
         // STEP 2: Check if we have enough cached articles
         const hasSufficientCache = cachedArticles && cachedArticles.length >= minArticlesRequired;
-        
-        // For historical queries (>30 days), always prefer cache if available
-        // For recent queries, check freshness
-        let cacheIsFresh = false;
-        if (daySpan > 30) {
-          // Historical data doesn't need to be "fresh" - just needs to exist
-          cacheIsFresh = hasSufficientCache ?? false;
-        } else {
-          // Recent data should be fetched within last 6 hours
-          const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-          const { data: recentFetch } = await supabase
-            .from("news_articles")
-            .select("fetched_at")
-            .eq("category", requestedCategory === "all" ? "general" : requestedCategory)
-            .gte("fetched_at", sixHoursAgo)
-            .limit(1);
 
-          cacheIsFresh = !!(recentFetch && recentFetch.length > 0);
+        // Freshness is always a question of when we last fetched — never of how
+        // many rows happen to exist. The old code short-circuited any range wider
+        // than 30 days to `cacheIsFresh = hasSufficientCache`, so a handful of
+        // months-old rows counted as current and a refetch could never fire.
+        // That is how this cache froze in April.
+        const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+        const ttlCutoff = new Date(Date.now() - CACHE_TTL_MS).toISOString();
+
+        let freshnessProbe = supabase
+          .from("news_articles")
+          .select("fetched_at")
+          .gte("fetched_at", ttlCutoff)
+          .limit(1);
+
+        // "all" spans every category, so any recent fetch counts as fresh.
+        if (requestedCategory !== "all") {
+          freshnessProbe = freshnessProbe.eq("category", requestedCategory);
         }
+
+        const { data: recentFetch } = await freshnessProbe;
+        const cacheIsFresh = !!(recentFetch && recentFetch.length > 0);
 
         console.log(`Cache status: ${cachedArticles?.length || 0} articles, sufficient: ${hasSufficientCache}, fresh: ${cacheIsFresh}`);
 
@@ -616,6 +650,9 @@ serve(handler(async (req) => {
           url: article.url,
           source: article.author || "News",
           published_at: article.published,
+          // Correct here, unlike the prefetch path: this branch runs exactly one
+          // query, so an "all" request really did fetch the broad "job market"
+          // bucket. Per-category rows come from the scheduled prefetch above.
           category: requestedCategory === "all" ? "general" : requestedCategory,
           image_url: article.image !== "None" ? article.image : null,
           read_time: `${Math.max(2, Math.ceil((article.description?.length || 200) / 500))} min read`,

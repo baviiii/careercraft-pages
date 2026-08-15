@@ -3,6 +3,8 @@ import { z } from "npm:zod@3";
 
 import { horusGenerateObject, horusGenerateText, type HorusTier } from "../_shared/ai/horus.ts";
 import { ValidationError } from "../_shared/ai/errors.ts";
+import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
 // Enhanced validation with item counting and content preservation
@@ -323,6 +325,15 @@ function mergeMissingSections(
 }
 
 serve(handler(async (req) => {
+  const { userId } = await requireUser(req);
+  await enforceWindowLimit({
+    resource: "ats-analyze",
+    userId,
+    limit: 20,
+    windowMinutes: 60,
+    resourceLabel: "AI resume analysis",
+  });
+
   try {
     const { resumeText, jobDescription, analysisType, resumeData, analysisContext } = await req.json();
     
