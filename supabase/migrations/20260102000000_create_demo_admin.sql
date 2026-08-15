@@ -45,3 +45,6 @@ $$;
 -- Step 3: Add comment for documentation
 COMMENT ON FUNCTION public.promote_to_admin(TEXT) IS
 'Promotes a user to admin role by their email address. Also adds them to admin whitelist.';
+
+-- Step 4: Revoke public execution rights — only service role / superuser can call this
+REVOKE EXECUTE ON FUNCTION public.promote_to_admin(TEXT) FROM anon, authenticated;

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { callRAGMetadata, isAzureFunctionsConfigured } from "@/lib/azureFunctions";
-import { horusSearch, isHorusRagEnabled } from "@/lib/horusKnowledge";
+import { horusMetadata, horusSearch, isHorusRagEnabled } from "@/lib/horusKnowledge";
 import { getChatPrompt } from "@/lib/promptLoader";
 
 const queryCache = new Map<string, {
@@ -45,197 +44,58 @@ const executeSemanticSearch = async (
     return cached.data;
   }
 
-  try {
-    /**
-     * RAG ARCHITECTURE:
-     *
-     * PRIMARY: Horus (horus-rag edge function → horus-platform)
-     *   - The Content Understanding corpus + Postgres knowledge graph.
-     *   - Answers are grounded and every claim carries a citation.
-     *   - Disable with VITE_HORUS_RAG=off to fall through to the legacy path.
-     *
-     * LEGACY 1: Azure Functions (rag-metadata)
-     *   - Reads the old `sa-gov-documents` index. This infrastructure is being
-     *     archived; kept only as a safety net while Horus is proven in prod.
-     *
-     * LEGACY 2: Supabase Edge Functions (rag-query)
-     *   - Last resort. Hardcoded prompts, not database-driven.
-     *
-     * Once Horus has run clean in production, both legacy tiers and their
-     * VITE_AZURE_* configuration should be deleted outright.
-     */
-    if (isHorusRagEnabled()) {
-      try {
-        const horus = await horusSearch(
-          query,
-          filters || {},
-          {
-            topK: options?.topK || 12,
-            systemPrompt: options?.systemPrompt,
-          },
-        );
-
-        queryCache.set(cacheKey, {
-          data: horus,
-          timestamp: Date.now(),
-          expiresAt: Date.now() + CACHE_TTL,
-        });
-        return horus;
-      } catch (horusErr) {
-        // Never let a Horus outage take the product down while the legacy
-        // stack is still deployed — fall through and log loudly.
-        console.error("[semanticSearch] Horus failed, falling back:", horusErr);
-      }
-    }
-
-    if (isAzureFunctionsConfigured()) {
-      console.log("[semanticSearch] Using Azure Functions (primary)");
-      const result = await callRAGMetadata<{
-        answer: string;
-        sources: Array<{
-          id: string;
-          content: string;
-          title: string;
-          documentId: string;
-          pageNumber?: number;
-          category?: string;
-          sector?: string;
-          score?: number;
-          url?: string;
-          metadata?: any;
-          chunkType?: string;
-          hasChart?: boolean;
-          chartType?: string;
-          chartData?: any;
-          chartImageUrl?: string;
-          chartConfidence?: number;
-          visualDescription?: string;
-        }>;
-        suggestedQuestions?: string[];
-        visualizationData?: any;
-      }>("semantic-search", {
-        query,
-        filters: filters || {},
-        options: {
-          topK: options?.topK || 30,
-          timeAwareRanking: options?.timeAwareRanking !== false,
-          systemPrompt: options?.systemPrompt, // Pass tab-specific HORUS prompt
-        },
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || "Semantic search failed");
-      }
-
-      // Cache the result
-      queryCache.set(cacheKey, {
-        data: result.data,
-        timestamp: Date.now(),
-        expiresAt: Date.now() + CACHE_TTL,
-      });
-
-      return result.data;
-    }
-
-    // FALLBACK: Use Supabase Edge Functions if Azure not configured
-    // Note: Fallback uses hardcoded prompts (not database-driven)
-    console.log("[semanticSearch] Using Supabase Edge Functions (fallback)");
-    const { data, error: fetchError } = await supabase.functions.invoke("rag-query", {
-      body: {
-        query,
-        filters: filters || {},
-        options: {
-          topK: options?.topK || 30,
-          timeAwareRanking: options?.timeAwareRanking !== false,
-        },
-      },
-    });
-
-    if (fetchError) {
-      // Check for rate limiting errors
-      const errorMessage = fetchError.message || "";
-      const isRateLimit = errorMessage.includes("RateLimitReached") ||
-                         errorMessage.includes("INSUFFICIENT_RESOURCES") || 
-                         errorMessage.includes("429") ||
-                         errorMessage.includes("rate limit") ||
-                         fetchError.status === 429 ||
-                         fetchError.status === 503;
-      
-      // Extract retry-after time from error message
-      let retryAfterSeconds = 30; // Default for RateLimitReached
-      const retryMatch = errorMessage.match(/retry after (\d+) seconds?/i);
-      if (retryMatch) {
-        retryAfterSeconds = parseInt(retryMatch[1]);
-      }
-      
-      // Retry with proper wait time
-      if (isRateLimit && retryCount < maxRetries) {
-        const delay = retryAfterSeconds * 1000; // Use Azure's specified wait time
-        console.warn(`Rate limited (${errorMessage.substring(0, 100)}), waiting ${delay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return executeSemanticSearch(query, filters, options, retryCount + 1, maxRetries);
-      }
-      
-      throw fetchError;
-    }
-    
-    if (data?.error) {
-      const errorMessage = data.error;
-      const isRateLimit = errorMessage.includes("RateLimitReached") ||
-                         errorMessage.includes("INSUFFICIENT_RESOURCES") || 
-                         errorMessage.includes("429") ||
-                         errorMessage.includes("rate limit");
-      
-      // Extract retry-after time
-      let retryAfterSeconds = 30;
-      const retryMatch = errorMessage.match(/retry after (\d+) seconds?/i);
-      if (retryMatch) {
-        retryAfterSeconds = parseInt(retryMatch[1]);
-      }
-      
-      if (isRateLimit && retryCount < maxRetries) {
-        const delay = retryAfterSeconds * 1000;
-        console.warn(`Rate limited, waiting ${delay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return executeSemanticSearch(query, filters, options, retryCount + 1, maxRetries);
-      }
-      
-      throw new Error(errorMessage);
-    }
-
-    // Cache the result
-    queryCache.set(cacheKey, {
-      data,
-      timestamp: Date.now(),
-      expiresAt: Date.now() + CACHE_TTL,
-    });
-
-    return data;
-  } catch (err) {
-    throw err;
+  /**
+   * RETRIEVAL: Horus only.
+   *
+   * Answers come from the Content Understanding corpus via the `horus-rag`
+   * edge function, grounded and cited. The former two-tier fallback (Azure
+   * Functions over the `sa-gov-documents` index, then a Supabase `rag-query`
+   * function) has been removed — that infrastructure is being archived, and a
+   * silent fallback to a stale corpus is worse than a visible failure: the
+   * user cannot tell that the answer came from documents a year out of date.
+   *
+   * `VITE_HORUS_RAG=off` still disables the path, which now surfaces the
+   * outage rather than hiding it.
+   */
+  if (!isHorusRagEnabled()) {
+    throw new Error(
+      "Horus retrieval is disabled (VITE_HORUS_RAG=off) and no fallback engine is configured.",
+    );
   }
+
+  const horus = await horusSearch(query, filters || {}, {
+    topK: options?.topK || 12,
+    systemPrompt: options?.systemPrompt,
+  });
+
+  queryCache.set(cacheKey, {
+    data: horus,
+    timestamp: Date.now(),
+    expiresAt: Date.now() + CACHE_TTL,
+  });
+  return horus;
 };
 
 // ENTERPRISE: Process request queue with rate limiting
 const processQueue = async () => {
   if (isProcessingQueue || requestQueue.length === 0) return;
-  
+
   isProcessingQueue = true;
-  
+
   while (requestQueue.length > 0) {
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime;
-    
+
     // Wait if needed to respect rate limits (S0 tier = 1 req/sec minimum)
     if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
       await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
     }
-    
+
     const request = requestQueue.shift();
     if (!request) continue;
-    
+
     lastRequestTime = Date.now();
-    
+
     try {
       const result = await executeSemanticSearch(request.query, request.filters, request.options);
       request.resolve(result);
@@ -243,7 +103,7 @@ const processQueue = async () => {
       request.reject(error);
     }
   }
-  
+
   isProcessingQueue = false;
 };
 
@@ -290,31 +150,18 @@ export function useRAGMetadata() {
     setLoading(true);
     setError(null);
     try {
-      // Use Azure Functions if configured, otherwise fallback to Supabase
-      if (isAzureFunctionsConfigured()) {
-        const result = await callRAGMetadata<RAGStats>("stats", {
-          filters: filters || {},
-        });
+      // Horus reports corpus-wide counts. The legacy `filters` argument is
+      // accepted for call-site compatibility but no longer narrows the result —
+      // rag.metadata has no filtered-stats operation.
+      const data = await horusMetadata("stats") as {
+        documents?: number;
+        chunks?: number;
+      };
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to fetch stats");
-        }
-
-        return result.data || null;
-      } else {
-        // Fallback to Supabase Edge Functions
-        const { data, error: fetchError } = await supabase.functions.invoke("rag-metadata", {
-          body: {
-            type: "stats",
-            filters: filters || {},
-          },
-        });
-
-        if (fetchError) throw fetchError;
-        if (data?.error) throw new Error(data.error);
-
-        return data as RAGStats;
-      }
+      return {
+        totalDocuments: data.documents ?? 0,
+        totalChunks: data.chunks ?? 0,
+      };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch stats");
       return null;
@@ -330,28 +177,21 @@ export function useRAGMetadata() {
     setLoading(true);
     setError(null);
     try {
-      // Use Azure Functions if configured, otherwise fallback to Supabase
-      if (isAzureFunctionsConfigured()) {
-        const result = await callRAGMetadata<{ categories: CategoryStats[]; sectors: Array<{ value: string; count: number }> }>("categories", {});
+      const data = await horusMetadata("categories") as {
+        categories?: Array<{ category: string; documents: number; chunks: number }>;
+      };
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to fetch categories");
-        }
-
-        return result.data || null;
-      } else {
-        // Fallback to Supabase Edge Functions
-        const { data, error: fetchError } = await supabase.functions.invoke("rag-metadata", {
-          body: {
-            type: "categories",
-          },
-        });
-
-        if (fetchError) throw fetchError;
-        if (data?.error) throw new Error(data.error);
-
-        return data as { categories: CategoryStats[]; sectors: Array<{ value: string; count: number }> };
-      }
+      return {
+        categories: (data.categories ?? []).map((c) => ({
+          category: c.category,
+          count: c.documents,
+          // Horus aggregates by category and does not return member ids;
+          // no caller reads this today.
+          documentIds: [],
+        })),
+        // The corpus has no `sector` facet — that was an old-index concept.
+        sectors: [],
+      };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch categories");
       return null;
@@ -372,33 +212,31 @@ export function useRAGMetadata() {
     setLoading(true);
     setError(null);
     try {
-      // Use Azure Functions if configured, otherwise fallback to Supabase
-      if (isAzureFunctionsConfigured()) {
-        const result = await callRAGMetadata<{ documents: DocumentMetadata[]; total: number }>("documents", {
-          filters: filters || {},
-          top,
-        });
+      const data = await horusMetadata("documents") as {
+        documents?: Array<{
+          id: string;
+          title: string;
+          category: string | null;
+          chunksCount: number;
+          indexedAt: string | null;
+        }>;
+      };
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to fetch documents");
-        }
+      let documents = (data.documents ?? []).map((d) => ({
+        documentId: d.id,
+        title: d.title,
+        category: d.category ?? undefined,
+        documentType: 'pdf',
+        chunkCount: d.chunksCount,
+        lastModified: d.indexedAt ?? undefined,
+      })) as DocumentMetadata[];
 
-        return result.data || null;
-      } else {
-        // Fallback to Supabase Edge Functions
-        const { data, error: fetchError } = await supabase.functions.invoke("rag-metadata", {
-          body: {
-            type: "documents",
-            filters: filters || {},
-            top,
-          },
-        });
-
-        if (fetchError) throw fetchError;
-        if (data?.error) throw new Error(data.error);
-
-        return data as { documents: DocumentMetadata[]; total: number };
+      // Horus returns the whole indexed set; apply the caller's narrowing here.
+      if (filters?.category) {
+        documents = documents.filter((d) => d.category === filters.category);
       }
+
+      return { documents: documents.slice(0, top), total: documents.length };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch documents");
       return null;
@@ -419,35 +257,35 @@ export function useRAGMetadata() {
     setLoading(true);
     setError(null);
     try {
-      // Use Azure Functions if configured, otherwise fallback to Supabase
-      if (isAzureFunctionsConfigured()) {
-        const result = await callRAGMetadata<{ results: DocumentMetadata[]; total: number }>("search", {
-          query,
-          filters: filters || {},
-          top,
-        });
+      const result = await horusSearch(
+        query,
+        filters?.category ? { category: filters.category } : undefined,
+        { topK: Math.min(Math.max(top, 12), 50) },
+      );
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to search documents");
+      // Chunks collapse to documents; keep each document's best-scoring hit.
+      const byDocument = new Map<string, DocumentMetadata>();
+      for (const source of result.sources) {
+        const existing = byDocument.get(source.documentId);
+        if (existing) {
+          existing.score = Math.max(existing.score ?? 0, source.score ?? 0);
+          continue;
         }
-
-        return result.data || null;
-      } else {
-        // Fallback to Supabase Edge Functions
-        const { data, error: fetchError } = await supabase.functions.invoke("rag-metadata", {
-          body: {
-            type: "search",
-            query,
-            filters: filters || {},
-            top,
-          },
+        byDocument.set(source.documentId, {
+          documentId: source.documentId,
+          title: source.title,
+          category: source.category,
+          documentType: 'pdf',
+          url: source.url,
+          score: source.score,
+          pageNumber: source.pageNumber,
         });
-
-        if (fetchError) throw fetchError;
-        if (data?.error) throw new Error(data.error);
-
-        return data as { results: DocumentMetadata[]; total: number };
       }
+
+      const results = [...byDocument.values()]
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+        .slice(0, top);
+      return { results, total: results.length };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to search documents");
       return null;
@@ -498,7 +336,7 @@ export function useRAGMetadata() {
   } | null> => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Check cache first
       const cacheKey = JSON.stringify({ query, filters, options });
@@ -532,7 +370,7 @@ export function useRAGMetadata() {
           filters: filters || {},
           options: options || {},
         });
-        
+
         // Process queue asynchronously
         processQueue();
       });
@@ -556,9 +394,9 @@ export function useRAGMetadata() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to perform semantic search";
       setError(errorMessage);
-      
+
       console.error("Semantic search error:", errorMessage);
-      
+
       return null;
     } finally {
       setLoading(false);
@@ -578,50 +416,29 @@ export function useRAGMetadata() {
     setLoading(true);
     setError(null);
     try {
-      if (isAzureFunctionsConfigured()) {
-        const { callRAGMetadataBulk } = await import('@/lib/azureFunctions');
-        const result = await callRAGMetadataBulk(operations, filters);
+      // The legacy backend had a dedicated bulk endpoint to amortise Azure
+      // Function cold starts. Horus has no such cost, so fanning out and
+      // settling is simpler and no slower.
+      const [stats, categories, documents] = await Promise.all([
+        operations.includes('stats') ? getStats(filters) : Promise.resolve(undefined),
+        operations.includes('categories') ? getCategories() : Promise.resolve(undefined),
+        operations.includes('documents') ? getDocuments(filters) : Promise.resolve(undefined),
+      ]);
 
-        if (!result.success) {
-          throw new Error(result.error || "Failed to fetch bulk data");
-        }
-
-        return (result.data as {
-          stats?: RAGStats;
-          categories?: { categories: CategoryStats[]; sectors: Array<{ value: string; count: number }> };
-          documents?: unknown;
-        }) || null;
-      } else {
-        // Fallback: make individual Supabase calls
-        const promises: Promise<any>[] = [];
-        const results: any = {};
-        
-        if (operations.includes('stats')) {
-          promises.push(getStats(filters).then(r => ({ type: 'stats', data: r })));
-        }
-        if (operations.includes('categories')) {
-          promises.push(getCategories().then(r => ({ type: 'categories', data: r })));
-        }
-        if (operations.includes('documents')) {
-          promises.push(getDocuments(filters).then(r => ({ type: 'documents', data: r })));
-        }
-        
-        const settled = await Promise.allSettled(promises);
-        settled.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            results[result.value.type] = result.value.data;
-          }
-        });
-        
-        return results;
-      }
+      return {
+        ...(stats !== undefined && { stats }),
+        ...(categories !== undefined && { categories }),
+        ...(documents !== undefined && { documents }),
+      };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch bulk data");
       return null;
     } finally {
       setLoading(false);
     }
-  }, [getStats, getCategories, getDocuments]); // Dependencies for fallback case
+    // These three are themselves stable (empty dep arrays), so this callback
+    // stays stable too — but declare them rather than relying on that.
+  }, [getStats, getCategories, getDocuments]);
 
   // Chat-specific wrapper around semanticSearch
   // Uses conversational system prompt instead of analytical HORUS prompts
@@ -710,4 +527,3 @@ export function useRAGMetadata() {
     chatQuery, // NEW: Chat-optimized query method
   };
 }
-

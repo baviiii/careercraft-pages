@@ -77,3 +77,24 @@ verify_jwt = false
 
 [functions.generate-prompt]
 verify_jwt = true
+
+[functions.parse-resume]
+verify_jwt = true
+
+[functions.rag-tag-documents]
+verify_jwt = true
+
+[functions.rag-metadata]
+verify_jwt = true
+
+[functions.rag-query]
+verify_jwt = true
+
+[functions.azure-rag-proxy]
+verify_jwt = true
+
+[functions.azure-pdf-proxy]
+verify_jwt = true
+
+[functions.azure-graph-proxy]
+verify_jwt = true

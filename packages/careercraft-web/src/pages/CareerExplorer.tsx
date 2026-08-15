@@ -804,10 +804,7 @@ function CareerExplorerContent() {
     const fetchIntersections = async () => {
       if (chartSources.length < 2) return;
       
-      const intersectionUrl = import.meta.env.VITE_AZURE_INTERSECTION_REASONING_URL || '';
-      const functionKey = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
-      if (!intersectionUrl) return;
-      
+      const { supabase } = await import('@/integrations/supabase/client');
       try {
         const queryResults = chartSources.slice(0, 10).map(s => ({
           query: "career opportunities",
@@ -818,28 +815,23 @@ function CareerExplorerContent() {
             category: s.category,
           }]
         }));
-        
-        const response = await fetch(intersectionUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(functionKey && { 'x-functions-key': functionKey }),
-          },
-          body: JSON.stringify({
+
+        const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+          body: {
+            functionName: 'intersection-reasoning',
             queryResults,
             originalQuery: "career explorer analysis",
             saveFindings: false,
-          }),
+          },
         });
-        
-        if (response.ok) {
-          const analysis = await response.json();
-          if (analysis.contradictions?.length > 0) {
-            setContradictions(prev => [...prev, ...analysis.contradictions]);
-          }
-          if (analysis.connections?.length > 0) {
-            setGraphConnections(prev => [...prev, ...analysis.connections]);
-          }
+
+        if (error) throw error;
+
+        if (data?.contradictions?.length > 0) {
+          setContradictions(prev => [...prev, ...data.contradictions]);
+        }
+        if (data?.connections?.length > 0) {
+          setGraphConnections(prev => [...prev, ...data.connections]);
         }
       } catch (error) {
         console.error("[CareerExplorer] Intersection reasoning error:", error);

@@ -1,7 +1,6 @@
 import {
   supabase,
   SUPABASE_URL,
-  SUPABASE_PUBLISHABLE_KEY,
 } from '@/integrations/supabase/client';
 
 async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
@@ -12,7 +11,6 @@ async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
   }
   return {
     'Content-Type': 'application/json',
-    apikey: SUPABASE_PUBLISHABLE_KEY,
     Authorization: `Bearer ${token}`,
   };
 }

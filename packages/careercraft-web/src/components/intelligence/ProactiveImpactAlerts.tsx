@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, TrendingUp, Bell, X, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
 
-const GRAPH_QUERY_URL = import.meta.env.VITE_AZURE_GRAPH_QUERY_URL || '';
-const AZURE_FUNCTION_KEY = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
+// Graph queries are proxied through Supabase Edge Functions
+// No client-side keys or URLs required
 
 interface ImpactAlert {
   type: 'high_severity' | 'outlier' | 'conflict' | 'threshold_breach' | 'new_impacts';
@@ -51,19 +52,8 @@ export function ProactiveImpactAlerts({
   const cacheKey = 'proactive-alerts';
 
   const fetchAlerts = async (forceRefresh = false) => {
-    if (!GRAPH_QUERY_URL) {
-      console.warn('GRAPH_QUERY_URL not configured');
-      setAlerts([]);
-      setSummary({
-        summary: 'Alert service not configured',
-        criticalCount: 0,
-        totalCount: 0
-      });
-      setLoading(false);
-      setError(null);
-      return;
-    }
-    
+    // Graph queries are proxied through Supabase Edge Functions
+
     // Check cache first (5-minute TTL)
     if (!forceRefresh) {
       const cached = sessionStorage.getItem(cacheKey);
@@ -98,33 +88,15 @@ export function ProactiveImpactAlerts({
     
     while (retryCount < maxRetries) {
       try {
-        const response = await fetch(GRAPH_QUERY_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY })
+        const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+          body: {
+            functionName: 'graph-query',
+            action: 'get_alerts',
           },
-          body: JSON.stringify({
-            action: 'get_alerts'
-          }),
-          signal: AbortSignal.timeout(10000) // 10 second timeout
         });
 
-        if (!response.ok) {
-          if (response.status === 429 && retryCount < maxRetries - 1) {
-            // Rate limited, wait and retry
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
-            retryCount++;
-            continue;
-          }
-          throw new Error(`Failed to fetch alerts: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error);
-        }
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
 
         // Set alerts and summary from API response
         const alertsData = data.alerts || [];
@@ -133,18 +105,18 @@ export function ProactiveImpactAlerts({
           criticalCount: 0,
           totalCount: 0
         };
-        
+
         setAlerts(alertsData);
         setSummary(summaryData);
         setError(null);
-        
+
         // Cache the result
         sessionStorage.setItem(cacheKey, JSON.stringify({
           alerts: alertsData,
           summary: summaryData,
           timestamp: Date.now()
         }));
-        
+
         break; // Success, exit retry loop
       } catch (error) {
         retryCount++;

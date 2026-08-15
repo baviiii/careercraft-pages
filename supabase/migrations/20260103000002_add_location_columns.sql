@@ -19,20 +19,20 @@ ADD COLUMN IF NOT EXISTS longitude NUMERIC;
 -- Update RLS policies to allow service role inserts
 -- The edge function uses service role key, so it bypasses RLS, but let's ensure policies are correct
 
--- Allow system/service role to insert into user_sessions
+-- Allow users to insert their own sessions
 DROP POLICY IF EXISTS "System can insert sessions" ON public.user_sessions;
-CREATE POLICY "System can insert sessions"
+CREATE POLICY "Users can insert own sessions"
 ON public.user_sessions FOR INSERT
 TO authenticated
-WITH CHECK (true);
+WITH CHECK (auth.uid() = user_id);
 
--- Allow system/service role to update user_sessions
+-- Allow users to update their own sessions
 DROP POLICY IF EXISTS "System can update sessions" ON public.user_sessions;
-CREATE POLICY "System can update sessions"
+CREATE POLICY "Users can update own sessions"
 ON public.user_sessions FOR UPDATE
 TO authenticated
-USING (true)
-WITH CHECK (true);
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
 
 -- Ensure activity_logs can be inserted by system
 -- (This should already exist, but let's make sure)

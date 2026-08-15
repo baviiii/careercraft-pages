@@ -37,9 +37,10 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { supabase } from "@/integrations/supabase/client";
 
-const GRAPH_QUERY_URL = import.meta.env.VITE_AZURE_GRAPH_QUERY_URL || '';
-const AZURE_FUNCTION_KEY = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
+// Graph queries are proxied through Supabase Edge Functions
+// No client-side keys or URLs required
 
 interface Scenario {
   entity: string;
@@ -156,26 +157,19 @@ export function ScenarioModeler({ defaultEntity = "", onScenarioComplete }: Scen
         changePercent: effectiveChange,
       };
 
-      const response = await fetch(GRAPH_QUERY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+        body: {
+          functionName: 'graph-query',
           action: 'simulate_scenario',
           scenario,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Scenario simulation failed (${response.status})`);
-      }
+      if (error) throw new Error(error.message || 'Scenario simulation failed');
 
-      const data = await response.json();
-      const scenarioResult = data.data;
+      const scenarioResult = data?.data;
 
-      if (scenarioResult.error) {
+      if (scenarioResult?.error) {
         throw new Error(scenarioResult.error);
       }
 

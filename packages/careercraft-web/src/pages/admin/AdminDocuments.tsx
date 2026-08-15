@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { 
-  Upload, FileText, Trash2, CheckCircle2, 
+import {
+  Upload, FileText, Trash2, CheckCircle2,
   Loader2, RefreshCw, FileSearch, CloudUpload, AlertCircle, Clock, XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
-const PDF_UPLOAD_URL = import.meta.env.VITE_PDF_UPLOAD_URL || 'https://careercraft-functions-dev.azurewebsites.net/api/pdf-upload';
+// PDF operations are proxied through Supabase Edge Functions
+// No client-side keys or URLs required
 
 interface ProcessingStatus {
   blobName: string;
@@ -72,9 +74,11 @@ export default function AdminDocuments() {
   const loadFiles = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${PDF_UPLOAD_URL}?action=list`);
-      const data = await response.json();
-      if (data.success) {
+      const { data, error } = await supabase.functions.invoke('azure-pdf-proxy', {
+        body: { action: 'list' },
+      });
+      if (error) throw error;
+      if (data?.success) {
         setBlobFiles(data.files || []);
       }
     } catch (error) {
@@ -128,26 +132,24 @@ export default function AdminDocuments() {
     for (const file of acceptedFiles) {
       try {
         const fileData = await fileToBase64(file);
-        
-        const response = await fetch(`${PDF_UPLOAD_URL}?action=upload`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+
+        const { data, error } = await supabase.functions.invoke('azure-pdf-proxy', {
+          body: {
+            action: 'upload',
             fileName: file.name,
-            fileData
-          }),
+            fileData,
+          },
         });
-        
-        const data = await response.json();
-        
-        if (data.success && data.file) {
+
+        if (error) throw new Error(error.message || 'Upload failed');
+        if (data?.success && data?.file) {
           uploaded.push(data.file);
           toast({
             title: "Uploaded!",
             description: `${file.name} uploaded successfully`,
           });
         } else {
-          throw new Error(data.error || 'Upload failed');
+          throw new Error(data?.error || 'Upload failed');
         }
       } catch (error: any) {
         console.error('Upload failed:', error);
@@ -177,13 +179,15 @@ export default function AdminDocuments() {
   // Delete a file
   const deleteFile = async (blobName: string) => {
     if (!confirm('Delete this file?')) return;
-    
+
     try {
-      await fetch(`${PDF_UPLOAD_URL}?action=delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blobName }),
+      const { error } = await supabase.functions.invoke('azure-pdf-proxy', {
+        body: {
+          action: 'delete',
+          blobName,
+        },
       });
+      if (error) throw error;
       toast({
         title: "Deleted",
         description: "File removed from storage",

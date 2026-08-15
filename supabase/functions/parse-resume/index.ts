@@ -18,6 +18,8 @@ import { getAzure } from "../_shared/ai/providers.ts";
 import { ConfigError, ProviderError, ValidationError } from "../_shared/ai/errors.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
+import { requireUser } from "../_shared/http/auth.ts";
+import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
 
 const VISION_CONFIDENCE_FALLBACK = 0.55;
 
@@ -237,6 +239,9 @@ function successResponse(
 }
 
 serve(handler(async (req) => {
+  const ctx = await requireUser(req);
+  await enforceWindowLimit({ userId: ctx.userId, action: 'parse_resume', limit: 10, windowMinutes: 60 });
+
   const contentType = req.headers.get("content-type") || "";
 
   if (contentType.includes("application/json")) {

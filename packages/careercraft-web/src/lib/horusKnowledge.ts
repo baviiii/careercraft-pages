@@ -110,6 +110,31 @@ export function horusSearch(
 }
 
 /**
+ * `horusSearch` in the `{ success, data, error }` envelope the legacy
+ * `callRAGMetadata("semantic-search", …)` helper returned.
+ *
+ * This exists so call sites migrate with a one-line change instead of having
+ * their control flow rewritten — the components downstream parse `data.answer`
+ * and `data.sources`, and none of that needs to know the backend moved.
+ * Prefer `horusSearch` directly in new code; it throws, which is easier to
+ * reason about than a boolean nobody checks.
+ */
+export async function horusSemanticSearch(
+  query: string,
+  options?: { topK?: number; systemPrompt?: string },
+  filters?: { category?: string; sector?: string; tags?: string[] },
+): Promise<{ success: boolean; data?: HorusSearchResult; error?: string }> {
+  try {
+    const data = await horusSearch(query, filters, options);
+    return { success: true, data };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Horus search failed";
+    console.error("[horusSemanticSearch]", error);
+    return { success: false, error };
+  }
+}
+
+/**
  * Retrieval restricted to careers-relevant categories, so a question about
  * training does not come back with budget appropriation tables.
  */

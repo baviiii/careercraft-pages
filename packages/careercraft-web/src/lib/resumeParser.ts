@@ -161,8 +161,13 @@ async function getResumeParseAuthHeaders(): Promise<HeadersInit> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error('Authentication required. Please sign in to parse resumes.');
+  }
+
   return {
-    Authorization: `Bearer ${session?.access_token || SUPABASE_PUBLISHABLE_KEY}`,
+    Authorization: `Bearer ${session.access_token}`,
   };
 }
 

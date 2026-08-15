@@ -402,10 +402,7 @@ function IntelligenceDashboardContent() {
         return;
       }
 
-      const intersectionUrl = import.meta.env.VITE_AZURE_INTERSECTION_REASONING_URL || '';
-      const functionKey = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
-      if (!intersectionUrl) return;
-
+      const { supabase } = await import('@/integrations/supabase/client');
       try {
         const queryResults = chartSources.map(s => ({
           query: searchQuery || '',
@@ -419,23 +416,18 @@ function IntelligenceDashboardContent() {
           }]
         }));
 
-        const response = await fetch(intersectionUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(functionKey ? { 'x-functions-key': functionKey } : {}),
-          },
-          body: JSON.stringify({
+        const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+          body: {
+            functionName: 'intersection-reasoning',
             queryResults: queryResults.slice(0, 10),
             originalQuery: searchQuery || 'intelligence overview',
-          }),
+          },
         });
 
-        if (response.ok) {
-          const analysis = await response.json();
-          if (analysis.contradictions && analysis.contradictions.length > 0) {
-            setContradictions(analysis.contradictions);
-          }
+        if (error) throw error;
+
+        if (data?.contradictions && data.contradictions.length > 0) {
+          setContradictions(data.contradictions);
         }
       } catch (err) {
         console.error('Failed to fetch contradictions:', err);
