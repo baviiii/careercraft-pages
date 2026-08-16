@@ -70,22 +70,20 @@ export default function AdminDocuments() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Load existing files
+  // Corpus documents are no longer managed here.
+  //
+  // This page drove the `pdf-upload` Azure Function, which uploaded into the
+  // storage account behind the old `sa-gov-documents` index. That Function App
+  // and that index are both gone. Ingestion now runs in Horus: documents land
+  // in blob storage and an Azure AI Search indexer extracts them with Content
+  // Understanding on a 12-hour schedule.
+  //
+  // Manage them at /t/careercraft/documents in Horus. Rebuilding upload here
+  // would mean two write paths into one corpus, which is how the index and the
+  // Document rows drifted apart the first time.
   const loadFiles = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('azure-pdf-proxy', {
-        body: { action: 'list' },
-      });
-      if (error) throw error;
-      if (data?.success) {
-        setBlobFiles(data.files || []);
-      }
-    } catch (error) {
-      console.error('Failed to load files:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    setIsLoading(false);
+    setBlobFiles([]);
   }, []);
 
   // Check if any files are actively processing
@@ -133,24 +131,10 @@ export default function AdminDocuments() {
       try {
         const fileData = await fileToBase64(file);
 
-        const { data, error } = await supabase.functions.invoke('azure-pdf-proxy', {
-          body: {
-            action: 'upload',
-            fileName: file.name,
-            fileData,
-          },
-        });
-
-        if (error) throw new Error(error.message || 'Upload failed');
-        if (data?.success && data?.file) {
-          uploaded.push(data.file);
-          toast({
-            title: "Uploaded!",
-            description: `${file.name} uploaded successfully`,
-          });
-        } else {
-          throw new Error(data?.error || 'Upload failed');
-        }
+        void fileData;
+        throw new Error(
+          'Document upload has moved to Horus — add corpus documents at /t/careercraft/documents.',
+        );
       } catch (error: any) {
         console.error('Upload failed:', error);
         setUploadError(error.message || 'Upload failed');
@@ -181,18 +165,11 @@ export default function AdminDocuments() {
     if (!confirm('Delete this file?')) return;
 
     try {
-      const { error } = await supabase.functions.invoke('azure-pdf-proxy', {
-        body: {
-          action: 'delete',
-          blobName,
-        },
-      });
-      if (error) throw error;
+      void blobName;
       toast({
-        title: "Deleted",
-        description: "File removed from storage",
+        title: "Managed in Horus",
+        description: "Corpus documents are added and removed at /t/careercraft/documents.",
       });
-      await loadFiles();
     } catch (error) {
       console.error('Failed to delete:', error);
     }

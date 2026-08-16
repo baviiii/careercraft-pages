@@ -12,7 +12,6 @@ import { LoginHistoryTable } from '@/components/admin/LoginHistoryTable';
 import { SessionsMapCard } from '@/components/admin/SessionsMapCard';
 import { useAdminData } from '@/hooks/useAdminData';
 import { testSessionTracking } from '@/lib/testSessionTracking';
-import { testHorusChatTables } from '@/lib/testHorusChatTables';
 
 export default function AdminOverview() {
   const { 
@@ -50,14 +49,6 @@ export default function AdminOverview() {
           >
             <Bug className="w-4 h-4 mr-2" />
             Test Tracking
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => testHorusChatTables()}
-            title="Test if PDF tables are indexed (opens in console)"
-          >
-            <Table className="w-4 h-4 mr-2" />
-            Test Tables
           </Button>
         </div>
       </div>

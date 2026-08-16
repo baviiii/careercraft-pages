@@ -348,69 +348,52 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
   const queryCache = useRef<Map<string, any>>(new Map());
 
   // ========================================================================
-  // AGENTIC PLANNER - Calls Azure Function for query planning
+  // QUERY PLANNER — local
+  //
+  // Was an LLM planner in the `agentic-planner` Azure Function. That Function
+  // App no longer exists, so every call fell through to a one-step fallback,
+  // which quietly made "agentic" mode identical to plain search.
+  //
+  // Planned here instead. Both step types below run against Horus: the graph
+  // lookup resolves named things and returns their edges with evidence, and
+  // the search retrieves passages. Running both and letting synthesis combine
+  // them is what the remote planner was ultimately arranging anyway, and it
+  // costs no round trip.
   // ========================================================================
 
+  /** Words that suggest the question is about a specific named thing. */
+  const ENTITY_HINTS = /\b(nurse|engineer|teacher|defence|health|education|mining|construction|tourism|technology|manufacturing|energy|space|agriculture|hydrogen|apprentice|tafe|university)\w*/i;
+
   const planQuery = useCallback(async (query: string): Promise<AgentPlan | null> => {
-    try {
-      console.log("[AgenticRAG] 🧠 Planning query via Supabase proxy:", query);
+    const steps: AgentStep[] = [];
 
-      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
-        body: {
-          functionName: 'agentic-planner',
-          query,
-          focusArea,
-          conversationContext: conversationHistory.current.slice(-5).map(msg => ({
-            role: 'user',
-            content: msg,
-          })),
-          useCache: true,
-        },
+    // Anchor on a graph entity when the question names one — that is the step
+    // that yields relationships and their evidence rather than loose passages.
+    const named = ENTITY_HINTS.exec(query);
+    if (named) {
+      steps.push({
+        step: steps.length + 1,
+        query: named[0],
+        purpose: `Resolve "${named[0]}" in the knowledge graph and collect its relationships`,
+        method: 'entity_lookup',
       });
-
-      if (error) {
-        console.error("[AgenticRAG] ❌ Planner API error:", error);
-        return createFallbackPlan(query);
-      }
-
-      if (!data?.plan) {
-        console.warn("[AgenticRAG] ⚠️ No plan returned, using fallback");
-        return createFallbackPlan(query);
-      }
-
-      console.log("[AgenticRAG] ✅ Plan received:", {
-        strategy: data.plan.strategy,
-        steps: data.plan.steps.length,
-        fromCache: data.fromCache,
-        planningTime: data.planningTime,
-      });
-
-      return {
-        ...data.plan,
-        fromCache: data.fromCache,
-        planningTime: data.planningTime,
-      };
-    } catch (error) {
-      console.error("[AgenticRAG] ❌ Planning error:", error);
-      return createFallbackPlan(query);
     }
-  }, []);
 
-  // Fallback plan when Azure Function is unavailable
-  const createFallbackPlan = useCallback((query: string): AgentPlan => {
+    steps.push({
+      step: steps.length + 1,
+      query,
+      purpose: 'Retrieve supporting passages from the corpus',
+      method: 'hybrid_search',
+      filters: {},
+    });
+
     return {
-      strategy: "single_query",
-      steps: [
-        {
-          step: 1,
-          query: query,
-          purpose: "Direct search fallback",
-          method: "hybrid_search",
-          filters: {}
-        }
-      ],
-      estimatedTime: 2000,
-      synthesisGuidance: "Provide a comprehensive answer based on the retrieved documents.",
+      strategy: steps.length > 1 ? 'graph_then_search' : 'single_query',
+      steps,
+      estimatedTime: steps.length * 1500,
+      synthesisGuidance:
+        'Answer from the retrieved passages and graph relationships. Cite sources. ' +
+        'If they do not cover the question, say so rather than filling the gap.',
     };
   }, []);
 
@@ -453,96 +436,38 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
           console.log(`[AgenticRAG] ✅ Horus graph: ${entities.length} entities, ${result.edges?.length ?? 0} edges`);
           return entities;
         } catch (horusErr) {
-          console.error("[AgenticRAG] Horus graph traversal failed, falling back:", horusErr);
+          console.error("[AgenticRAG] Horus graph traversal failed:", horusErr);
         }
       }
 
-      console.log("[AgenticRAG] 🔗 Traversing graph via Supabase proxy:", { startEntityId, relationships, depth });
-
-      // Use Supabase Edge Function proxy for graph queries
-      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
-        body: {
-          functionName: 'graph-query',
-          action: 'traverse',
-          entityName: startEntityId,
-          depth: depth,
-          limit: 25,
-          backend: graphBackend,
-        },
-      });
-
-      if (error) {
-        console.error("[AgenticRAG] ❌ Graph function error:", error);
-        return await traverseGraphFallback(startEntityId, relationships, depth);
-      }
-
-      const entities = data?.data || [];
-
-      if (entities.length === 0) {
-        console.log("[AgenticRAG] ℹ️ No related entities found");
-        return [];
-      }
-
-      console.log(`[AgenticRAG] ✅ Found ${entities.length} related entities`);
-      return entities;
+      // No second engine to try: the Cosmos Gremlin graph behind the old
+      // `graph-query` Function was decommissioned with the rest of that stack.
+      return [];
     } catch (error) {
       console.error("[AgenticRAG] ❌ Graph traversal error:", error);
-      return await traverseGraphFallback(startEntityId, relationships, depth);
+      return [];
     }
-  }, [graphBackend]);
-
-  // Fallback: Return empty array if graph query unavailable
-  // No Supabase fallback - use Cosmos DB or Neo4j only
-  const traverseGraphFallback = useCallback(async (
-    startEntityId: string,
-    relationships: string[],
-    depth: number
-  ): Promise<any[]> => {
-    console.warn("[AgenticRAG] ⚠️ Graph query unavailable - no fallback available");
-    console.warn("[AgenticRAG] ⚠️ Ensure graph-query Azure Function is configured");
-    return [];
   }, []);
 
   // ========================================================================
-  // INTERSECTION REASONING - Call Azure Function for analysis
+  // INTERSECTION REASONING — local
+  //
+  // Was the `intersection-reasoning` Azure Function, which is gone with the
+  // rest of that Function App. It produced contradictions, themes and gaps;
+  // the local analysis below produces document-overlap connections only, and
+  // reports the other three as empty rather than guessing at them.
+  //
+  // The real replacement is Horus `intelligence.contradictions`, which is
+  // still a stub — but the graph now carries `contradicts` edges and both
+  // budget years, so it is buildable. Until then this is honestly thin.
   // ========================================================================
 
   const analyzeIntersections = useCallback(async (
     queryResults: Array<{ query: string; results: any[]; method?: string }>,
-    originalQuery: string
-  ): Promise<IntersectionAnalysis> => {
-    try {
-      console.log("[AgenticRAG] 🔍 Analyzing intersections via Supabase proxy:", queryResults.length, "query results");
+    _originalQuery: string
+  ): Promise<IntersectionAnalysis> => performBasicAnalysis(queryResults), []);
 
-      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
-        body: {
-          functionName: 'intersection-reasoning',
-          queryResults,
-          originalQuery,
-          saveFindings: true,
-        },
-      });
-
-      if (error) {
-        console.error("[AgenticRAG] ❌ Intersection API error:", error);
-        return performBasicAnalysis(queryResults);
-      }
-
-      console.log("[AgenticRAG] ✅ Intersection analysis complete:", {
-        connections: data?.connections?.length || 0,
-        contradictions: data?.contradictions?.length || 0,
-        gaps: data?.gaps?.length || 0,
-        themes: data?.themes?.length || 0,
-      });
-
-      return data;
-    } catch (error) {
-      console.error("[AgenticRAG] ❌ Intersection analysis error:", error);
-      return performBasicAnalysis(queryResults);
-    }
-  }, []);
-
-  // Basic local analysis when Azure Function unavailable
+  // Document-overlap analysis, computed client side
   const performBasicAnalysis = useCallback((queryResults: Array<{ query: string; results: any[] }>): IntersectionAnalysis => {
     // Find overlapping documents
     const docCounts = new Map<string, number>();
@@ -867,25 +792,8 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
                 break;
               }
             } catch (horusErr) {
-              console.error("[AgenticRAG] Horus entity lookup failed, falling back:", horusErr);
+              console.error("[AgenticRAG] Horus entity lookup failed:", horusErr);
             }
-          }
-          // Search for entities by name via Supabase proxy
-          try {
-            const { data: entityResult, error } = await supabase.functions.invoke('azure-graph-proxy', {
-              body: {
-                functionName: 'graph-query',
-                action: 'search',
-                query: step.query,
-                limit: 10,
-                backend: graphBackend, // 'cosmos' or 'neo4j'
-              },
-            });
-            if (!error && entityResult?.data) {
-              results = entityResult.data;
-            }
-          } catch (entityErr) {
-            console.error("[AgenticRAG] Entity lookup error:", entityErr);
           }
           break;
 
@@ -909,31 +817,8 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
                 break;
               }
             } catch (horusErr) {
-              console.error("[AgenticRAG] Horus impact query failed, falling back:", horusErr);
+              console.error("[AgenticRAG] Horus impact query failed:", horusErr);
             }
-          }
-          // Query policy impacts via Supabase proxy
-          try {
-            const { data: impactResult, error } = await supabase.functions.invoke('azure-graph-proxy', {
-              body: {
-                functionName: 'graph-query',
-                action: 'get_impacts',
-                entityName: step.query, // Entity name from query
-                impactType: step.filters?.impactType,
-                severity: step.filters?.severity,
-                timeframe: step.filters?.timeframe,
-                limit: 50,
-                backend: graphBackend,
-              },
-            });
-            if (!error && impactResult?.data) {
-              results = impactResult.data;
-              console.log(`[AgenticRAG] ✅ Found ${results.length} impacts for ${step.query}`);
-            } else if (error) {
-              console.error("[AgenticRAG] Impact query error:", error);
-            }
-          } catch (impactErr) {
-            console.error("[AgenticRAG] Impact query error:", impactErr);
           }
           break;
 

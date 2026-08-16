@@ -151,32 +151,16 @@ export function ScenarioModeler({ defaultEntity = "", onScenarioComplete }: Scen
     setResult(null);
 
     try {
-      const scenario: Scenario = {
-        entity: entity.trim(),
-        policy: policy.trim() || undefined,
-        changePercent: effectiveChange,
-      };
-
-      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
-        body: {
-          functionName: 'graph-query',
-          action: 'simulate_scenario',
-          scenario,
-        },
-      });
-
-      if (error) throw new Error(error.message || 'Scenario simulation failed');
-
-      const scenarioResult = data?.data;
-
-      if (scenarioResult?.error) {
-        throw new Error(scenarioResult.error);
-      }
-
-      setResult(scenarioResult);
-      if (onScenarioComplete) {
-        onScenarioComplete(scenarioResult);
-      }
+      // Simulation ran in the `graph-query` Azure Function (`simulate_scenario`)
+      // against a Cosmos Gremlin graph. Both were decommissioned, so this call
+      // had been failing on a hostname that no longer resolves.
+      //
+      // Horus has no equivalent, and this one should not be faked: propagating
+      // a funding change through a graph is a modelling claim, and inventing
+      // numbers about someone's sector would be worse than saying nothing.
+      throw new Error(
+        'Scenario modelling is unavailable — the simulation backend was retired and is not yet rebuilt on Horus.',
+      );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);

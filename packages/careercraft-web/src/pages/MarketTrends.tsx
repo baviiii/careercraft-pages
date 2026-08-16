@@ -137,47 +137,11 @@ function MarketTrendsContent() {
     }
   }, [agenticMessages]);
 
-  // Fetch intersection reasoning when sources are available
-  useEffect(() => {
-    const fetchIntersections = async () => {
-      if (chartSources.length < 2) return;
-      
-      const { supabase } = await import('@/integrations/supabase/client');
-      try {
-        const queryResults = chartSources.slice(0, 10).map(s => ({
-          query: "market trends",
-          results: [{
-            documentId: s.documentId || s.id,
-            title: s.title,
-            content: s.content || s.snippet,
-            category: s.category,
-          }]
-        }));
-
-        const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
-          body: {
-            functionName: 'intersection-reasoning',
-            queryResults,
-            originalQuery: "market trends analysis",
-            saveFindings: false,
-          },
-        });
-
-        if (error) throw error;
-
-        if (data?.contradictions?.length > 0) {
-          setContradictions(prev => [...prev, ...data.contradictions]);
-        }
-        if (data?.connections?.length > 0) {
-          setGraphConnections(prev => [...prev, ...data.connections]);
-        }
-      } catch (error) {
-        console.error("[MarketTrends] Intersection reasoning error:", error);
-      }
-    };
-    
-    fetchIntersections();
-  }, [chartSources]);
+  // Contradictions and cross-document connections came from the
+  // `intersection-reasoning` Azure Function, which has been decommissioned.
+  // Horus `intelligence.contradictions` is the intended replacement and is not
+  // built yet, so these stay empty rather than showing stale or invented
+  // conflicts. The rest of this page reads from Horus and is unaffected.
 
   // Check if data is available
   const hasData = careerOpportunities.length > 0 || skillsDemand.length > 0;

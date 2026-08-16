@@ -416,19 +416,11 @@ function IntelligenceDashboardContent() {
           }]
         }));
 
-        const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
-          body: {
-            functionName: 'intersection-reasoning',
-            queryResults: queryResults.slice(0, 10),
-            originalQuery: searchQuery || 'intelligence overview',
-          },
-        });
-
-        if (error) throw error;
-
-        if (data?.contradictions && data.contradictions.length > 0) {
-          setContradictions(data.contradictions);
-        }
+        // Contradiction detection ran in the `intersection-reasoning` Azure
+        // Function, now decommissioned. Horus `intelligence.contradictions`
+        // replaces it and is not built yet, so this stays empty rather than
+        // presenting invented conflicts as findings.
+        void queryResults;
       } catch (err) {
         console.error('Failed to fetch contradictions:', err);
       }
