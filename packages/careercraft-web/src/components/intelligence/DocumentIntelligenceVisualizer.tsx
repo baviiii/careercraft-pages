@@ -2,7 +2,7 @@
  * DocumentIntelligenceVisualizer Component
  *
  * Collapsible panel showing exactly which PDFs and page numbers were used,
- * plus PDF charts and contradiction detection.
+ * plus PDF charts.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -19,7 +19,6 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { PDFChartVisualizer } from './PDFChartVisualizer';
-import { ContradictionVisualizer } from './ContradictionVisualizer';
 import {
   VisualizationData,
   createEmptyVisualizationData,
@@ -40,16 +39,6 @@ interface Source {
   chunkType?: string;
 }
 
-interface AgenticContradiction {
-  type: string;
-  source1Document: string;
-  source1Text?: string;
-  source2Document: string;
-  source2Text?: string;
-  description: string;
-  severity: 'high' | 'medium' | 'low';
-  possibleResolution?: string;
-}
 
 interface DocumentIntelligenceVisualizerProps {
   sources: Source[];
@@ -58,7 +47,6 @@ interface DocumentIntelligenceVisualizerProps {
   isLoading?: boolean;
   onRefresh?: () => void;
   className?: string;
-  contradictions?: AgenticContradiction[];
 }
 
 export const DocumentIntelligenceVisualizer: React.FC<DocumentIntelligenceVisualizerProps> = ({
@@ -67,7 +55,6 @@ export const DocumentIntelligenceVisualizer: React.FC<DocumentIntelligenceVisual
   query,
   isLoading = false,
   className = '',
-  contradictions,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('sources');
@@ -84,27 +71,9 @@ export const DocumentIntelligenceVisualizer: React.FC<DocumentIntelligenceVisual
     priority_conflict: 'policy',
   };
 
-  const mappedContradictions = contradictions && contradictions.length > 0
-    ? contradictions.map((c, idx) => ({
-        id: `contradiction-${idx}`,
-        documentA: {
-          id: c.source1Document,
-          title: c.source1Document,
-          excerpt: c.source1Text || 'No excerpt available',
-        },
-        documentB: {
-          id: c.source2Document,
-          title: c.source2Document,
-          excerpt: c.source2Text || 'No excerpt available',
-        },
-        type: typeMap[c.type] || ('other' as const),
-        severity: c.severity,
-        description: c.description,
-        confidence: c.severity === 'high' ? 0.85 : c.severity === 'medium' ? 0.65 : 0.45,
-      }))
-    : undefined;
-
-  const hasContradictions = mappedContradictions && mappedContradictions.length > 0;
+  // Contradiction detection was removed with the legacy Azure stack; Horus
+  // `intelligence.contradictions` will replace it. The tab is gone rather
+  // than left permanently empty.
 
   // Group sources by document, collecting all page numbers used
   const groupedDocs = useMemo(() => {
@@ -175,12 +144,6 @@ export const DocumentIntelligenceVisualizer: React.FC<DocumentIntelligenceVisual
             <Badge className="text-[10px] bg-slate-700/60 text-slate-300 border-slate-600/50">
               {uniqueDocCount} PDF{uniqueDocCount !== 1 ? 's' : ''} · {totalChunkCount} chunks
             </Badge>
-            {hasContradictions && (
-              <Badge className="text-[10px] bg-red-500/20 text-red-300 border-red-500/40">
-                <AlertTriangle className="w-2.5 h-2.5 mr-1" />
-                {mappedContradictions!.length} conflict{mappedContradictions!.length !== 1 ? 's' : ''}
-              </Badge>
-            )}
             {hasCharts && (
               <Badge className="text-[10px] bg-purple-500/20 text-purple-300 border-purple-500/40">
                 <ImageIcon className="w-2.5 h-2.5 mr-1" />
@@ -219,16 +182,6 @@ export const DocumentIntelligenceVisualizer: React.FC<DocumentIntelligenceVisual
                       <span className="ml-0.5 text-[10px] opacity-70">({totalCharts})</span>
                     </TabsTrigger>
                   )}
-                  <TabsTrigger
-                    value="contradictions"
-                    className="flex items-center gap-1.5 text-xs data-[state=active]:bg-red-500/20 data-[state=active]:text-red-300"
-                  >
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    Contradictions
-                    {hasContradictions && (
-                      <span className="ml-0.5 text-[10px] opacity-70">({mappedContradictions!.length})</span>
-                    )}
-                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -311,10 +264,6 @@ export const DocumentIntelligenceVisualizer: React.FC<DocumentIntelligenceVisual
                 </TabsContent>
               )}
 
-              {/* Contradictions tab */}
-              <TabsContent value="contradictions" className="mt-0 p-4">
-                <ContradictionVisualizer contradictions={mappedContradictions} />
-              </TabsContent>
             </Tabs>
           </div>
         )}

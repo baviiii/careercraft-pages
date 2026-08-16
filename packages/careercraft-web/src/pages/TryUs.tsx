@@ -37,7 +37,7 @@ import {
   FundingDashboard,
   DocumentIntelligenceVisualizer,
 } from "@/components/intelligence";
-import { ImpactScenarioPanel } from "@/components/intelligence/NextGenInsights";
+
 import CareerCoach from "@/components/rag/CareerCoach";
 import { SAMarketIntelligence } from "@/components/interview/SAMarketIntelligence";
 import { SAFundingIntelligence } from "@/components/interview/SAFundingIntelligence";
@@ -89,12 +89,10 @@ function GuestIntelligenceDashboard() {
   const [chartSources, setChartSources] = useState<any[]>([]);
   const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
   const [loadingCharts, setLoadingCharts] = useState(false);
-  const [contradictions, setContradictions] = useState<any[]>([]);
   
   // Tab-specific sources and contradictions
   const [tabSources, setTabSources] = useState<Record<string, any[]>>({});
   const [tabVizData, setTabVizData] = useState<Record<string, any>>({});
-  const [tabContradictions, setTabContradictions] = useState<Record<string, any[]>>({});
   
   // Refs to track one-time fetches
   const agenticFetchDone = useRef(false);
@@ -206,13 +204,6 @@ function GuestIntelligenceDashboard() {
         }));
       }
 
-      const contras = last.contradictions || [];
-      if (contras.length > 0) {
-        setTabContradictions(prev => ({ ...prev, [tab]: contras }));
-        if (tab === 'overview') {
-          setContradictions(contras);
-        }
-      }
 
       // Ingest agentic answer + sources into context — deduplicate by content fingerprint
       // The ingestAgenticResult merge logic handles inflation prevention:
@@ -355,7 +346,6 @@ function GuestIntelligenceDashboard() {
                   <>
                     <IntelligenceHero />
                     <DataStoriesPanel />
-                    <ImpactScenarioPanel />
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <LiveDiscoveryFeed />
@@ -373,7 +363,6 @@ function GuestIntelligenceDashboard() {
                       visualizationData={tabVizData.overview || chartVisualizationData}
                       query={searchQuery}
                       isLoading={loadingCharts && !tabSources.overview?.length}
-                      contradictions={tabContradictions.overview?.length > 0 ? tabContradictions.overview : contradictions}
                     />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -475,7 +464,6 @@ function GuestIntelligenceDashboard() {
                       visualizationData={tabVizData.careers}
                       query={searchQuery || 'careers'}
                       isLoading={false}
-                      contradictions={tabContradictions.careers?.length > 0 ? tabContradictions.careers : contradictions}
                     />
                   )}
                 </motion.div>
@@ -506,7 +494,6 @@ function GuestIntelligenceDashboard() {
                       visualizationData={tabVizData.skills}
                       query={searchQuery || 'skills'}
                       isLoading={false}
-                      contradictions={tabContradictions.skills?.length > 0 ? tabContradictions.skills : contradictions}
                     />
                   )}
                 </motion.div>
@@ -541,7 +528,6 @@ function GuestIntelligenceDashboard() {
                       visualizationData={tabVizData.funding}
                       query={searchQuery || 'funding'}
                       isLoading={false}
-                      contradictions={tabContradictions.funding?.length > 0 ? tabContradictions.funding : contradictions}
                     />
                   )}
                 </motion.div>

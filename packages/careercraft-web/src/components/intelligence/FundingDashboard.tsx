@@ -87,7 +87,7 @@ const sectorColors: Record<string, string> = {
 export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
   const { fundingAllocations, getTabData, globalLoading, totalBudget } = useIntelligence();
   const tabData = getTabData("funding");
-  const { getImpactsForEntity, forecastImpacts } = useImpactQueries();
+  const { getImpactsForEntity } = useImpactQueries();
 
   const [localSearch, setLocalSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -126,30 +126,26 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
       await Promise.all(
         topSectors.map(async (allocation) => {
           try {
-            // Get impacts for sector
+            // Impacts come from the Horus knowledge graph, each carrying the
+            // sentence it was extracted from. Forecasting was removed with the
+            // legacy stack — there is no time series to project from.
             const impacts = await getImpactsForEntity(allocation.sector, { limit: 10 });
             if (impacts.length > 0) {
               impactsMap[allocation.sector] = impacts;
-            }
-            
-            // Get forecast for sector
-            const forecast = await forecastImpacts(allocation.sector, 12);
-            if (forecast && forecast.confidence > 0.3) {
-              forecastsMap[allocation.sector] = forecast;
             }
           } catch (error) {
             console.error(`Failed to fetch impacts for ${allocation.sector}:`, error);
           }
         })
       );
-      
+
       setSectorImpacts(impactsMap);
       setSectorForecasts(forecastsMap);
       setLoadingImpacts(false);
     };
-    
+
     fetchSectorImpacts();
-  }, [fundingAllocations, getImpactsForEntity, forecastImpacts]);
+  }, [fundingAllocations, getImpactsForEntity]);
 
   // Funding Investment Stories (useMemo before early return)
   const fundingStories = useMemo(() => {

@@ -26,7 +26,7 @@ import {
   LiveDiscoveryFeed,
   DocumentIntelligenceVisualizer,  // NEW: Dynamic visualizations
 } from "@/components/intelligence";
-import { ImpactScenarioPanel } from "@/components/intelligence/NextGenInsights";
+
 import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceContext";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { useAgenticRAG } from "@/hooks/useAgenticRAG";
@@ -127,13 +127,11 @@ function IntelligenceDashboardContent() {
   const [chartSources, setChartSources] = useState<any[]>([]);
   const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
   const [loadingCharts, setLoadingCharts] = useState(false);
-  const [contradictions, setContradictions] = useState<any[]>([]);
   const hasSetDefaultQuery = useRef(false);
   const agenticFetchDone = useRef(false);
   const tabAgenticDone = useRef<Set<string>>(new Set());
   const [tabSources, setTabSources] = useState<Record<string, any[]>>({});
   const [tabVizData, setTabVizData] = useState<Record<string, any>>({});
-  const [tabContradictions, setTabContradictions] = useState<Record<string, any[]>>({});
 
   // Set a default search query on first load so Overview shows visualization data immediately
   ReactUseEffect(() => {
@@ -196,7 +194,6 @@ function IntelligenceDashboardContent() {
     if (!lastAssistant) return;
 
     const agenticSources = lastAssistant.sources || [];
-    const agenticContradictions = lastAssistant.contradictions || [];
 
     if (agenticSources.length > 0) {
       const existingIds = new Set(chartSources.map(s => s.id));
@@ -225,10 +222,6 @@ function IntelligenceDashboardContent() {
       }
     }
 
-    // Use agentic contradictions (richer than raw intersection-reasoning)
-    if (agenticContradictions.length > 0) {
-      setContradictions(agenticContradictions);
-    }
   }, [agenticMessages]);
 
   // Extract per-tab agentic data into viz sources
@@ -266,10 +259,6 @@ function IntelligenceDashboardContent() {
         }));
       }
 
-      const contras = last.contradictions || [];
-      if (contras.length > 0 && !tabContradictions[tab]?.length) {
-        setTabContradictions(prev => ({ ...prev, [tab]: contras }));
-      }
     }
   }, [careersAgenticMsgs, skillsAgenticMsgs, fundingAgenticMsgs]);
 
@@ -394,40 +383,6 @@ function IntelligenceDashboardContent() {
     }
   }, [searchQuery]);
 
-  // Fetch contradictions via intersection-reasoning when chart sources are available
-  ReactUseEffect(() => {
-    const fetchContradictions = async () => {
-      if (chartSources.length < 2) {
-        setContradictions([]);
-        return;
-      }
-
-      const { supabase } = await import('@/integrations/supabase/client');
-      try {
-        const queryResults = chartSources.map(s => ({
-          query: searchQuery || '',
-          results: [{
-            id: s.id || s.documentId,
-            title: s.title,
-            content: s.content || '',
-            score: s.score || 0,
-            category: s.category,
-            sector: s.sector,
-          }]
-        }));
-
-        // Contradiction detection ran in the `intersection-reasoning` Azure
-        // Function, now decommissioned. Horus `intelligence.contradictions`
-        // replaces it and is not built yet, so this stays empty rather than
-        // presenting invented conflicts as findings.
-        void queryResults;
-      } catch (err) {
-        console.error('Failed to fetch contradictions:', err);
-      }
-    };
-
-    fetchContradictions();
-  }, [chartSources, searchQuery]);
 
   const formatTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -535,7 +490,6 @@ function IntelligenceDashboardContent() {
               <>
                 <IntelligenceHero />
                 <DataStoriesPanel />
-                <ImpactScenarioPanel />
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <LiveDiscoveryFeed />
                   <AIInsightsPanel
@@ -550,7 +504,6 @@ function IntelligenceDashboardContent() {
                   visualizationData={chartVisualizationData}
                   query={searchQuery}
                   isLoading={loadingCharts}
-                  contradictions={contradictions}
                 />
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-2"><SectorHeatmap /></div>
@@ -570,7 +523,6 @@ function IntelligenceDashboardContent() {
                     visualizationData={tabVizData.careers}
                     query={searchQuery || 'careers'}
                     isLoading={false}
-                    contradictions={tabContradictions.careers || []}
                   />
                 )}
               </>
@@ -586,7 +538,6 @@ function IntelligenceDashboardContent() {
                     visualizationData={tabVizData.skills}
                     query={searchQuery || 'skills'}
                     isLoading={false}
-                    contradictions={tabContradictions.skills || []}
                   />
                 )}
               </>
@@ -602,7 +553,6 @@ function IntelligenceDashboardContent() {
                     visualizationData={tabVizData.funding}
                     query={searchQuery || 'funding'}
                     isLoading={false}
-                    contradictions={tabContradictions.funding || []}
                   />
                 )}
               </>

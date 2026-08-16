@@ -37,7 +37,6 @@ import { cn } from "@/lib/utils";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
 import { useImpactQueries } from "@/hooks/useImpactQueries";
 import { detectImpactAnomalies, type Anomaly } from "@/lib/impactAnomalyDetection";
-import { ScenarioModeler } from "./ScenarioModeler";
 
 // ============================================================================
 // DATA STORY - Narrative-driven insights
@@ -625,21 +624,10 @@ export function LiveDiscoveryFeed() {
   );
 }
 
-/**
- * Impact Scenario Modeling Panel
- * Interactive what-if analysis for policy impacts
+/*
+ * ImpactScenarioPanel / ScenarioModeler were removed with the rest of the
+ * legacy Azure stack. What-if modelling ran in the `graph-query` Function's
+ * `simulate_scenario` action over Cosmos Gremlin; both were decommissioned.
+ * Horus has no equivalent — the knowledge graph records what documents state,
+ * not a model that can propagate a hypothetical funding change.
  */
-export function ImpactScenarioPanel() {
-  const { fundingAllocations, careerOpportunities } = useIntelligence();
-  
-  // Get default entity from top allocation or career
-  const defaultEntity = fundingAllocations.length > 0 
-    ? fundingAllocations[0].sector 
-    : careerOpportunities.length > 0 
-    ? careerOpportunities[0].occupation 
-    : "";
-  
-  return (
-    <ScenarioModeler defaultEntity={defaultEntity} />
-  );
-}

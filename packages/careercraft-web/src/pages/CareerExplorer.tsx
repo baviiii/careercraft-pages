@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJobCounts } from "@/hooks/useJobCounts";
 import { CareerDetailModal } from "@/components/careers/CareerDetailModal";
-import { useAgenticRAG, type Contradiction, type GraphConnection } from "@/hooks/useAgenticRAG";
+import { useAgenticRAG, type GraphConnection } from "@/hooks/useAgenticRAG";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { DocumentIntelligenceVisualizer, AIInsightsPanel } from "@/components/intelligence";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
@@ -747,7 +747,6 @@ function CareerExplorerContent() {
   // State for agentic data
   const [chartSources, setChartSources] = useState<any[]>([]);
   const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
-  const [contradictions, setContradictions] = useState<Contradiction[]>([]);
   const [graphConnections, setGraphConnections] = useState<GraphConnection[]>([]);
   const [loadingCharts, setLoadingCharts] = useState(false);
 
@@ -790,9 +789,6 @@ function CareerExplorerContent() {
   useEffect(() => {
     const lastMsg = agenticMessages[agenticMessages.length - 1];
     if (lastMsg?.role === "assistant" && !lastMsg.isLoading) {
-      if (lastMsg.contradictions && lastMsg.contradictions.length > 0) {
-        setContradictions(lastMsg.contradictions);
-      }
       if (lastMsg.graphConnections && lastMsg.graphConnections.length > 0) {
         setGraphConnections(lastMsg.graphConnections);
       }
@@ -1599,7 +1595,6 @@ function CareerExplorerContent() {
               visualizationData={chartVisualizationData}
               query="career opportunities employment analysis"
               isLoading={loadingCharts}
-              contradictions={contradictions}
             />
           </motion.div>
         )}

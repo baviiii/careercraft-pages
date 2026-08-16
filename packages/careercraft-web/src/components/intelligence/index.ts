@@ -17,4 +17,3 @@ export { DataStoriesPanel, LiveDiscoveryFeed } from './NextGenInsights';
 // Dynamic Visualization Components
 export { DocumentIntelligenceVisualizer } from './DocumentIntelligenceVisualizer';
 export { PDFChartVisualizer } from './PDFChartVisualizer';
-export { ContradictionVisualizer } from './ContradictionVisualizer';

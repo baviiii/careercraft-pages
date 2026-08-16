@@ -241,21 +241,15 @@ export function useImpactQueries() {
     };
   }, [getImpactsForEntity]);
 
-  /**
-   * Not supported. The old backend projected impacts forward; the graph holds
-   * what documents state, not a time series, so there is nothing to
-   * extrapolate from. Returning null rather than inventing a trend — a
-   * fabricated forecast about someone's career prospects is worse than none.
-   */
-  const forecastImpacts = useCallback(async (
-    _entityName: string,
-    _forecastPeriods: number = 12
-  ): Promise<null> => null, []);
+  // `forecastImpacts` was removed with the legacy stack. It projected impacts
+  // forward from a Cosmos time series that no longer exists, and the knowledge
+  // graph is not a substitute: it records what documents state, not a trend
+  // that can be extrapolated. A fabricated forecast about someone's career
+  // prospects is worse than no forecast.
 
   return {
     getImpactsForEntity,
     aggregateImpacts,
-    forecastImpacts,
     loading,
     error,
   };

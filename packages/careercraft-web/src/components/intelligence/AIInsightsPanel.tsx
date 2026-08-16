@@ -44,7 +44,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
-import { ImpactForecastCards } from "./ImpactForecastCards";
 import { useImpactQueries } from "@/hooks/useImpactQueries";
 import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
 
@@ -164,9 +163,7 @@ export function AIInsightsPanel({
     skillsDemand,
   } = useIntelligence();
   
-  const { forecastImpacts } = useImpactQueries();
-  const [impactForecasts, setImpactForecasts] = useState<Record<string, any>>({});
-  const [loadingForecasts, setLoadingForecasts] = useState(false);
+
 
   const tabData = getTabData(tab);
   const config = tabConfig[tab];
@@ -177,53 +174,10 @@ export function AIInsightsPanel({
   const [activeCareerSlide, setActiveCareerSlide] = useState(0);
   const [isCareerAutoPlay, setIsCareerAutoPlay] = useState(true);
   
-  // Fetch impact forecasts for relevant entities based on tab
-  useEffect(() => {
-    const fetchForecasts = async () => {
-      if (tabData.loading) return;
-      
-      setLoadingForecasts(true);
-      const forecasts: Record<string, any> = {};
-      
-      try {
-        if (tab === 'careers' && careerOpportunities.length > 0) {
-          // Forecast for top 3 careers
-          const topCareers = careerOpportunities.slice(0, 3);
-          for (const career of topCareers) {
-            try {
-              const forecast = await forecastImpacts(career.occupation, 12);
-              if (forecast && forecast.confidence > 0.3) {
-                forecasts[career.occupation] = forecast;
-              }
-            } catch (error) {
-              console.error(`Failed to forecast for ${career.occupation}:`, error);
-            }
-          }
-        } else if (tab === 'funding' && fundingAllocations.length > 0) {
-          // Forecast for top 3 sectors
-          const topSectors = fundingAllocations.slice(0, 3);
-          for (const allocation of topSectors) {
-            try {
-              const forecast = await forecastImpacts(allocation.sector, 12);
-              if (forecast && forecast.confidence > 0.3) {
-                forecasts[allocation.sector] = forecast;
-              }
-            } catch (error) {
-              console.error(`Failed to forecast for ${allocation.sector}:`, error);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch forecasts:', error);
-      } finally {
-        setLoadingForecasts(false);
-      }
-      
-      setImpactForecasts(forecasts);
-    };
-    
-    fetchForecasts();
-  }, [tab, careerOpportunities, fundingAllocations, tabData.loading, forecastImpacts]);
+  // Impact forecasting was removed with the legacy Azure stack. It projected
+  // from a Cosmos time series that no longer exists, and the knowledge graph
+  // cannot stand in: it records what documents state, not a trend to
+  // extrapolate. Insights below are drawn from retrieved documents instead.
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -988,25 +942,6 @@ export function AIInsightsPanel({
           </div>
         )}
 
-        {/* Impact Forecast Cards */}
-        {(loadingForecasts || Object.keys(impactForecasts).length > 0) && (
-          <div className="px-6 pb-6 space-y-4">
-            <div className="border-t border-pink-400/20 pt-4">
-              {loadingForecasts ? (
-                <ImpactForecastCards forecast={null} loading={true} compact={compact} />
-              ) : (
-                Object.entries(impactForecasts).map(([entity, forecast]) => (
-                  <ImpactForecastCards
-                    key={entity}
-                    forecast={forecast}
-                    loading={false}
-                    compact={compact}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        )}
     </div>
   );
 }

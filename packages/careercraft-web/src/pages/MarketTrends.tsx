@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceContext";
 import { useJobCounts } from "@/hooks/useJobCounts";
-import { useAgenticRAG, type Contradiction, type GraphConnection } from "@/hooks/useAgenticRAG";
+import { useAgenticRAG, type GraphConnection } from "@/hooks/useAgenticRAG";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { DocumentIntelligenceVisualizer, AIInsightsPanel } from "@/components/intelligence";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
@@ -85,7 +85,6 @@ function MarketTrendsContent() {
   // State for agentic data
   const [chartSources, setChartSources] = useState<any[]>([]);
   const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
-  const [contradictions, setContradictions] = useState<Contradiction[]>([]);
   const [graphConnections, setGraphConnections] = useState<GraphConnection[]>([]);
   const [loadingCharts, setLoadingCharts] = useState(false);
 
@@ -128,9 +127,6 @@ function MarketTrendsContent() {
   useEffect(() => {
     const lastMsg = agenticMessages[agenticMessages.length - 1];
     if (lastMsg?.role === "assistant" && !lastMsg.isLoading) {
-      if (lastMsg.contradictions && lastMsg.contradictions.length > 0) {
-        setContradictions(lastMsg.contradictions);
-      }
       if (lastMsg.graphConnections && lastMsg.graphConnections.length > 0) {
         setGraphConnections(lastMsg.graphConnections);
       }
@@ -810,7 +806,6 @@ function MarketTrendsContent() {
               visualizationData={chartVisualizationData}
               query="market trends workforce analysis"
               isLoading={loadingCharts}
-              contradictions={contradictions}
             />
           </motion.div>
         )}
