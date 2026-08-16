@@ -1,10 +1,11 @@
 // parse-resume — Structured resume extraction.
 //
-// Vision-first with Document Intelligence fallback:
+// Vision-first:
 //   JSON body   → plain text (DOCX/TXT pre-extracted on client) → Azure OpenAI structure
-//   FormData    → page images (+ original file for DI fallback)
-//                 1. Azure OpenAI multimodal (gpt-4o-mini) reads the resume visually
-//                 2. If confidence is low → Azure Document Intelligence → re-structure text
+//   FormData    → page images → Azure OpenAI multimodal (gpt-4o-mini) reads visually
+//
+// The Azure Document Intelligence OCR fallback was removed with the rest of the
+// decommissioned CareerCraft Azure estate; gpt-4o vision reads scanned pages.
 //
 // This is the one edge function that talks to Azure OpenAI directly instead of
 // the Horus gateway: the vision path needs image inputs, which Horus /api/infer
@@ -21,7 +22,6 @@ import { optEnv } from "../_shared/env.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
 
-const VISION_CONFIDENCE_FALLBACK = 0.55;
 
 const ParsedResumeSchema = z.object({
   personalInfo: z.object({
@@ -140,22 +140,13 @@ Confidence (0-1): rate honestly —
   below 0.5 blurry scan, heavy graphics hiding text, or illegible sections`;
 
 type ParsedResume = z.infer<typeof ParsedResumeSchema>;
-type ExtractionRoute = "text" | "vision" | "document-intelligence";
+type ExtractionRoute = "text" | "vision";
 
 function getStructureModel() {
   const deployment = optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini")!;
   return getAzure()(deployment);
 }
 
-function shouldFallbackToDi(result: ParsedResume): boolean {
-  if (result.confidence < VISION_CONFIDENCE_FALLBACK) return true;
-  if (result.workExperience.length === 0 && result.confidence < 0.75) return true;
-  const hasContact = Boolean(
-    result.personalInfo.fullName || result.personalInfo.email || result.personalInfo.phone,
-  );
-  if (!hasContact && result.workExperience.length === 0) return true;
-  return false;
-}
 
 async function structureFromText(rawText: string): Promise<ParsedResume> {
   const { object } = await generateObject({
@@ -291,149 +282,26 @@ serve(handler(async (req) => {
     imageParts = [await fileToImagePart(file)];
   }
 
+  // Azure Document Intelligence was the OCR fallback here. It lived in the
+  // CareerCraft Azure estate that has been decommissioned along with the
+  // search service and Function App, so those calls could no longer succeed.
+  // gpt-4o vision is the primary route and handles scanned pages directly.
   if (imageParts.length === 0) {
-    console.log("[parse-resume] no page images — using Document Intelligence directly");
-    const extracted = await extractWithDocumentIntelligence(file);
-    const object = await structureFromText(extracted.text);
-    return successResponse(object, {
-      rawText: extracted.text,
-      fileName,
-      fileType,
-      pageCount: extracted.pageCount,
-      extractionRoute: "document-intelligence",
-    });
-  }
-
-  let visionResult: ParsedResume;
-  try {
-    visionResult = await structureFromVision(imageParts);
-    console.log(`[parse-resume] vision confidence ${visionResult.confidence}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[parse-resume] vision failed (${msg}) — falling back to DI`);
-    const extracted = await extractWithDocumentIntelligence(file);
-    const object = await structureFromText(extracted.text);
-    return successResponse(object, {
-      rawText: extracted.text,
-      fileName,
-      fileType,
-      pageCount: extracted.pageCount,
-      extractionRoute: "document-intelligence",
-    });
-  }
-
-  if (!shouldFallbackToDi(visionResult)) {
-    return successResponse(visionResult, {
-      rawText: "",
-      fileName,
-      fileType,
-      pageCount: imageParts.length,
-      extractionRoute: "vision",
-    });
-  }
-
-  console.log("[parse-resume] low vision confidence — escalating to Document Intelligence");
-  try {
-    const extracted = await extractWithDocumentIntelligence(file);
-    const object = await structureFromText(extracted.text);
-    return successResponse(object, {
-      rawText: extracted.text,
-      fileName,
-      fileType,
-      pageCount: extracted.pageCount,
-      extractionRoute: "document-intelligence",
-    });
-  } catch (diErr) {
-    console.warn(
-      `[parse-resume] DI fallback failed (${diErr instanceof Error ? diErr.message : diErr}) — using vision result`,
+    throw new ValidationError(
+      "Could not read this file. Convert it to PDF or an image and try again — " +
+        "page rendering produced no images to analyse.",
     );
-    return successResponse(visionResult, {
-      rawText: "",
-      fileName,
-      fileType,
-      pageCount: imageParts.length,
-      extractionRoute: "vision",
-    });
   }
+
+  const visionResult = await structureFromVision(imageParts);
+  console.log(`[parse-resume] vision confidence ${visionResult.confidence}`);
+
+  return successResponse(visionResult, {
+    rawText: "",
+    fileName,
+    fileType,
+    pageCount: imageParts.length,
+    extractionRoute: "vision",
+  });
 }, { name: "parse-resume" }));
 
-// ----- Azure Document Intelligence (OCR / layout fallback) -----
-
-async function extractWithDocumentIntelligence(file: File): Promise<{ text: string; pageCount: number }> {
-  const endpoint = optEnv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT");
-  const key = optEnv("AZURE_DOCUMENT_INTELLIGENCE_KEY");
-  if (!endpoint || !key) {
-    throw new ConfigError(
-      "Document Intelligence fallback requires AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY",
-    );
-  }
-
-  const clean = endpoint.replace(/\/$/, "");
-  const buf = await file.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-
-  const apiCandidates = [
-    { path: "/documentintelligence/documentModels/prebuilt-layout:analyze", version: "2024-11-30" },
-    { path: "/documentintelligence/documentModels/prebuilt-layout:analyze", version: "2024-07-31-preview" },
-    { path: "/formrecognizer/documentModels/prebuilt-layout:analyze", version: "2023-07-31" },
-  ];
-
-  let operationLocation: string | null = null;
-  let lastError = "no attempts made";
-
-  for (const c of apiCandidates) {
-    const url = `${clean}${c.path}?api-version=${c.version}`;
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/json" },
-        body: JSON.stringify({ base64Source: base64 }),
-      });
-      if (resp.ok) {
-        operationLocation = resp.headers.get("Operation-Location");
-        if (operationLocation) {
-          console.log(`[parse-resume] DI started via ${c.version}`);
-          break;
-        }
-      } else {
-        lastError = `${resp.status}: ${(await resp.text()).slice(0, 200)}`;
-      }
-    } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  if (!operationLocation) {
-    throw new ProviderError(
-      `Document Intelligence: all API versions failed (${lastError})`,
-      "azure-document-intelligence",
-    );
-  }
-
-  for (let attempt = 0; attempt < 30; attempt++) {
-    await new Promise((r) => setTimeout(r, 1000));
-    const statusResp = await fetch(operationLocation, {
-      headers: { "Ocp-Apim-Subscription-Key": key },
-    });
-    if (!statusResp.ok) {
-      throw new ProviderError(
-        `Document Intelligence status check failed: ${statusResp.status}`,
-        "azure-document-intelligence",
-        statusResp.status,
-      );
-    }
-    const status = await statusResp.json();
-    if (status.status === "succeeded") {
-      const result = status.analyzeResult ?? {};
-      return {
-        text: result.content || "",
-        pageCount: result.pages?.length || 1,
-      };
-    }
-    if (status.status === "failed") {
-      throw new ProviderError("Document Intelligence analysis failed", "azure-document-intelligence");
-    }
-  }
-
-  throw new ProviderError("Document Intelligence timed out after 30s", "azure-document-intelligence");
-}
