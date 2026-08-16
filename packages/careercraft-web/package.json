@@ -19,7 +19,6 @@
     "@azure/data-tables": "^13.3.2",
     "@careercraft/shared": "*",
     "@hookform/resolvers": "^3.10.0",
-    "@horus/sdk": "*",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",

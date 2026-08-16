@@ -16,6 +16,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useRAGMetadata } from "./useRAGMetadata";
 import {
   horusEntityLookup,
@@ -192,11 +193,8 @@ export interface IntersectionAnalysis {
   };
 }
 
-// Azure Function endpoints
-const AGENTIC_PLANNER_URL = import.meta.env.VITE_AZURE_AGENTIC_PLANNER_URL || '';
-const INTERSECTION_REASONING_URL = import.meta.env.VITE_AZURE_INTERSECTION_REASONING_URL || '';
-const GRAPH_QUERY_URL = import.meta.env.VITE_AZURE_GRAPH_QUERY_URL || '';
-const AZURE_FUNCTION_KEY = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
+// Azure Function endpoints are now proxied through Supabase Edge Functions
+// No client-side keys or URLs required
 
 // Step execution result for partial success handling
 interface StepResult {
@@ -355,40 +353,27 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
 
   const planQuery = useCallback(async (query: string): Promise<AgentPlan | null> => {
     try {
-      console.log("[AgenticRAG] 🧠 Planning query with Azure Function:", query);
-      
-      // Check if Azure Function is configured
-      if (!AGENTIC_PLANNER_URL) {
-        console.warn("[AgenticRAG] ⚠️ Agentic planner URL not configured, using fallback");
-        return createFallbackPlan(query);
-      }
+      console.log("[AgenticRAG] 🧠 Planning query via Supabase proxy:", query);
 
-      const response = await fetch(AGENTIC_PLANNER_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+        body: {
+          functionName: 'agentic-planner',
           query,
-          focusArea, // Pass specialization to planner
+          focusArea,
           conversationContext: conversationHistory.current.slice(-5).map(msg => ({
             role: 'user',
             content: msg,
           })),
           useCache: true,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        const error = await response.text();
+      if (error) {
         console.error("[AgenticRAG] ❌ Planner API error:", error);
         return createFallbackPlan(query);
       }
 
-      const data = await response.json();
-      
-      if (!data.plan) {
+      if (!data?.plan) {
         console.warn("[AgenticRAG] ⚠️ No plan returned, using fallback");
         return createFallbackPlan(query);
       }
@@ -472,39 +457,27 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         }
       }
 
-      console.log("[AgenticRAG] 🔗 Traversing graph via Azure Function:", { startEntityId, relationships, depth });
+      console.log("[AgenticRAG] 🔗 Traversing graph via Supabase proxy:", { startEntityId, relationships, depth });
 
-      // Check if graph query URL is configured
-      if (!GRAPH_QUERY_URL) {
-        console.warn("[AgenticRAG] ⚠️ Graph query URL not configured, using fallback");
-        return await traverseGraphFallback(startEntityId, relationships, depth);
-      }
-
-      // Use Azure Function for graph queries (Cosmos DB or Neo4j)
-      // action:'traverse' does semantic lookup first then traverses - handles natural language entity names
-      const response = await fetch(GRAPH_QUERY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-        },
-        body: JSON.stringify({
+      // Use Supabase Edge Function proxy for graph queries
+      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+        body: {
+          functionName: 'graph-query',
           action: 'traverse',
           entityName: startEntityId,
           depth: depth,
           limit: 25,
           backend: graphBackend,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        console.error("[AgenticRAG] ❌ Graph function error:", response.status);
+      if (error) {
+        console.error("[AgenticRAG] ❌ Graph function error:", error);
         return await traverseGraphFallback(startEntityId, relationships, depth);
       }
 
-      const result = await response.json();
-      const entities = result?.data || [];
-      
+      const entities = data?.data || [];
+
       if (entities.length === 0) {
         console.log("[AgenticRAG] ℹ️ No related entities found");
         return [];
@@ -539,43 +512,30 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     originalQuery: string
   ): Promise<IntersectionAnalysis> => {
     try {
-      console.log("[AgenticRAG] 🔍 Analyzing intersections:", queryResults.length, "query results");
-      
-      // Check if Azure Function is configured
-      if (!INTERSECTION_REASONING_URL) {
-        console.warn("[AgenticRAG] ⚠️ Intersection reasoning URL not configured, using basic analysis");
-        return performBasicAnalysis(queryResults);
-      }
+      console.log("[AgenticRAG] 🔍 Analyzing intersections via Supabase proxy:", queryResults.length, "query results");
 
-      const response = await fetch(INTERSECTION_REASONING_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+        body: {
+          functionName: 'intersection-reasoning',
           queryResults,
           originalQuery,
           saveFindings: true,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        const error = await response.text();
+      if (error) {
         console.error("[AgenticRAG] ❌ Intersection API error:", error);
         return performBasicAnalysis(queryResults);
       }
 
-      const analysis = await response.json();
-      
       console.log("[AgenticRAG] ✅ Intersection analysis complete:", {
-        connections: analysis.connections?.length || 0,
-        contradictions: analysis.contradictions?.length || 0,
-        gaps: analysis.gaps?.length || 0,
-        themes: analysis.themes?.length || 0,
+        connections: data?.connections?.length || 0,
+        contradictions: data?.contradictions?.length || 0,
+        gaps: data?.gaps?.length || 0,
+        themes: data?.themes?.length || 0,
       });
 
-      return analysis;
+      return data;
     } catch (error) {
       console.error("[AgenticRAG] ❌ Intersection analysis error:", error);
       return performBasicAnalysis(queryResults);
@@ -910,29 +870,22 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
               console.error("[AgenticRAG] Horus entity lookup failed, falling back:", horusErr);
             }
           }
-          // Search for entities by name via Azure Function
-          if (GRAPH_QUERY_URL) {
-            try {
-              const entityResponse = await fetch(GRAPH_QUERY_URL, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-                },
-                body: JSON.stringify({
-                  action: 'search',
-                  query: step.query,
-                  limit: 10,
-                  backend: graphBackend, // 'cosmos' or 'neo4j'
-                }),
-              });
-              if (entityResponse.ok) {
-                const entityResult = await entityResponse.json();
-                results = entityResult?.data || [];
-              }
-            } catch (entityErr) {
-              console.error("[AgenticRAG] Entity lookup error:", entityErr);
+          // Search for entities by name via Supabase proxy
+          try {
+            const { data: entityResult, error } = await supabase.functions.invoke('azure-graph-proxy', {
+              body: {
+                functionName: 'graph-query',
+                action: 'search',
+                query: step.query,
+                limit: 10,
+                backend: graphBackend, // 'cosmos' or 'neo4j'
+              },
+            });
+            if (!error && entityResult?.data) {
+              results = entityResult.data;
             }
+          } catch (entityErr) {
+            console.error("[AgenticRAG] Entity lookup error:", entityErr);
           }
           break;
 
@@ -959,37 +912,28 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
               console.error("[AgenticRAG] Horus impact query failed, falling back:", horusErr);
             }
           }
-          // Query policy impacts via graph-query Azure Function
-          if (GRAPH_QUERY_URL) {
-            try {
-              const impactResponse = await fetch(GRAPH_QUERY_URL, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-                },
-                body: JSON.stringify({
-                  action: 'get_impacts',
-                  entityName: step.query, // Entity name from query
-                  impactType: step.filters?.impactType,
-                  severity: step.filters?.severity,
-                  timeframe: step.filters?.timeframe,
-                  limit: 50,
-                  backend: graphBackend,
-                }),
-              });
-              if (impactResponse.ok) {
-                const impactResult = await impactResponse.json();
-                results = impactResult?.data || [];
-                console.log(`[AgenticRAG] ✅ Found ${results.length} impacts for ${step.query}`);
-              } else {
-                console.error("[AgenticRAG] Impact query error:", impactResponse.status);
-              }
-            } catch (impactErr) {
-              console.error("[AgenticRAG] Impact query error:", impactErr);
+          // Query policy impacts via Supabase proxy
+          try {
+            const { data: impactResult, error } = await supabase.functions.invoke('azure-graph-proxy', {
+              body: {
+                functionName: 'graph-query',
+                action: 'get_impacts',
+                entityName: step.query, // Entity name from query
+                impactType: step.filters?.impactType,
+                severity: step.filters?.severity,
+                timeframe: step.filters?.timeframe,
+                limit: 50,
+                backend: graphBackend,
+              },
+            });
+            if (!error && impactResult?.data) {
+              results = impactResult.data;
+              console.log(`[AgenticRAG] ✅ Found ${results.length} impacts for ${step.query}`);
+            } else if (error) {
+              console.error("[AgenticRAG] Impact query error:", error);
             }
-          } else {
-            console.warn("[AgenticRAG] ⚠️ Graph query URL not configured for impact queries");
+          } catch (impactErr) {
+            console.error("[AgenticRAG] Impact query error:", impactErr);
           }
           break;
 

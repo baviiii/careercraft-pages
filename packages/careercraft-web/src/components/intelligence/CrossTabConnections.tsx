@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { callRAGMetadata } from "@/lib/azureFunctions";
+import { horusSemanticSearch } from "@/lib/horusKnowledge";
 
 // ─── Sector config ────────────────────────────────────────────────────────────
 
@@ -181,10 +181,7 @@ export function CrossTabConnections() {
     setLoading(true);
     setIntel(null);
     try {
-      const result = await callRAGMetadata<{ answer: string; sources: any[] }>("semantic-search", {
-        query: sector.query,
-        options: { topK: 20 },
-      });
+      const result = await horusSemanticSearch(sector.query, { topK: 20 });
       if (result.success && result.data) {
         const { answer, sources } = result.data;
         const allText = [answer, ...sources.map((s: any) => s.content || s.snippet || "")].join(" ");

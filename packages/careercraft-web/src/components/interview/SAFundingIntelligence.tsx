@@ -7,7 +7,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { callRAGMetadata } from "@/lib/azureFunctions";
+import { horusSemanticSearch } from "@/lib/horusKnowledge";
 import {
   DollarSign, Building2, Heart, GraduationCap, Zap,
   Users, Home, Cpu, Shield, Loader2, FileText,
@@ -176,10 +176,7 @@ export function SAFundingIntelligence() {
     setIntel(null);
 
     try {
-      const result = await callRAGMetadata<{ answer: string; sources: any[] }>(
-        "semantic-search",
-        { query: cat.query, options: { topK: 20 } }
-      );
+      const result = await horusSemanticSearch(cat.query, { topK: 20 });
 
       if (!result.success || !result.data) {
         setError("Could not load funding data. Please try again.");

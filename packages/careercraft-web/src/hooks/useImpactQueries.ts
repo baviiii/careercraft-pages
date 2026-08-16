@@ -1,11 +1,12 @@
 /**
- * Hook for querying impacts from graph-query Azure Function
+ * Hook for querying impacts from graph-query Azure Function via Supabase proxy
  */
 
 import { useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
-const GRAPH_QUERY_URL = import.meta.env.VITE_AZURE_GRAPH_QUERY_URL || '';
-const AZURE_FUNCTION_KEY = import.meta.env.VITE_AZURE_FUNCTION_KEY || '';
+// Graph queries are proxied through Supabase Edge Functions
+// No client-side keys or URLs required
 
 export interface Impact {
   id: string;
@@ -75,35 +76,22 @@ export function useImpactQueries() {
       limit?: number;
     } = {}
   ): Promise<Impact[]> => {
-    if (!GRAPH_QUERY_URL) {
-      console.warn('Graph query URL not configured');
-      return [];
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(GRAPH_QUERY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+        body: {
+          functionName: 'graph-query',
           action: 'get_impacts',
           entityName,
           ...filters,
           limit: filters.limit || 50,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch impacts: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result.data || [];
+      if (error) throw new Error(error.message || 'Failed to fetch impacts');
+      return data?.data || [];
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
@@ -118,34 +106,21 @@ export function useImpactQueries() {
     entityName: string,
     policyIds: string[] | null = null
   ): Promise<ImpactAggregation | null> => {
-    if (!GRAPH_QUERY_URL) {
-      console.warn('Graph query URL not configured');
-      return null;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(GRAPH_QUERY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+        body: {
+          functionName: 'graph-query',
           action: 'aggregate_impacts',
           entityName,
           policies: policyIds,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to aggregate impacts: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result.data || null;
+      if (error) throw new Error(error.message || 'Failed to aggregate impacts');
+      return data?.data || null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
@@ -160,34 +135,21 @@ export function useImpactQueries() {
     entityName: string,
     forecastPeriods: number = 12
   ) => {
-    if (!GRAPH_QUERY_URL) {
-      console.warn('Graph query URL not configured');
-      return null;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(GRAPH_QUERY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(AZURE_FUNCTION_KEY && { 'x-functions-key': AZURE_FUNCTION_KEY }),
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('azure-graph-proxy', {
+        body: {
+          functionName: 'graph-query',
           action: 'forecast_impacts',
           entityName,
           forecastPeriods,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to forecast impacts: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result.data || null;
+      if (error) throw new Error(error.message || 'Failed to forecast impacts');
+      return data?.data || null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);

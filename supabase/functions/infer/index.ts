@@ -11,6 +11,8 @@
 // (INFER_SHARED_SECRET) so only the MCP can spend tokens. The MCP sends it as
 // `Authorization: Bearer <secret>` (and x-functions-key).
 
+import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-functions-key, x-tenant, content-type",
@@ -50,6 +52,11 @@ Deno.serve(async (req) => {
   if (sharedSecret && presentedSecret(req) !== sharedSecret) {
     return json({ error: "Unauthorized" }, 401);
   }
+
+  // Rate limit by IP to prevent abuse even with valid secret
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  await enforceWindowLimit({ userId: clientIp, action: 'infer', limit: 100, windowMinutes: 60 });
+
   if (!horusUrl || !horusKey) {
     return json({ error: "HORUS_INFER_URL / HORUS_API_KEY not configured on this function" }, 500);
   }

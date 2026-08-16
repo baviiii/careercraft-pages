@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { horusMetadata, horusSearch } from "@/lib/horusKnowledge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -195,13 +196,18 @@ export default function ExploreSA() {
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const { data, error } = await supabase.functions.invoke("rag-metadata", {
-          body: { type: "categories" },
-        });
+        // Horus reports per-category document and chunk counts; the UI counts
+        // documents, so `documents` maps onto the legacy `count` field.
+        const data = await horusMetadata("categories");
+        const categories = (data?.categories ?? []) as Array<{
+          category: string;
+          documents: number;
+        }>;
 
-        if (!error && data?.categories) {
-          setCategoryStats(data.categories);
-          setTotalDocuments(data.categories.reduce((sum: number, cat: any) => sum + cat.count, 0));
+        if (categories.length > 0) {
+          const stats = categories.map((c) => ({ category: c.category, count: c.documents }));
+          setCategoryStats(stats);
+          setTotalDocuments(stats.reduce((sum, cat) => sum + cat.count, 0));
         }
       } catch (error) {
         console.error("Failed to load stats:", error);
@@ -232,35 +238,39 @@ export default function ExploreSA() {
     setIsSearching(true);
     
     try {
-      // Use RAG metadata function for search
-      const { data, error } = await supabase.functions.invoke("rag-metadata", {
-        body: {
-          type: "search",
-          query: searchQuery,
-          filters: {
-            category: selectedCategory || undefined,
-            documentType: filterType !== "all" ? filterType : undefined,
-          },
-          top: 50,
-        },
-      });
+      const result = await horusSearch(
+        searchQuery,
+        selectedCategory ? { category: selectedCategory } : undefined,
+        { topK: 30 },
+      );
 
-      if (error) throw error;
+      // Horus returns chunks, and one document contributes several. This view
+      // lists documents, so collapse by documentId and keep the best-scoring
+      // chunk's rank for each.
+      const byDocument = new Map<string, Resource>();
+      for (const source of result.sources) {
+        const existing = byDocument.get(source.documentId);
+        const relevance = source.score ?? 0;
+        if (existing) {
+          existing.relevance = Math.max(existing.relevance, relevance);
+          continue;
+        }
+        byDocument.set(source.documentId, {
+          id: source.documentId,
+          title: source.title,
+          description: `Document from ${source.category || 'SA Government'} resources`,
+          category: source.category || 'general',
+          source: source.documentId,
+          tags: [],
+          // Everything in the Horus corpus is a PDF today; web crawl sources
+          // are wired but not yet ingested.
+          type: 'pdf',
+          url: source.url,
+          relevance,
+        });
+      }
 
-      // Transform RAG results to Resource format
-      const transformedResults: Resource[] = (data.results || []).map((doc: any) => ({
-        id: doc.documentId,
-        title: doc.title,
-        description: `Document from ${doc.category || 'SA Government'} resources`,
-        category: doc.category || 'general',
-        source: doc.documentId,
-        tags: doc.tags || [],
-        type: doc.documentType === 'pdf' ? 'pdf' : doc.documentType === 'web' ? 'web' : 'guide',
-        url: doc.url,
-        relevance: Math.round(doc.score * 100),
-      }));
-
-      setSearchResults(transformedResults);
+      setSearchResults([...byDocument.values()].sort((a, b) => b.relevance - a.relevance));
     } catch (error) {
       console.error("Search error:", error);
       // Fallback to local search
