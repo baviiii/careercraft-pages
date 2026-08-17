@@ -35,7 +35,7 @@ jobs:
       - name: Check for HTTP URLs (Security)
         run: |
           echo "Checking for insecure HTTP URLs..."
-          if grep -r "http://" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ supabase/functions/ --exclude-dir=node_modules | grep -v "http://127.0.0.1" | grep -v "http://localhost" | grep -v "// http" | grep -v "http-equiv"; then
+          if grep -rE "http://[a-zA-Z0-9]" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" packages/careercraft-web/src packages/shared/src supabase/functions --exclude-dir=node_modules | grep -v "http://127.0.0.1" | grep -v "http://localhost" | grep -v "// http" | grep -v "http-equiv"; then
             echo "❌ ERROR: Found HTTP URLs in production code!"
             echo "Please change all HTTP URLs to HTTPS except for localhost"
             exit 1
@@ -46,7 +46,7 @@ jobs:
       - name: Check for exposed secrets
         run: |
           echo "Checking for potential secret leaks..."
-          if grep -rE "(api[_-]?key|secret|password|token)\s*[=:]\s*['\"][^'\"].{8,}" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ supabase/functions/ --exclude-dir=node_modules | grep -v "//.*API_KEY" | grep -v "example" | grep -v "placeholder"; then
+          if grep -rE "(api[_-]?key|secret|password|token)\s*[=:]\s*['\"][^'\"].{8,}" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" packages/careercraft-web/src packages/shared/src supabase/functions --exclude-dir=node_modules | grep -v "//.*API_KEY" | grep -v "example" | grep -v "placeholder"; then
             echo "⚠️  WARNING: Potential hardcoded secrets found!"
             echo "Please review and use environment variables instead"
             # Don't fail, just warn
@@ -83,18 +83,19 @@ jobs:
 
       - name: Check build output
         run: |
-          if [ ! -d "dist" ] || [ -z "$(ls -A dist)" ]; then
-            echo "❌ Build failed: dist directory is empty"
+          DIST="packages/careercraft-web/dist"
+          if [ ! -d "$DIST" ] || [ -z "$(ls -A "$DIST")" ]; then
+            echo "❌ Build failed: $DIST is empty"
             exit 1
           fi
           echo "✅ Build successful"
-          ls -la dist/
+          ls -la "$DIST"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: dist/
+          path: packages/careercraft-web/dist/
           retention-days: 7
 
   # Deploy to Vercel (automatic via Vercel integration, but we can verify)
