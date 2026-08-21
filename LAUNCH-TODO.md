@@ -77,24 +77,32 @@ something you're happy to lean on:
 
 ## 4. 🟡 Monetization — paywall + plan-based limits (when you're ready to charge)
 
-Foundations exist; this is mostly wiring. ~4–6 focused days for a solid v1.
+> **Mostly built as of 2026-08-22 — see [MONETIZATION-PLAN.md](MONETIZATION-PLAN.md).**
+> Plans, per-resource limits, per-user overrides, the token ledger, the admin
+> screen at `/admin/plans` and the user-facing usage tab are all on `main`.
+> Enforcement is **off**: everything is recorded, nobody is refused. Turning it
+> on is the `QUOTA_ENFORCE` secret, not a deploy. Read that doc before touching
+> any of the boxes below — most are now done.
 
-- [ ] **Pick a payment provider** — Stripe (default, works in AU) vs **Paddle** (merchant-of-record,
-      handles GST/tax for you — nice for a solo AU founder). This choice shapes the webhook work.
-- [ ] **Plans + subscriptions tables** — `plans` (admin-editable: name, price, per-feature limits)
-      and `user_subscriptions` (user, plan, status, renewal). Put limits in the table, not code.
-- [ ] **Plan-aware limits** — change `enforceWindowLimit` to read the user's plan limits from the
-      table instead of hardcoded constants (small change — enforcement seam already exists).
-- [ ] **Checkout + webhook** — one edge function for checkout, one for the webhook that flips a
-      user's plan on payment/cancellation. (The fiddly part; well-trodden.)
-- [ ] **Entitlement gating (UI)** — upgrade prompt / paywall modal when a free user hits a 429;
-      wire the existing `Pricing.tsx` buttons to checkout.
-- [ ] **Admin "Plans & Limits" page** — edit plans/limits and override users from admin, so you
-      never touch code to change a limit. (Follows the existing admin-page pattern.)
+- [x] **Plans + subscriptions tables** — `plans`, `plan_limits`, `user_subscriptions`,
+      `user_limit_overrides`, `token_usage_ledger`. Limits live in the table, not code.
+- [x] **Plan-aware limits** — `enforcePlanQuota()` resolves plan + override + both windows in one
+      round trip. `enforceWindowLimit()` kept for the paths that don't spend money.
+- [x] **Entitlement gating (UI)** — 429 carries resource/limit/used/resets_at; `QuotaNotice`
+      renders it; Settings has a Plan & usage tab.
+- [x] **Admin "Plans & Limits" page** — `/admin/plans`. Edit limits, set a user's plan, apply
+      overrides. No code change to move a number.
+- [ ] **Deferred: pick a payment provider** — Stripe vs **Paddle** (merchant-of-record, handles AU
+      GST for you). Not urgent: `user_subscriptions` already carries the `provider_*` columns and
+      idempotency indexes, so this is additive. Check `plan_upgrade_requests` for demand first.
+- [ ] **Deferred: checkout + webhook** — one function each. The webhook writes the same
+      `user_subscriptions` row the admin screen writes today.
+- [ ] **`Pricing.tsx` → `plans` table** — still hardcoded, but the component isn't rendered
+      anywhere right now. Do it when it goes back on the landing page.
 
-> "Everything from admin" is achievable — plan defs + limits live in a Supabase table the admin
-> edits; edge functions read from it. The only thing that stays in the provider's own dashboard is
-> payouts/disputes/tax (unavoidable, one-time-ish).
+> "Everything from admin" turned out to be achievable, and is done: plan definitions and limits
+> live in Supabase tables the admin edits at `/admin/plans`, and the edge functions read from
+> them. Only payouts/disputes/tax would ever need a provider's own dashboard.
 
 ---
 
@@ -113,5 +121,10 @@ Foundations exist; this is mostly wiring. ~4–6 focused days for a solid v1.
 1. §1 blockers (DB pause, spend cap, live key) — a day or less.
 2. §2 userflow QA — find and fix what's actually broken. **This tells you if you're launch-ready.**
 3. Decide on interview prep: ship or hide behind "coming soon".
-4. Soft-launch. Watch §5 analytics/feedback.
-5. Only *then* build §4 monetization — once you know people actually use it.
+4. Apply the §4 migrations and leave `QUOTA_ENFORCE` unset — the ledger starts recording what
+   everything actually costs, without limiting anyone. Do this *before* the launch, not after:
+   it is the spend visibility §1 asks for, and it costs nothing to run.
+5. Soft-launch. Watch §5 analytics/feedback, and the ledger.
+6. Turn limits on once real usage says what they should be
+   (see [MONETIZATION-PLAN.md](MONETIZATION-PLAN.md)), and only take payment once people are
+   actually hitting them.
