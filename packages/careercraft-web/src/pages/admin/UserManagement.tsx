@@ -63,11 +63,24 @@ export default function UserManagement() {
 
   const handleChangeRole = async (userId: string, newRole: string) => {
     try {
-      // Delete existing role
-      await supabase
+      // Delete existing role.
+      //
+      // An RLS-blocked DELETE removes zero rows WITHOUT raising an error, so
+      // checking `error` alone cannot detect the self-demotion guard. Ask for
+      // the deleted rows back and treat an empty result as blocked — otherwise
+      // the insert below would leave the user holding two roles at once.
+      const { data: removed, error: deleteError } = await supabase
         .from('user_roles')
         .delete()
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
+
+      if (deleteError) throw deleteError;
+      if (!removed || removed.length === 0) {
+        throw new Error(
+          'Role change blocked. Admins cannot change their own role — ask another admin.',
+        );
+      }
 
       // Insert new role
       const { error } = await supabase

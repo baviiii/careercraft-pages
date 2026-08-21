@@ -231,7 +231,13 @@ function successResponse(
 
 serve(handler(async (req) => {
   const ctx = await requireUser(req);
-  await enforceWindowLimit({ userId: ctx.userId, action: 'parse_resume', limit: 10, windowMinutes: 60 });
+  await enforceWindowLimit({
+    userId: ctx.userId,
+    resource: 'parse-resume',
+    limit: 10,
+    windowMinutes: 60,
+    resourceLabel: 'resume parsing',
+  });
 
   const contentType = req.headers.get("content-type") || "";
 

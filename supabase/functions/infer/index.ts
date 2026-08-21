@@ -11,7 +11,8 @@
 // (INFER_SHARED_SECRET) so only the MCP can spend tokens. The MCP sends it as
 // `Authorization: Bearer <secret>` (and x-functions-key).
 
-import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
+import { RateLimitError } from "../_shared/ai/errors.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,9 +54,36 @@ Deno.serve(async (req) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  // Rate limit by IP to prevent abuse even with valid secret
+  // Rate limit by IP to prevent abuse even with valid secret.
+  //
+  // Must use the ANONYMOUS quota path: this function has no authenticated user,
+  // and consume_edge_function_quota takes a UUID that an IP can never cast to.
+  // There is no handler() wrapper here, so the 429 is built by hand.
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  await enforceWindowLimit({ userId: clientIp, action: 'infer', limit: 100, windowMinutes: 60 });
+  try {
+    await enforceAnonymousWindowLimit({
+      resource: "infer",
+      principal: clientIp,
+      limit: 100,
+      windowMinutes: 60,
+      resourceLabel: "inference",
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return new Response(
+        JSON.stringify({ error: err.message, code: err.code }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(err.retryAfterSec ?? 3600),
+          },
+        },
+      );
+    }
+    return json({ error: `Rate-limit check failed: ${(err as Error).message}` }, 500);
+  }
 
   if (!horusUrl || !horusKey) {
     return json({ error: "HORUS_INFER_URL / HORUS_API_KEY not configured on this function" }, 500);
