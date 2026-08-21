@@ -10,7 +10,8 @@ import {
   Monitor,
   MessageSquare,
   Upload,
-  Database
+  Database,
+  Gauge
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -36,6 +37,7 @@ const mainNavItems = [
   { title: 'Activity Logs', url: '/admin/activity', icon: Activity },
   { title: 'Sessions', url: '/admin/sessions', icon: Monitor },
   { title: 'AI Prompts', url: '/admin/prompts', icon: MessageSquare },
+  { title: 'Plans & Limits', url: '/admin/plans', icon: Gauge },
 ];
 
 const securityNavItems = [

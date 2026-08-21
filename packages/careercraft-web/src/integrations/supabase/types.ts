@@ -83,6 +83,260 @@ export type Database = {
         }
         Relationships: []
       }
+      // ── Plans & metering ─────────────────────────────────────────────────
+      // Hand-added rather than regenerated: this file is already missing 13
+      // existing tables, and `supabase gen types` would pull all of them in at
+      // once and surface unrelated type errors across the app. Keeping the
+      // drift is the smaller problem today; regenerate deliberately, later.
+      plans: {
+        Row: {
+          created_at: string
+          currency: string
+          daily_token_ceiling: number | null
+          description: string | null
+          external_price_id: string | null
+          is_active: boolean
+          is_default: boolean
+          key: string
+          marketing_features: Json
+          marketing_limitations: Json
+          max_model_tier: string
+          max_tokens_per_call: number
+          name: string
+          price_cents_monthly: number
+          price_cents_yearly: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          daily_token_ceiling?: number | null
+          description?: string | null
+          external_price_id?: string | null
+          is_active?: boolean
+          is_default?: boolean
+          key: string
+          marketing_features?: Json
+          marketing_limitations?: Json
+          max_model_tier?: string
+          max_tokens_per_call?: number
+          name: string
+          price_cents_monthly?: number
+          price_cents_yearly?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          daily_token_ceiling?: number | null
+          description?: string | null
+          external_price_id?: string | null
+          is_active?: boolean
+          is_default?: boolean
+          key?: string
+          marketing_features?: Json
+          marketing_limitations?: Json
+          max_model_tier?: string
+          max_tokens_per_call?: number
+          name?: string
+          price_cents_monthly?: number
+          price_cents_yearly?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      plan_limits: {
+        Row: {
+          created_at: string
+          hourly_limit: number | null
+          is_enabled: boolean
+          label: string
+          max_model_tier: string | null
+          max_tokens_per_call: number | null
+          monthly_limit: number | null
+          plan_key: string
+          resource: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hourly_limit?: number | null
+          is_enabled?: boolean
+          label: string
+          max_model_tier?: string | null
+          max_tokens_per_call?: number | null
+          monthly_limit?: number | null
+          plan_key: string
+          resource: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hourly_limit?: number | null
+          is_enabled?: boolean
+          label?: string
+          max_model_tier?: string | null
+          max_tokens_per_call?: number | null
+          monthly_limit?: number | null
+          plan_key?: string
+          resource?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          daily_token_ceiling_override: number | null
+          grant_note: string | null
+          granted_by: string | null
+          last_provider_event_id: string | null
+          metadata: Json
+          plan_key: string
+          provider: string | null
+          provider_customer_id: string | null
+          provider_price_id: string | null
+          provider_status: string | null
+          provider_subscription_id: string | null
+          source: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          daily_token_ceiling_override?: number | null
+          grant_note?: string | null
+          granted_by?: string | null
+          last_provider_event_id?: string | null
+          metadata?: Json
+          plan_key: string
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_price_id?: string | null
+          provider_status?: string | null
+          provider_subscription_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          daily_token_ceiling_override?: number | null
+          grant_note?: string | null
+          granted_by?: string | null
+          last_provider_event_id?: string | null
+          metadata?: Json
+          plan_key?: string
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_price_id?: string | null
+          provider_status?: string | null
+          provider_subscription_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_subscription_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          from_plan_key: string | null
+          from_status: string | null
+          id: string
+          note: string | null
+          payload: Json | null
+          provider_event_id: string | null
+          source: string
+          to_plan_key: string
+          to_status: string
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          from_plan_key?: string | null
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          payload?: Json | null
+          provider_event_id?: string | null
+          source: string
+          to_plan_key: string
+          to_status: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          from_plan_key?: string | null
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          payload?: Json | null
+          provider_event_id?: string | null
+          source?: string
+          to_plan_key?: string
+          to_status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_limit_overrides: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          granted_by: string | null
+          hourly_limit: number | null
+          is_enabled: boolean | null
+          monthly_limit: number | null
+          reason: string | null
+          resource: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          hourly_limit?: number | null
+          is_enabled?: boolean | null
+          monthly_limit?: number | null
+          reason?: string | null
+          resource: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          hourly_limit?: number | null
+          is_enabled?: boolean | null
+          monthly_limit?: number | null
+          reason?: string | null
+          resource?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_recommendations: {
         Row: {
           ai_reasoning: string | null
@@ -1751,6 +2005,8 @@ export type Database = {
         Returns: boolean
       }
       is_whitelisted_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_admin: { Args: { p_user_id: string }; Returns: boolean }
+      get_plan_usage: { Args: { p_user_id: string }; Returns: Json }
       log_activity: {
         Args: {
           _action: string

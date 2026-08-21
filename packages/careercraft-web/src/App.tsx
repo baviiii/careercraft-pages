@@ -49,6 +49,7 @@ const AccessControl = lazy(() => import("./pages/admin/AccessControl"));
 const AuditTrail = lazy(() => import("./pages/admin/AuditTrail"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const ChatPrompts = lazy(() => import("./pages/admin/ChatPrompts"));
+const PlansAndLimits = lazy(() => import("./pages/admin/PlansAndLimits"));
 const AdminDocuments = lazy(() => import("./pages/admin/AdminDocuments"));
 
 // Optimized QueryClient with better caching
@@ -161,6 +162,7 @@ const App = () => (
                 <Route path="audit" element={<AuditTrail />} />
                 <Route path="settings" element={<AdminSettings />} />
                 <Route path="prompts" element={<ChatPrompts />} />
+                <Route path="plans" element={<PlansAndLimits />} />
               </Route>
             </Route>
             
