@@ -230,11 +230,14 @@ BEGIN
         WHERE user_id = p_user_id AND resource = p_resource AND window_start = v_hour_start;
 
         -- The month unit was already consumed above; hand it back so a burst
-        -- rejection does not silently eat a monthly allowance.
+        -- rejection does not silently eat a monthly allowance. The local
+        -- counter has to come back down too, or the response reports a month
+        -- usage one higher than what is actually stored.
         IF v_lim.monthly_limit IS NOT NULL AND v_lim.monthly_limit >= 0 THEN
           UPDATE public.edge_function_rate_limits
           SET request_count = GREATEST(request_count - 1, 0), updated_at = now()
-          WHERE user_id = p_user_id AND resource = v_month_key AND window_start = v_month_start;
+          WHERE user_id = p_user_id AND resource = v_month_key AND window_start = v_month_start
+          RETURNING request_count INTO v_month_used;
         END IF;
       END IF;
     END IF;
