@@ -129,7 +129,6 @@ serve(handler(async (req) => {
       userId,
       resource: RESOURCE,
       resourceLabel: "the interview coach",
-      observeOnly: true,
     });
     meter = meterFromQuota(quota, userId);
   } else {

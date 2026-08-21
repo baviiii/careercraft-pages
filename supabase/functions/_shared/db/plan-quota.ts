@@ -10,7 +10,27 @@
 // this instead for anything that spends money.
 
 import { RateLimitError } from "../ai/errors.ts";
+import { optEnv } from "../env.ts";
 import { adminClient } from "./supabase.ts";
+
+/**
+ * Which resources actually refuse requests, from the QUOTA_ENFORCE secret.
+ *
+ *   unset / empty     every resource observes only (the safe default)
+ *   "all"             every resource enforces
+ *   "a,b,c"           only those resources enforce
+ *
+ * Enforcement is a runtime switch rather than a code change so the rollout can
+ * go one resource at a time, and so a limit that turns out to be wrong can be
+ * turned off in seconds without a deploy. Seeded limits are guesses until the
+ * ledger says otherwise; this is what keeps a guess from locking anyone out.
+ */
+function enforcesFor(resource: string): boolean {
+  const raw = (optEnv("QUOTA_ENFORCE") ?? "").trim().toLowerCase();
+  if (!raw) return false;
+  if (raw === "all") return true;
+  return raw.split(",").map((s) => s.trim()).includes(resource.toLowerCase());
+}
 
 export type ModelTier = "fast" | "deep";
 
@@ -44,11 +64,11 @@ export interface PlanQuotaOpts {
   /** Human-readable name used in the 429 message. */
   resourceLabel?: string;
   /**
-   * Resolve and report, but consume nothing and never throw.
+   * Force observe mode regardless of QUOTA_ENFORCE.
    *
-   * This is how a function ships before its limits have been tuned against
-   * real traffic: the ledger fills up and the numbers can be checked against
-   * actual usage before anyone gets a 429.
+   * Leave this unset. Enforcement is normally decided at runtime by the
+   * QUOTA_ENFORCE secret, so the rollout does not need a deploy per resource.
+   * Pass true only to pin a specific call site to observe mode permanently.
    */
   observeOnly?: boolean;
 }
@@ -127,11 +147,12 @@ function retryAfterSec(quota: PlanQuota): number | undefined {
  */
 export async function enforcePlanQuota(opts: PlanQuotaOpts): Promise<PlanQuota> {
   const label = opts.resourceLabel ?? opts.resource;
+  const observeOnly = opts.observeOnly === true || !enforcesFor(opts.resource);
 
   const { data, error } = await adminClient().rpc("consume_plan_quota", {
     p_user_id: opts.userId,
     p_resource: opts.resource,
-    p_dry_run: opts.observeOnly ?? false,
+    p_dry_run: observeOnly,
   });
 
   if (error) {
@@ -143,7 +164,7 @@ export async function enforcePlanQuota(opts: PlanQuotaOpts): Promise<PlanQuota> 
 
   const quota = shape(data as RawQuota);
 
-  if (opts.observeOnly) {
+  if (observeOnly) {
     if (!quota.allowed) {
       // The signal that matters while tuning: this request WOULD have been
       // refused. Nothing is blocked yet.

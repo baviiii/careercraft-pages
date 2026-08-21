@@ -73,7 +73,6 @@ serve(handler(async (req) => {
     userId,
     resource: "generate-prompt",
     resourceLabel: "AI prompt generation",
-    observeOnly: true,
   });
   const meter = meterFromQuota(quota, userId);
 

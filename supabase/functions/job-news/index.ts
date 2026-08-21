@@ -79,7 +79,6 @@ serve(handler(async (req) => {
     userId,
     resource: "job-news",
     resourceLabel: "job and market data",
-    observeOnly: true,
   });
 
   try {
@@ -1303,7 +1302,6 @@ Return a JSON object with this structure:
         userId,
         resource: "job-news-trends",
         resourceLabel: "market trend analysis",
-        observeOnly: true,
       });
 
       const { object: result } = await horusGenerateObject(TrendAnalysisSchema, {

@@ -90,13 +90,10 @@ Key requirements:
 
 serve(handler(async (req) => {
   const { userId } = await requireUser(req);
-  // observeOnly: limits are recorded and reported but nothing is refused yet.
-  // Flip this off once the ledger shows what real usage looks like.
   const quota = await enforcePlanQuota({
     userId,
     resource: "rewrite-resume",
     resourceLabel: "AI rewriting",
-    observeOnly: true,
   });
   const meter = meterFromQuota(quota, userId);
 

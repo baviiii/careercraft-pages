@@ -329,7 +329,6 @@ Deno.serve(
         userId,
         resource: generative ? "horus-rag-search" : "horus-rag",
         resourceLabel: generative ? "career intelligence search" : "career graph lookups",
-        observeOnly: true,
       });
 
       try {

@@ -306,7 +306,6 @@ serve(handler(async (req) => {
     userId,
     resource: "onboard-analyze",
     resourceLabel: "onboarding analysis",
-    observeOnly: true,
   });
   const meter = meterFromQuota(quota, userId);
 

@@ -331,7 +331,6 @@ serve(handler(async (req) => {
     userId,
     resource: "ats-analyze",
     resourceLabel: "AI resume analysis",
-    observeOnly: true,
   });
   // One meter for the whole request. The auto-rewrite path can make four model
   // calls; sharing a single mutable meter is what lets the later ones see the
