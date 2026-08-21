@@ -17,10 +17,12 @@ import { z } from "npm:zod@3";
 
 import { getAzure } from "../_shared/ai/providers.ts";
 import { ConfigError, ProviderError, ValidationError } from "../_shared/ai/errors.ts";
+import { meterFromQuota, type MeterContext } from "../_shared/ai/meter.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
 import { requireUser } from "../_shared/http/auth.ts";
-import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
+import { recordTokenSpend } from "../_shared/db/token-usage.ts";
 
 
 const ParsedResumeSchema = z.object({
@@ -148,8 +150,9 @@ function getStructureModel() {
 }
 
 
-async function structureFromText(rawText: string): Promise<ParsedResume> {
-  const { object } = await generateObject({
+async function structureFromText(rawText: string, meter: MeterContext): Promise<ParsedResume> {
+  const startedAt = Date.now();
+  const { object, usage } = await generateObject({
     model: getStructureModel(),
     schema: ParsedResumeSchema,
     schemaName: "ParsedResume",
@@ -158,6 +161,20 @@ async function structureFromText(rawText: string): Promise<ParsedResume> {
     temperature: 0.1,
     maxTokens: 4000,
   });
+
+  // provider: "azure" — this path spends CareerCraft's own AZURE_OPENAI_KEY,
+  // not Horus's budget, so it lands on a different invoice and is worth being
+  // able to separate in the ledger.
+  await recordTokenSpend(meter, {
+    task: "careercraft.parse_resume_text",
+    provider: "azure",
+    model: optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini"),
+    promptTokens: usage?.promptTokens,
+    completionTokens: usage?.completionTokens,
+    durationMs: Date.now() - startedAt,
+    metadata: { route: "text" },
+  });
+
   return object;
 }
 
@@ -176,7 +193,7 @@ async function fileToImagePart(file: File): Promise<ImagePart> {
   return { mimeType, base64 };
 }
 
-async function structureFromVision(images: ImagePart[]): Promise<ParsedResume> {
+async function structureFromVision(images: ImagePart[], meter: MeterContext): Promise<ParsedResume> {
   if (!images.length) {
     throw new ValidationError("At least one page image is required for vision parsing");
   }
@@ -192,7 +209,8 @@ async function structureFromVision(images: ImagePart[]): Promise<ParsedResume> {
     content.push({ type: "image", image: img.base64, mimeType: img.mimeType });
   }
 
-  const { object } = await generateObject({
+  const startedAt = Date.now();
+  const { object, usage } = await generateObject({
     model: getStructureModel(),
     schema: ParsedResumeSchema,
     schemaName: "ParsedResume",
@@ -202,6 +220,18 @@ async function structureFromVision(images: ImagePart[]): Promise<ParsedResume> {
     ],
     temperature: 0.1,
     maxTokens: 4000,
+  });
+
+  // The most expensive single call in the product: up to three full-page
+  // images at 4000 output tokens.
+  await recordTokenSpend(meter, {
+    task: "careercraft.parse_resume_vision",
+    provider: "azure",
+    model: optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini"),
+    promptTokens: usage?.promptTokens,
+    completionTokens: usage?.completionTokens,
+    durationMs: Date.now() - startedAt,
+    metadata: { route: "vision", pages: images.length },
   });
 
   return object;
@@ -231,13 +261,13 @@ function successResponse(
 
 serve(handler(async (req) => {
   const ctx = await requireUser(req);
-  await enforceWindowLimit({
+  const quota = await enforcePlanQuota({
     userId: ctx.userId,
     resource: 'parse-resume',
-    limit: 10,
-    windowMinutes: 60,
     resourceLabel: 'resume parsing',
+    observeOnly: true,
   });
+  const meter = meterFromQuota(quota, ctx.userId);
 
   const contentType = req.headers.get("content-type") || "";
 
@@ -250,7 +280,7 @@ serve(handler(async (req) => {
     const { rawText, fileName, fileType, pageCount } = parsed.data;
     console.log(`[parse-resume] text path (${rawText.length} chars)`);
 
-    const object = await structureFromText(rawText);
+    const object = await structureFromText(rawText, meter);
     return successResponse(object, {
       rawText,
       fileName,
@@ -299,7 +329,7 @@ serve(handler(async (req) => {
     );
   }
 
-  const visionResult = await structureFromVision(imageParts);
+  const visionResult = await structureFromVision(imageParts, meter);
   console.log(`[parse-resume] vision confidence ${visionResult.confidence}`);
 
   return successResponse(visionResult, {

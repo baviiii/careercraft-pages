@@ -10,6 +10,8 @@ import { z } from "npm:zod@3";
 
 import { horusGenerateObject, type HorusTier } from "../_shared/ai/horus.ts";
 import { ProviderError, RateLimitError, ValidationError } from "../_shared/ai/errors.ts";
+import { meterFromQuota, type MeterContext } from "../_shared/ai/meter.ts";
+import { enforcePlanQuota, refundPlanQuota } from "../_shared/db/plan-quota.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { adminClient } from "../_shared/db/supabase.ts";
@@ -178,7 +180,7 @@ const JSON_SYSTEM =
   "Use job_function (not function) for career function. " +
   "Use null for unknown fields. No markdown fences, no commentary.";
 
-async function runAnalysis(userMessage: string) {
+async function runAnalysis(userMessage: string, meter: MeterContext) {
   const tier = ONBOARD_TIER();
   console.log(`[onboard-analyze] via horus (${tier})`);
   // horusGenerateObject zod-validates and retries once with the schema issues
@@ -190,6 +192,7 @@ async function runAnalysis(userMessage: string) {
     model: tier,
     temperature: 0.2,
     maxTokens: MAX_OUTPUT_TOKENS,
+    meter,
   });
   return { analysis: toClientAnalysis(object), usage, modelId };
 }
@@ -295,6 +298,18 @@ serve(handler(async (req) => {
 
   const remaining = await enforceOnboardingLimit(userId);
 
+  // Runs alongside the legacy counter above while limits are being tuned.
+  // enforceOnboardingLimit counts only completed runs, so a provider outage
+  // costs the user nothing; the refund in the catch block below preserves that
+  // policy once this becomes the enforcing path.
+  const quota = await enforcePlanQuota({
+    userId,
+    resource: "onboard-analyze",
+    resourceLabel: "onboarding analysis",
+    observeOnly: true,
+  });
+  const meter = meterFromQuota(quota, userId);
+
   const admin = adminClient();
 
   const { data: runRow, error: runErr } = await admin
@@ -317,7 +332,7 @@ serve(handler(async (req) => {
     .eq("id", runRow.id);
 
   try {
-    const { analysis, usage, modelId } = await runAnalysis(buildUserMessage(input));
+    const { analysis, usage, modelId } = await runAnalysis(buildUserMessage(input), meter);
 
     await admin.from("onboarding_runs")
       .update({
@@ -346,6 +361,14 @@ serve(handler(async (req) => {
         completed_at: new Date().toISOString(),
       })
       .eq("id", runRow.id);
+
+    // Hand the unit back. The old counter only ever counted completed runs, so
+    // a Horus outage cost the user nothing; consuming up front would otherwise
+    // quietly regress that and eat a free user's monthly onboarding allowance.
+    // A RateLimitError is not refunded — nothing was consumed in that case.
+    if (!(err instanceof RateLimitError)) {
+      await refundPlanQuota(userId, "onboard-analyze");
+    }
 
     if (err instanceof ProviderError) throw err;
     throw new ProviderError(`AI analysis failed: ${msg}`, "horus");

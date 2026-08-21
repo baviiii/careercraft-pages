@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
 import { horusGenerateObject } from "../_shared/ai/horus.ts";
-import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { meterFromQuota } from "../_shared/ai/meter.ts";
+import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler } from "../_shared/http/responses.ts";
 
@@ -71,12 +72,14 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutM
 
 serve(handler(async (req) => {
   const { userId } = await requireUser(req);
-  await enforceWindowLimit({
-    resource: "job-news",
+  // Broad allowance for the function as a whole. Most actions here are Adzuna
+  // and Postgres reads that cost nothing; only `trends` reaches a model, and it
+  // consumes a separate, much tighter allowance below.
+  await enforcePlanQuota({
     userId,
-    limit: 120,
-    windowMinutes: 60,
+    resource: "job-news",
     resourceLabel: "job and market data",
+    observeOnly: true,
   });
 
   try {
@@ -1294,12 +1297,22 @@ Return a JSON object with this structure:
   "whatThisMeansForYou": "Personalized advice paragraph based on the industry/field"
 }`;
 
+      // The only model call in this function, so it carries its own allowance
+      // rather than hiding inside the generous job-news one.
+      const trendsQuota = await enforcePlanQuota({
+        userId,
+        resource: "job-news-trends",
+        resourceLabel: "market trend analysis",
+        observeOnly: true,
+      });
+
       const { object: result } = await horusGenerateObject(TrendAnalysisSchema, {
         task: "careercraft.job_news_trends",
         system: systemPrompt,
         prompt: `Analyze these job market listings for ${industry || "general"} industry in ${country || "US"}:\n${query}`,
         temperature: 0.4,
         maxTokens: 2500,
+        meter: meterFromQuota(trendsQuota, userId),
       });
 
       return new Response(JSON.stringify(result), {

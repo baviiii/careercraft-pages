@@ -17,6 +17,8 @@ import { z } from "npm:zod@3";
 
 import { ConfigError, ProviderError, RateLimitError } from "./errors.ts";
 import { optEnv, reqEnv } from "../env.ts";
+import { clampTier, clampTokens, dailyCeilingReached, type MeterContext } from "./meter.ts";
+import { recordTokenSpend } from "../db/token-usage.ts";
 
 export type HorusTier = "fast" | "deep";
 
@@ -40,7 +42,16 @@ export interface HorusInferOptions {
   model?: HorusTier;
   temperature?: number;
   maxTokens?: number;
-  userRef?: string;
+  /**
+   * Who pays, and what they are allowed to spend.
+   *
+   * Required on purpose: a missing meter is a compile error rather than an
+   * unattributed call that only surfaces on the invoice. Paths with no user
+   * (cron, backfills) pass systemMeter().
+   */
+  meter: MeterContext;
+  /** Marks the retry inside horusGenerateObject so the second bill is visible. */
+  attempt?: number;
 }
 
 export interface HorusInferResult {
@@ -56,12 +67,30 @@ export function horusConfigured(): boolean {
 export async function horusInfer(opts: HorusInferOptions): Promise<HorusInferResult> {
   const url = reqEnv("HORUS_INFER_URL");
   const apiKey = reqEnv("HORUS_API_KEY");
+  const meter = opts.meter;
 
   const messages = opts.messages ??
     (opts.prompt !== undefined ? [{ role: "user" as const, content: opts.prompt }] : []);
   if (!messages.length) {
     throw new ConfigError("horusInfer: prompt or messages required");
   }
+
+  // Daily backstop, checked here rather than only at the request edge so a
+  // fan-out stops mid-request instead of completing every branch first.
+  if (dailyCeilingReached(meter)) {
+    throw new RateLimitError(
+      "Daily AI usage limit reached. It resets at midnight UTC.",
+      undefined,
+      meter.dailyTokenLimit ?? undefined,
+    );
+  }
+
+  // The plan decides the tier and the budget, never the caller. This is the
+  // whole point on `infer`, where the request body used to pick both.
+  const model = clampTier(opts.model, meter.maxModelTier);
+  const maxTokens = clampTokens(opts.maxTokens, meter.maxTokensPerCall);
+
+  const startedAt = Date.now();
 
   let res: Response;
   try {
@@ -75,10 +104,12 @@ export async function horusInfer(opts: HorusInferOptions): Promise<HorusInferRes
         task: opts.task,
         system: opts.system,
         messages,
-        model: opts.model ?? "fast",
+        model,
         temperature: opts.temperature ?? 0.7,
-        maxTokens: opts.maxTokens ?? 4000,
-        userRef: opts.userRef,
+        maxTokens,
+        // Finally populated. Horus has accepted this field all along; nothing
+        // ever sent it, so every call arrived anonymous under the tenant key.
+        userRef: meter.userId ?? undefined,
       }),
     });
   } catch (err) {
@@ -90,6 +121,16 @@ export async function horusInfer(opts: HorusInferOptions): Promise<HorusInferRes
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    // Record the failed attempt: a rejected call can still have burned tokens
+    // upstream, and a gap in the ledger is worse than a zero.
+    await recordTokenSpend(meter, {
+      task: opts.task,
+      provider: "horus",
+      modelTier: model,
+      attempt: opts.attempt ?? 1,
+      errorCode: `HTTP_${res.status}`,
+      durationMs: Date.now() - startedAt,
+    });
     if (res.status === 429) {
       throw new RateLimitError("Horus inference rate limit exceeded");
     }
@@ -109,13 +150,26 @@ export async function horusInfer(opts: HorusInferOptions): Promise<HorusInferRes
     throw new ProviderError("Horus returned an empty response", "horus");
   }
 
+  const usage: HorusUsage = {
+    promptTokens: out.usage?.inputTokens,
+    completionTokens: out.usage?.outputTokens,
+  };
+
+  await recordTokenSpend(meter, {
+    task: opts.task,
+    provider: "horus",
+    model: out.model ?? "horus",
+    modelTier: model,
+    promptTokens: usage.promptTokens,
+    completionTokens: usage.completionTokens,
+    attempt: opts.attempt ?? 1,
+    durationMs: Date.now() - startedAt,
+  });
+
   return {
     content: out.content,
     model: out.model ?? "horus",
-    usage: {
-      promptTokens: out.usage?.inputTokens,
-      completionTokens: out.usage?.outputTokens,
-    },
+    usage,
   };
 }
 
@@ -173,7 +227,15 @@ export async function horusGenerateObject<S extends z.ZodTypeAny>(
     },
   ];
 
-  const second = await horusInfer({ ...opts, prompt: undefined, messages: retryMessages });
+  // attempt: 2 is what makes this second, otherwise invisible, bill show up in
+  // the ledger. If a task's attempt=2 rate is high, that is a prompt problem
+  // rather than a quota one — and it can now be seen rather than guessed at.
+  const second = await horusInfer({
+    ...opts,
+    prompt: undefined,
+    messages: retryMessages,
+    attempt: 2,
+  });
   const secondParsed = schema.safeParse(extractJson(second.content));
   if (!secondParsed.success) {
     const preview = secondParsed.error.issues

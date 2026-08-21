@@ -3,7 +3,8 @@ import { z } from "npm:zod@3";
 
 import { horusGenerateObject, horusGenerateText, type HorusTier } from "../_shared/ai/horus.ts";
 import { ValidationError } from "../_shared/ai/errors.ts";
-import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { meterFromQuota } from "../_shared/ai/meter.ts";
+import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
@@ -326,13 +327,17 @@ function mergeMissingSections(
 
 serve(handler(async (req) => {
   const { userId } = await requireUser(req);
-  await enforceWindowLimit({
-    resource: "ats-analyze",
+  const quota = await enforcePlanQuota({
     userId,
-    limit: 20,
-    windowMinutes: 60,
+    resource: "ats-analyze",
     resourceLabel: "AI resume analysis",
+    observeOnly: true,
   });
+  // One meter for the whole request. The auto-rewrite path can make four model
+  // calls; sharing a single mutable meter is what lets the later ones see the
+  // earlier ones' spend and stop at the daily ceiling mid-request, rather than
+  // discovering the overspend after all four have been paid for.
+  const meter = meterFromQuota(quota, userId);
 
   try {
     const { resumeText, jobDescription, analysisType, resumeData, analysisContext } = await req.json();
@@ -961,6 +966,7 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         system: systemPrompt,
         prompt: userPrompt,
         model: tier,
+        meter,
         temperature: 0.3,
         maxTokens: 6000,
       });
@@ -971,6 +977,7 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         system: systemPrompt,
         prompt: userPrompt,
         model: tier,
+        meter,
         temperature: 0.7,
         maxTokens: 10000,
       });
@@ -1088,6 +1095,7 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         system: systemPrompt,
         prompt: userPrompt,
         model: tier,
+        meter,
         temperature: 0.7,
         maxTokens:
           analysisType === "auto-rewrite" ||
@@ -1142,6 +1150,7 @@ DO NOT SKIP ANY CERTIFICATIONS, PROJECTS, OR OTHER SECTIONS.`;
               system: retrySystemPrompt,
               prompt: retryUserPrompt,
               model: tier,
+              meter,
               maxTokens: 10000,
               temperature: 0.7,
             });
@@ -1192,6 +1201,7 @@ DO NOT SKIP ANY CERTIFICATIONS, PROJECTS, OR OTHER SECTIONS.`;
           const { text: imperfectionText } = await horusGenerateText({
             task: "careercraft.ats_imperfection_pass",
             model: tier,
+            meter,
             system: `You are a human editor doing a quick pass on your own resume before submitting.
 Your ONLY task: pick roughly 20% of the bullet points and make them slightly shorter, weaker, or more casual. This breaks AI-detection patterns.
 

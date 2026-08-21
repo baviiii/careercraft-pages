@@ -12,7 +12,8 @@ import { z } from "npm:zod@3";
 
 import { horusGenerateText } from "../_shared/ai/horus.ts";
 import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
-import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { meterFromQuota } from "../_shared/ai/meter.ts";
+import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
@@ -89,13 +90,15 @@ Key requirements:
 
 serve(handler(async (req) => {
   const { userId } = await requireUser(req);
-  await enforceWindowLimit({
-    resource: "rewrite-resume",
+  // observeOnly: limits are recorded and reported but nothing is refused yet.
+  // Flip this off once the ledger shows what real usage looks like.
+  const quota = await enforcePlanQuota({
     userId,
-    limit: 60,
-    windowMinutes: 60,
+    resource: "rewrite-resume",
     resourceLabel: "AI rewriting",
+    observeOnly: true,
   });
+  const meter = meterFromQuota(quota, userId);
 
   const raw = await req.json().catch(() => null);
   const parsed = RequestSchema.safeParse(raw);
@@ -111,6 +114,7 @@ serve(handler(async (req) => {
       system: prompts.system,
       prompt: prompts.user,
       temperature: 0.7,
+      meter,
     });
 
     return json({ rewrittenText: text.trim() });

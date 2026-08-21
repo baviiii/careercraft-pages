@@ -10,7 +10,8 @@ import { z } from "npm:zod@3";
 
 import { horusGenerateObject, horusGenerateText } from "../_shared/ai/horus.ts";
 import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
-import { enforceWindowLimit } from "../_shared/db/rate-limit.ts";
+import { meterFromQuota } from "../_shared/ai/meter.ts";
+import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { requireAdmin } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
@@ -68,13 +69,13 @@ const ImprovedPromptSchema = z.object({
 
 serve(handler(async (req) => {
   const { userId } = await requireAdmin(req);
-  await enforceWindowLimit({
-    resource: "generate-prompt",
+  const quota = await enforcePlanQuota({
     userId,
-    limit: 30,
-    windowMinutes: 60,
+    resource: "generate-prompt",
     resourceLabel: "AI prompt generation",
+    observeOnly: true,
   });
+  const meter = meterFromQuota(quota, userId);
 
   const startTime = Date.now();
 
@@ -94,6 +95,7 @@ serve(handler(async (req) => {
         prompt: user,
         temperature: 0.7,
         maxTokens: 2000,
+        meter,
       });
 
       return json({
@@ -114,6 +116,7 @@ serve(handler(async (req) => {
       prompt: user,
       temperature: 0.7,
       maxTokens: 2000,
+      meter,
     });
 
     return json({
