@@ -41,6 +41,13 @@ export class RateLimitError extends AppError {
     message: string,
     public readonly retryAfterSec?: number,
     public readonly limit?: number,
+    /**
+     * Quota context for the client: which resource, which layer refused, how
+     * much was used and when it resets. handler() serialises this onto the 429
+     * body, which is what lets the UI show a real upgrade prompt instead of a
+     * generic failure.
+     */
+    public readonly details?: unknown,
   ) {
     super(message, 429, "RATE_LIMITED");
   }

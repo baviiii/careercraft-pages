@@ -2,6 +2,17 @@ import {
   supabase,
   SUPABASE_URL,
 } from '@/integrations/supabase/client';
+import { QuotaExceededError, quotaFromResponse } from '@/lib/quota';
+
+/**
+ * Turns a 429 into a typed QuotaExceededError so the UI can explain the limit
+ * rather than showing it as a generic failure. Any other status falls through
+ * to the caller's existing handling.
+ */
+async function throwIfQuotaExceeded(response: Response): Promise<void> {
+  const details = await quotaFromResponse(response.clone());
+  if (details) throw new QuotaExceededError(details);
+}
 
 async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
   const { data, error } = await supabase.auth.getSession();
@@ -108,6 +119,7 @@ export async function runATSAIAnalysis(
   );
 
   if (!response.ok) {
+    await throwIfQuotaExceeded(response);
     const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to analyze resume");
   }
@@ -142,6 +154,7 @@ export async function autoRewriteResume(
   );
 
   if (!response.ok) {
+    await throwIfQuotaExceeded(response);
     const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to rewrite resume");
   }
@@ -174,6 +187,7 @@ export async function rewriteExperienceSection(
   );
 
   if (!response.ok) {
+    await throwIfQuotaExceeded(response);
     const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to rewrite experience");
   }
@@ -206,6 +220,7 @@ export async function generateAchievements(
   );
 
   if (!response.ok) {
+    await throwIfQuotaExceeded(response);
     const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to generate achievements");
   }
@@ -234,6 +249,7 @@ export async function generateSummaries(
   );
 
   if (!response.ok) {
+    await throwIfQuotaExceeded(response);
     const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to generate summaries");
   }
@@ -269,6 +285,7 @@ export async function rewriteResumeStructured(
   );
 
   if (!response.ok) {
+    await throwIfQuotaExceeded(response);
     const error = await parseErrorResponse(response);
     throw new Error(error.error || "Failed to rewrite resume");
   }

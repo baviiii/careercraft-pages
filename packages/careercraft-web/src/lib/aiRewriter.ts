@@ -2,6 +2,17 @@ import {
   supabase,
   SUPABASE_URL,
 } from '@/integrations/supabase/client';
+import { QuotaExceededError, quotaFromResponse } from '@/lib/quota';
+
+/**
+ * Turns a 429 into a typed QuotaExceededError so the UI can explain the limit
+ * rather than showing it as a generic failure. Any other status falls through
+ * to the caller's existing handling.
+ */
+async function throwIfQuotaExceeded(response: Response): Promise<void> {
+  const details = await quotaFromResponse(response.clone());
+  if (details) throw new QuotaExceededError(details);
+}
 
 async function getAuthenticatedHeaders(): Promise<Record<string, string>> {
   const { data, error } = await supabase.auth.getSession();
@@ -51,6 +62,7 @@ export async function rewriteBullet(
     );
 
     if (!response.ok) {
+      await throwIfQuotaExceeded(response);
       const error = await parseErrorResponse(response);
       throw new Error(error.error || "Failed to rewrite text");
     }
@@ -84,6 +96,7 @@ export async function generateCoverLetter(
     );
 
     if (!response.ok) {
+      await throwIfQuotaExceeded(response);
       const error = await parseErrorResponse(response);
       throw new Error(error.error || "Failed to generate cover letter");
     }

@@ -156,7 +156,20 @@ export async function enforcePlanQuota(opts: PlanQuotaOpts): Promise<PlanQuota> 
   }
 
   if (!quota.allowed) {
-    throw new RateLimitError(explain(quota, label), retryAfterSec(quota), quota.limit ?? undefined);
+    throw new RateLimitError(
+      explain(quota, label),
+      retryAfterSec(quota),
+      quota.limit ?? undefined,
+      {
+        resource: quota.resource,
+        resourceLabel: label,
+        reason: quota.reason,
+        planKey: quota.planKey,
+        limit: quota.limit,
+        used: quota.used,
+        resetsAt: quota.resetsAt,
+      },
+    );
   }
 
   return quota;

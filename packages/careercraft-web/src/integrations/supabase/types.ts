@@ -298,6 +298,36 @@ export type Database = {
         }
         Relationships: []
       }
+      plan_upgrade_requests: {
+        Row: {
+          created_at: string
+          from_plan_key: string | null
+          id: string
+          note: string | null
+          reason: string | null
+          resource: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_plan_key?: string | null
+          id?: string
+          note?: string | null
+          reason?: string | null
+          resource?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          from_plan_key?: string | null
+          id?: string
+          note?: string | null
+          reason?: string | null
+          resource?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_limit_overrides: {
         Row: {
           created_at: string

@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Award,
   Bell,
+  Gauge,
   Briefcase,
   Download,
   ExternalLink,
@@ -65,6 +66,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { clearAccent } from "@/lib/personaTheme";
 import {
+  fetchPlanUsage,
+  isUnlimited,
+  usageLabel,
+  usagePercent,
+  formatResetsIn,
+  type PlanUsage,
+} from "@/lib/quota";
+import {
   useUserProfile,
   INDUSTRIES,
   CAREER_LEVELS,
@@ -83,7 +92,7 @@ const APP_BASE_URL =
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 
-type SettingsTab = "profile" | "career" | "skills" | "alerts" | "account";
+type SettingsTab = "profile" | "career" | "skills" | "alerts" | "plan" | "account";
 
 const SETTINGS_TABS: {
   id: SettingsTab;
@@ -94,6 +103,7 @@ const SETTINGS_TABS: {
   { id: "career", label: "Career", icon: Briefcase },
   { id: "skills", label: "Skills", icon: Award },
   { id: "alerts", label: "Alerts", icon: Bell },
+  { id: "plan", label: "Plan & usage", icon: Gauge },
   { id: "account", label: "Account", icon: Lock },
 ];
 
@@ -332,7 +342,17 @@ export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [session, setSession] = useState<Session | null>(null);
-  const [tab, setTab] = useState<SettingsTab>("profile");
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    // QuotaNotice links here with ?tab=plan when a limit is hit.
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return SETTINGS_TABS.some((t) => t.id === requested)
+      ? (requested as SettingsTab)
+      : "profile";
+  });
+  const [usage, setUsage] = useState<PlanUsage | null>(null);
+  const [usageLoading, setUsageLoading] = useState(true);
+  const [upgradeRequested, setUpgradeRequested] = useState(false);
+  const [savingInterest, setSavingInterest] = useState(false);
 
   const {
     loading,
@@ -399,6 +419,20 @@ export default function Settings() {
   const [showCertDialog, setShowCertDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    let cancelled = false;
+    setUsageLoading(true);
+    fetchPlanUsage(session.user.id).then((result) => {
+      if (cancelled) return;
+      setUsage(result);
+      setUsageLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     const {
@@ -539,6 +573,32 @@ export default function Settings() {
     if (deleteConfirmText !== "DELETE") return;
     await deleteAccount();
     navigate("/");
+  };
+
+  const handleRegisterInterest = async () => {
+    if (!session?.user?.id) return;
+    setSavingInterest(true);
+    try {
+      const { error } = await supabase.from("plan_upgrade_requests").insert({
+        user_id: session.user.id,
+        from_plan_key: usage?.plan_key ?? null,
+      });
+      if (error) throw error;
+      setUpgradeRequested(true);
+      toast({
+        title: "Thanks — noted",
+        description: "We'll let you know before paid plans open up.",
+      });
+    } catch (error) {
+      console.error("Error registering interest:", error);
+      toast({
+        title: "Couldn't save that",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingInterest(false);
+    }
   };
 
   const handleNotificationToggle = async (key: keyof NotificationSettings, value: boolean) => {
@@ -1480,6 +1540,115 @@ export default function Settings() {
         </TabsContent>
 
         {/* ── Account ───────────────────────────────────────── */}
+        {/* ── Plan & usage ──────────────────────────────────── */}
+        <TabsContent value="plan" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <Panel
+            title={usage ? `${usage.plan_key} plan` : "Your plan"}
+            subtitle="What you've used this month, and when it resets"
+            tone="cobalt"
+          >
+            {usageLoading ? (
+              <p className="cc-font-editorial text-[color:var(--cc-ash)]">
+                Loading your usage…
+              </p>
+            ) : !usage ? (
+              <p className="cc-font-editorial text-[color:var(--cc-ash)]">
+                Usage information isn&rsquo;t available right now.
+              </p>
+            ) : (
+              <div className="space-y-6">
+                <ul className="space-y-4">
+                  {usage.resources
+                    .filter((r) => r.is_enabled)
+                    .map((r) => {
+                      const pct = usagePercent(r.monthly_used, r.monthly_limit);
+                      const unlimited = isUnlimited(r.monthly_limit);
+                      return (
+                        <li key={r.resource} className="space-y-1.5">
+                          <div className="flex items-baseline justify-between gap-4">
+                            <span className="cc-font-editorial text-[15px] text-[color:var(--cc-ink)]">
+                              {r.label}
+                            </span>
+                            <span className="cc-label-sm cc-tabular text-[color:var(--cc-ash)]">
+                              {usageLabel(r.monthly_used, r.monthly_limit)}
+                            </span>
+                          </div>
+                          {!unlimited && (
+                            <div
+                              className="cc-score"
+                              role="progressbar"
+                              aria-valuenow={pct}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label={`${r.label} usage`}
+                            >
+                              <div
+                                className={`cc-score-fill ${
+                                  pct >= 90 ? "cc-score-poor" : pct >= 70 ? "cc-score-warn" : "cc-score-good"
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                </ul>
+
+                {usage.resources.some((r) => !r.is_enabled) && (
+                  <div className="border-t border-[color:var(--cc-hair)] pt-4">
+                    <p className="cc-label-sm text-[color:var(--cc-ash)]">
+                      Not on this plan
+                    </p>
+                    <p className="mt-1.5 cc-font-editorial text-[15px] text-[color:var(--cc-ink-soft)]">
+                      {usage.resources
+                        .filter((r) => !r.is_enabled)
+                        .map((r) => r.label)
+                        .join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                <p className="cc-label-sm text-[color:var(--cc-ash)]">
+                  {/* Windows roll over in UTC, which lands mid-morning in
+                      Australia — better said than discovered. */}
+                  Allowances reset {formatResetsIn(usage.resets_at) ?? "soon"} (UTC).
+                </p>
+              </div>
+            )}
+          </Panel>
+
+          {/* No checkout exists yet, so this records interest instead of
+              pretending to sell something. Which features people run out of is
+              the most useful thing to know before picking a price. */}
+          <Panel
+            title="Need more?"
+            subtitle="Tell us and we'll let you know when paid plans open up"
+            tone="wheat"
+          >
+            {upgradeRequested ? (
+              <p className="cc-font-editorial text-[15px] text-[color:var(--cc-ink-soft)]">
+                Thanks — noted. We&rsquo;ll be in touch before anything changes.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="cc-font-editorial text-[15px] text-[color:var(--cc-ink-soft)]">
+                  Paid plans aren&rsquo;t available yet. Register interest and
+                  you&rsquo;ll hear first.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRegisterInterest}
+                  disabled={savingInterest}
+                  className="cc-action cc-action--sm shrink-0"
+                >
+                  {savingInterest ? "Saving…" : "I'd want more"}
+                </button>
+              </div>
+            )}
+          </Panel>
+        </TabsContent>
+
         <TabsContent value="account" className="cc-tabs-panel mt-6 focus-visible:ring-0">
           <div className="space-y-5">
             <Panel title="Password" subtitle="We’ll email a secure link to reset your password." tone="ink">
