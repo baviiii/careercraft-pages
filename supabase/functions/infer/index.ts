@@ -1,122 +1,176 @@
-// infer — generation shim for interview-coach-mcp, now forwarding to Horus.
+// infer — generation shim for interview-coach-mcp, forwarding to Horus.
 //
-// The MCP's HttpHorusClient posts here (POST {base}/infer). Horus exposes its
-// own gateway (POST {HORUS_INFER_URL}, i.e. horus-platform /api/infer), so this
-// function is a thin authenticated proxy: same request/response contract on
-// both sides, we just swap the caller's shared secret for CareerCraft's Horus
-// tenant API key. Once the MCP's HORUS_BASE_URL points directly at the Horus
-// deployment, this function can be deleted.
+// The MCP's HttpHorusClient posts here (POST {base}/infer) and expects Horus's
+// own /api/infer response shape back.
 //
-// Auth: deployed with --no-verify-jwt and guarded by a shared secret
-// (INFER_SHARED_SECRET) so only the MCP can spend tokens. The MCP sends it as
-// `Authorization: Bearer <secret>` (and x-functions-key).
+// ── Auth, in two modes ────────────────────────────────────────────────────
+//
+// This function used to be guarded by a shared secret alone, deployed with
+// --no-verify-jwt, and it forwarded the request body to Horus unread. That
+// meant the caller chose the model and the token budget, and nothing tied any
+// of the spend to a person. It is the widest-open surface in the product:
+// roughly 25 browser-reachable MCP endpoints land here.
+//
+//   trusted  — a real user JWT. The user is verified, their plan is consumed,
+//              and the plan's clamps apply.
+//   legacy   — the shared secret only. Kept working so the MCP does not break
+//              mid-deploy. Spend is attributed from the body's `userRef` for
+//              the ledger, but NO plan quota is consumed: userRef is
+//              caller-supplied and unverified, so honouring it would let
+//              anyone holding the secret drain another user's allowance.
+//              An IP rate limit applies instead.
+//
+// Set INFER_REQUIRE_JWT=true to retire the legacy mode once the MCP forwards
+// the user's JWT (it already receives one from the browser).
 
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { z } from "npm:zod@3";
+
+import { horusInfer } from "../_shared/ai/horus.ts";
+import { UnauthorizedError, ValidationError } from "../_shared/ai/errors.ts";
+import { meterFromQuota, systemMeter } from "../_shared/ai/meter.ts";
+import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
-import { RateLimitError } from "../_shared/ai/errors.ts";
+import { requireUser } from "../_shared/http/auth.ts";
+import { handler, json } from "../_shared/http/responses.ts";
+import { optEnv } from "../_shared/env.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-functions-key, x-tenant, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
+const RESOURCE = "infer";
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+/**
+ * The MCP's contract. `schema`/`schemaName` pass through untouched — Horus
+ * uses them for structured output and this function has no opinion on them.
+ */
+const InferRequestSchema = z.object({
+  task: z.string().min(1).max(200),
+  system: z.string().max(100_000).optional(),
+  messages: z
+    .array(z.object({
+      role: z.enum(["user", "assistant", "system"]),
+      content: z.string().max(200_000),
+    }))
+    .min(1)
+    .max(100)
+    .optional(),
+  prompt: z.string().max(200_000).optional(),
+  schema: z.unknown().optional(),
+  schemaName: z.string().max(200).optional(),
+  // Advisory only. The plan decides the real values; these are what the caller
+  // would prefer, clamped downward in horusInfer.
+  model: z.enum(["fast", "deep"]).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().min(1).max(32_000).optional(),
+  tenant: z.string().max(100).optional(),
+  userRef: z.string().max(200).optional(),
+}).refine(
+  (v) => Boolean(v.messages?.length) || Boolean(v.prompt),
+  { message: "messages or prompt is required" },
+);
 
-function presentedSecret(req: Request): string {
-  const auth = req.headers.get("authorization") ?? "";
-  const bearer = auth.replace(/^Bearer\s+/i, "").trim();
-  return bearer || (req.headers.get("x-functions-key") ?? "").trim();
+function bearer(req: Request): string {
+  return (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+function presentedSecret(req: Request): string {
+  return bearer(req) || (req.headers.get("x-functions-key") ?? "").trim();
+}
 
-  const sharedSecret = Deno.env.get("INFER_SHARED_SECRET") ?? "";
-  const horusUrl = Deno.env.get("HORUS_INFER_URL") ?? "";
-  const horusKey = Deno.env.get("HORUS_API_KEY") ?? "";
+serve(handler(async (req) => {
+  const sharedSecret = optEnv("INFER_SHARED_SECRET") ?? "";
+  const requireJwt = (optEnv("INFER_REQUIRE_JWT") ?? "").toLowerCase() === "true";
 
-  // Health check — no token spend, no secret required. Lets the MCP/operator
-  // confirm the function is live and configured.
+  // Health check — no spend, no auth. Lets an operator confirm the function is
+  // live and configured without holding a credential.
   if (req.method === "GET") {
     return json({
       ok: true,
       fn: "infer",
       upstream: "horus",
-      hasGatewayKey: Boolean(horusUrl && horusKey),
+      hasGatewayKey: Boolean(optEnv("HORUS_INFER_URL") && optEnv("HORUS_API_KEY")),
       guarded: Boolean(sharedSecret),
+      requiresUserToken: requireJwt,
     });
   }
 
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  // ── Identify the caller ────────────────────────────────────────────────
+  // The MCP sends the shared secret AS the bearer token, so a bearer that
+  // matches the secret is the legacy path, not a JWT.
+  const token = bearer(req);
+  const secretOk = Boolean(sharedSecret) && presentedSecret(req) === sharedSecret;
+  const looksLikeJwt = Boolean(token) && token !== sharedSecret && token.split(".").length === 3;
 
-  if (sharedSecret && presentedSecret(req) !== sharedSecret) {
-    return json({ error: "Unauthorized" }, 401);
+  let userId: string | null = null;
+  if (looksLikeJwt) {
+    // Throws 401 on an invalid or expired token rather than falling back to
+    // the legacy path — a bad JWT is an error, not an invitation to retry
+    // unauthenticated.
+    userId = (await requireUser(req)).userId;
   }
 
-  // Rate limit by IP to prevent abuse even with valid secret.
-  //
-  // Must use the ANONYMOUS quota path: this function has no authenticated user,
-  // and consume_edge_function_quota takes a UUID that an IP can never cast to.
-  // There is no handler() wrapper here, so the 429 is built by hand.
-  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  try {
+  if (!userId && !secretOk) {
+    throw new UnauthorizedError("A user token or the shared secret is required");
+  }
+  if (!userId && requireJwt) {
+    throw new UnauthorizedError("This endpoint now requires a user token");
+  }
+
+  // ── Validate the body ──────────────────────────────────────────────────
+  const raw = await req.json().catch(() => null);
+  const parsed = InferRequestSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid infer request", parsed.error.flatten());
+  }
+  const body = parsed.data;
+
+  // ── Quota + meter ──────────────────────────────────────────────────────
+  let meter;
+  if (userId) {
+    const quota = await enforcePlanQuota({
+      userId,
+      resource: RESOURCE,
+      resourceLabel: "the interview coach",
+      observeOnly: true,
+    });
+    meter = meterFromQuota(quota, userId);
+  } else {
+    // Legacy: rate limit the network principal, and attribute the spend to the
+    // claimed user for the ledger only. Their plan is deliberately untouched.
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     await enforceAnonymousWindowLimit({
-      resource: "infer",
+      resource: RESOURCE,
       principal: clientIp,
       limit: 100,
       windowMinutes: 60,
       resourceLabel: "inference",
     });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return new Response(
-        JSON.stringify({ error: err.message, code: err.code }),
-        {
-          status: 429,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-            "Retry-After": String(err.retryAfterSec ?? 3600),
-          },
-        },
-      );
+    meter = systemMeter(RESOURCE);
+    if (body.userRef) {
+      meter.userId = body.userRef;
+      meter.maxModelTier = "fast";
+      meter.maxTokensPerCall = 4000;
     }
-    return json({ error: `Rate-limit check failed: ${(err as Error).message}` }, 500);
   }
 
-  if (!horusUrl || !horusKey) {
-    return json({ error: "HORUS_INFER_URL / HORUS_API_KEY not configured on this function" }, 500);
-  }
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, 400);
-  }
-
-  // The MCP already speaks Horus's /api/infer contract — forward as-is.
-  let res: Response;
-  try {
-    res = await fetch(horusUrl, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${horusKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    return json({ error: `Horus request failed: ${(err as Error).message}` }, 502);
-  }
-
-  const text = await res.text().catch(() => "");
-  if (!res.ok) {
-    if (res.status === 429) return json({ error: "Horus rate limit exceeded" }, 429);
-    if (res.status === 402) return json({ error: "Horus credits exhausted" }, 402);
-    return json({ error: `Horus ${res.status}: ${text.slice(0, 300)}` }, 502);
-  }
-
-  return new Response(text, {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  // Routed through the shared client rather than a hand-rolled fetch, so the
+  // clamps, the daily ceiling and the ledger write all apply here too.
+  const result = await horusInfer({
+    task: body.task,
+    system: body.system ?? "",
+    messages: body.messages,
+    prompt: body.prompt,
+    model: body.model,
+    temperature: body.temperature,
+    maxTokens: body.maxTokens,
+    meter,
   });
-});
+
+  // Answer in Horus's own shape — the MCP reads inputTokens/outputTokens.
+  return json({
+    content: result.content,
+    model: result.model,
+    usage: {
+      inputTokens: result.usage.promptTokens,
+      outputTokens: result.usage.completionTokens,
+    },
+  });
+}, { name: "infer", allowedMethods: ["GET", "POST"] }));

@@ -28,6 +28,7 @@
 
 import { handler, json } from "../_shared/http/responses.ts";
 import { requireUser } from "../_shared/http/auth.ts";
+import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import {
   HorusNotFound,
   horusMutate,
@@ -306,7 +307,7 @@ Deno.serve(
     async (req) => {
       // The user's Supabase JWT gates access; the Horus key never leaves this
       // process. An unauthenticated caller gets nothing.
-      await requireUser(req);
+      const { userId } = await requireUser(req);
 
       let body: RequestBody;
       try {
@@ -316,6 +317,20 @@ Deno.serve(
       }
 
       const op: Op = body.op ?? "search";
+
+      // This function had no limit of any kind, which made it the largest open
+      // spend hole in the codebase: rag.query and rag.chat are generation-backed
+      // on the Horus side, so a "search" here bills for a model call.
+      //
+      // The generating ops carry a tighter allowance than the graph lookups,
+      // which are ordinary reads.
+      const generative = op === "search" || op === "careers-search";
+      await enforcePlanQuota({
+        userId,
+        resource: generative ? "horus-rag-search" : "horus-rag",
+        resourceLabel: generative ? "career intelligence search" : "career graph lookups",
+        observeOnly: true,
+      });
 
       try {
         switch (op) {

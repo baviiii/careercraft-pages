@@ -60,41 +60,47 @@ port = 54327
 vector_port = 54328
 backend = "postgres"
 
-[functions.rewrite-resume]
-verify_jwt = true
+# One block per function that exists in supabase/functions/. This list had
+# drifted badly: seven entries named functions that had been deleted, while six
+# live ones — including infer, the least guarded of them — had no entry at all.
 
 [functions.ats-analyze]
 verify_jwt = true
 
-[functions.interview-ai]
-verify_jwt = true
-
-[functions.job-news]
-verify_jwt = true
-
-[functions.track-session]
-verify_jwt = false
-
-[functions.generate-prompt]
+[functions.rewrite-resume]
 verify_jwt = true
 
 [functions.parse-resume]
 verify_jwt = true
 
-[functions.rag-tag-documents]
+[functions.onboard-analyze]
 verify_jwt = true
 
-[functions.rag-metadata]
+[functions.job-news]
 verify_jwt = true
 
-[functions.rag-query]
+[functions.generate-prompt]
 verify_jwt = true
 
-[functions.azure-rag-proxy]
+[functions.horus-rag]
 verify_jwt = true
 
-[functions.azure-pdf-proxy]
+[functions.job-fit-score]
 verify_jwt = true
 
-[functions.azure-graph-proxy]
+[functions.job-email-events]
 verify_jwt = true
+
+[functions.job-ingest-adzuna]
+verify_jwt = true
+
+# Pre-auth analytics events arrive without a session, so the JWT is checked
+# inside the function rather than at the gateway.
+[functions.track-session]
+verify_jwt = false
+
+# The MCP presents a shared secret rather than a Supabase JWT, so the gateway
+# check has to stay off; the function authenticates the caller itself and, when
+# a real user token is present, consumes that user's plan.
+[functions.infer]
+verify_jwt = false
