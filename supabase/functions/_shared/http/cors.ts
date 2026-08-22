@@ -4,8 +4,10 @@ export const corsHeaders = {
   // They were only allowed by infer's own local copy of these headers; infer
   // now uses this shared set, so they have to be listed here or its preflight
   // starts failing.
+  // x-user-token carries the end user's JWT when a service calls on their
+  // behalf and Authorization is already holding its own credential.
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-functions-key, x-tenant",
+    "authorization, x-client-info, apikey, content-type, x-functions-key, x-tenant, x-user-token",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 } as const;
 

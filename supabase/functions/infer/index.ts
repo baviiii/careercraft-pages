@@ -11,17 +11,18 @@
 // of the spend to a person. It is the widest-open surface in the product:
 // roughly 25 browser-reachable MCP endpoints land here.
 //
-//   trusted  — a real user JWT. The user is verified, their plan is consumed,
-//              and the plan's clamps apply.
+//   trusted  — a real user JWT, in `x-user-token` (or as the bearer when
+//              something calls as the user directly). Verified against
+//              Supabase, so their plan is consumed and its clamps apply.
 //   legacy   — the shared secret only. Kept working so the MCP does not break
 //              mid-deploy. Spend is attributed from the body's `userRef` for
 //              the ledger, but NO plan quota is consumed: userRef is
 //              caller-supplied and unverified, so honouring it would let
-//              anyone holding the secret drain another user's allowance.
-//              An IP rate limit applies instead.
+//              anyone holding the secret drain another user's allowance. A
+//              per-caller limit and a global ceiling apply instead.
 //
-// Set INFER_REQUIRE_JWT=true to retire the legacy mode once the MCP forwards
-// the user's JWT (it already receives one from the browser).
+// Set INFER_REQUIRE_JWT=true to retire the legacy mode once the MCP is
+// deployed sending x-user-token.
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { z } from "npm:zod@3";
@@ -31,7 +32,7 @@ import { UnauthorizedError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota, systemMeter } from "../_shared/ai/meter.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
-import { requireUser } from "../_shared/http/auth.ts";
+import { verifyUserToken } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
 
@@ -93,18 +94,29 @@ serve(handler(async (req) => {
   }
 
   // ── Identify the caller ────────────────────────────────────────────────
-  // The MCP sends the shared secret AS the bearer token, so a bearer that
-  // matches the secret is the legacy path, not a JWT.
+  // Two shapes arrive here:
+  //
+  //   x-user-token: <user JWT>     the MCP calling for a specific person. Its
+  //                                Authorization holds its own service
+  //                                credential, so the user's token needs a
+  //                                header of its own.
+  //   Authorization: Bearer <JWT>  something calling as the user directly.
+  //
+  // The MCP historically sent the shared secret AS the bearer, so a bearer
+  // equal to the secret is the legacy path and not a token.
   const token = bearer(req);
   const secretOk = Boolean(sharedSecret) && presentedSecret(req) === sharedSecret;
-  const looksLikeJwt = Boolean(token) && token !== sharedSecret && token.split(".").length === 3;
+  const headerToken = (req.headers.get("x-user-token") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const bearerIsJwt = Boolean(token) && token !== sharedSecret && token.split(".").length === 3;
+  const userToken = headerToken || (bearerIsJwt ? token : "");
 
   let userId: string | null = null;
-  if (looksLikeJwt) {
+  if (userToken) {
     // Throws 401 on an invalid or expired token rather than falling back to
-    // the legacy path — a bad JWT is an error, not an invitation to retry
-    // unauthenticated.
-    userId = (await requireUser(req)).userId;
+    // the legacy path — a bad token is an error, not an invitation to retry
+    // unauthenticated. Silently downgrading would turn an expired session into
+    // untracked spend, which is the whole thing we are trying to stop.
+    userId = (await verifyUserToken(userToken)).userId;
   }
 
   if (!userId && !secretOk) {
