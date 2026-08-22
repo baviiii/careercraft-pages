@@ -143,12 +143,37 @@ serve(handler(async (req) => {
     // attacker who forges it is already past the shared secret, and the IP
     // fallback still covers a caller who sends none.
     const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+
+    // Two limits, because they defend against different things and neither
+    // covers the other.
+    //
+    // Per-caller keeps real users from colliding. It cannot contain a stolen
+    // secret: the attacker picks userRef, so they can mint a fresh bucket
+    // whenever one runs dry.
     await enforceAnonymousWindowLimit({
       resource: RESOURCE,
       principal: body.userRef ? `userref:${body.userRef}` : `ip:${clientIp}`,
       limit: body.userRef ? 60 : 100,
       windowMinutes: 60,
       resourceLabel: "inference",
+    });
+
+    // Global, and that is the point: one bucket for ALL secret-authenticated
+    // traffic, which rotating userRef cannot escape. It caps the blast radius
+    // of a leaked INFER_SHARED_SECRET at a known hourly number instead of an
+    // unbounded bill. Sized well above real coach usage, so it only bites
+    // during abuse — and if it ever does bite, that is the signal to rotate
+    // the secret.
+    //
+    // The IP-keyed limit this replaced was globally capped by accident, being
+    // keyed on the MCP's single address. Making it per-caller fixed the
+    // collisions and quietly removed the ceiling; this puts it back on purpose.
+    await enforceAnonymousWindowLimit({
+      resource: `${RESOURCE}-legacy-total`,
+      principal: "legacy-shared-secret",
+      limit: 2000,
+      windowMinutes: 60,
+      resourceLabel: "interview coach (all users)",
     });
 
     // Clamp FIRST, then attribute. systemMeter's defaults (deep, 16k) exist for
