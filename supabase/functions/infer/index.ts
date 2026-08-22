@@ -132,22 +132,34 @@ serve(handler(async (req) => {
     });
     meter = meterFromQuota(quota, userId);
   } else {
-    // Legacy: rate limit the network principal, and attribute the spend to the
-    // claimed user for the ledger only. Their plan is deliberately untouched.
+    // Legacy path: the caller proved it holds the shared secret, nothing more.
+    //
+    // Bucket by userRef when it is offered, falling back to the network
+    // principal. The MCP is a server, so every coach request arrives from the
+    // SAME IP — an IP-keyed limit here is one shared bucket for the entire
+    // userbase, which starts locking real people out at a handful of
+    // concurrent sessions. userRef is unverified and therefore useless as an
+    // authorisation input, but it is a perfectly good bucketing key: an
+    // attacker who forges it is already past the shared secret, and the IP
+    // fallback still covers a caller who sends none.
     const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     await enforceAnonymousWindowLimit({
       resource: RESOURCE,
-      principal: clientIp,
-      limit: 100,
+      principal: body.userRef ? `userref:${body.userRef}` : `ip:${clientIp}`,
+      limit: body.userRef ? 60 : 100,
       windowMinutes: 60,
       resourceLabel: "inference",
     });
+
+    // Clamp FIRST, then attribute. systemMeter's defaults (deep, 16k) exist for
+    // cron and backfills, where we control the caller — they are far too
+    // generous for an unauthenticated request. Applying them only when userRef
+    // is absent had it exactly backwards: omitting your identity bought a
+    // bigger budget than offering it.
     meter = systemMeter(RESOURCE);
-    if (body.userRef) {
-      meter.userId = body.userRef;
-      meter.maxModelTier = "fast";
-      meter.maxTokensPerCall = 4000;
-    }
+    meter.maxModelTier = "fast";
+    meter.maxTokensPerCall = 4000;
+    if (body.userRef) meter.userId = body.userRef;
   }
 
   // Routed through the shared client rather than a hand-rolled fetch, so the

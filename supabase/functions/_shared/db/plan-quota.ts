@@ -89,6 +89,34 @@ interface RawQuota {
   daily_tokens: { limit: number | null; used: number | null };
 }
 
+/**
+ * What to hand back when the quota check itself is unavailable and we have
+ * decided to let the request through.
+ *
+ * Clamps match the default plan's own values rather than the tightest ones
+ * available. Dropping to fast/4000 here would truncate rewrites, trip the
+ * completeness retry in ats-analyze, and cost two calls instead of one — a
+ * "safety" measure that spends more than it saves. Matching the default plan
+ * means a quota outage changes nothing about what the user receives.
+ */
+function permissive(resource: string): PlanQuota {
+  return {
+    allowed: true,
+    reason: null,
+    planKey: "unknown",
+    resource,
+    limit: null,
+    used: 0,
+    remaining: null,
+    resetsAt: null,
+    monthly: { limit: null, used: 0 },
+    hourly: { limit: null, used: 0 },
+    maxModelTier: "deep",
+    maxTokensPerCall: 8000,
+    dailyTokens: { limit: null, used: 0 },
+  };
+}
+
 function shape(raw: RawQuota): PlanQuota {
   return {
     allowed: raw.allowed,
@@ -155,11 +183,19 @@ export async function enforcePlanQuota(opts: PlanQuotaOpts): Promise<PlanQuota> 
     p_dry_run: observeOnly,
   });
 
-  if (error) {
-    throw new Error(`Quota check failed for ${opts.resource}: ${error.message}`);
-  }
-  if (!data) {
-    throw new Error(`Quota check returned no result for ${opts.resource}`);
+  if (error || !data) {
+    const why = error?.message ?? "no result";
+    // While observing, a quota failure must not become a product failure.
+    // Nothing is being enforced, so breaking the request buys nothing and
+    // costs the user their feature — the worst possible trade. Let it through
+    // and leave a loud trail.
+    if (observeOnly) {
+      console.error(`[quota] check failed for ${opts.resource}, allowing (observe): ${why}`);
+      return permissive(opts.resource);
+    }
+    // Enforcing, so fail closed: an unavailable quota check is not a licence
+    // to spend. This is the deliberate trade in the other direction.
+    throw new Error(`Quota check failed for ${opts.resource}: ${why}`);
   }
 
   const quota = shape(data as RawQuota);
