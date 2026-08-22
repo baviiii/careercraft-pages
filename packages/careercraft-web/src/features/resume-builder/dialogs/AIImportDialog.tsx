@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   AI Smart Import — replaces the old SmartResumeFlow panel.
+   AI Smart Import — the résumé upload path.
    Two phases:
      1. Upload    — drop any résumé, AI parses it
      2. Review    — a terse editorial summary of what was read

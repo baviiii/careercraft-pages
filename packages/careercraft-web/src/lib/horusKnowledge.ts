@@ -134,18 +134,6 @@ export async function horusSemanticSearch(
   }
 }
 
-/**
- * Retrieval restricted to careers-relevant categories, so a question about
- * training does not come back with budget appropriation tables.
- */
-export function horusCareersSearch(
-  query: string,
-  filters?: { category?: string },
-  options?: { topK?: number },
-): Promise<HorusSearchResult> {
-  return callHorus<HorusSearchResult>("careers-search", { query, filters, options });
-}
-
 /** Entity resolution + its edges, flattened. Replaces graph-query action:'search'. */
 export function horusEntityLookup(entity: string): Promise<HorusGraphResult> {
   return callHorus<HorusGraphResult>("entity-lookup", { entity });
@@ -154,22 +142,6 @@ export function horusEntityLookup(entity: string): Promise<HorusGraphResult> {
 /** Graph neighbourhood. Replaces graph-query action:'traverse'. */
 export function horusTraverse(entity: string, depth = 2): Promise<HorusGraphResult> {
   return callHorus<HorusGraphResult>("traverse", { entity, depth });
-}
-
-export function horusOccupation(name: string) {
-  return callHorus<Record<string, unknown>>("occupation", { name });
-}
-
-export function horusSector(name: string) {
-  return callHorus<Record<string, unknown>>("sector", { name });
-}
-
-export function horusPathway(from: string, to: string) {
-  return callHorus<Record<string, unknown>>("pathway", { from, to });
-}
-
-export function horusSkillGap(target: string, have: string[] = []) {
-  return callHorus<Record<string, unknown>>("skill-gap", { target, have });
 }
 
 export function horusMetadata(operation: "stats" | "documents" | "categories" = "stats") {

@@ -263,14 +263,6 @@ export interface ConceptExplanation {
   proof?: Proof | null;
 }
 
-export interface InterviewHint {
-  hint?: string;
-  level?: "gentle" | "directional" | "structural";
-  framework?: string | null;
-  followupThought?: string;
-  struggleDetected?: boolean;
-}
-
 /* ── Transport ───────────────────────────────────────────────────────────── */
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -459,13 +451,4 @@ export const careerCoach = {
     return post("/api/study/resource/progress", input);
   },
 
-  /** One calibrated mid-question hint (never the answer). */
-  async getHint(input: {
-    sessionId?: string;
-    questionText: string;
-    currentThinking?: string;
-    field?: string;
-  }): Promise<InterviewHint> {
-    return post("/api/interview/hint", input);
-  },
 };

@@ -5,9 +5,9 @@
 // round trip. The limits live in the database so they can be retuned from the
 // admin screen without a deploy.
 //
-// Relationship to rate-limit.ts: enforceWindowLimit() is still there and still
-// works. It applies one hardcoded window and knows nothing about plans. Use
-// this instead for anything that spends money.
+// Relationship to rate-limit.ts: everything with a verified user comes here.
+// What remains there is the anonymous path, for callers that cannot present
+// one — today just `infer`, when the MCP arrives with only its shared secret.
 
 import { RateLimitError } from "../ai/errors.ts";
 import { optEnv } from "../env.ts";

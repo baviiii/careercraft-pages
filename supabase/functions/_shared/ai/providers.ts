@@ -1,26 +1,21 @@
-// Provider factory for the Vercel AI SDK.
+// Direct-vendor model access.
 //
-// All edge functions get their model handles from here so swapping providers
-// (Anthropic → Azure-deployed Claude, Foundry serverless, etc.) is a one-line
-// change at the call site. Text generation now routes through the Horus
-// gateway (see ./horus.ts); this file covers the direct-vendor paths that
-// remain (multimodal parsing, embeddings).
+// Text generation goes through the Horus gateway (./horus.ts). What is left
+// here is the one path Horus cannot serve yet: parse-resume's vision call,
+// which needs image inputs that /api/infer does not accept.
+//
+// This file used to offer Anthropic, Foundry and a generic OpenAI-compatible
+// factory as well. Nothing called them once generation moved to Horus, so
+// they were removed rather than left as three untested ways to spend money.
+// Git has them if a second direct-vendor path is ever needed.
 
-import { createAnthropic } from "npm:@ai-sdk/anthropic@1";
 import { createAzure } from "npm:@ai-sdk/azure@1";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@0";
 
 import { ConfigError } from "./errors.ts";
 import { optEnv, reqEnv } from "../env.ts";
 
-// ---------- Anthropic (direct API) ----------
-// Used by: (reserved). Most functions use Horus inference or Azure OpenAI.
-export function getAnthropic() {
-  return createAnthropic({ apiKey: reqEnv("ANTHROPIC_API_KEY") });
-}
-
 // ---------- Azure OpenAI (Foundry-hosted OpenAI models) ----------
-// Used by: parse-resume, rag-query, rag-tag-documents.
+// Used by: parse-resume. (rag-query and rag-tag-documents are long gone.)
 //
 // Two env styles supported:
 //   1. AZURE_OPENAI_RESOURCE_NAME + AZURE_OPENAI_KEY (preferred — SDK builds URL)
@@ -45,25 +40,4 @@ export function getAzure() {
   throw new ConfigError(
     "Azure OpenAI not configured: set AZURE_OPENAI_RESOURCE_NAME or AZURE_OPENAI_ENDPOINT",
   );
-}
-
-// ---------- Azure AI Foundry (serverless non-OpenAI models) ----------
-// For Llama / Mistral / Phi / etc. deployed in Foundry via Models-as-a-Service.
-// Endpoint format: https://<project>.services.ai.azure.com/models
-export function getFoundry() {
-  return createOpenAICompatible({
-    name: "azure-foundry",
-    baseURL: reqEnv("AZURE_FOUNDRY_BASE_URL"),
-    apiKey: reqEnv("AZURE_FOUNDRY_KEY"),
-  });
-}
-
-// ---------- Generic OpenAI-compatible (escape hatch) ----------
-// For ad-hoc OpenAI-compat endpoints (self-hosted, vLLM, Ollama, etc.).
-export function getOpenAICompatible(opts: {
-  name: string;
-  baseURL: string;
-  apiKey: string;
-}) {
-  return createOpenAICompatible(opts);
 }
