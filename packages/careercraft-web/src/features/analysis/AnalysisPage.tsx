@@ -28,6 +28,7 @@ import { WritingQualityPanel } from "./components/WritingQualityPanel";
 import { CreateResumeDialog } from "./dialogs/CreateResumeDialog";
 import { SaveResumeDialog } from "./dialogs/SaveResumeDialog";
 import { useAnalysis } from "./hooks/useAnalysis";
+import { QuotaNotice } from "@/components/craft/QuotaNotice";
 
 export default function AnalysisPage() {
   const a = useAnalysis();
@@ -82,6 +83,15 @@ export default function AnalysisPage() {
             onChangeText={a.setCoverLetterText}
             onClearSelection={() => a.setSelectedCoverLetterId("")}
           />
+
+          {/* Sits directly above the button the user just pressed, so the
+              answer to "why did nothing happen?" is where they are looking.
+              Persistent rather than a toast — this is a state, not an event. */}
+          {a.quotaBlock && (
+            <div className="mt-8">
+              <QuotaNotice details={a.quotaBlock} />
+            </div>
+          )}
 
           <div className="mt-10 flex flex-col items-center text-center">
             <CraftButton

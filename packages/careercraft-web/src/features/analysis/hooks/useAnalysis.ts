@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateCoverLetter } from "@/lib/aiRewriter";
+import { QuotaExceededError, type QuotaDetails } from "@/lib/quota";
 import {
   autoRewriteResume,
   generateAchievements,
@@ -90,6 +91,10 @@ export function useAnalysis() {
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  /* Set when a plan limit refused the request. Held separately from the error
+     toast because it is not a failure — it is a state the user can act on, and
+     it stays on screen instead of disappearing after a few seconds. */
+  const [quotaBlock, setQuotaBlock] = useState<QuotaDetails | null>(null);
 
   /* ── enhancement state ─────────────────────────────── */
   const [activeEnhancement, setActiveEnhancement] = useState<EnhancementType | null>(
@@ -269,6 +274,8 @@ export function useAnalysis() {
     setIsAnalyzing(true);
     sessionStorage.setItem("jobDescription", jobDescription);
 
+    setQuotaBlock(null);
+
     try {
       const result = await runATSAIAnalysis(resumeText, jobDescription);
       setAnalysis(result);
@@ -290,14 +297,21 @@ export function useAnalysis() {
         description: `The reading: ${result.overallScore} / 100.`,
       });
     } catch (error) {
-      toast({
-        title: "Audit failed",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Could not analyse the résumé.",
-        variant: "destructive",
-      });
+      // A spent allowance is not a failure. Show it as its own explanation
+      // rather than a red "Audit failed" toast, which would read as a bug and
+      // send the user looking for something to fix.
+      if (error instanceof QuotaExceededError) {
+        setQuotaBlock(error.details);
+      } else {
+        toast({
+          title: "Audit failed",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not analyse the résumé.",
+          variant: "destructive",
+        });
+      }
       setStep("upload");
     } finally {
       setIsAnalyzing(false);
@@ -829,6 +843,7 @@ export function useAnalysis() {
     isUploading,
     isAnalyzing,
     isReanalyzing,
+    quotaBlock,
     activeEnhancement,
     enhancementResult,
     enhancedResumeData,

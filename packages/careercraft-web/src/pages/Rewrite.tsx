@@ -19,6 +19,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { rewriteBullet } from "@/lib/aiRewriter";
+import { QuotaNotice } from "@/components/craft/QuotaNotice";
+import { QuotaExceededError, type QuotaDetails } from "@/lib/quota";
 
 interface RewriteEntry {
   original: string;
@@ -32,22 +34,31 @@ export default function Rewrite() {
   const [isRewriting, setIsRewriting] = useState(false);
   const [history, setHistory] = useState<RewriteEntry[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [quotaBlock, setQuotaBlock] = useState<QuotaDetails | null>(null);
 
   const handleRewrite = async () => {
     const original = bullet.trim();
     if (!original) return;
     setIsRewriting(true);
+    setQuotaBlock(null);
     try {
       const rewritten = await rewriteBullet(original, jobDescription.trim());
       setHistory((prev) => [{ original, rewritten }, ...prev]);
       setBullet("");
     } catch (error) {
-      console.error("Bullet rewrite failed:", error);
-      toast({
-        title: "Rewrite failed",
-        description: "The AI service didn't respond. Try again in a moment.",
-        variant: "destructive",
-      });
+      // "The AI service didn't respond" is the wrong story for a spent
+      // allowance — the service answered perfectly well. Saying so would send
+      // the user to retry, and retrying cannot work.
+      if (error instanceof QuotaExceededError) {
+        setQuotaBlock(error.details);
+      } else {
+        console.error("Bullet rewrite failed:", error);
+        toast({
+          title: "Rewrite failed",
+          description: "The AI service didn't respond. Try again in a moment.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsRewriting(false);
     }
@@ -111,6 +122,8 @@ export default function Rewrite() {
                 className="bg-white"
               />
             </div>
+
+            {quotaBlock && <QuotaNotice details={quotaBlock} className="mb-2" />}
 
             <CraftButton onClick={handleRewrite} disabled={isRewriting || !bullet.trim()}>
               {isRewriting ? (
