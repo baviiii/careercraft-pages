@@ -136,7 +136,14 @@
       "Bash(az cognitiveservices *)",
       "Bash(nslookup horusdevai56e136.cognitiveservices.azure.com)",
       "Bash(npx -y supabase secrets list)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(gh run *)",
+      "PowerShell(gh run *)",
+      "Bash(git commit *)",
+      "Bash(xargs -0 du -ch)",
+      "Bash(xargs -0 du -h)",
+      "Bash(xargs echo \"staged deletions:\")",
+      "Bash(git fetch *)"
     ],
     "deny": [],
     "ask": []

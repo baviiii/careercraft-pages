@@ -17,6 +17,7 @@ import { z } from "zod";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { sanitizeEmail, sanitize } from "@/lib/security/sanitizers";
 import { detectXSS } from "@/lib/security/xss";
+import { AuthExperience } from "@/components/auth/AuthExperience";
 
 const SESSION_TOKEN_KEY = "horus_session_token";
 const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim();
@@ -408,7 +409,7 @@ const Auth = () => {
   };
 
   /* ─── UI ─── */
-  return (
+  const renderLegacyUi = () => (
     <main className="cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] overflow-x-hidden antialiased">
       <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12">
         {/* LEFT — editorial marquee */}
@@ -792,6 +793,44 @@ const Auth = () => {
         </section>
       </div>
     </main>
+  );
+
+  // Keep the previous composition available while the new reactive auth
+  // experience settles in; it is intentionally not rendered.
+  void renderLegacyUi;
+
+  return (
+    <AuthExperience
+      mode={mode}
+      setMode={switchMode}
+      showForgotPassword={showForgotPassword}
+      setShowForgotPassword={setShowForgotPassword}
+      email={email}
+      setEmail={setEmail}
+      password={password}
+      setPassword={setPassword}
+      fullName={fullName}
+      setFullName={setFullName}
+      resetEmail={resetEmail}
+      setResetEmail={setResetEmail}
+      showPassword={showPassword}
+      setShowPassword={setShowPassword}
+      errors={errors}
+      passwordStrength={passwordStrength}
+      strengthLabel={strengthLabel}
+      isLoading={isLoading}
+      isGoogleLoading={isGoogleLoading}
+      isMicrosoftLoading={isMicrosoftLoading}
+      isResetLoading={isResetLoading}
+      isRateLimited={isRateLimited}
+      rateLimitMessage={rateLimitMessage}
+      onSignIn={handleSignIn}
+      onSignUp={handleSignUp}
+      onForgotPassword={handleForgotPassword}
+      onGoogleAuth={handleGoogleAuth}
+      onMicrosoftAuth={handleMicrosoftAuth}
+      onBackHome={() => navigate("/")}
+    />
   );
 };
 
