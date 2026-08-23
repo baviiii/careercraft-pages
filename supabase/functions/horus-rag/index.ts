@@ -26,6 +26,8 @@
 // Putting the adapter in the frontend instead would smear it across a dozen
 // call sites and make the next backend change a rewrite.
 
+import { z } from "npm:zod@3";
+
 import { handler, json } from "../_shared/http/responses.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
@@ -131,6 +133,46 @@ interface RequestBody {
   filters?: { category?: string; sector?: string; tags?: string[] };
   options?: { topK?: number; systemPrompt?: string };
 }
+
+/**
+ * Runtime counterpart to RequestBody.
+ *
+ * The two must stay in step; the interface alone is erased at compile time and
+ * checks nothing about what actually arrives. Bounds are deliberate — `query`
+ * and `systemPrompt` are forwarded into a model call, and `topK` into a
+ * retrieval fan-out, so all three decide how much a request costs.
+ */
+const RequestSchema = z.object({
+  op: z.enum([
+    "search",
+    "careers-search",
+    "occupation",
+    "sector",
+    "pathway",
+    "skill-gap",
+    "traverse",
+    "entity-lookup",
+    "metadata",
+  ]).optional(),
+  query: z.string().max(8_000).optional(),
+  name: z.string().max(300).optional(),
+  from: z.string().max(300).optional(),
+  to: z.string().max(300).optional(),
+  target: z.string().max(300).optional(),
+  have: z.array(z.string().max(200)).max(200).optional(),
+  entity: z.string().max(300).optional(),
+  depth: z.number().int().min(1).max(5).optional(),
+  operation: z.enum(["stats", "documents", "categories"]).optional(),
+  filters: z.object({
+    category: z.string().max(120).optional(),
+    sector: z.string().max(120).optional(),
+    tags: z.array(z.string().max(120)).max(50).optional(),
+  }).optional(),
+  options: z.object({
+    topK: z.number().int().min(1).max(50).optional(),
+    systemPrompt: z.string().max(8_000).optional(),
+  }).optional(),
+});
 
 /** Categories Horus's careers endpoints accept; anything else is dropped. */
 const CAREERS_CATEGORIES = new Set([
@@ -309,12 +351,19 @@ Deno.serve(
       // process. An unauthenticated caller gets nothing.
       const { userId } = await requireUser(req);
 
-      let body: RequestBody;
-      try {
-        body = (await req.json()) as RequestBody;
-      } catch {
-        return json({ error: "Invalid JSON body" }, 400);
+      // `as RequestBody` was a promise to the compiler, not a check — the
+      // fields arrived unexamined. That matters here because `query` reaches a
+      // model: an oversized or wrong-typed value became a billed call that
+      // failed downstream instead of a cheap 400.
+      const rawBody = await req.json().catch(() => null);
+      const parsedBody = RequestSchema.safeParse(rawBody);
+      if (!parsedBody.success) {
+        return json(
+          { error: "Invalid request body", details: parsedBody.error.flatten() },
+          400,
+        );
       }
+      const body: RequestBody = parsedBody.data;
 
       const op: Op = body.op ?? "search";
 

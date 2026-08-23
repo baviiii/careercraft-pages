@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { detectRemote, normalizeJobType, stripHtml } from "./normalize.ts";
+import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,6 +107,43 @@ serve(async (req) => {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Admin only.
+    //
+    // This writes to jobs_catalog, which is shared by everyone, and each call
+    // spends Adzuna API quota. Being merely signed in is not a meaningful bar:
+    // registering takes seconds, so "any authenticated user" and "anyone" are
+    // the same set in practice. Nothing in the app calls this — it is an
+    // operator tool, so it takes an operator's credentials.
+    //
+    // If this is ever scheduled, follow news-refresh.yml and send the service
+    // role key as the bearer rather than relaxing this check.
+    const { data: isAdmin, error: adminError } = await authClient.rpc("is_admin", {
+      p_user_id: user.id,
+    });
+    if (adminError || isAdmin !== true) {
+      return new Response(JSON.stringify({ error: "Admin role required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Metered even for admins, so a stuck script cannot loop through the
+    // Adzuna allowance unnoticed.
+    try {
+      await enforceAnonymousWindowLimit({
+        resource: "job-ingest-adzuna",
+        principal: `user:${user.id}`,
+        limit: 20,
+        windowMinutes: 60,
+        resourceLabel: "job ingestion",
+      });
+    } catch (err) {
+      return new Response(
+        JSON.stringify({ error: (err as Error).message ?? "Rate limit reached" }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const body = await req.json().catch(() => ({}));

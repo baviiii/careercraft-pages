@@ -3,10 +3,46 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
 import { horusGenerateObject } from "../_shared/ai/horus.ts";
+import { AppError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota } from "../_shared/ai/meter.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler } from "../_shared/http/responses.ts";
+
+/**
+ * The request body.
+ *
+ * `action` is an enum rather than a free string so an unknown value is a 400
+ * here instead of falling through the dispatch below to an "Invalid action"
+ * response. Lengths are capped because these values are interpolated into
+ * upstream API URLs and, for the trends branch, into a model prompt.
+ */
+const RequestSchema = z.object({
+  action: z.enum([
+    "analyze_trends",
+    "fetch_au_jobs",
+    "fetch_insights",
+    "fetch_jobs",
+    "fetch_news",
+    "fetch_news_legacy",
+    "fetch_trends",
+    "get_categories",
+    "get_salary_data",
+    "prefetch_news",
+  ]),
+  query: z.string().max(20_000).optional(),
+  country: z.string().max(60).optional(),
+  industry: z.string().max(120).optional(),
+  category: z.string().max(120).optional(),
+  page: z.number().int().min(0).max(1000).optional(),
+  location: z.string().max(200).optional(),
+  jobType: z.string().max(60).optional(),
+  experienceLevel: z.string().max(60).optional(),
+  timeFilter: z.string().max(60).optional(),
+  startDate: z.string().max(40).optional(),
+  endDate: z.string().max(40).optional(),
+  pageNumber: z.number().int().min(0).max(1000).optional(),
+}).passthrough();
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -82,7 +118,12 @@ serve(handler(async (req) => {
   });
 
   try {
-    const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber } = await req.json();
+    const rawBody = await req.json().catch(() => null);
+    const parsedBody = RequestSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      throw new ValidationError("Invalid request body", parsedBody.error.flatten());
+    }
+    const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber } = parsedBody.data;
     const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
     const ADZUNA_APP_KEY = Deno.env.get("ADZUNA_APP_KEY");
     const JSEARCH_API_KEY = Deno.env.get("JSEARCH_API_KEY");
@@ -1324,9 +1365,16 @@ Return a JSON object with this structure:
     });
 
   } catch (error) {
+    // Typed errors already carry the right status — a bad request body is the
+    // caller's 400, and a spent quota is a 429. Catching everything here and
+    // answering 500 would relabel both as a server fault, telling the caller to
+    // retry something that will never succeed. Re-throw and let handler() map
+    // them; only genuinely unexpected failures fall through to the 500.
+    if (error instanceof AppError) throw error;
+
     console.error("Job news error:", error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : "Unknown error" 
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : "Unknown error"
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
