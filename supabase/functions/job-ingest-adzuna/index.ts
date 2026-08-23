@@ -109,35 +109,21 @@ serve(async (req) => {
       });
     }
 
-    // Admin only.
+    // Any signed-in user. This is a user-facing feature — the job tracker and
+    // the dispatch feed both call it — not an operator tool.
     //
-    // This writes to jobs_catalog, which is shared by everyone, and each call
-    // spends Adzuna API quota. Being merely signed in is not a meaningful bar:
-    // registering takes seconds, so "any authenticated user" and "anyone" are
-    // the same set in practice. Nothing in the app calls this — it is an
-    // operator tool, so it takes an operator's credentials.
-    //
-    // If this is ever scheduled, follow news-refresh.yml and send the service
-    // role key as the bearer rather than relaxing this check.
-    const { data: isAdmin, error: adminError } = await authClient.rpc("is_admin", {
-      p_user_id: user.id,
-    });
-    if (adminError || isAdmin !== true) {
-      return new Response(JSON.stringify({ error: "Admin role required" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Metered even for admins, so a stuck script cannot loop through the
-    // Adzuna allowance unnoticed.
+    // The cost is bounded by the rate limit below rather than by who the caller
+    // is. Only `ingest` spends anything: `list` reads jobs_catalog and
+    // `save_to_tracker` writes the user's own tracker, both free. A per-action
+    // split (generous for the free two, tight for `ingest`) is the obvious next
+    // step, and a global daily ceiling after that.
     try {
       await enforceAnonymousWindowLimit({
         resource: "job-ingest-adzuna",
         principal: `user:${user.id}`,
-        limit: 20,
+        limit: 60,
         windowMinutes: 60,
-        resourceLabel: "job ingestion",
+        resourceLabel: "job search",
       });
     } catch (err) {
       return new Response(
