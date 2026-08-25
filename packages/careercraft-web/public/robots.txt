@@ -1,14 +1,101 @@
+# CareerCraft — crawler policy
+#
+# Search engines and link previews: welcome, we want to be found and shared.
+# AI training crawlers: not welcome, they take the content and give nothing back.
+#
+# This is a request, not a lock — a crawler that ignores robots.txt is not
+# stopped by it. It works on the ones that behave, which is most of them.
+
+# ── Search engines: allowed ────────────────────────────────────────────────
 User-agent: Googlebot
 Allow: /
 
 User-agent: Bingbot
 Allow: /
 
+User-agent: DuckDuckBot
+Allow: /
+
+# ── Link previews: allowed ─────────────────────────────────────────────────
+# These fetch the page to build the card shown when someone shares a link.
+# Blocking them would make every shared link look broken.
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
 Allow: /
 
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: Slackbot-LinkExpanding
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+# ── AI training crawlers: blocked ──────────────────────────────────────────
+# Google-Extended and Applebot-Extended control AI training ONLY. They do not
+# affect Google Search or Siri results — blocking them costs no ranking.
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: Diffbot
+Disallow: /
+
+User-agent: Omgilibot
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: Timpibot
+Disallow: /
+
+User-agent: YouBot
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+# ── Everyone else ──────────────────────────────────────────────────────────
+# Left open on purpose. The app itself is behind a login and the API is behind
+# auth and per-user quotas, so what a crawler can reach is the marketing page.
 User-agent: *
 Allow: /
