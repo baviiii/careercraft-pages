@@ -65,10 +65,18 @@ const MeadowInterlude = memo(() => {
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const mScale = reduced ? 0.6 : 1; // ease motion for reduced-motion, never freeze
+    // Phones: address-bar resize + bloom + 22k blades is what makes the field strobe.
+    const mobile =
+      window.matchMedia("(pointer: coarse)").matches ||
+      window.matchMedia("(max-width: 767px)").matches;
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer = new THREE.WebGLRenderer({
+        antialias: !mobile,
+        alpha: false,
+        powerPreference: mobile ? "low-power" : "high-performance",
+      });
       if (!renderer.getContext()) throw new Error("no gl");
     } catch {
       setFailed(true);
@@ -77,13 +85,15 @@ const MeadowInterlude = memo(() => {
 
     const width = host.clientWidth || window.innerWidth;
     const height = host.clientHeight || 600;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    renderer.setSize(width, height);
-    renderer.setClearColor(0x000000, 0);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? 1 : 1.5));
+    renderer.setSize(width, height, false);
+    renderer.setClearColor(0xe7d6ad, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NoToneMapping; // keep the authored warm colours punchy
-    host.appendChild(renderer.domElement);
     renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
     const HORIZON = new THREE.Color("#e7d6ad");
@@ -147,7 +157,7 @@ const MeadowInterlude = memo(() => {
     }
 
     /* ── Rolling hills + winding path ─────────────────────────────────────── */
-    const hillGeo = new THREE.PlaneGeometry(460, 460, 200, 200);
+    const hillGeo = new THREE.PlaneGeometry(460, 460, mobile ? 80 : 200, mobile ? 80 : 200);
     hillGeo.rotateX(-Math.PI / 2);
     const pos = hillGeo.attributes.position as THREE.BufferAttribute;
     const hcol = new Float32Array(pos.count * 3);
@@ -172,7 +182,7 @@ const MeadowInterlude = memo(() => {
     scene.add(hills);
 
     /* ── Grass — instanced, wind waves + cursor interaction ───────────────── */
-    const COUNT = 22000;
+    const COUNT = mobile ? 7000 : 22000;
     let grass: THREE.InstancedMesh | null = null;
     let grassShader: THREE.WebGLProgramParametersWithUniforms | null = null;
     {
@@ -251,7 +261,7 @@ const MeadowInterlude = memo(() => {
 
     /* ── Wildflowers — dots of brand colour scattered through the field ───── */
     {
-      const N = 620;
+      const N = mobile ? 220 : 620;
       const fg = new THREE.BufferGeometry();
       const fp = new Float32Array(N * 3);
       const fc = new Float32Array(N * 3);
@@ -274,7 +284,7 @@ const MeadowInterlude = memo(() => {
     }
 
     /* ── Fireflies / glowing pollen (bloom makes them shine) ──────────────── */
-    const MOTE = 260;
+    const MOTE = mobile ? 80 : 260;
     const moteData: { x: number; y: number; z: number; sp: number; sw: number; ph: number }[] = [];
     const mg = new THREE.BufferGeometry();
     const mp = new Float32Array(MOTE * 3);
@@ -289,12 +299,16 @@ const MeadowInterlude = memo(() => {
     const motes = new THREE.Points(mg, new THREE.PointsMaterial({ size: 0.9, map: softDisc(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color("#fff0c0"), opacity: 0.95, sizeAttenuation: true, fog: false }));
     scene.add(motes);
 
-    /* ── Post-processing: cinematic bloom ─────────────────────────────────── */
-    const composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
-    const bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 0.34, 0.5, 0.9);
-    composer.addPass(bloom);
-    composer.addPass(new OutputPass());
+    /* ── Post-processing: cinematic bloom (desktop only — strobes on phones) */
+    let composer: EffectComposer | null = null;
+    let bloom: UnrealBloomPass | null = null;
+    if (!mobile) {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      bloom = new UnrealBloomPass(new THREE.Vector2(width, height), 0.34, 0.5, 0.9);
+      composer.addPass(bloom);
+      composer.addPass(new OutputPass());
+    }
 
     /* ── Interaction ──────────────────────────────────────────────────────── */
     const target = new THREE.Vector2(0, 0);
@@ -304,6 +318,7 @@ const MeadowInterlude = memo(() => {
     const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const mouseWorld = new THREE.Vector3(9999, 0, 9999);
     const onMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
       const r = host.getBoundingClientRect();
       const nx = (e.clientX - r.left) / r.width;
       const ny = (e.clientY - r.top) / r.height;
@@ -313,8 +328,10 @@ const MeadowInterlude = memo(() => {
       ray.ray.intersectPlane(ground, mouseWorld);
     };
     const onLeave = () => { mouseWorld.set(9999, 0, 9999); };
-    host.addEventListener("pointermove", onMove);
-    host.addEventListener("pointerleave", onLeave);
+    if (!mobile) {
+      host.addEventListener("pointermove", onMove);
+      host.addEventListener("pointerleave", onLeave);
+    }
 
     const clock = new THREE.Clock();
     let raf = 0;
@@ -348,7 +365,8 @@ const MeadowInterlude = memo(() => {
         if (c.position.x > 200) c.position.x = -200;
       }
 
-      composer.render();
+      if (composer) composer.render();
+      else renderer.render(scene, camera);
     };
 
     const loop = () => {
@@ -357,19 +375,38 @@ const MeadowInterlude = memo(() => {
     };
     raf = requestAnimationFrame(loop);
 
-    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }, { threshold: 0.02 });
+    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; }, {
+      rootMargin: "200px 0px",
+      threshold: 0,
+    });
     io.observe(host);
 
+    let lastW = width;
+    let lastH = height;
     const onResize = () => {
       const w = host.clientWidth || window.innerWidth;
       const h = host.clientHeight || 600;
-      renderer.setSize(w, h);
-      composer.setSize(w, h);
-      bloom.setSize(w, h);
+      // Mobile chrome show/hide jitters height by ~50–120px. Rebuilding the
+      // WebGL buffer on every tick is the flicker. Ignore those, keep CSS fill.
+      if (Math.abs(w - lastW) < 2 && Math.abs(h - lastH) < (mobile ? 140 : 2)) return;
+      lastW = w;
+      lastH = h;
+      renderer.setSize(w, h, false);
+      renderer.domElement.style.width = "100%";
+      renderer.domElement.style.height = "100%";
+      composer?.setSize(w, h);
+      bloom?.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
     };
     window.addEventListener("resize", onResize);
+
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      visible = false;
+      cancelAnimationFrame(raf);
+    };
+    renderer.domElement.addEventListener("webglcontextlost", onContextLost);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -377,7 +414,8 @@ const MeadowInterlude = memo(() => {
       window.removeEventListener("resize", onResize);
       host.removeEventListener("pointermove", onMove);
       host.removeEventListener("pointerleave", onLeave);
-      composer.dispose();
+      renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
+      composer?.dispose();
       scene.traverse((o) => {
         const m = o as THREE.Mesh;
         if (m.geometry) m.geometry.dispose();
@@ -391,7 +429,11 @@ const MeadowInterlude = memo(() => {
   }, []);
 
   return (
-    <section id="meadow" className="relative w-full overflow-hidden" style={{ height: "min(92vh, 900px)", minHeight: 560 }}>
+    <section
+      id="meadow"
+      className="relative w-full overflow-hidden"
+      style={{ height: "min(92svh, 900px)", minHeight: 560 }}
+    >
       <div ref={hostRef} className="absolute inset-0" aria-hidden="true" />
 
       {failed && (
@@ -410,7 +452,6 @@ const MeadowInterlude = memo(() => {
         <p className="mx-auto mt-5 max-w-xl cc-font-editorial text-lg md:text-xl text-[color:var(--cc-ink-soft)]">
           Every search, every draft, every signal — quietly composing the ground ahead.
         </p>
-        <p className="mt-6 cc-label-sm text-[color:var(--cc-ash)]">Move your cursor through the grass</p>
       </div>
     </section>
   );

@@ -9,6 +9,7 @@ import {
   EyeOff,
   Loader2,
 } from "lucide-react";
+import { AuthHorizon } from "@/components/auth/AuthHorizon";
 
 export type AuthMode = "signin" | "signup";
 
@@ -51,11 +52,6 @@ interface AuthExperienceProps {
 }
 
 type FocusedField = "idle" | "name" | "email" | "password";
-
-const HERO_VIDEO =
-  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_170732_8a9ccda6-5cff-4628-b164-059c500a2b41.mp4";
-const SECOND_SCENE_IMAGE =
-  "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=2200&q=88";
 
 const GoogleMark = () => (
   <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
@@ -235,7 +231,11 @@ export const AuthExperience = ({
   return (
     <main className="cc-root min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased">
       <div className="grid min-h-screen lg:grid-cols-[minmax(420px,0.88fr)_minmax(560px,1.12fr)]">
-        <section className="relative z-20 flex min-h-screen flex-col bg-[rgba(247,247,244,0.97)] px-6 py-7 md:px-12 lg:px-16">
+        <div className="relative h-[34svh] min-h-[200px] overflow-hidden lg:hidden">
+          <AuthHorizon shift={focusedField} compact />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-[color:var(--cc-cream)]" />
+        </div>
+        <section className="relative z-20 flex min-h-0 flex-1 flex-col bg-[rgba(247,247,244,0.97)] px-6 py-7 md:px-12 lg:min-h-screen lg:px-16">
           <div className="flex items-center justify-between">
             <button onClick={onBackHome} className="inline-flex items-center gap-2 cc-label-sm cc-link">
               <ArrowLeft className="h-4 w-4" /> Home
@@ -471,62 +471,20 @@ export const AuthExperience = ({
           </div>
         </section>
 
-        <aside className="relative hidden min-h-screen overflow-hidden bg-[color:var(--cc-ink)] lg:block">
-          <AnimatePresence initial={false} mode="sync">
-            {mode === "signin" && !showForgotPassword ? (
-              <motion.video
-                key="returning-video"
-                autoPlay
-                muted
-                loop
-                playsInline
-                src={HERO_VIDEO}
-                initial={{ opacity: 0, scale: 1.08 }}
-                animate={{
-                  opacity: 1,
-                  scale: focusedField === "password" ? 1.1 : 1.04,
-                  x: focusedField === "email" ? -16 : 0,
-                }}
-                exit={{ opacity: 0, scale: 1.12 }}
-                transition={{ duration: 1.15, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : (
-              <motion.img
-                key="new-beginning-image"
-                src={SECOND_SCENE_IMAGE}
-                alt=""
-                initial={{ opacity: 0, scale: 1.16, x: 24 }}
-                animate={{
-                  opacity: 1,
-                  scale: [1.12, 1.04, 1.1],
-                  x: focusedField === "name" ? -22 : focusedField === "password" ? 18 : 0,
-                  y: focusedField === "email" ? -12 : 0,
-                }}
-                exit={{ opacity: 0, scale: 1.18 }}
-                transition={{
-                  opacity: { duration: 1.1 },
-                  x: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
-                  y: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
-                  scale: { duration: 18, repeat: Infinity, ease: "easeInOut" },
-                }}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            )}
-          </AnimatePresence>
+        <aside className="relative hidden min-h-screen overflow-hidden bg-[#6ea8d4] lg:block">
+          <AuthHorizon shift={focusedField} />
           <motion.div
             className="absolute inset-0"
             animate={{
               background:
                 scene.accent === "password"
-                  ? "linear-gradient(150deg,rgba(14,12,10,.3),rgba(42,82,204,.22) 55%,rgba(14,12,10,.82))"
+                  ? "linear-gradient(160deg,rgba(14,12,10,.08),rgba(42,82,204,.16) 48%,rgba(14,12,10,.62))"
                   : scene.accent === "success"
-                    ? "linear-gradient(150deg,rgba(47,91,68,.18),rgba(14,12,10,.22) 52%,rgba(14,12,10,.82))"
-                    : "linear-gradient(150deg,rgba(14,12,10,.22),rgba(14,12,10,.08) 45%,rgba(14,12,10,.84))",
+                    ? "linear-gradient(160deg,rgba(47,91,68,.10),rgba(14,12,10,.12) 48%,rgba(14,12,10,.58))"
+                    : "linear-gradient(160deg,rgba(14,12,10,.04),rgba(14,12,10,.02) 42%,rgba(14,12,10,.58))",
             }}
             transition={{ duration: 0.8 }}
           />
-          <div className="cc-grain absolute inset-0 opacity-30 mix-blend-overlay" />
 
           <div className="relative z-10 flex h-full flex-col justify-between p-10 xl:p-14">
             <div className="flex items-center justify-between text-[#E1E0CC]">

@@ -137,6 +137,115 @@
 @keyframes cc-blink { 0%, 65% { opacity: 1; } 75%, 100% { opacity: 0.2; } }
 .cc-blink { animation: cc-blink 1.8s steps(2, end) infinite; }
 
+/* Auth horizon — living still, GPU-only transforms */
+@keyframes auth-horizon-ken {
+  0% { transform: scale(1) translate3d(0, 0, 0); }
+  40% { transform: scale(1.07) translate3d(-2.2%, -1.1%, 0); }
+  70% { transform: scale(1.04) translate3d(1.4%, -0.4%, 0); }
+  100% { transform: scale(1) translate3d(0, 0, 0); }
+}
+@keyframes auth-horizon-ray {
+  0%, 100% { opacity: 0.18; transform: rotate(var(--ray-rot)) translate3d(0, 0, 0); }
+  50% { opacity: 0.38; transform: rotate(calc(var(--ray-rot) + 1.4deg)) translate3d(2%, 0, 0); }
+}
+@keyframes auth-horizon-drift {
+  from { transform: translate3d(-6%, 0, 0); }
+  to { transform: translate3d(10%, 0, 0); }
+}
+@keyframes auth-horizon-shimmer {
+  from { transform: translate3d(-12%, 0, 0); }
+  to { transform: translate3d(14%, 0, 0); }
+}
+
+.auth-horizon-still {
+  animation: auth-horizon-ken 14s ease-in-out infinite;
+  will-change: transform;
+}
+.auth-horizon-still--quiet {
+  animation-duration: 20s;
+}
+
+@keyframes auth-horizon-blade {
+  0%, 100% { transform: rotate(-8deg) scaleY(1); }
+  50% { transform: rotate(11deg) scaleY(1.04); }
+}
+.auth-horizon-grass {
+  pointer-events: none;
+  position: absolute;
+  inset: auto 0 0;
+  height: 22%;
+  overflow: hidden;
+}
+.auth-horizon-grass span {
+  position: absolute;
+  bottom: -6%;
+  width: 7px;
+  height: 92%;
+  transform-origin: 50% 100%;
+  background: linear-gradient(180deg, #c6de6a 0%, #3f6a18 78%);
+  border-radius: 8px 8px 2px 2px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  animation: auth-horizon-blade 2.4s ease-in-out infinite;
+  opacity: 0.88;
+}
+.auth-horizon-grass span:nth-child(odd) { height: 78%; width: 5px; opacity: 0.7; animation-duration: 2.9s; }
+.auth-horizon-grass span:nth-child(3n) { height: 100%; width: 8px; animation-duration: 2.1s; }
+
+.auth-horizon-rays {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mix-blend-mode: screen;
+}
+.auth-horizon-rays span {
+  position: absolute;
+  top: -20%;
+  right: 4%;
+  width: 18%;
+  height: 140%;
+  transform-origin: top right;
+  background: linear-gradient(180deg, rgba(255, 244, 210, 0.55) 0%, rgba(255, 244, 210, 0) 72%);
+  filter: blur(10px);
+  animation: auth-horizon-ray 9s ease-in-out infinite;
+}
+.auth-horizon-rays span:nth-child(1) { --ray-rot: 16deg; right: 2%; width: 22%; }
+.auth-horizon-rays span:nth-child(2) { --ray-rot: 22deg; right: 14%; width: 14%; animation-delay: -3s; opacity: 0.2; }
+.auth-horizon-rays span:nth-child(3) { --ray-rot: 11deg; right: 22%; width: 10%; animation-delay: -6s; }
+
+.auth-horizon-cloud {
+  pointer-events: none;
+  position: absolute;
+  left: -15%;
+  width: 130%;
+  height: 34%;
+  background:
+    radial-gradient(ellipse 42% 55% at 22% 60%, rgba(255, 255, 255, 0.42), transparent 70%),
+    radial-gradient(ellipse 36% 50% at 58% 40%, rgba(255, 255, 255, 0.32), transparent 68%),
+    radial-gradient(ellipse 28% 46% at 84% 70%, rgba(255, 255, 255, 0.28), transparent 70%);
+  animation: auth-horizon-drift 48s linear infinite alternate;
+}
+.auth-horizon-cloud--far { top: 4%; opacity: 0.7; }
+.auth-horizon-cloud--near {
+  top: 14%;
+  height: 28%;
+  opacity: 0.45;
+  animation-duration: 64s;
+  animation-direction: alternate-reverse;
+}
+
+.auth-horizon-water {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  top: 48%;
+  width: 58%;
+  height: 22%;
+  background: linear-gradient(90deg, transparent, rgba(210, 238, 255, 0.28), transparent);
+  mix-blend-mode: soft-light;
+  animation: auth-horizon-shimmer 11s ease-in-out infinite alternate;
+}
+
 /* Editorial diff marks — used by the Exhibit */
 .cc-strike {
   text-decoration: line-through;
@@ -1544,6 +1653,11 @@
   .con-rise { animation: none !important; }
   .con-btn { transition: none !important; }
   .cc-blink,
+  .auth-horizon-still,
+  .auth-horizon-rays span,
+  .auth-horizon-cloud,
+  .auth-horizon-water,
+  .auth-horizon-grass span,
   .cc-engrave-anim path,
   .cc-engrave-anim circle,
   .cc-engrave-anim line,
