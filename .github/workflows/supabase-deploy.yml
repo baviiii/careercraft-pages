@@ -1,75 +1,159 @@
-name: Deploy Supabase Edge Functions
+name: Deploy Supabase
+
+# Edge functions deploy automatically. Migrations do not — they wait for a manual
+# approval, because `db push` runs whatever SQL you wrote and some of that SQL is
+# `DROP TABLE ... CASCADE` (see 20260903000000_retire_jobs_catalog.sql).
+#
+# ONE-TIME SETUP for the approval gate:
+#   Settings → Environments → New environment → name it exactly: production-db
+#   → tick "Required reviewers" → add yourself → Save.
+# Without that environment the migrations job runs unGATED, so do this first.
 
 on:
   push:
     branches:
       - main
-      - master
     paths:
-      - 'supabase/functions/**'
+      - 'supabase/**'
       - '.github/workflows/supabase-deploy.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
   workflow_dispatch:
 
 jobs:
-  deploy-functions:
-    name: Deploy Edge Functions
+  # ---------------------------------------------------------------------------
+  # PRs: show which migrations *would* run. Touches nothing.
+  # ---------------------------------------------------------------------------
+  preview-migrations:
+    name: Preview migrations (dry run)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
-      - name: Verify Supabase project
-        run: |
-          if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
-            echo "⚠️  WARNING: SUPABASE_ACCESS_TOKEN not set"
-            echo "Edge functions will not be deployed automatically"
-            echo "Please deploy manually using: supabase functions deploy"
-            exit 0
-          fi
-          echo "✅ Supabase access token found"
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF"
 
-      - name: Login to Supabase
-        if: env.SUPABASE_ACCESS_TOKEN != ''
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase login --token $SUPABASE_ACCESS_TOKEN
-
-      - name: Link Supabase project
-        if: env.SUPABASE_ACCESS_TOKEN != ''
-        env:
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || 'hfchxjytxhsiuwqaugmv' }}
+      - name: Dry run
         run: |
-          # Link tells Supabase CLI which remote project to deploy to
-          # Your project ID from config.toml is: hfchxjytxhsiuwqaugmv
-          # This connects your local code to the remote Supabase project
-          PROJECT_REF=${SUPABASE_PROJECT_ID:-hfchxjytxhsiuwqaugmv}
-          echo "Linking to Supabase project: $PROJECT_REF"
-          supabase link --project-ref $PROJECT_REF || echo "⚠️  Link failed - may need to link manually"
+          echo "## 🔍 Migrations this PR would apply" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          supabase db push --linked --dry-run 2>&1 | tee -a $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Deploy Edge Functions
-        if: env.SUPABASE_ACCESS_TOKEN != ''
+  # ---------------------------------------------------------------------------
+  # Edge functions: safe to automate. A bad deploy is fixed by redeploying.
+  # ---------------------------------------------------------------------------
+  functions:
+    name: Deploy edge functions
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require credentials
         run: |
-          echo "Deploying all Edge Functions..."
-          # Deploy each function individually for better error handling
-          for func in supabase/functions/*/; do
-            func_name=$(basename "$func")
-            if [ -f "$func/index.ts" ] || [ -f "$func/index.js" ]; then
-              echo "Deploying $func_name..."
-              supabase functions deploy "$func_name" || echo "⚠️  Failed to deploy $func_name"
+          missing=0
+          for var in SUPABASE_ACCESS_TOKEN PROJECT_REF; do
+            if [ -z "${!var}" ]; then
+              echo "❌ Missing repository secret: $var"
+              missing=1
             fi
           done
+          [ "$missing" = "1" ] && { echo "Add under Settings → Secrets and variables → Actions."; exit 1; }
+          echo "✅ Credentials present"
 
-      - name: Deployment Summary
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Deploy
         run: |
-          echo "## 🔧 Supabase Edge Functions" >> $GITHUB_STEP_SUMMARY
-          if [ -z "${{ secrets.SUPABASE_ACCESS_TOKEN }}" ]; then
-            echo "⚠️  Automatic deployment skipped (no access token)" >> $GITHUB_STEP_SUMMARY
-            echo "Deploy manually using: \`supabase functions deploy\`" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ✅ Edge functions deployment completed" >> $GITHUB_STEP_SUMMARY
+          failed=""
+          for func in supabase/functions/*/; do
+            func_name=$(basename "$func")
+            # Directories without an entrypoint (e.g. _shared) are libraries, not functions.
+            if [ -f "$func/index.ts" ] || [ -f "$func/index.js" ]; then
+              echo "→ Deploying $func_name"
+              if ! supabase functions deploy "$func_name"; then
+                failed="$failed $func_name"
+              fi
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "❌ Failed to deploy:$failed"
+            exit 1
           fi
+          echo "✅ All edge functions deployed"
+
+  # ---------------------------------------------------------------------------
+  # Migrations: gated. `environment:` is what makes this pause for approval.
+  # ---------------------------------------------------------------------------
+  migrations:
+    name: Apply migrations (needs approval)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production-db
+    # Never let two migration runs race each other. Queue, don't cancel.
+    concurrency:
+      group: supabase-migrations
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require credentials
+        run: |
+          missing=0
+          for var in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD PROJECT_REF; do
+            if [ -z "${!var}" ]; then
+              echo "❌ Missing repository secret: $var"
+              missing=1
+            fi
+          done
+          [ "$missing" = "1" ] && { echo "Add under Settings → Secrets and variables → Actions."; exit 1; }
+          echo "✅ Credentials present"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      # Last look before anything is written.
+      - name: Show what will be applied
+        run: supabase db push --linked --dry-run
+
+      - name: Apply migrations
+        run: supabase db push --linked
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 🗄️ Migrations" >> $GITHUB_STEP_SUMMARY
+          echo "- Project: \`$PROJECT_REF\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Result: **${{ job.status }}**" >> $GITHUB_STEP_SUMMARY
