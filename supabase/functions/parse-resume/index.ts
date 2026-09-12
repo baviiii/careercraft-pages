@@ -264,7 +264,7 @@ serve(handler(async (req) => {
   const quota = await enforcePlanQuota({
     userId: ctx.userId,
     resource: 'parse-resume',
-    resourceLabel: 'resume parsing',
+    resourceLabel: 'resume parsing',
   });
   const meter = meterFromQuota(quota, ctx.userId);
 

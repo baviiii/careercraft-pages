@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — logged-in app layout.
+   Faircopy — logged-in app layout.
    Cream ground, grain, editorial sidebar, sticky top bar.
    Wrap any toolkit page that wants the dashboard feel.
    ─────────────────────────────────────────────────────────── */

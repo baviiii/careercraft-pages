@@ -224,14 +224,24 @@ export function useDispatchFeed() {
   }, []);
 
   /**
-   * Roles, widening on empty — the same ladder the job tracker uses. Adzuna
-   * resolves small suburbs poorly, and the local catalog may hold nothing for
-   * this role at all, so the last rung pulls fresh from the market.
+   * Roles for the home feed, widening once on empty.
+   *
+   * This used to be a three-rung ladder — local catalog, broader catalog, then
+   * a once-per-session ingest — because the first two rungs read a cache that
+   * was usually cold or stale. Searching the board directly makes the first
+   * rung the real answer, so only the widening remains: Adzuna resolves small
+   * suburbs poorly and answers 200 with nothing rather than erroring, which
+   * looks identical to "there is no work here".
    */
   const loadRoles = useCallback(async (): Promise<JobCatalogJob[] | null> => {
-    const list = async (query?: string, location?: string) => {
-      const { data, error: fnError } = await supabase.functions.invoke("job-ingest-adzuna", {
-        body: { action: "list", query: query || undefined, location: location || undefined, limit: 12, offset: 0 },
+    const search = async (query?: string, location?: string) => {
+      const { data, error: fnError } = await supabase.functions.invoke("job-search", {
+        body: {
+          action: "search",
+          query: query || undefined,
+          location: location || undefined,
+          limit: 12,
+        },
       });
       if (fnError) return null;
       return (data?.jobs || []) as JobCatalogJob[];
@@ -239,26 +249,13 @@ export function useDispatchFeed() {
 
     const query = primaryRole ? searchable(primaryRole) : "";
 
-    const scoped = await list(query, primaryLocation);
+    const scoped = await search(query, primaryLocation);
     if (scoped === null) return null;
     if (scoped.length > 0) return scoped;
 
     if (query && primaryLocation) {
-      const roleOnly = await list(query, "");
+      const roleOnly = await search(query, "");
       if (roleOnly?.length) return roleOnly;
-    }
-
-    // Last resort, once per session: ask the market directly. This is a write,
-    // so it must not run on every Home visit.
-    if (query && !didIngest.current) {
-      didIngest.current = true;
-      const { error: ingestError } = await supabase.functions.invoke("job-ingest-adzuna", {
-        body: { action: "ingest", query, page: 1, resultsPerPage: 20 },
-      });
-      if (!ingestError) {
-        const afterIngest = await list(query, "");
-        if (afterIngest?.length) return afterIngest;
-      }
     }
 
     return [];
@@ -285,7 +282,6 @@ export function useDispatchFeed() {
   }, [loadArticles, loadRoles]);
 
   const didInit = useRef(false);
-  const didIngest = useRef(false);
   useEffect(() => {
     if (didInit.current) return;
     if (perso.loading) return;

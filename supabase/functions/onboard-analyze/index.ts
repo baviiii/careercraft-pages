@@ -93,6 +93,16 @@ const TargetsSchema = z.object({
   desired_salary_max: nullableNumber,
   desired_salary_currency: looseStr,
   job_change_timeline: looseStr,
+  /**
+   * How employers advertise this person's role, in their words.
+   *
+   * Job boards match on keywords, so a target title only finds the phrasing the
+   * user happened to type — "ICU Nurse" misses "Critical Care Registered
+   * Nurse", and "React Developer" misses "Frontend Engineer". Generating the
+   * alternates here means it happens once, during an analysis we already pay
+   * for, instead of on every search.
+   */
+  search_terms: strArray,
 });
 
 const JobPreferencesSchema = z.object({
@@ -197,7 +207,7 @@ async function runAnalysis(userMessage: string, meter: MeterContext) {
   return { analysis: toClientAnalysis(object), usage, modelId };
 }
 
-const SYSTEM_PROMPT = `You are CareerCraft's onboarding analyst. Read either a free-text self-description, a parsed resume, or both, and produce a COMPLETE, properly categorised profile: who this person is, where they are in their career, what they're targeting, and the standards their CV should follow. Your output is written directly into their profile settings, so every field you can justify from the input MUST be filled — a missed field is a broken profile page.
+const SYSTEM_PROMPT = `You are Faircopy's onboarding analyst. Read either a free-text self-description, a parsed resume, or both, and produce a COMPLETE, properly categorised profile: who this person is, where they are in their career, what they're targeting, and the standards their CV should follow. Your output is written directly into their profile settings, so every field you can justify from the input MUST be filled — a missed field is a broken profile page.
 
 CANONICAL VOCABULARY — these fields are dropdowns in the product. You MUST use these EXACT strings (case-sensitive). Pick the closest match; never output variants like "Tech", "Junior", "7 years" or "Employed".
 - inferredProfile.industry — one of: "Technology" | "Healthcare" | "Finance & Banking" | "Education" | "Manufacturing" | "Retail" | "Consulting" | "Media & Entertainment" | "Real Estate" | "Government" | "Non-Profit" | "Energy" | "Transportation" | "Hospitality" | "Legal" | "Agriculture" | "Construction" | "Telecommunications" | "Pharmaceuticals" | "Other"
@@ -206,6 +216,7 @@ CANONICAL VOCABULARY — these fields are dropdowns in the product. You MUST use
 - inferredProfile.employment_status — one of: "employed" | "actively_looking" | "open" | "not_looking" ("actively_looking" if unemployed, a student seeking work, or clearly hunting; "open" if employed but receptive)
 - targets.work_arrangement — array drawn ONLY from: "remote" | "hybrid" | "onsite"
 - targets.job_change_timeline — one of: "immediately" | "1-3_months" | "3-6_months" | "exploring"
+- targets.search_terms — 3 to 5 job-board search phrases for THIS person, most specific first. These are fed verbatim to a job board, so write how employers advertise the role, not how the person describes themselves. Vary the vocabulary: a nurse specialising in intensive care is advertised as "registered nurse", "critical care nurse", "ICU nurse", "acute care nurse" — four listings that share almost no keywords. Same for trades ("electrician", "electrical technician", "maintenance electrician") and tech ("frontend developer", "react developer", "UI engineer"). Two to four words each, no punctuation, no seniority prefixes unless the person is clearly senior, no location (that is searched separately). If their field genuinely has one name, three terms is enough — do not pad with near-duplicates.
 - jobPreferences.remote_preference — one of: "remote" | "hybrid" | "onsite" | "any"
 - jobPreferences.job_types — array from: "full-time" | "part-time" | "contract" | "freelance" | "internship"
 - jobPreferences.company_sizes — array from: "startup" | "small" | "medium" | "large" | "enterprise"
@@ -266,7 +277,7 @@ CONFIDENCE
 
 RULES
 - Do NOT invent companies, salaries, dates, phone numbers, or specifics not implied by the input. Use null.
-- Default desired_salary_currency to "AUD" (CareerCraft is Australia-focused) unless the input clearly suggests otherwise.
+- Default desired_salary_currency to "AUD" (Faircopy is Australia-focused) unless the input clearly suggests otherwise.
 - For sparse input, return shorter skills/certifications arrays — do not pad.
 - Every enum field above MUST use the exact canonical string. This is a hard contract, not a suggestion.`;
 

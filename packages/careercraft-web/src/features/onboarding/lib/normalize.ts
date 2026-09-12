@@ -290,6 +290,8 @@ export function normalizeAnalysis(a: OnboardingAnalysis): OnboardingAnalysis {
       desired_salary_max: salaryMax,
       desired_salary_currency: currency,
       job_change_timeline: normalizeTimeline(a.targets?.job_change_timeline),
+      // Capped at 5 — each term becomes its own paid board call at search time.
+      search_terms: cleanList(a.targets?.search_terms, 5),
     },
     jobPreferences: {
       industries: cleanList(a.jobPreferences?.industries, 5)

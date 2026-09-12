@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { AuthHorizon } from "@/components/auth/AuthHorizon";
+import { FaircopyLockup, FaircopyMark } from "@/components/brand/FaircopyMark";
 
 export type AuthMode = "signin" | "signup";
 
@@ -203,7 +204,7 @@ export const AuthExperience = ({
     if (isMicrosoftLoading) return { eyebrow: "Microsoft hand-off", title: "Opening the next door.", line: "Connecting securely with Microsoft.", accent: "provider" };
     if (isLoading && mode === "signup") return { eyebrow: "Creating your file", title: "A new chapter starts here.", line: "Setting up your calm career workspace.", accent: "success" };
     if (isLoading) return { eyebrow: "Welcome back", title: "Your work is waiting.", line: "Unlocking your résumés, practice and market signals.", accent: "success" };
-    if (showForgotPassword) return { eyebrow: "Recovery", title: "Find your way back.", line: focusedField === "email" ? "Use the address connected to your CareerCraft file." : "A secure link. One hour. No fuss.", accent: "reset" };
+    if (showForgotPassword) return { eyebrow: "Recovery", title: "Find your way back.", line: focusedField === "email" ? "Use the address connected to your Faircopy file." : "A secure link. One hour. No fuss.", accent: "reset" };
     if (focusedField === "name") return { eyebrow: "First entry", title: "Put your name on the work.", line: "This is how your résumé, coach and recommendations will know you.", accent: "name" };
     if (focusedField === "email") return { eyebrow: mode === "signin" ? "Identity" : "Your address", title: "One place for every next move.", line: "We only use this to secure your workspace and important account notices.", accent: "email" };
     if (focusedField === "password" && mode === "signup") return { eyebrow: `Strength · ${strengthLabel}`, title: passwordStrength === 100 ? "Strong enough to travel." : "Build a stronger key.", line: passwordStrength === 100 ? "Every requirement is met. Your account is ready." : "Eight characters, upper and lowercase, a number and a symbol.", accent: "password" };
@@ -240,11 +241,8 @@ export const AuthExperience = ({
             <button onClick={onBackHome} className="inline-flex items-center gap-2 cc-label-sm cc-link">
               <ArrowLeft className="h-4 w-4" /> Home
             </button>
-            <button onClick={onBackHome} className="flex items-center gap-3" aria-label="CareerCraft home">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--cc-ink)]">
-                <span className="cc-font-display text-xl font-bold text-[color:var(--cc-rust)]">c</span>
-              </span>
-              <span className="hidden cc-font-display text-xl font-semibold tracking-tight sm:block">CareerCraft</span>
+            <button onClick={onBackHome} className="flex items-center" aria-label="Faircopy home">
+              <FaircopyMark className="h-10 w-10" title="Faircopy" />
             </button>
           </div>
 
@@ -270,6 +268,7 @@ export const AuthExperience = ({
                       >
                         <ArrowLeft className="h-4 w-4" /> Back to sign in
                       </button>
+                      <FaircopyLockup size="sm" className="mb-6" />
                       <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Recovery</div>
                       <h1 className="mt-3 cc-font-display text-4xl leading-[0.92] tracking-[-0.04em] md:text-5xl">
                         Find your way<br /><span className="cc-italic-wonk">back in.</span>
@@ -298,6 +297,7 @@ export const AuthExperience = ({
                     </>
                   ) : (
                     <>
+                      <FaircopyLockup size="sm" className="mb-6" />
                       <div className="cc-label text-[color:var(--cc-rust)]">
                         {mode === "signin" ? "§ 01 · Return" : "§ 01 · First entry"}
                       </div>

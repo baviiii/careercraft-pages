@@ -17,7 +17,7 @@ import { WordsPullUp } from "@/components/ui/prisma-hero";
 const MeadowInterlude = lazy(() => import("@/components/landing/MeadowInterlude"));
 
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — Landing
+   Faircopy — Landing
    "Sunlit" cut — the calm, warm, hand-painted Ghibli mood of the
    hero carried softly through the whole page: gentle sky washes,
    drifting clouds, golden light and a painterly grain. Light and
@@ -121,22 +121,31 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
           style={{ background: "radial-gradient(ellipse 80% 62% at 50% 50%, rgba(14,12,10,0.5) 0%, rgba(14,12,10,0.15) 45%, transparent 78%)" }}
         />
 
-        {/* Centred content */}
+        {/* Centred content — brand first, then one headline, one line, CTAs */}
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
 
           <h1
-            className="cc-font-display font-medium leading-[0.85] tracking-[-0.05em] text-[19vw] sm:text-[16vw] md:text-[14vw] lg:text-[12vw]"
+            className="cc-font-display italic font-medium leading-[0.85] tracking-[-0.04em] text-[18vw] sm:text-[14vw] md:text-[12vw] lg:text-[10vw]"
             style={{ color: HERO_CREAM, textShadow: "0 2px 50px rgba(0,0,0,0.5)" }}
           >
-            <div className="flex justify-center"><WordsPullUp text="Your next" immediate /></div>
-            <div className="flex justify-center"><WordsPullUp text="move" immediate className="cc-italic-wonk" /></div>
+            <div className="flex justify-center"><WordsPullUp text="Faircopy" immediate /></div>
           </h1>
+
+          <motion.p
+            initial={{ y: 16, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-5 cc-font-display text-3xl sm:text-4xl md:text-5xl leading-[0.95] tracking-tight"
+            style={{ color: HERO_CREAM, textShadow: "0 2px 36px rgba(0,0,0,0.45)" }}
+          >
+            Your next <span className="cc-italic-wonk">move.</span>
+          </motion.p>
 
           <motion.p
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-7 max-w-2xl cc-font-editorial text-xl leading-snug sm:text-2xl"
+            transition={{ duration: 0.8, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-6 max-w-2xl cc-font-editorial text-xl leading-snug sm:text-2xl"
             style={{ color: "rgba(225, 224, 204, 0.92)", textShadow: "0 1px 24px rgba(0,0,0,0.6)" }}
           >
             Resume building, job tracking and market signals in one calm, trusted workspace. No noise, no guesswork.
@@ -145,7 +154,7 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.8, delay: 0.75, ease: [0.16, 1, 0.3, 1] }}
             className="mt-9 flex flex-col items-center gap-4 sm:flex-row"
           >
             {session ? (

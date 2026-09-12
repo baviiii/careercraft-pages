@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft sidebar — grouped navigation, living accents,
+   Faircopy sidebar — grouped navigation, living accents,
    clear active state. Shared across logged-in pages.
    ─────────────────────────────────────────────────────────── */
 
@@ -20,6 +20,7 @@ import {
   X,
   Sparkles,
 } from "lucide-react";
+import { FaircopyMark } from "@/components/brand/FaircopyMark";
 
 export interface CraftSidebarLink {
   icon: React.ComponentType<{ className?: string }>;
@@ -104,22 +105,12 @@ export const CraftSidebar = memo(function CraftSidebar({
             }}
             className="group flex items-center gap-3"
           >
-            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-[color:var(--cc-ink)] shadow-[0_10px_24px_-12px_rgba(20,22,26,0.55)] transition-transform duration-300 group-hover:scale-[1.04]">
-              <span
-                aria-hidden
-                className="absolute inset-0 opacity-90"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(42,82,204,0.6), transparent 55%), linear-gradient(225deg, rgba(63,122,92,0.4), transparent 50%)",
-                }}
-              />
-              <span className="relative cc-font-display text-xl leading-none text-[color:var(--cc-cream)]">
-                c
-              </span>
+            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[color:var(--cc-cream)] ring-1 ring-[color:var(--cc-ink)]/8 shadow-[0_10px_24px_-12px_rgba(20,22,26,0.28)] transition-transform duration-300 group-hover:scale-[1.04]">
+              <FaircopyMark className="relative h-8 w-8" title="Faircopy" />
             </div>
             <div className="text-left">
               <div className="cc-font-display text-[1.15rem] leading-none tracking-tight">
-                CareerCraft
+                Faircopy
               </div>
               <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[color:var(--cc-ash)]">
                 <Sparkles className="h-3 w-3 text-[color:var(--cc-rust)]" />

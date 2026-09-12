@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — Settings
+   Faircopy — Settings
    Dashboard-energy: hero, color tones, pill tabs.
    Order: Profile → Career → Skills → Alerts → Account.
    ─────────────────────────────────────────────────────────── */
@@ -140,7 +140,7 @@ const NOTIFICATION_ITEMS: {
   {
     key: "marketing_emails",
     label: "Product updates",
-    description: "New features and tips from CareerCraft",
+    description: "New features and tips from Faircopy",
   },
 ];
 
@@ -793,7 +793,7 @@ export default function Settings() {
         <TabsContent value="profile" className="cc-tabs-panel mt-6 focus-visible:ring-0">
           <Panel
             title="Basic information"
-            subtitle="The basics CareerCraft and recruiters read first."
+            subtitle="The basics Faircopy and recruiters read first."
             tone="cobalt"
           >
             <div className="grid gap-5 sm:grid-cols-2">

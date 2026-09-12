@@ -26,8 +26,8 @@ export function ResumeDocument({ data, templateId }: ResumeDocumentProps) {
     <Document
       title={data.contact.name ? `${data.contact.name} — Résumé` : "Résumé"}
       author={data.contact.name || undefined}
-      creator="CareerCraft"
-      producer="CareerCraft"
+      creator="Faircopy"
+      producer="Faircopy"
     >
       <Template data={data} />
     </Document>

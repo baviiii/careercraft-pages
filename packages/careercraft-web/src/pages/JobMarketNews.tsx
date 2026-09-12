@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — Market News
+   Faircopy — Market News
    Cream editorial shell, shared sidebar, ink tabs, rust accents.
    Data wiring preserved: news, trends, insights.
    ─────────────────────────────────────────────────────────── */

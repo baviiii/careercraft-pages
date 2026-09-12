@@ -65,8 +65,8 @@ export default function ContactUs() {
                 <div className="border-t border-[color:var(--cc-hair)] pt-5">
                   <dt className="cc-label-sm text-[color:var(--cc-ash)]">Email</dt>
                   <dd className="mt-2 cc-font-display italic text-2xl md:text-3xl">
-                    <a href="mailto:support@careercraft.com" className="cc-link text-[color:var(--cc-ink)]">
-                      support@careercraft.com
+                    <a href="mailto:support@faircopy.au" className="cc-link text-[color:var(--cc-ink)]">
+                      support@faircopy.au
                     </a>
                   </dd>
                 </div>

@@ -91,7 +91,7 @@ verify_jwt = true
 [functions.job-email-events]
 verify_jwt = true
 
-[functions.job-ingest-adzuna]
+[functions.job-search]
 verify_jwt = true
 
 # Pre-auth analytics events arrive without a session, so the JWT is checked

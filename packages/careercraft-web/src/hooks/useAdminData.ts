@@ -17,6 +17,7 @@ interface ActivityLog {
   entity_type: string | null;
   entity_id: string | null;
   details: unknown;
+  ip_address: string | null;
   severity: string;
   created_at: string;
   user_email?: string;

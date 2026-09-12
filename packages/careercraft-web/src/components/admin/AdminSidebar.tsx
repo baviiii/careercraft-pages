@@ -4,13 +4,9 @@ import {
   Activity, 
   Shield, 
   AlertTriangle, 
-  Settings,
   LogOut,
-  FileText,
   Monitor,
   MessageSquare,
-  Upload,
-  Database,
   Gauge
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
@@ -32,9 +28,8 @@ import { useNavigate } from 'react-router-dom';
 
 const mainNavItems = [
   { title: 'Overview', url: '/admin', icon: LayoutDashboard },
-  { title: 'Documents', url: '/admin/documents', icon: Database },
   { title: 'User Management', url: '/admin/users', icon: Users },
-  { title: 'Activity Logs', url: '/admin/activity', icon: Activity },
+  { title: 'Activity', url: '/admin/activity', icon: Activity },
   { title: 'Sessions', url: '/admin/sessions', icon: Monitor },
   { title: 'AI Prompts', url: '/admin/prompts', icon: MessageSquare },
   { title: 'Plans & Limits', url: '/admin/plans', icon: Gauge },
@@ -43,11 +38,6 @@ const mainNavItems = [
 const securityNavItems = [
   { title: 'Security Alerts', url: '/admin/security', icon: AlertTriangle },
   { title: 'Access Control', url: '/admin/access', icon: Shield },
-  { title: 'Audit Trail', url: '/admin/audit', icon: FileText },
-];
-
-const settingsNavItems = [
-  { title: 'Settings', url: '/admin/settings', icon: Settings },
 ];
 
 export function AdminSidebar() {
@@ -105,30 +95,6 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {securityNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-accent transition-colors"
-                      activeClassName="bg-accent text-accent-foreground font-medium"
-                    >
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup className="mt-4">
-          <SidebarGroupLabel className="text-xs font-medium text-muted-foreground px-2">
-            System
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {settingsNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink

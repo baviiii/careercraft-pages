@@ -56,6 +56,9 @@ export default function JobTrackerPage() {
     query: perso.hasPersonalizationData ? perso.getPersonalizedJobQuery() : undefined,
     location:
       perso.hasPersonalizationData && personalizedCity ? personalizedCity : undefined,
+    // The alternate phrasings, when onboarding produced them. Falls back to the
+    // single title above for anyone who onboarded before this existed.
+    terms: perso.profile.searchTerms?.length ? perso.profile.searchTerms : undefined,
     ready: !perso.loading,
   });
   const fitScoring = useJobFitScoring();

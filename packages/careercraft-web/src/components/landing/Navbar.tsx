@@ -1,3 +1,4 @@
+import { FaircopyMark } from "@/components/brand/FaircopyMark";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -74,12 +75,8 @@ export const Navbar = ({ session }: NavbarProps) => {
               className="flex items-center gap-2 cursor-pointer"
               onClick={() => navigate("/")}
             >
-              <img 
-                src="/logo.png" 
-                alt="Horus Intelligence" 
-                className="w-10 h-10 rounded-xl shadow-lg object-contain"
-              />
-              <span className="text-xl font-bold text-slate-800">Horus Intelligence</span>
+              <FaircopyMark className="h-10 w-10 drop-shadow-lg" title="Faircopy" />
+              <span className="text-xl font-bold text-slate-800">Faircopy</span>
             </motion.div>
 
             {/* Desktop Navigation */}

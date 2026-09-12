@@ -128,7 +128,7 @@ export default function OnboardingPage() {
       );
       toast({
         title: 'You\'re all set',
-        description: 'Your profile is now personalised across CareerCraft.',
+        description: 'Your profile is now personalised across Faircopy.',
       });
       navigate('/dashboard', { replace: true });
     } catch (e) {
@@ -170,7 +170,7 @@ export default function OnboardingPage() {
       <header className="relative border-b border-[color:var(--cc-hair-strong)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-5">
           <span className="cc-font-display text-xl tracking-tight text-[color:var(--cc-ink)]">
-            CareerCraft
+            Faircopy
           </span>
           <span className="cc-label-sm text-[color:var(--cc-ash)]">
             {stage === 'choose' ? 'Step 1 · Setup' : 'Step 2 · Review'}

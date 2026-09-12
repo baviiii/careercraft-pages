@@ -46,11 +46,8 @@ const ActivityLogs = lazy(() => import("./pages/admin/ActivityLogs"));
 const SessionsManagement = lazy(() => import("./pages/admin/SessionsManagement"));
 const SecurityAlerts = lazy(() => import("./pages/admin/SecurityAlerts"));
 const AccessControl = lazy(() => import("./pages/admin/AccessControl"));
-const AuditTrail = lazy(() => import("./pages/admin/AuditTrail"));
-const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const ChatPrompts = lazy(() => import("./pages/admin/ChatPrompts"));
 const PlansAndLimits = lazy(() => import("./pages/admin/PlansAndLimits"));
-const AdminDocuments = lazy(() => import("./pages/admin/AdminDocuments"));
 
 // Optimized QueryClient with better caching
 const queryClient = new QueryClient({
@@ -153,16 +150,17 @@ const App = () => (
               {/* Admin Routes */}
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<AdminOverview />} />
-                <Route path="documents" element={<AdminDocuments />} />
                 <Route path="users" element={<UserManagement />} />
                 <Route path="activity" element={<ActivityLogs />} />
                 <Route path="sessions" element={<SessionsManagement />} />
                 <Route path="security" element={<SecurityAlerts />} />
                 <Route path="access" element={<AccessControl />} />
-                <Route path="audit" element={<AuditTrail />} />
-                <Route path="settings" element={<AdminSettings />} />
                 <Route path="prompts" element={<ChatPrompts />} />
                 <Route path="plans" element={<PlansAndLimits />} />
+                {/* Retired pages — keep bookmarks working */}
+                <Route path="documents" element={<Navigate to="/admin" replace />} />
+                <Route path="settings" element={<Navigate to="/admin" replace />} />
+                <Route path="audit" element={<Navigate to="/admin/activity" replace />} />
               </Route>
             </Route>
             

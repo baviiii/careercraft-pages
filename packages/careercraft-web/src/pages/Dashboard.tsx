@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — Dashboard (Atelier)
+   Faircopy — Dashboard (Atelier)
    Editorial command center: one hero, one primary move,
    supporting paths, living color. Data wiring unchanged.
    ─────────────────────────────────────────────────────────── */
@@ -122,7 +122,7 @@ export default function Dashboard() {
       next.push({
         id: "onboard",
         kind: "insight",
-        title: "Personalise CareerCraft",
+        title: "Personalise Faircopy",
         body: "Two minutes of questions — jobs, news and interview prep tune to your profile.",
         when: now,
         read: false,
@@ -269,7 +269,7 @@ export default function Dashboard() {
       };
     }
     return {
-      eyebrow: "Welcome to CareerCraft",
+      eyebrow: "Welcome to Faircopy",
       title: (
         <>
           Start with one{" "}
@@ -794,7 +794,7 @@ export default function Dashboard() {
             </section>
 
             <footer className="mt-14 flex items-center justify-between border-t border-[color:var(--cc-hair)] pt-6">
-              <p className="text-xs text-[color:var(--cc-ash)]">© 2026 CareerCraft · Adelaide</p>
+              <p className="text-xs text-[color:var(--cc-ash)]">© 2026 Faircopy · Adelaide</p>
               <button
                 onClick={handleSignOut}
                 className="inline-flex items-center gap-1.5 text-xs text-[color:var(--cc-ash)] transition-colors hover:text-[color:var(--cc-ink)]"

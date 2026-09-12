@@ -14,10 +14,26 @@ interface DiscoveryFilters {
 interface DiscoveryPersonalization {
   query?: string;
   location?: string;
+  /**
+   * Alternate phrasings of the same role, from the profile. The board matches
+   * on keywords, so one title finds one wording — "ICU Nurse" misses "Critical
+   * Care Registered Nurse". Searched together and merged.
+   */
+  terms?: string[];
   /** False while the profile is still loading — hold off the first fetch. */
   ready?: boolean;
 }
 
+/**
+ * The discovery feed: roles from the market, searched live.
+ *
+ * This used to read a jobs_catalog table that ingest filled in bulk. The cache
+ * only pays off with traffic — one person's search warming the next person's —
+ * and with none it just accumulated stale rows, which `list` then served with
+ * no freshness filter. Searching the board directly means every result is
+ * current by construction, and the three-rung "catalog, then broader catalog,
+ * then give up and ingest" ladder collapses into a single call.
+ */
 export function useJobDiscovery(
   onSavedToTracker?: () => Promise<void> | void,
   personalized?: DiscoveryPersonalization,
@@ -29,29 +45,36 @@ export function useJobDiscovery(
   const [isIngesting, setIsIngesting] = useState(false);
   const [lastIngestSummary, setLastIngestSummary] = useState<string>("");
 
-  const listJobs = useCallback(
-    async (override?: Partial<DiscoveryFilters>): Promise<JobCatalogJob[]> => {
+  /** Results are held here so saveToTracker can resolve a job from its id. */
+  const jobsRef = useRef<JobCatalogJob[]>([]);
+
+  const search = useCallback(
+    async (
+      override?: Partial<DiscoveryFilters>,
+      opts?: { terms?: string[] },
+    ): Promise<JobCatalogJob[]> => {
       const query = (override?.query ?? filters.query) || undefined;
       const location = (override?.location ?? filters.location) || undefined;
       setIsLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke("job-ingest-adzuna", {
+        const { data, error } = await supabase.functions.invoke("job-search", {
           body: {
-            action: "list",
+            action: "search",
             query,
             location,
+            terms: opts?.terms ?? personalized?.terms,
             limit: 40,
-            offset: 0,
           },
         });
         if (error) throw error;
         const results = (data?.jobs || []) as JobCatalogJob[];
         setJobs(results);
+        jobsRef.current = results;
         return results;
       } catch (e) {
         toast({
-          title: "Discovery unavailable",
-          description: e instanceof Error ? e.message : "Failed to load discovery jobs.",
+          title: "Search unavailable",
+          description: e instanceof Error ? e.message : "Could not reach the job board.",
           variant: "destructive",
         });
         return [];
@@ -59,59 +82,48 @@ export function useJobDiscovery(
         setIsLoading(false);
       }
     },
-    [filters.location, filters.query, toast],
+    [filters.location, filters.query, personalized?.terms, toast],
   );
 
-  const ingest = useCallback(
+  /** The explicit refresh button — the same search, but it announces itself. */
+  const refresh = useCallback(
     async (
       override?: Partial<DiscoveryFilters>,
-      // Automatic ingests on first load report through `lastIngestSummary`
-      // instead of a toast — a page you just opened shouldn't announce itself.
       opts?: { silent?: boolean },
     ): Promise<JobCatalogJob[]> => {
-      const query = (override?.query ?? filters.query) || undefined;
-      const location = (override?.location ?? filters.location) || undefined;
       setIsIngesting(true);
       try {
-        const { data, error } = await supabase.functions.invoke("job-ingest-adzuna", {
-          body: {
-            action: "ingest",
-            query,
-            location,
-            page: 1,
-            resultsPerPage: 40,
-          },
-        });
-        if (error) throw error;
-
-        const summary = `Ingested ${data?.imported ?? 0} jobs`;
+        const results = await search(override);
+        const summary = `${results.length} role${results.length === 1 ? "" : "s"} on the wire`;
         setLastIngestSummary(summary);
         if (!opts?.silent) {
-          toast({
-            title: "Discovery refreshed",
-            description: summary,
-          });
+          toast({ title: "Search refreshed", description: summary });
         }
-        return await listJobs(override);
-      } catch (e) {
-        toast({
-          title: "Ingestion failed",
-          description: e instanceof Error ? e.message : "Could not ingest Adzuna jobs.",
-          variant: "destructive",
-        });
-        return [];
+        return results;
       } finally {
         setIsIngesting(false);
       }
     },
-    [filters.location, filters.query, listJobs, toast],
+    [search, toast],
   );
 
   const saveToTracker = useCallback(
-    async (catalogJobId: string) => {
+    async (jobId: string) => {
+      // Resolved from the results in hand rather than sent as an id: with no
+      // catalog there is nothing server-side to look the id up in.
+      const job = jobsRef.current.find((j) => j.id === jobId);
+      if (!job) {
+        toast({
+          title: "Save failed",
+          description: "That role is no longer in the current results.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       try {
-        const { error } = await supabase.functions.invoke("job-ingest-adzuna", {
-          body: { action: "save_to_tracker", catalogJobId },
+        const { error } = await supabase.functions.invoke("job-search", {
+          body: { action: "save_to_tracker", job },
         });
         if (error) throw error;
         toast({
@@ -130,12 +142,9 @@ export function useJobDiscovery(
     [onSavedToTracker, toast],
   );
 
-  // One-time init: wait for the profile to resolve, then show roles matched to
-  // the user's target role + preferred location. The local catalog may not hold
-  // that role yet, so if there are no personalized matches we pull fresh roles
-  // straight from the market (Adzuna) using the same profile. We deliberately do
-  // NOT fall back to generic/unfiltered jobs — a personalized feed should stay
-  // personalized (even if that means an honest empty state).
+  // One-time init: wait for the profile, then search the market for the user's
+  // role near them. A personalized feed stays personalized — if there is
+  // genuinely nothing, an honest empty state beats generic filler.
   const didInit = useRef(false);
   useEffect(() => {
     if (didInit.current) return;
@@ -145,44 +154,30 @@ export function useJobDiscovery(
     const q = personalized?.query?.trim() || "";
     const loc = personalized?.location?.trim() || "";
 
-    // No profile signal at all → just show whatever the catalog has.
     if (!q && !loc) {
-      void listJobs();
+      void search();
       return;
     }
 
     setFilters({ query: q, location: loc });
 
     void (async () => {
-      // 1) Personalized match from the local catalog.
-      let results = await listJobs({ query: q, location: loc });
+      const results = await search({ query: q, location: loc });
 
-      // 2) Same role, drop the (brittle) location filter.
+      // Adzuna resolves small suburbs poorly — it answers 200 with zero results
+      // rather than erroring, so a location miss looks like a healthy empty
+      // feed. Widen to the whole country before concluding there is no work.
       if (results.length === 0 && q && loc) {
-        results = await listJobs({ query: q, location: "" });
-        if (results.length > 0) setFilters({ query: q, location: "" });
-      }
-
-      // 3) Nothing personalized in the catalog → pull fresh from the market.
-      if (results.length === 0) {
-        results = await ingest({ query: q, location: loc }, { silent: true });
-
-        // Adzuna resolves small suburbs poorly — it answers 200 with zero
-        // results rather than erroring, so a location-scoped miss looks like a
-        // healthy empty feed. Re-ingest nationally instead of re-reading the
-        // catalog we already know has nothing for this role.
-        if (results.length === 0 && q && loc) {
-          setFilters({ query: q, location: "" });
-          results = await ingest({ query: q, location: "" }, { silent: true });
-          setLastIngestSummary(
-            results.length > 0
-              ? `No ${q} roles near ${loc} — widened to all of Australia`
-              : `No ${q} roles on the wire right now`,
-          );
-        }
+        setFilters({ query: q, location: "" });
+        const widened = await search({ query: q, location: "" });
+        setLastIngestSummary(
+          widened.length > 0
+            ? `No ${q} roles near ${loc} — widened to all of Australia`
+            : `No ${q} roles on the wire right now`,
+        );
       }
     })();
-  }, [personalized?.ready, personalized?.query, personalized?.location, listJobs, ingest]);
+  }, [personalized?.ready, personalized?.query, personalized?.location, search]);
 
   return {
     jobs,
@@ -191,8 +186,10 @@ export function useJobDiscovery(
     isLoading,
     isIngesting,
     lastIngestSummary,
-    ingest,
-    listJobs,
+    // Names kept so JobTrackerPage needs no change: `ingest` is now the
+    // refresh button, and `listJobs` is a plain search.
+    ingest: refresh,
+    listJobs: search,
     saveToTracker,
   };
 }

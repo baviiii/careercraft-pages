@@ -4,9 +4,10 @@ import { motion, useScroll, useTransform, useMotionValueEvent } from "framer-mot
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { ArrowUpRight } from "lucide-react";
+import { FaircopyMark } from "@/components/brand/FaircopyMark";
 
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — shared shell (Nav + Footer).
+   Faircopy — shared shell (Nav + Footer).
    Used by public pages: /, /auth, /about, /contact, /privacy.
    ─────────────────────────────────────────────────────────── */
 
@@ -29,7 +30,6 @@ export const CraftNav = memo(({ variant = "cream", session = null, hideAuthCtas 
   const border = useTransform(scrollY, [0, 90], ["rgba(0,0,0,0)", borderTo]);
 
   const textColor = variant === "cream" ? "var(--cc-ink)" : "var(--cc-cream)";
-  const markBorder = variant === "cream" ? "var(--cc-ink)" : "var(--cc-cream)";
   const btnClasses =
     variant === "cream"
       ? "cc-btn cc-btn-primary"
@@ -41,16 +41,9 @@ export const CraftNav = memo(({ variant = "cream", session = null, hideAuthCtas 
       className="fixed top-0 left-0 right-0 z-50 backdrop-blur-sm border-b border-transparent"
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
-        <button onClick={() => navigate("/")} className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ border: `1px solid ${markBorder}` }}
-          >
-            <span className="cc-font-display cc-italic-wonk text-xl leading-none translate-y-[-1px]" style={{ color: "var(--cc-rust)" }}>
-              c
-            </span>
-          </div>
-          <span className="cc-font-display italic text-[22px] tracking-tight">CareerCraft</span>
+        <button onClick={() => navigate("/")} className="flex items-center gap-2.5" aria-label="Faircopy home">
+          <FaircopyMark className="h-9 w-9 drop-shadow-[0_6px_14px_rgba(42,82,204,0.22)]" title="Faircopy" />
+          <span className="cc-font-display italic text-[22px] tracking-tight">Faircopy</span>
         </button>
 
         <div className="hidden md:flex items-center gap-10 cc-label">
@@ -96,12 +89,13 @@ export const CraftFooter = memo(() => {
         <div className="grid grid-cols-12 gap-8 items-start">
           <div className="col-span-12 md:col-span-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full border border-[color:var(--ds-border-strong)] flex items-center justify-center">
-                <span className="cc-font-display cc-italic-wonk text-xl leading-none translate-y-[-1px]" style={{ color: "var(--cc-rust)" }}>
-                  c
-                </span>
+              <FaircopyMark className="h-11 w-11" title="Faircopy" />
+              <div>
+                <div className="cc-font-display italic text-2xl leading-none">Faircopy</div>
+                <p className="mt-2 text-[13px] tracking-wide text-[color:var(--ds-fg-muted)]">
+                  One stop. Every step. Your career.
+                </p>
               </div>
-              <span className="cc-font-display italic text-2xl">CareerCraft</span>
             </div>
             <p className="mt-6 cc-font-editorial text-xl text-[color:var(--ds-fg-muted)] leading-snug max-w-md">
               A workspace for your career — built in Adelaide.
@@ -128,7 +122,7 @@ export const CraftFooter = memo(() => {
         </div>
 
         <div className="mt-16 pt-6 border-t border-[color:var(--ds-border)] flex flex-col md:flex-row items-center justify-between gap-3 cc-label-sm text-[color:var(--ds-fg-muted)]">
-          <div>© 2026 CareerCraft — Adelaide, SA</div>
+          <div>© 2026 Faircopy — Adelaide, SA</div>
           <div className="flex items-center gap-2">
             <span className="cc-blink text-[color:var(--cc-rust)]">●</span>
             <span>Live · Updated often</span>

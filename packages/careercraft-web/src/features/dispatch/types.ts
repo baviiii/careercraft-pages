@@ -3,8 +3,8 @@
 
    One ranked stream mixing two sources: career news articles
    (job-news / news_articles) and live roles from the market
-   (job-ingest-adzuna / jobs_catalog). Both are normalised to
-   `DispatchItem` so ranking and rendering stay source-agnostic.
+   (job-search → Adzuna). Both are normalised to `DispatchItem`
+   so ranking and rendering stay source-agnostic.
    ─────────────────────────────────────────────────────────── */
 
 /** Raw article shape returned by the `fetch_news` edge action. */

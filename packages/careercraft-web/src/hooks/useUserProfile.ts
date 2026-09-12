@@ -39,6 +39,7 @@ export interface UserProfile {
   career_level: string | null;
   employment_status: string;
   target_job_titles: string[] | null;
+  search_terms: string[] | null;
   target_companies: string[] | null;
   desired_salary_min: number | null;
   desired_salary_max: number | null;
@@ -663,7 +664,7 @@ export function useUserProfile() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `careercraft-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `Faircopy-data-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
       

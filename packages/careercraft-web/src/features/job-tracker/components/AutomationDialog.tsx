@@ -49,7 +49,7 @@ export const AutomationDialog = ({
           Tune the <span className="cc-italic-wonk">inbox</span> watcher.
         </>
       }
-      description="Decide how aggressively CareerCraft should read incoming mail and move applications between stages."
+      description="Decide how aggressively Faircopy should read incoming mail and move applications between stages."
       maxWidth="max-w-xl"
       footer={
         <>

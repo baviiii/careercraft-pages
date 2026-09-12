@@ -92,10 +92,10 @@ export default function Privacy() {
             </div>
             <div className="col-span-12 md:col-span-8 cc-font-editorial text-xl md:text-[22px] leading-[1.5] text-[color:var(--cc-ink-soft)]">
               <p>
-                At CareerCraft we take your privacy seriously. This policy
+                At Faircopy we take your privacy seriously. This policy
                 explains, in clear terms, how we collect, use, disclose and
                 safeguard your information when you use our platform. By using
-                CareerCraft you agree to the collection and use of information
+                Faircopy you agree to the collection and use of information
                 in accordance with this policy.
               </p>
             </div>
@@ -153,8 +153,8 @@ export default function Privacy() {
           </h2>
           <p className="mt-8 cc-font-editorial text-xl md:text-2xl text-[color:var(--cc-cream)]/80 leading-snug">
             Email&nbsp;
-            <a href="mailto:privacy@careercraft.com" className="cc-link text-[color:var(--cc-cream)]">
-              privacy@careercraft.com
+            <a href="mailto:privacy@faircopy.au" className="cc-link text-[color:var(--cc-cream)]">
+              privacy@faircopy.au
             </a>
             &nbsp;— or send us a message.
           </p>

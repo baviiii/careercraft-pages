@@ -1,4 +1,4 @@
-# CareerCraft — crawler policy
+# Faircopy — crawler policy
 #
 # Search engines and link previews: welcome, we want to be found and shared.
 # AI training crawlers: not welcome, they take the content and give nothing back.

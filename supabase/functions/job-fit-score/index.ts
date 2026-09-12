@@ -20,7 +20,7 @@ serve(handler(async (req) => {
 
     const { data: application, error: appErr } = await service
       .from("job_applications")
-      .select("id, user_id, resume_id, jobs_catalog_id, job_description, job_title, company")
+      .select("id, user_id, resume_id, job_description, job_title, company")
       .eq("id", applicationId)
       .single();
     if (appErr || !application || application.user_id !== userId) {
@@ -57,7 +57,6 @@ serve(handler(async (req) => {
       .insert({
         user_id: userId,
         application_id: application.id,
-        jobs_catalog_id: application.jobs_catalog_id,
         resume_id: application.resume_id,
         score,
         strengths,

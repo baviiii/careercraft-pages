@@ -27,6 +27,8 @@ export interface OnboardingInferredProfile {
 
 export interface OnboardingTargets {
   target_job_titles: string[];
+  /** Job-board phrasings of the role, for search. */
+  search_terms?: string[];
   target_companies: string[];
   preferred_locations: string[];
   work_arrangement: string[];

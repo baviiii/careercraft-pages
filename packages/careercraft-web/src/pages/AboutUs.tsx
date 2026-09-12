@@ -44,7 +44,7 @@ export default function AboutUs() {
             for <span className="cc-italic-wonk">big careers.</span>
           </h1>
           <p className="mt-8 cc-font-editorial text-2xl md:text-[28px] leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
-            CareerCraft is a workspace for South Australians. We turn policy,
+            Faircopy is a workspace for South Australians. We turn policy,
             workforce data and opportunity into tools you can actually use.
           </p>
         </div>
@@ -90,7 +90,7 @@ export default function AboutUs() {
                 Most of the signal is buried. Most of the noise is paid for.
               </p>
               <p>
-                CareerCraft surfaces the buried signal — every budget line, every
+                Faircopy surfaces the buried signal — every budget line, every
                 sector plan, every shortage list — and turns it into something
                 you can actually use. A résumé, an interview rehearsal, a career
                 map, each grounded in where South Australia is genuinely moving.

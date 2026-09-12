@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — editorial primitives for the logged-in app.
+   Faircopy — editorial primitives for the logged-in app.
    Thin, opinionated wrappers over shadcn / raw JSX so toolkit
    pages can stay skinny (just layout + logic).
    ─────────────────────────────────────────────────────────── */

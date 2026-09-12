@@ -24,7 +24,6 @@ export interface JobApplication {
   salary_range: string | null;
   location: string | null;
   job_type: string | null;
-  jobs_catalog_id?: string | null;
   fit_score_latest?: number | null;
   last_status_change_at?: string | null;
 }

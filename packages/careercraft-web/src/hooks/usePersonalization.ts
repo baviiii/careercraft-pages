@@ -24,6 +24,10 @@ export interface PersonalizedProfile {
   
   // Career goals
   targetJobTitles: string[];
+
+  /** Job-board phrasings of the role, from onboard-analyze. */
+
+  searchTerms: string[];
   targetCompanies: string[];
   desiredSalaryMin: number | null;
   desiredSalaryMax: number | null;
@@ -148,6 +152,8 @@ const DEFAULT_PROFILE: PersonalizedProfile = {
   yearsOfExperience: null,
   employmentStatus: 'employed',
   targetJobTitles: [],
+
+  searchTerms: [],
   targetCompanies: [],
   desiredSalaryMin: null,
   desiredSalaryMax: null,
@@ -262,6 +268,7 @@ export function usePersonalization() {
         yearsOfExperience: profileData?.years_of_experience || null,
         employmentStatus: profileData?.employment_status || 'employed',
         targetJobTitles: profileData?.target_job_titles || [],
+          searchTerms: profileData?.search_terms || [],
         targetCompanies: profileData?.target_companies || [],
         desiredSalaryMin: profileData?.desired_salary_min || null,
         desiredSalaryMax: profileData?.desired_salary_max || null,

@@ -44,7 +44,7 @@ const socialLinks = [
   { name: "Twitter", icon: Twitter, href: "#" },
   { name: "LinkedIn", icon: Linkedin, href: "#" },
   { name: "GitHub", icon: Github, href: "#" },
-  { name: "Email", icon: Mail, href: "mailto:hello@careercraft.ai" },
+  { name: "Email", icon: Mail, href: "mailto:hello@faircopy.au" },
 ];
 
 // Footer link component
@@ -143,10 +143,10 @@ export const Footer = () => {
               <div className="flex items-center gap-2 mb-4">
                 <img 
                   src="/logo.png" 
-                  alt="Horus Intelligence" 
+                  alt="Faircopy" 
                   className="w-10 h-10 rounded-xl object-contain"
                 />
-                <span className="text-xl font-bold text-slate-800">Horus Intelligence</span>
+                <span className="text-xl font-bold text-slate-800">Faircopy</span>
               </div>
               <p className="text-slate-600 leading-relaxed max-w-sm">
                 AI-powered resume optimization that helps you beat ATS systems and land more interviews. 
@@ -186,7 +186,7 @@ export const Footer = () => {
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-              <span>© {currentYear} Horus Intelligence. Intelligence-Powered Insights.</span>
+              <span>© {currentYear} Faircopy. A workshop for the next move.</span>
               <span className="hidden md:inline">•</span>
               <div className="flex gap-4">
                 {footerLinks.legal.map((link) => (

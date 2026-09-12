@@ -11,7 +11,7 @@ const testimonials = [
     company: "Google",
     image: "SC",
     rating: 5,
-    text: "I was skeptical at first, but after using CareerCraft, I got callbacks from 4 out of 5 applications. The ATS optimization is incredibly accurate. Landed my dream job at Google!",
+    text: "I was skeptical at first, but after using Faircopy, I got callbacks from 4 out of 5 applications. The ATS optimization is incredibly accurate. Landed my dream job at Google!",
     highlight: "4 out of 5 callbacks",
   },
   {
@@ -31,7 +31,7 @@ const testimonials = [
     company: "Amazon",
     image: "ER",
     rating: 5,
-    text: "As a career changer, I struggled to present my skills effectively. CareerCraft helped me highlight transferable skills and I got hired at Amazon within 3 weeks!",
+    text: "As a career changer, I struggled to present my skills effectively. Faircopy helped me highlight transferable skills and I got hired at Amazon within 3 weeks!",
     highlight: "Hired in 3 weeks",
   },
   {
@@ -51,7 +51,7 @@ const testimonials = [
     company: "Spotify",
     image: "LT",
     rating: 5,
-    text: "I've used many resume tools, but CareerCraft is on another level. The recruiter mode feedback was brutally honest and exactly what I needed to improve.",
+    text: "I've used many resume tools, but Faircopy is on another level. The recruiter mode feedback was brutally honest and exactly what I needed to improve.",
     highlight: "Brutally honest feedback",
   },
   {
@@ -228,7 +228,7 @@ export const Testimonials = () => {
           </h2>
           
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            See how CareerCraft has helped job seekers land their dream roles at top companies worldwide.
+            See how Faircopy has helped job seekers land their dream roles at top companies worldwide.
           </p>
         </motion.div>
 

@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   CareerCraft — AU Jobs
+   Faircopy — AU Jobs
    Cream editorial shell, shared sidebar, ink tabs, rust accents.
    Data wiring preserved: search, saved, analysis, alerts.
    ─────────────────────────────────────────────────────────── */
