@@ -1,0 +1,93 @@
+name: Horus Keepalive
+
+# Horus runs on a free-tier Supabase project, which pauses after ~7 days idle.
+# When it pauses, every AI feature in Faircopy dies with "tenant not found" —
+# resume parsing, onboarding analysis, ATS scoring, rewrites, cover letters.
+# A signup during that window is a dead first impression.
+#
+# The news-refresh cron does NOT cover this: it calls job-news with
+# action=prefetch_news, which never reaches the Horus call (that path is the
+# per-user trend analysis at job-news/index.ts:1348). So this exists.
+#
+# Doubles as a health check. One real inference proves the whole chain —
+# gateway up, tenant key valid, database awake, Azure deployment reachable.
+# If it breaks, GitHub emails you before a user finds it.
+
+on:
+  schedule:
+    # Daily, odd minute to dodge GitHub's on-the-hour scheduling queue.
+    # Daily rather than weekly: 7x margin on the pause window, and a stale
+    # health signal is worth little.
+    - cron: '23 14 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: horus-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Ping Horus
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check credentials
+        env:
+          HORUS_INFER_URL: ${{ secrets.HORUS_INFER_URL }}
+          HORUS_API_KEY: ${{ secrets.HORUS_API_KEY }}
+        run: |
+          missing=0
+          for var in HORUS_INFER_URL HORUS_API_KEY; do
+            if [ -z "${!var}" ]; then
+              echo "::error::$var is not set in repository secrets."
+              missing=1
+            fi
+          done
+          [ "$missing" = "1" ] && { echo "Add under Settings → Secrets and variables → Actions."; exit 1; }
+          echo "Credentials present."
+
+      - name: Inference ping
+        env:
+          HORUS_INFER_URL: ${{ secrets.HORUS_INFER_URL }}
+          HORUS_API_KEY: ${{ secrets.HORUS_API_KEY }}
+        run: |
+          set -uo pipefail
+
+          # Body shape mirrors _shared/ai/horus.ts:103-113. maxTokens is kept
+          # tiny because the point is to touch the tenant row, not to generate.
+          response=$(curl -sS -m 60 -w '\n%{http_code}' -X POST "$HORUS_INFER_URL" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${HORUS_API_KEY}" \
+            -d '{
+              "task": "careercraft.keepalive",
+              "system": "Reply with the single word: ok",
+              "messages": [{"role": "user", "content": "ping"}],
+              "model": "fast",
+              "temperature": 0,
+              "maxTokens": 8
+            }') || {
+              echo "::error::curl could not reach Horus at all — gateway down or DNS failure."
+              exit 1
+            }
+
+          status=$(printf '%s' "$response" | tail -n1)
+          body=$(printf '%s' "$response" | sed '$d')
+
+          echo "HTTP $status"
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Horus returned HTTP ${status}: ${body}"
+            echo "## ❌ Horus keepalive failed" >> $GITHUB_STEP_SUMMARY
+            echo "- Status: \`${status}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Body: \`${body}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            # "tenant not found" is the specific signature of the paused database.
+            case "$body" in
+              *"tenant not found"*|*"Tenant not found"*)
+                echo "**The Horus Supabase project is paused.** Resume it in the Supabase dashboard." >> $GITHUB_STEP_SUMMARY
+                ;;
+            esac
+            exit 1
+          fi
+
+          echo "## ✅ Horus awake" >> $GITHUB_STEP_SUMMARY
+          echo "Gateway reachable, tenant key valid, database responding." >> $GITHUB_STEP_SUMMARY
