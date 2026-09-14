@@ -38,10 +38,35 @@ pop3_port = 54326
 enabled = true
 file_size_limit = "50MiB"
 
+# ⚠️  THIS BLOCK CONFIGURES THE LOCAL STACK ONLY (`supabase start`).
+#
+# Production auth URLs live in the Supabase dashboard, under
+# Authentication → URL Configuration. Nothing here reaches them: neither
+# `supabase db push` nor `supabase functions deploy` — the two commands the
+# deploy workflow runs — read these keys. Changing this file and pushing to
+# main will not move production a millimetre.
+#
+# `supabase config push` WOULD overwrite the dashboard with these values. It is
+# deliberately not in the pipeline. If you ever run it by hand, read this block
+# first — site_url below is a localhost address, and pushing it would break
+# every production auth redirect.
+#
+# (This block previously pointed at careercraft.ai, a domain that was never
+# owned, with a dev port that was never used. It looked authoritative and did
+# nothing for months. Hence the sign.)
 [auth]
 enabled = true
-site_url = "https://careercraft.ai"
-additional_redirect_urls = ["https://careercraft.ai", "http://localhost:3000", "http://127.0.0.1:3000"]
+# Local Vite dev server — see packages/careercraft-web/vite.config.ts:9.
+site_url = "http://localhost:8080"
+additional_redirect_urls = [
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+  # Listed so a stray `config push` degrades to "wrong site_url" rather than
+  # "production redirects rejected outright".
+  "https://faircopy.au",
+  "https://www.faircopy.au",
+  "https://career-craft.bavi.au",
+]
 jwt_expiry = 3600
 enable_signup = true
 
