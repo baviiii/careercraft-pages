@@ -48,6 +48,13 @@ serve(handler(async (req) => {
       "Quantify impact for at least two achievements tied to this role.",
       "Tailor your summary line to this job title and domain.",
     ];
+    // Australian government/public-sector postings often require a separate
+    // selection-criteria statement — the resume alone won't satisfy them.
+    if (/selection criteria|key criteria|essential criteria/i.test(jobText)) {
+      nextActions.unshift(
+        "This posting lists selection criteria — prepare a separate statement addressing each criterion; your resume alone will not satisfy them.",
+      );
+    }
     const suggestedRewrites = uniqueTop(missing, 3).map(
       (k) => `Add a bullet demonstrating hands-on experience with ${k} and measurable outcomes.`,
     );

@@ -15,6 +15,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { generateObject } from "npm:ai@4";
 import { z } from "npm:zod@3";
 
+import { AU_PARSING_RULES } from "../_shared/ai/au-context.ts";
 import { getAzure } from "../_shared/ai/providers.ts";
 import { ConfigError, ProviderError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota, type MeterContext } from "../_shared/ai/meter.ts";
@@ -123,6 +124,8 @@ const TEXT_SYSTEM_PROMPT = `You are a precise resume parser. Extract ALL informa
 
 Date format: YYYY-MM where available, else YYYY. For currently-held roles set current=true and endDate=null.
 
+${AU_PARSING_RULES}
+
 ${SKILLS_RULES}
 
 Confidence (0-1): completeness × clarity × volume extracted.`;
@@ -133,6 +136,8 @@ Read the visual layout (multi-column, Canva templates, sidebars, skill bars) in 
 Extract ALL information present. Use null where data is missing — never guess.
 
 Date format: YYYY-MM where available, else YYYY. For currently-held roles set current=true and endDate=null.
+
+${AU_PARSING_RULES}
 
 ${SKILLS_RULES}
 

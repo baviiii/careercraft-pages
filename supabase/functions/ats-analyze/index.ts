@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { z } from "npm:zod@3";
 
+import { AU_RESUME_CONVENTIONS, AU_SPELLING_NOTE } from "../_shared/ai/au-context.ts";
 import { horusGenerateObject, horusGenerateText, type HorusTier } from "../_shared/ai/horus.ts";
 import { ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota } from "../_shared/ai/meter.ts";
@@ -361,7 +362,14 @@ serve(handler(async (req) => {
     if (analysisType === "full-analysis") {
       systemPrompt = `You are an Enterprise-grade ATS Resume Analyzer & Optimizer Engine trained on top recruitment systems (Greenhouse, Lever, Workday, Taleo, BambooHR, Seek, LinkedIn Talent Insights). You evaluate resumes + job descriptions, simulate an ATS scan, and produce a complete breakdown.
 
-Resumes come from every profession — healthcare, trades, education, hospitality, finance, retail, engineering. Ground every skill, keyword, and improvement in what the resume and job description actually contain, in the language of that profession. Never inject tech-industry skills or advice into a non-tech resume.`;
+Resumes come from every profession — healthcare, trades, education, hospitality, finance, retail, engineering. Ground every skill, keyword, and improvement in what the resume and job description actually contain, in the language of that profession. Never inject tech-industry skills or advice into a non-tech resume.
+
+${AU_RESUME_CONVENTIONS}
+
+SCORING IMPLICATIONS FOR THE AUSTRALIAN MARKET:
+- Do NOT penalise 2-3 page length, a Referees section, AQF qualification names, or Australian spelling — these are correct for this market, not red flags.
+- DO flag as improvements: photos, date of birth, marital status, US spelling in an Australian resume, and missing right-to-work information when the job description asks for it.
+- If the job description lists selection criteria, add a red flag noting that this employer expects a separate selection-criteria statement which the resume alone does not satisfy.`;
       
       userPrompt = `Analyze this resume against the job description and provide a comprehensive ATS analysis.
 
@@ -377,6 +385,9 @@ Provide a detailed analysis covering all aspects.`;
       systemPrompt = `You are a human job applicant rewriting your own resume.
 You are NOT a career coach, NOT a marketer, and NOT an AI assistant.
 You write plainly, conservatively, and slightly imperfectly, like a real person describing work they actually did.
+You are applying for jobs in AUSTRALIA and write in Australian English.
+
+${AU_RESUME_CONVENTIONS}
 
 === WRITING STYLE (MANDATORY) ===
 
@@ -651,6 +662,7 @@ Return the COMPLETE resume now. Do not stop mid-section. Include everything.`;
     } else if (analysisType === "rewrite-experience") {
       systemPrompt = `You are a human job applicant rewriting ONLY the work experience section of your own resume.
 You write plainly and specifically, like a real person describing work they actually did.
+${AU_SPELLING_NOTE}
 
 BULLET RULES:
 - Each bullet: 8-22 words max. Max one comma per bullet.
@@ -685,7 +697,8 @@ Priority Keywords: ${ctx.jobRequirements?.mandatorySkills?.slice(0, 5).join(', '
       
       userPrompt = `JOB DESCRIPTION:\n${jobDescription}\n\nRESUME:\n${resumeText}${contextInfo}\n\nRewrite only the work experience section with powerful, metrics-driven bullet points. Address the writing quality issues and incorporate missing keywords naturally. Keep other sections as-is. Return the full resume with improved experience section.`;
     } else if (analysisType === "generate-achievements") {
-      systemPrompt = `You are an achievement generator. Based on the resume context, generate 5-8 keyword-rich achievement bullets that could strengthen the resume for this role.`;
+      systemPrompt = `You are an achievement generator. Based on the resume context, generate 5-8 keyword-rich achievement bullets that could strengthen the resume for this role.
+${AU_SPELLING_NOTE}`;
       
       let contextInfo = "";
       if (parsedAnalysisContext) {
@@ -700,7 +713,8 @@ ${ctx.writingQuality?.metricsUsageScore < 7 ? '⚠️ Focus on quantifiable achi
       
       userPrompt = `JOB DESCRIPTION:\n${jobDescription}\n\nRESUME CONTEXT:\n${resumeText}${contextInfo}\n\nGenerate 5-8 powerful achievement bullets with metrics that this candidate could add to strengthen their resume for this role. Incorporate missing keywords naturally. Make them realistic based on their background.`;
     } else if (analysisType === "generate-summaries") {
-      systemPrompt = `You are an expert at writing resume summaries. Generate multiple summary options optimized for ATS.`;
+      systemPrompt = `You are an expert at writing resume summaries. Generate multiple summary options optimized for ATS.
+${AU_SPELLING_NOTE}`;
       
       let contextInfo = "";
       if (parsedAnalysisContext) {
@@ -719,8 +733,11 @@ Preferred Skills: ${ctx.jobRequirements?.preferredSkills?.slice(0, 5).join(', ')
       systemPrompt = `You are a human job applicant rewriting your own resume into structured JSON format.
 You are NOT a career coach, NOT a marketer, and NOT an AI assistant.
 You write plainly and specifically, like a real person describing work they actually did.
+You are applying for jobs in AUSTRALIA and write in Australian English.
 
 You will receive structured resume data (JSON) and a job description. Optimize the content while maintaining the exact same JSON structure and all field names.
+
+${AU_RESUME_CONVENTIONS}
 
 === JOB DESCRIPTION ADHERENCE (CRITICAL) ===
 
@@ -1211,6 +1228,7 @@ Rules:
 - Do NOT remove any sections or bullets entirely.
 - Do NOT add new content.
 - Keep all facts accurate.
+- Keep Australian English spelling exactly as written (organised, specialised, licence) — never change it to US spelling.
  - Return the COMPLETE resume with your edits. Do not explain changes.`,
             prompt: resultText,
             maxTokens: 8000,

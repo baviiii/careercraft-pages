@@ -10,6 +10,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { z } from "npm:zod@3";
 
+import { AU_SPELLING_NOTE } from "../_shared/ai/au-context.ts";
 import { horusGenerateText } from "../_shared/ai/horus.ts";
 import { ProviderError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota } from "../_shared/ai/meter.ts";
@@ -44,6 +45,7 @@ function buildPrompts(req: RewriteRequest): PromptPair {
 
 const BULLET_SYSTEM = `You are a human job applicant rewriting a single bullet point on your own resume.
 You write plainly and specifically, like a real person describing work they actually did.
+${AU_SPELLING_NOTE}
 
 Rules:
 - 8-22 words max. Max one comma.
@@ -76,6 +78,11 @@ const COVER_LETTER_PROMPTS: Record<RewriteRequest["tone"], PromptBuilder> = {
 function coverLetter(r: RewriteRequest, baseSystem: string, toneInstructions: string): PromptPair {
   return {
     system: `${baseSystem}
+
+This letter is for a job in AUSTRALIA:
+- ${AU_SPELLING_NOTE}
+- If the resume states right-to-work status (citizenship, PR, visa with work rights), carry the exact phrasing through — never reword into US visa terminology, and never invent a status that isn't there.
+- If the job description lists selection criteria, briefly speak to the strongest one or two in the achievement paragraphs — and note that many Australian public-sector roles also require a separate selection-criteria statement.
 
 Key requirements:
 - Extract and incorporate specific metrics and achievements from the resume
