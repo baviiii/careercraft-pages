@@ -23,6 +23,14 @@ import {
   horusTraverse,
   isHorusRagEnabled,
 } from "@/lib/horusKnowledge";
+import {
+  routeMessage,
+  isRefusalAnswer,
+  type ThinkingStep,
+  type ThinkingStatus,
+} from "@/lib/conversationRouter";
+
+export type { ThinkingStep } from "@/lib/conversationRouter";
 
 // Reuse types from useEnterpriseRAG for consistency
 export interface ChatMessage {
@@ -41,6 +49,14 @@ export interface ChatMessage {
   visualData?: VisualChartData;
   confidence?: "high" | "medium" | "low";
   queryIntent?: QueryIntent;
+  /** Live reasoning ledger — what the agent is doing / did, with timings. */
+  thinking?: ThinkingStep[];
+  /**
+   * False when the model answered with a grounded refusal ("the passages do
+   * not address…") — the UI must not decorate such answers with confidence
+   * badges or source counts.
+   */
+  grounded?: boolean;
   // Agentic-specific fields
   agentPlan?: AgentPlan;
   graphConnections?: GraphConnection[];
@@ -467,30 +483,43 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     _originalQuery: string
   ): Promise<IntersectionAnalysis> => performBasicAnalysis(queryResults), []);
 
-  // Document-overlap analysis, computed client side
+  // Document-overlap analysis, computed client side.
+  //
+  // Counts how many *distinct retrieval steps* each document appears in
+  // (repeated chunks of the same document within one step do not count), and
+  // reports the overlap under the document's human title — the old version
+  // surfaced raw base64 blob ids as "X → X same_document", which read as
+  // garbage in the UI.
   const performBasicAnalysis = useCallback((queryResults: Array<{ query: string; results: any[] }>): IntersectionAnalysis => {
-    // Find overlapping documents
-    const docCounts = new Map<string, number>();
+    const docSteps = new Map<string, { steps: number; title: string }>();
+
     queryResults.forEach(qr => {
+      const seenInStep = new Set<string>();
       (qr.results || []).forEach(r => {
-        const docId = r.documentId || r.id;
-        docCounts.set(docId, (docCounts.get(docId) || 0) + 1);
+        const docId = String(r.documentId || r.id || r.name || '');
+        if (!docId || seenInStep.has(docId)) return;
+        seenInStep.add(docId);
+        const entry = docSteps.get(docId) || { steps: 0, title: r.title || r.name || docId };
+        entry.steps += 1;
+        docSteps.set(docId, entry);
       });
     });
 
     const connections: GraphConnection[] = [];
-    const overlappingDocs = Array.from(docCounts.entries()).filter(([_, count]) => count > 1);
-    
-    // Create connections for overlapping docs
-    overlappingDocs.forEach(([docId, count]) => {
-      connections.push({
-        type: 'same_document',
-        source: docId,
-        target: docId,
-        strength: Math.min(count / queryResults.length, 1),
-        description: `Document appears in ${count} query results`,
+    const overlapping = Array.from(docSteps.values()).filter(e => e.steps > 1);
+
+    // Corroboration only means something when there was more than one step.
+    if (queryResults.length > 1) {
+      overlapping.forEach(({ steps, title }) => {
+        connections.push({
+          type: 'same_document',
+          source: title,
+          target: title,
+          strength: Math.min(steps / queryResults.length, 1),
+          description: `Corroborated by ${steps} independent retrieval steps`,
+        });
       });
-    });
+    }
 
     return {
       connections,
@@ -498,8 +527,8 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       gaps: [],
       themes: [],
       overlapStats: {
-        totalUniqueDocuments: docCounts.size,
-        overlappingDocuments: overlappingDocs.length,
+        totalUniqueDocuments: docSteps.size,
+        overlappingDocuments: overlapping.length,
       },
     };
   }, []);
@@ -519,70 +548,119 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       timestamp: new Date(),
     };
 
-    // Loading message
+    // ── PRE-RETRIEVAL GATE ─────────────────────────────────────────────────
+    // Small talk never touches the pipeline. Before this gate, "hey there"
+    // paid for two full rag.query round-trips and came back with "the
+    // provided passages do not address the query" under a confidence badge.
+    const route = routeMessage(content, focusArea);
+    if (route.kind !== "retrieve") {
+      conversationHistory.current.push(content);
+      setMessages(prev => [...prev, userMessage, {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: route.reply,
+        timestamp: new Date(),
+        followUpQuestions: route.followUps.length > 0 ? route.followUps : undefined,
+        grounded: true,
+        responseTime: Date.now() - startTime,
+        thinking: [{ id: "route", label: route.trace, status: "done", ms: Date.now() - startTime }],
+      }]);
+      return;
+    }
+
+    // Loading message — carries the live thinking trace while we work.
     const loadingMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "assistant",
       content: "",
       timestamp: new Date(),
       isLoading: true,
+      thinking: [],
     };
 
     setMessages(prev => [...prev, userMessage, loadingMessage]);
     setIsStreaming(true);
     conversationHistory.current.push(content);
 
+    // ── LIVE THINKING TRACE ────────────────────────────────────────────────
+    // Each phase is pushed onto the in-flight message as it starts, and
+    // stamped with its elapsed time as it completes, so the UI can render
+    // the agent's reasoning in real time instead of a blank spinner.
+    const trace: ThinkingStep[] = [];
+    const syncTrace = () => {
+      const snapshot = trace.map(s => ({ ...s }));
+      setMessages(prev => prev.map(m => (m.id === loadingMessage.id ? { ...m, thinking: snapshot } : m)));
+    };
+    const beginStep = (id: string, label: string, detail?: string): number => {
+      trace.push({ id, label, detail, status: "active" });
+      syncTrace();
+      return Date.now();
+    };
+    const endStep = (id: string, startedAt: number, detail?: string, status: ThinkingStatus = "done") => {
+      const step = trace.find(s => s.id === id);
+      if (step) {
+        step.status = status;
+        step.ms = Date.now() - startedAt;
+        if (detail) step.detail = detail;
+      }
+      syncTrace();
+    };
+
     try {
-      // Step 1: Agent plans the query
+      // Phase 1: plan the retrieval.
+      const tPlan = beginStep("plan", "Reading the question & planning retrieval");
       const plan = await planQuery(content);
-      
       if (!plan) {
         throw new Error("Failed to create query plan");
       }
+      endStep(
+        "plan",
+        tPlan,
+        plan.strategy === "graph_then_search" ? "knowledge graph + corpus search" : "direct corpus search",
+      );
 
-      // Update loading message with plan
       setMessages(prev => prev.map(m =>
         m.id === loadingMessage.id
           ? { ...m, agentPlan: plan }
           : m
       ));
 
-      // Step 2: Execute plan steps with dependency handling
-      const stepResults = await executeStepsWithDependencies(plan.steps);
-      
-      // Convert to query results format (filter successful steps)
-      const queryResults: Array<{ query: string; results: any[]; method?: string }> = stepResults
-        .filter(sr => sr.success || sr.results.length > 0) // Include partial successes
-        .map(sr => ({
-          query: sr.query,
-          results: sr.results,
-          method: sr.method,
-        }));
-
-      // Log execution summary
-      const successCount = stepResults.filter(sr => sr.success).length;
-      const totalTime = stepResults.reduce((sum, sr) => sum + sr.executionTime, 0);
-      console.log(`[AgenticRAG] 📊 Execution: ${successCount}/${stepResults.length} steps succeeded, ${totalTime}ms total`);
-
-      // Check if we have any results to work with
-      if (queryResults.length === 0 || queryResults.every(qr => qr.results.length === 0)) {
-        console.warn("[AgenticRAG] ⚠️ All steps failed or returned no results");
-        // Continue with fallback search instead of throwing
+      // Phase 2: graph-only steps (entity lookups, traversals, impacts).
+      //
+      // Passage retrieval is deliberately NOT executed here. It used to run a
+      // full generative rag.query per hybrid_search step and then a *second*
+      // full rag.query for the final answer — doubling latency and model cost
+      // on every message. Passages are now fetched exactly once, in Phase 3.
+      const graphSteps = plan.steps.filter(s => s.method !== "hybrid_search" && s.method !== "filter_search");
+      let stepResults: StepResult[] = [];
+      if (graphSteps.length > 0) {
+        const tGraph = beginStep(
+          "graph",
+          "Consulting the knowledge graph",
+          graphSteps.map(s => `“${s.query}”`).join(" · "),
+        );
+        stepResults = await executeStepsWithDependencies(graphSteps);
+        const found = stepResults.reduce((sum, sr) => sum + sr.results.length, 0);
+        endStep(
+          "graph",
+          tGraph,
+          found > 0
+            ? `${found} linked entit${found === 1 ? "y" : "ies"} with evidence`
+            : "no graph matches — continuing with corpus search",
+          found > 0 ? "done" : "skipped",
+        );
       }
 
-      // Step 3: Analyze intersections
-      const analysis = await analyzeIntersections(queryResults, content);
+      const graphSources = stepResults.flatMap(sr => sr.results);
 
-      // Step 4: Combine results and generate response
-      const allSources = queryResults.flatMap(qr => qr.results);
-      const uniqueSources = Array.from(
-        new Map(allSources.map(s => [(s.documentId || s.id || s.name) + (s.pageNumber || ''), s])).values()
-      );
+      // Build enriched context from graph results to feed into the final call.
+      const agenticContext = buildAgenticContext(plan, stepResults, graphSources, {
+        connections: [],
+        contradictions: [],
+        gaps: [],
+        themes: [],
+      });
 
-      // Build enriched context from agentic step results to feed into the final LLM call
-      const agenticContext = buildAgenticContext(plan, stepResults, uniqueSources, analysis);
-
-      // Generate response using semanticSearch; combine finalSystemPrompt (e.g. HORUS tab prompt) with agentic context
       const agenticSystemPrompt = agenticContext
         ? `You have access to additional context from an agentic retrieval pipeline. Use this alongside the retrieved documents to give a comprehensive answer.\n\n### Agentic Context\n${agenticContext}`
         : undefined;
@@ -590,11 +668,13 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         ? (agenticSystemPrompt ? `${finalSystemPrompt}\n\n${agenticSystemPrompt}` : finalSystemPrompt)
         : agenticSystemPrompt;
 
+      // Phase 3: the single generative retrieval — hybrid search + synthesis.
+      const tSearch = beginStep("search", "Searching the corpus", "hybrid retrieval · cited synthesis");
       const finalResult = await semanticSearch(
         content,
         {},
         {
-          topK: 30,
+          topK: 24,
           timeAwareRanking: true,
           systemPrompt: combinedSystemPrompt,
         }
@@ -603,16 +683,25 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       if (!finalResult) {
         throw new Error("No response from semantic search");
       }
+      endStep("search", tSearch, `${finalResult.sources?.length ?? 0} passages retrieved`);
 
-      // Merge agentic sources with semantic search sources (deduplicate)
+      // Phase 4: local cross-referencing between graph results and passages.
+      const tVerify = beginStep("verify", "Cross-referencing sources & scoring confidence");
+      const queryResults: Array<{ query: string; results: any[]; method?: string }> = [
+        ...stepResults
+          .filter(sr => sr.success || sr.results.length > 0)
+          .map(sr => ({ query: sr.query, results: sr.results, method: sr.method })),
+        { query: content, results: finalResult.sources || [], method: "hybrid_search" },
+      ];
+      const analysis = await analyzeIntersections(queryResults, content);
+
+      // Merge graph sources with semantic search sources (deduplicate)
       const mergedSources = mergeAndDeduplicateSources(
         finalResult.sources || [],
-        uniqueSources
+        graphSources
       );
 
-      const responseTime = Date.now() - startTime;
-
-      // Format sources from merged results (agentic + semantic)
+      // Format sources from merged results (graph + semantic)
       const enhancedSources: EnhancedSource[] = mergedSources.map(s => ({
         title: s.title || s.name || s.documentId || 'Unknown',
         documentId: s.documentId || s.id || '',
@@ -628,12 +717,27 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         extractionMethod: s.extractionMethod,
       }));
 
-      // Determine confidence (guard against divide-by-zero when no sources)
+      const answer = finalResult.answer || "I couldn't generate a response. Please try again.";
+
+      // Honest confidence: a grounded refusal ("the passages do not address…")
+      // is never high-confidence, whatever the retrieval scores said.
+      const refusal = isRefusalAnswer(answer);
       const avgRelevance = enhancedSources.length > 0
         ? enhancedSources.reduce((sum, s) => sum + s.relevance, 0) / enhancedSources.length
         : 0;
       const confidence: "high" | "medium" | "low" =
-        enhancedSources.length === 0 ? "low" : avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
+        refusal || enhancedSources.length === 0 ? "low" : avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
+
+      endStep(
+        "verify",
+        tVerify,
+        refusal
+          ? "answer is not grounded in the corpus"
+          : `${enhancedSources.length} sources · ${confidence} confidence`,
+        refusal ? "failed" : "done",
+      );
+
+      const responseTime = Date.now() - startTime;
 
       // Remove loading, add response
       setMessages(prev => prev.filter(m => !m.isLoading));
@@ -642,12 +746,14 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       const responseMessage: ChatMessage = {
         id: responseId,
         role: "assistant",
-        content: finalResult.answer || "I couldn't generate a response. Please try again.",
+        content: answer,
         timestamp: new Date(),
         sources: enhancedSources.slice(0, 10),
         confidence,
+        grounded: !refusal,
         responseTime,
         tokens: undefined,
+        thinking: trace.map(s => ({ ...s })),
         agentPlan: plan,
         graphConnections: analysis.connections,
         contradictions: analysis.contradictions,
@@ -672,18 +778,23 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
     } catch (error) {
       console.error("[AgenticRAG] Error:", error);
 
+      // Mark whatever phase was in flight as failed, keep the trace visible.
+      trace.forEach(s => { if (s.status === "active") s.status = "failed"; });
+
       setMessages(prev => prev.filter(m => !m.isLoading));
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "I encountered an error with agentic retrieval. Let me try a different approach. Could you rephrase your question?",
+        content: "I hit an error while retrieving from the corpus. Could you try again, or rephrase the question?",
         timestamp: new Date(),
         confidence: "low",
+        grounded: false,
+        thinking: trace.map(s => ({ ...s })),
       }]);
     } finally {
       setIsStreaming(false);
     }
-  }, [planQuery, traverseGraph, analyzeIntersections, semanticSearch, finalSystemPrompt]);
+  }, [planQuery, traverseGraph, analyzeIntersections, semanticSearch, finalSystemPrompt, focusArea]);
 
   // ========================================================================
   // STEP EXECUTION ENGINE - Handles dependencies & parallel execution

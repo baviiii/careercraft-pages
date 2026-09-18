@@ -1,34 +1,24 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 /**
- * Horus Career Coach — the carbon console.
+ * Career Coach — a briefing desk, not a chatbot skin.
  *
- * SEPARATION OF CONCERNS:
- * - Hybrid RAG: Standard retrieval (useEnterpriseRAG)
- * - Agentic + Graph RAG: Multi-step reasoning with relationship discovery (useAgenticRAG)
- * - Users can toggle between modes via UI
- * - Each mode uses its own hook for clean separation
- *
- * VISUAL SYSTEM: `.cc-console` in craft.css. A dark instrument set into the
- * cream page — machine microtype in JetBrains Mono, prose in Inter, persona
- * names in Bricolage Grotesque, one accent at a time driven by `data-accent`.
- * Every ink is contrast-checked against the console ground; nothing sits below
- * AA for body text, which is what the old white/20-on-black chrome violated.
+ * VISUAL SYSTEM: cream paper, ink, rust. Same Craft language as the rest of
+ * the logged-in app. Thinking is a galley-proof ledger, not a spinner.
+ * Small talk never hits retrieval — see src/lib/conversationRouter.ts.
  */
 import { useEnterpriseRAG } from "@/hooks/useEnterpriseRAG";
 import { useAgenticRAG } from "@/hooks/useAgenticRAG";
+import type { ThinkingStep } from "@/lib/conversationRouter";
 import {
-  FollowUpQuestions,
   ProactiveInsightCard,
-  ConfidenceIndicator,
   EmbeddedChart,
 } from "./ChatEnhancements";
 import { exportConversationToPDF } from "@/lib/pdfExport";
-import { CAREER_SYSTEM_DISCLAIMER } from "@/lib/careerGuardrails";
 import {
   Send,
   Sparkles,
@@ -101,8 +91,8 @@ const PERSONAS: Record<string, Persona> = {
     subtitle: "Job market intelligence & career guidance",
     accent: "cobalt",
     icon: Briefcase,
-    welcomeTitle: "Your SA Career Intelligence Agent",
-    welcomeDescription: "I analyze 54+ SA Government documents to give you real career insights — job growth, salary data, sector demand, and interview preparation.",
+    welcomeTitle: "Ask about your next move.",
+    welcomeDescription: "Occupations, pay, training pathways, and public-sector applications — answered from SA Government documents, cited to the page.",
     suggestedQuestions: [
       { text: "What are the fastest growing careers in South Australia right now?", category: "Growth", icon: TrendingUp, popular: true },
       { text: "How do I write selection criteria for SA government jobs?", category: "Application", icon: FileText, popular: true },
@@ -128,8 +118,8 @@ const PERSONAS: Record<string, Persona> = {
     subtitle: "Deep document analysis & cross-sector intelligence",
     accent: "rose",
     icon: Brain,
-    welcomeTitle: "HORUS Intelligence Analyst",
-    welcomeDescription: "I perform deep analysis across SA Government budget papers, policy documents, and workforce reports — detecting patterns, contradictions, and strategic signals.",
+    welcomeTitle: "Read across the papers.",
+    welcomeDescription: "Budget papers, policy, and workforce reports — compared, contradicted, and cited. I look for the gap between what is said and what is funded.",
     suggestedQuestions: [
       { text: "What contradictions exist between stated government priorities and actual budget allocations?", category: "Analysis", icon: AlertCircle, popular: true },
       { text: "Compare infrastructure spending across the last 3 budget cycles", category: "Comparison", icon: BarChart3, popular: true },
@@ -154,8 +144,8 @@ const PERSONAS: Record<string, Persona> = {
     subtitle: "Budget allocations, grants & investment tracking",
     accent: "sage",
     icon: DollarSign,
-    welcomeTitle: "SA Funding & Budget Expert",
-    welcomeDescription: "I track every dollar in the SA Government budget — sector allocations, program funding, grants, and investment trends across all departments.",
+    welcomeTitle: "Where the money went.",
+    welcomeDescription: "Allocations, grants, and year-on-year shifts across the SA budget — every figure tied back to the paper it came from.",
     suggestedQuestions: [
       { text: "What are the largest budget allocations in the 2024-25 SA budget?", category: "Budget", icon: DollarSign, popular: true },
       { text: "Which sectors received the biggest funding increases this year?", category: "Growth", icon: TrendingUp, popular: true },
@@ -180,8 +170,8 @@ const PERSONAS: Record<string, Persona> = {
     subtitle: "Workforce skills demand & training pathways",
     accent: "wheat",
     icon: GraduationCap,
-    welcomeTitle: "SA Skills & Training Advisor",
-    welcomeDescription: "I analyze workforce skills gaps, training program effectiveness, and emerging skill demands across South Australia's key industries.",
+    welcomeTitle: "What SA actually needs.",
+    welcomeDescription: "Skills gaps, TAFE pathways, and emerging demand — mapped from workforce reports, not job-board rumour.",
     suggestedQuestions: [
       { text: "What are the most in-demand technical skills in SA right now?", category: "Demand", icon: TrendingUp, popular: true },
       { text: "Which emerging skills should I learn for future-proof careers?", category: "Emerging", icon: Sparkles, popular: true },
@@ -206,8 +196,8 @@ const PERSONAS: Record<string, Persona> = {
     subtitle: "Government policy analysis & regulatory intelligence",
     accent: "cobalt",
     icon: Shield,
-    welcomeTitle: "SA Government Policy Analyst",
-    welcomeDescription: "I analyze SA Government policies, regulations, and strategic frameworks — helping you understand how policy decisions impact industries, communities, and careers.",
+    welcomeTitle: "Policy, in plain English.",
+    welcomeDescription: "How SA policy lands on industries, communities, and careers — read from the source documents, not the press release.",
     suggestedQuestions: [
       { text: "What are the key policy priorities in the current SA Government agenda?", category: "Priorities", icon: Target, popular: true },
       { text: "How do SA housing policies affect workforce mobility?", category: "Housing", icon: Shield, popular: true },
@@ -232,8 +222,8 @@ const PERSONAS: Record<string, Persona> = {
     subtitle: "Business grants, startup support & innovation programs",
     accent: "rose",
     icon: Sparkles,
-    welcomeTitle: "SA Entrepreneurship & Innovation Advisor",
-    welcomeDescription: "I help entrepreneurs navigate SA Government grants, startup programs, innovation hubs, and business support — from idea to scale-up.",
+    welcomeTitle: "Grants, hubs, first contracts.",
+    welcomeDescription: "Startup support, Lot Fourteen, procurement pathways — the government programmes, with the eligibility buried in the papers.",
     suggestedQuestions: [
       { text: "What government grants are available for startups in South Australia?", category: "Grants", icon: DollarSign, popular: true },
       { text: "How do I access the SA Innovation Hub and Lot Fourteen programs?", category: "Innovation", icon: Sparkles, popular: true },
@@ -258,8 +248,8 @@ const PERSONAS: Record<string, Persona> = {
     subtitle: "All-purpose SA Government intelligence",
     accent: "cobalt",
     icon: MessageSquare,
-    welcomeTitle: "HORUS General Intelligence",
-    welcomeDescription: "I have access to 54+ SA Government documents covering budgets, careers, skills, policies, and more. Ask me anything about South Australia!",
+    welcomeTitle: "The SA papers, open.",
+    welcomeDescription: "Budgets, careers, skills, policy — fifty-four government documents, one conversation. Ask anything. Every answer is cited.",
     suggestedQuestions: [
       { text: "Give me an overview of the SA Government's key priorities for 2025", category: "Overview", icon: Brain, popular: true },
       { text: "What are the biggest changes in this year's SA budget?", category: "Budget", icon: DollarSign, popular: true },
@@ -308,6 +298,87 @@ const RAG_MODE_LABEL: Record<RAGMode, string> = {
   neo4j: "Neo4j",
 };
 
+// ============================================================================
+// REASONING LEDGER — the flight recorder.
+//
+// While a query runs, this is the loading state: each pipeline phase appears
+// the moment it starts and is stamped with its elapsed time when it lands.
+// After the answer arrives it collapses to a one-line receipt ("Reasoned in
+// 3.2s · 4 steps") that expands on demand — the thinking stays auditable
+// without crowding the answer.
+// ============================================================================
+
+function formatMs(ms?: number): string {
+  if (ms == null) return "";
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+}
+
+function ThinkingLedger({ steps, live }: { steps: ThinkingStep[]; live?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const expanded = live || open;
+
+  if (!steps || steps.length === 0) return null;
+
+  const totalMs = steps.reduce((sum, s) => sum + (s.ms || 0), 0);
+  const failed = steps.some((s) => s.status === "failed");
+  const state = live ? "live" : failed ? "failed" : "done";
+
+  return (
+    <div className={cn("con-ledger", live && "con-ledger--live")}>
+      <button
+        type="button"
+        onClick={() => !live && setOpen((v) => !v)}
+        className="con-ledger__head"
+        aria-expanded={expanded}
+        disabled={live}
+      >
+        <span className="con-ledger__pulse" data-state={state} aria-hidden />
+        <span className="con-mono">
+          {live ? "Working" : `Thought for ${formatMs(totalMs) || "<1s"}`}
+        </span>
+        <span className="con-mono con-ledger__count">
+          {steps.length} step{steps.length === 1 ? "" : "s"}
+        </span>
+        {!live && (
+          <ChevronRight
+            className={cn("h-3 w-3 shrink-0 text-[color:var(--con-ink-3)] transition-transform duration-200", expanded && "rotate-90")}
+          />
+        )}
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <ol className="con-ledger__list">
+              {steps.map((step) => (
+                <li key={step.id} className="con-ledger__step" data-status={step.status}>
+                  <span className="con-ledger__node" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="con-ledger__label">{step.label}</span>
+                      <span className="con-mono con-ledger__ms">
+                        {step.status === "active" ? "· · ·" : formatMs(step.ms)}
+                      </span>
+                    </div>
+                    {step.detail && <p className="con-ledger__detail">{step.detail}</p>}
+                  </div>
+                </li>
+              ))}
+            </ol>
+            {live && <div className="con-sweep mx-3 mb-3" />}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function CareerCoach() {
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -319,7 +390,10 @@ export default function CareerCoach() {
   const [promptOptions, setPromptOptions] = useState<PromptOption[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const location = useLocation();
+  const bootstrappedQuery = useRef(false);
+  const prevFocus = useRef(focusArea);
 
   // Load all available prompts from database
   useEffect(() => {
@@ -431,24 +505,49 @@ export default function CareerCoach() {
     };
   }, [isExpanded]);
 
-  // Clear chat when focus area changes (to avoid confusion with different prompts)
+  // Only wipe the thread when the user actually changes lens or engine —
+  // not on the initial prompt-table load, which used to eat deep-linked questions.
   useEffect(() => {
-    if (messages.length > 0 && !loadingPrompts) {
-      clearChat();
+    if (prevFocus.current !== focusArea) {
+      prevFocus.current = focusArea;
+      if (messages.length > 0) clearChat();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusArea]);
 
-  // Clear chat when RAG mode changes (different systems, different context)
+  const prevMode = useRef(ragMode);
   useEffect(() => {
-    if (messages.length > 0) {
-      clearChat();
+    if (prevMode.current !== ragMode) {
+      prevMode.current = ragMode;
+      if (messages.length > 0) clearChat();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ragMode]);
 
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
+  // Deep links from other dashboards: /career-coach?q=… or location.state.initialQuestion
+  useEffect(() => {
+    if (bootstrappedQuery.current || loadingPrompts) return;
+    const stateQ = (location.state as { initialQuestion?: string } | null)?.initialQuestion;
+    const urlQ = new URLSearchParams(location.search).get("q");
+    const q = (stateQ || urlQ || "").trim();
+    if (!q) return;
+    bootstrappedQuery.current = true;
+    sendMessage(q);
+  }, [loadingPrompts, location, sendMessage]);
+
+  const resizeComposer = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+  }, []);
+
+  useEffect(() => {
+    resizeComposer();
+  }, [input, resizeComposer]);
+
+  const handleSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
     if (input.trim() && !isStreaming) {
       sendMessage(input.trim());
       setInput("");
@@ -523,45 +622,41 @@ export default function CareerCoach() {
 
   // ── Console chrome ───────────────────────────────────────────────────────
   const header = (
-    <header className="relative z-10 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-3 border-b border-[color:var(--con-line)] px-4 py-3 md:px-5">
-      {/* Identity */}
+    <header className="relative z-10 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-3 border-b border-[color:var(--con-line)] px-4 py-3 md:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <motion.div
           key={focusArea}
           initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 400, damping: 26 }}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[color:var(--con-accent-line)] bg-[color:var(--con-accent-soft)]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[color:var(--con-accent-line)] bg-[color:var(--con-accent-soft)]"
         >
-          <PersonaIcon className="h-[18px] w-[18px] text-[color:var(--con-accent)]" />
+          <PersonaIcon className="h-4 w-4 text-[color:var(--con-accent)]" />
         </motion.div>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="cc-font-display text-[15px] leading-none tracking-tight text-[color:var(--con-ink)]">
-              HORUS
+              {persona.name}
             </span>
             <span className="con-pip" aria-hidden />
-            <span className="con-mono text-[color:var(--con-ink-3)]">Live</span>
           </div>
-          <p className="mt-1 truncate text-[12px] leading-none text-[color:var(--con-ink-2)]">
+          <p className="mt-1 truncate text-[12px] leading-none text-[color:var(--con-ink-3)]">
             {persona.subtitle}
           </p>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="ml-auto flex items-center gap-2">
-        {/* Lens — which specialist is answering */}
+      <div className="ml-auto flex items-center gap-1.5">
         <div className="hidden items-center gap-2 sm:flex">
           <span className="con-mono text-[color:var(--con-ink-3)]">Lens</span>
           <Select value={focusArea} onValueChange={setFocusArea} disabled={isStreaming}>
             <SelectTrigger
               aria-label="Choose specialist"
-              className="h-8 w-[152px] gap-1.5 rounded-lg border-[color:var(--con-line-2)] bg-[color:var(--con-raised)] px-2.5 text-[12px] font-medium text-[color:var(--con-ink)] focus:ring-1 focus:ring-[color:var(--con-accent)] focus:ring-offset-0"
+              className="h-8 w-[158px] gap-1.5 rounded-lg border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-2.5 text-[12px] font-medium text-[color:var(--con-ink)] focus:ring-1 focus:ring-[color:var(--con-accent)] focus:ring-offset-0"
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="rounded-xl border-[color:var(--con-line-2)] bg-[color:var(--con-panel)] text-[color:var(--con-ink)]">
+            <SelectContent className="rounded-xl border-[color:var(--con-line)] bg-[color:var(--con-panel)] text-[color:var(--con-ink)]">
               {lensOptions.map((o) => (
                 <SelectItem
                   key={o.key}
@@ -575,9 +670,8 @@ export default function CareerCoach() {
           </Select>
         </div>
 
-        {/* Chat / Insights */}
         {messages.length > 0 && (
-          <div className="flex items-center gap-0.5 rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-raised)] p-0.5">
+          <div className="flex items-center gap-0.5 rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-panel)] p-0.5">
             {(["chat", "insights"] as const).map((v) => (
               <button
                 key={v}
@@ -586,7 +680,7 @@ export default function CareerCoach() {
                 data-active={viewMode === v}
                 className="con-btn con-mono px-2.5 py-1.5"
               >
-                {v === "chat" ? "Chat" : "Insights"}
+                {v === "chat" ? "Chat" : "Notes"}
               </button>
             ))}
           </div>
@@ -605,7 +699,6 @@ export default function CareerCoach() {
           </>
         )}
 
-        {/* Expand / Exit — labelled on the way out, so there is always an obvious door. */}
         {isExpanded ? (
           <button
             type="button"
@@ -614,7 +707,7 @@ export default function CareerCoach() {
             title="Exit fullscreen (Esc)"
           >
             <X className="h-3.5 w-3.5" />
-            Exit fullscreen
+            Exit
             <kbd className="ml-1 rounded border border-current/30 px-1 py-px text-[9px] opacity-70">Esc</kbd>
           </button>
         ) : (
@@ -744,93 +837,62 @@ export default function CareerCoach() {
   );
 
   // ── Welcome ──────────────────────────────────────────────────────────────
+  // An editorial opening spread instead of a widget pile: eyebrow rule, one
+  // big display line, and the starter questions set like a numbered index.
   const welcome = (
-    <div className="flex min-h-full flex-col items-center justify-center px-5 py-8 md:px-8">
-      {/* Orbital mark */}
-      <motion.div
-        key={focusArea + "-orb"}
-        initial={{ scale: 0.6, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 160, damping: 20 }}
-        className="relative mb-6"
-      >
-        <motion.div
-          className="absolute inset-[-22px] rounded-full border border-[color:var(--con-line-2)]"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 34, repeat: Infinity, ease: "linear" }}
-        >
-          <span className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[color:var(--con-accent)]" />
-        </motion.div>
-        <motion.div
-          className="absolute inset-[-12px] rounded-full border border-[color:var(--con-line)]"
-          animate={{ rotate: -360 }}
-          transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-        >
-          <span className="absolute right-0 top-1/2 h-1 w-1 -translate-y-1/2 translate-x-1/2 rounded-full bg-[color:var(--con-accent-2)]" />
-        </motion.div>
-        <div className="relative z-10 grid h-16 w-16 place-items-center rounded-2xl border border-[color:var(--con-accent-line)] bg-[color:var(--con-accent-soft)]">
-          <PersonaIcon className="h-7 w-7 text-[color:var(--con-accent)]" />
+    <div key={focusArea} className="flex min-h-full flex-col justify-center px-5 py-10 md:px-12">
+      <div className="mx-auto w-full max-w-[42rem]">
+        <div className="con-rise con-mono flex items-center gap-3 text-[color:var(--con-ink-3)]" style={{ animationDelay: "40ms" }}>
+          <span>{persona.name}</span>
+          <span className="h-px flex-1 bg-[color:var(--con-line)]" aria-hidden />
+          <span>54 documents · cited</span>
         </div>
-      </motion.div>
 
-      <h2 className="cc-font-display max-w-lg text-center text-[26px] leading-[1.1] tracking-[-0.02em] text-[color:var(--con-ink)] md:text-[30px]">
-        {persona.welcomeTitle}
-      </h2>
-      <p className="mt-3 max-w-md text-center text-[14px] leading-relaxed text-[color:var(--con-ink-2)]">
-        {persona.welcomeDescription}
-      </p>
+        <h2
+          className="con-rise cc-font-display mt-5 max-w-xl text-[clamp(28px,4.6vw,44px)] leading-[0.98] tracking-[-0.035em] text-[color:var(--con-ink)]"
+          style={{ animationDelay: "110ms" }}
+        >
+          {persona.welcomeTitle}
+        </h2>
+        <p
+          className="con-rise mt-4 max-w-lg text-[15px] leading-relaxed text-[color:var(--con-ink-2)]"
+          style={{ animationDelay: "170ms" }}
+        >
+          {persona.welcomeDescription}
+        </p>
 
-      {/* Instrument readout */}
-      <div className="con-mono mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[color:var(--con-ink-3)]">
-        <span className="inline-flex items-center gap-1.5"><FileText className="h-3 w-3" />54 documents</span>
-        <span className="h-3 w-px bg-[color:var(--con-line-2)]" aria-hidden />
-        <span className="inline-flex items-center gap-1.5"><Brain className="h-3 w-3" />{RAG_MODE_LABEL[ragMode]} reasoning</span>
-        <span className="h-3 w-px bg-[color:var(--con-line-2)]" aria-hidden />
-        <span className="inline-flex items-center gap-1.5"><Zap className="h-3 w-3" />Cited answers</span>
-      </div>
-
-      {/* Primary prompts */}
-      <div className="mt-7 w-full max-w-2xl space-y-2.5">
-        {persona.suggestedQuestions.slice(0, 3).map((q, i) => (
-          <button
-            key={q.text}
-            type="button"
-            onClick={() => sendMessage(q.text)}
-            className="con-rise group con-panel flex w-full items-center gap-3.5 p-3.5 text-left transition-colors hover:border-[color:var(--con-accent-line)] hover:bg-[color:var(--con-raised)]"
-            style={{ animationDelay: `${120 + i * 80}ms` }}
-          >
-            {q.icon && (
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[color:var(--con-accent-line)] bg-[color:var(--con-accent-soft)]">
-                <q.icon className="h-[18px] w-[18px] text-[color:var(--con-accent)]" />
-              </span>
-            )}
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14.5px] font-medium leading-snug text-[color:var(--con-ink)]">{q.text}</span>
-              <span className="con-mono mt-1.5 block text-[color:var(--con-ink-3)]">
-                {q.category}{q.popular ? " · Popular" : ""}
-              </span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--con-ink-3)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--con-accent)]" />
-          </button>
-        ))}
-      </div>
-
-      {/* Secondary prompts */}
-      {persona.suggestedQuestions.length > 3 && (
-        <div className="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
-          {persona.suggestedQuestions.slice(3).map((q, i) => (
+        <div className="mt-8 grid gap-2 md:grid-cols-2">
+          {persona.suggestedQuestions.slice(0, 4).map((q, i) => (
             <button
               key={q.text}
               type="button"
               onClick={() => sendMessage(q.text)}
-              className="con-rise rounded-full border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-3.5 py-2 text-[12.5px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
-              style={{ animationDelay: `${380 + i * 60}ms` }}
+              className="con-rise con-prompt group"
+              style={{ animationDelay: `${240 + i * 70}ms` }}
             >
-              {q.text}
+              <span className="con-mono con-prompt__idx">{String(i + 1).padStart(2, "0")}</span>
+              <span className="con-prompt__text">{q.text}</span>
+              <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[color:var(--con-ink-3)] transition-all group-hover:translate-x-0.5 group-hover:text-[color:var(--con-accent)]" />
             </button>
           ))}
         </div>
-      )}
+
+        {persona.suggestedQuestions.length > 4 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {persona.suggestedQuestions.slice(4).map((q, i) => (
+              <button
+                key={q.text}
+                type="button"
+                onClick={() => sendMessage(q.text)}
+                className="con-rise rounded-full border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-3.5 py-2 text-[12.5px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
+                style={{ animationDelay: `${540 + i * 60}ms` }}
+              >
+                {q.text}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -848,7 +910,7 @@ export default function CareerCoach() {
           >
             {message.role === "user" ? (
               <div className="flex justify-end">
-                <div className="max-w-[78%] rounded-2xl rounded-br-md border border-[color:var(--con-accent-line)] bg-[color:var(--con-accent-soft)] px-4 py-3 text-[14.5px] leading-relaxed text-[color:var(--con-ink)]">
+                <div className="max-w-[72%] rounded-[1.15rem] rounded-br-md bg-[color:var(--con-raised)] px-4 py-3 text-[15px] leading-relaxed text-[color:var(--con-ink)]">
                   {message.content}
                 </div>
               </div>
@@ -859,20 +921,54 @@ export default function CareerCoach() {
                 </span>
                 <div className="min-w-0 flex-1">
                   {message.isLoading ? (
-                    <div className="py-2">
-                      <div className="con-sweep w-40" />
-                      <div className="con-mono mt-2.5 flex items-center gap-2 text-[color:var(--con-ink-3)]">
-                        <Brain className="h-3 w-3" />
-                        Analysing documents
+                    (message as any).thinking?.length > 0 ? (
+                      <ThinkingLedger steps={(message as any).thinking} live />
+                    ) : (
+                      <div className="py-2">
+                        <div className="con-sweep w-40" />
+                        <div className="con-mono mt-2.5 flex items-center gap-2 text-[color:var(--con-ink-3)]">
+                          <Brain className="h-3 w-3" />
+                          Reading your question
+                        </div>
                       </div>
-                    </div>
+                    )
                   ) : (
                     <>
+                      {(message as any).thinking?.length > 0
+                        && (message as any).thinking[0]?.id !== "route"
+                        && !message.isStreaming && (
+                        <ThinkingLedger steps={(message as any).thinking} />
+                      )}
+
                       <div className="max-w-none text-[14.5px] leading-[1.75] text-[color:var(--con-ink-2)]">
                         {formatMessage(message.content)}
                       </div>
 
+                      {/* Answer receipt — honest grounding meta, no theatre */}
+                      {!message.isStreaming && (message.sources?.length || message.responseTime || (message as any).grounded === false) && (
+                        <div className="con-mono mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[color:var(--con-ink-3)]">
+                          {(message as any).grounded === false ? (
+                            <span className="inline-flex items-center gap-1.5 text-[color:var(--con-wheat)]">
+                              <AlertCircle className="h-3 w-3" />
+                              Not grounded in the corpus
+                            </span>
+                          ) : message.sources && message.sources.length > 0 ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <CheckCircle2 className="h-3 w-3 text-[color:var(--con-sage)]" />
+                              Grounded · {message.sources.length} source{message.sources.length === 1 ? "" : "s"}
+                              {message.confidence ? ` · ${message.confidence} confidence` : ""}
+                            </span>
+                          ) : null}
+                          {message.responseTime ? <span>· {formatMs(message.responseTime)}</span> : null}
+                        </div>
+                      )}
+
                       {/* Source chips */}
+                      {message.sources && message.sources.length > 0 && (message as any).grounded === false && (
+                        <p className="con-mono mt-3 text-[color:var(--con-ink-3)]">
+                          Closest documents — not used in this answer
+                        </p>
+                      )}
                       {message.sources && message.sources.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {message.sources.slice(0, 4).map((source, idx) => (
@@ -953,44 +1049,32 @@ export default function CareerCoach() {
                         )}
                       </AnimatePresence>
 
-                      {/* Reasoning steps */}
-                      {ragMode === "agentic" && (message as any).agentPlan && (
-                        <div className="con-panel mt-3 p-3">
-                          <div className="con-mono mb-2.5 flex items-center gap-2 text-[color:var(--con-ink-3)]">
-                            <Brain className="h-3.5 w-3.5 text-[color:var(--con-accent)]" />
-                            Reasoning steps
-                          </div>
-                          <div className="space-y-1.5">
-                            {(message as any).agentPlan.steps.map((step: any, idx: number) => (
-                              <div key={idx} className="flex items-center gap-2.5 text-[12.5px] text-[color:var(--con-ink-2)]">
-                                <span className="cc-font-mono grid h-5 w-5 shrink-0 place-items-center rounded border border-[color:var(--con-accent-line)] text-[10px] text-[color:var(--con-accent)]">
-                                  {step.step}
-                                </span>
-                                <span className="min-w-0 flex-1 truncate">{step.query}</span>
-                                <span className="con-mono shrink-0 text-[color:var(--con-ink-3)]">{step.method}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Graph connections */}
-                      {ragMode === "agentic" && (message as any).graphConnections?.length > 0 && (
+                      {/* Corroboration — documents confirmed by independent retrieval steps */}
+                      {(ragMode === "agentic" || ragMode === "neo4j") && (message as any).graphConnections?.length > 0 && (
                         <div className="con-panel mt-3 p-3">
                           <div className="con-mono mb-2.5 flex items-center gap-2 text-[color:var(--con-ink-3)]">
                             <Zap className="h-3.5 w-3.5 text-[color:var(--con-accent)]" />
-                            Graph connections
-                            <span className="rounded bg-[color:var(--con-raised)] px-1.5 py-0.5">
-                              {(message as any).graphConnections.length}
-                            </span>
+                            Corroboration
                           </div>
                           <div className="space-y-1.5">
                             {(message as any).graphConnections.slice(0, 3).map((conn: any, idx: number) => (
-                              <div key={idx} className="flex items-center gap-2 text-[12.5px] text-[color:var(--con-ink-2)]">
-                                <span className="truncate">{conn.source}</span>
-                                <span className="shrink-0 text-[color:var(--con-accent)]">→</span>
-                                <span className="truncate">{conn.target}</span>
-                                <span className="con-mono ml-auto shrink-0 text-[color:var(--con-ink-3)]">{conn.type}</span>
+                              <div key={idx} className="flex items-center gap-2.5 text-[12.5px] text-[color:var(--con-ink-2)]">
+                                {conn.source === conn.target ? (
+                                  <>
+                                    <FileText className="h-3.5 w-3.5 shrink-0 text-[color:var(--con-accent)]" />
+                                    <span className="min-w-0 flex-1 truncate">{conn.source}</span>
+                                    <span className="con-mono shrink-0 text-[color:var(--con-ink-3)]">
+                                      {conn.description || "multiple steps"}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="truncate">{conn.source}</span>
+                                    <span className="shrink-0 text-[color:var(--con-accent)]">→</span>
+                                    <span className="truncate">{conn.target}</span>
+                                    <span className="con-mono ml-auto shrink-0 text-[color:var(--con-ink-3)]">{conn.type}</span>
+                                  </>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1017,31 +1101,7 @@ export default function CareerCoach() {
                         </div>
                       )}
 
-                      {message.confidence && (
-                        <div className="mt-3">
-                          <ConfidenceIndicator
-                            confidence={message.confidence}
-                            avgRelevance={
-                              message.sources && message.sources.length > 0
-                                ? (() => {
-                                    const avg = message.sources.reduce((sum, s) => sum + (s.relevance || 0), 0) / message.sources.length;
-                                    return avg <= 1 ? Math.round(avg * 100) : Math.round(avg);
-                                  })()
-                                : undefined
-                            }
-                            sourceCount={message.sources?.length}
-                          />
-                        </div>
-                      )}
-
                       {message.visualData && <EmbeddedChart visualData={message.visualData} />}
-
-                      {message.followUpQuestions && message.followUpQuestions.length > 0 && (
-                        <FollowUpQuestions
-                          questions={message.followUpQuestions}
-                          onSelect={(q) => { setInput(q); sendMessage(q); }}
-                        />
-                      )}
 
                       {message.proactiveInsight && (
                         <ProactiveInsightCard
@@ -1091,28 +1151,35 @@ export default function CareerCoach() {
         ))}
       </AnimatePresence>
 
-      {smartFollowUps.length > 0 && !isStreaming && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="ml-10 pb-3 pt-1"
-        >
-          <div className="con-mono mb-2 text-[color:var(--con-ink-3)]">Follow up</div>
-          <div className="flex flex-wrap gap-2">
-            {smartFollowUps.map((q) => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => sendMessage(q)}
-                className="rounded-xl border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-3.5 py-2 text-left text-[13px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        </motion.div>
-      )}
+      {(() => {
+        const last = [...messages].reverse().find((m) => m.role === "assistant" && !m.isLoading);
+        const chips = (last?.followUpQuestions && last.followUpQuestions.length > 0)
+          ? last.followUpQuestions
+          : smartFollowUps;
+        if (!chips.length || isStreaming) return null;
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="ml-10 pb-3 pt-1"
+          >
+            <div className="con-mono mb-2 text-[color:var(--con-ink-3)]">Try next</div>
+            <div className="flex flex-wrap gap-2">
+              {chips.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => sendMessage(q)}
+                  className="rounded-xl border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-3.5 py-2 text-left text-[13px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        );
+      })()}
 
       <div ref={messagesEndRef} />
     </div>
@@ -1120,32 +1187,32 @@ export default function CareerCoach() {
 
   // ── Composer ─────────────────────────────────────────────────────────────
   const composer = (
-    <div className="relative z-10 shrink-0 border-t border-[color:var(--con-line)] px-4 py-3 md:px-5 md:py-4">
+    <div className="relative z-10 shrink-0 px-4 pb-4 pt-1 md:px-6 md:pb-5">
       <form onSubmit={handleSubmit}>
-        <div
-          className={cn(
-            "flex items-center gap-2 rounded-2xl border px-2 transition-colors duration-200",
-            input.trim()
-              ? "border-[color:var(--con-accent-line)] bg-[color:var(--con-raised)]"
-              : "border-[color:var(--con-line-2)] bg-[color:var(--con-panel)]",
-          )}
-        >
-          <Input
+        <div className="con-composer">
+          <textarea
             ref={inputRef}
             value={input}
+            rows={1}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? `${persona.name} is analysing…` : `Ask the ${persona.name.toLowerCase()}…`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+            placeholder={isStreaming ? `${persona.name} is working…` : `Ask ${persona.name.toLowerCase()}…`}
             disabled={isStreaming}
-            className="h-12 flex-1 border-0 bg-transparent px-2.5 text-[14.5px] text-[color:var(--con-ink)] placeholder:text-[color:var(--con-ink-3)] focus-visible:ring-0 focus-visible:ring-offset-0"
+            aria-label="Message"
           />
           <Select value={ragMode} onValueChange={(v: RAGMode) => setRagMode(v)} disabled={isStreaming}>
             <SelectTrigger
-              aria-label="Retrieval mode"
-              className="con-mono h-8 w-auto shrink-0 gap-1.5 rounded-lg border-[color:var(--con-line-2)] bg-[color:var(--con-bg)] px-2.5 text-[color:var(--con-ink-2)] focus:ring-1 focus:ring-[color:var(--con-accent)] focus:ring-offset-0"
+              aria-label="Retrieval engine"
+              className="con-mono mb-1 h-8 w-auto shrink-0 gap-1.5 rounded-lg border-transparent bg-transparent px-2 text-[color:var(--con-ink-3)] hover:text-[color:var(--con-ink-2)] focus:ring-1 focus:ring-[color:var(--con-accent)] focus:ring-offset-0"
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="rounded-xl border-[color:var(--con-line-2)] bg-[color:var(--con-panel)] text-[color:var(--con-ink)]">
+            <SelectContent className="rounded-xl border-[color:var(--con-line)] bg-[color:var(--con-panel)] text-[color:var(--con-ink)]">
               {(Object.keys(RAG_MODE_LABEL) as RAGMode[]).map((m) => (
                 <SelectItem
                   key={m}
@@ -1161,10 +1228,8 @@ export default function CareerCoach() {
             type="submit"
             disabled={!input.trim() || isStreaming}
             className={cn(
-              "grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors",
-              input.trim() && !isStreaming
-                ? "bg-[color:var(--con-accent)] text-[color:var(--con-bg)] hover:bg-[color:var(--con-accent-2)]"
-                : "bg-[color:var(--con-raised)] text-[color:var(--con-ink-3)]",
+              "con-send mb-0.5",
+              input.trim() && !isStreaming && "con-send--armed",
             )}
             title="Send"
           >
@@ -1174,9 +1239,9 @@ export default function CareerCoach() {
       </form>
       <div className="mt-2.5 flex items-start justify-between gap-4 px-1">
         <p className="line-clamp-2 max-w-lg text-[11.5px] leading-relaxed text-[color:var(--con-ink-3)]">
-          {CAREER_SYSTEM_DISCLAIMER}
+          Grounded in SA Government documents. Not personal legal, medical, or financial advice.
         </p>
-        <span className="con-mono shrink-0 text-[color:var(--con-ink-3)]">⏎ Send</span>
+        <span className="con-mono shrink-0 text-[color:var(--con-ink-3)]">⏎ send · ⇧⏎ line</span>
       </div>
     </div>
   );
@@ -1186,7 +1251,7 @@ export default function CareerCoach() {
   // offset is needed and the page itself never grows a second scrollbar.
   const shell = (
     <div
-      className="cc-console relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-[color:var(--cc-hair-strong)] shadow-[0_30px_70px_-40px_rgba(20,22,26,0.75)]"
+      className="cc-console relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.35rem] border border-[color:var(--cc-hair)] shadow-[0_24px_60px_-36px_rgba(20,22,26,0.35)]"
       data-accent={persona.accent}
     >
       <div className="cc-console__grid" aria-hidden />
@@ -1228,5 +1293,5 @@ export default function CareerCoach() {
     );
   }
 
-  return <div className="flex h-full min-h-0 flex-col">{shell}</div>;
+  return <div className="flex h-full min-h-[36rem] flex-1 flex-col">{shell}</div>;
 }

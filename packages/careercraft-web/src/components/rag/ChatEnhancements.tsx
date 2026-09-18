@@ -1,6 +1,8 @@
 /**
- * CHAT ENHANCEMENTS - Ferrari-grade UI components
- * Follow-ups, Proactive Insights, Confidence Indicators, Visual Charts
+ * CHAT ENHANCEMENTS — console-toned companions to CareerCoach.
+ * Follow-ups, Proactive Insights, Confidence Indicators, Visual Charts.
+ * Everything draws from the `.cc-console` variable set in craft.css so the
+ * pieces read as one instrument, not bolted-on widgets.
  */
 
 import { motion } from "framer-motion";
@@ -50,9 +52,9 @@ export function FollowUpQuestions({ questions, onSelect }: FollowUpQuestionsProp
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.08 }}
             onClick={() => onSelect(question)}
-            className="group flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/12 text-left transition-all text-sm text-white/50 hover:text-white/80"
+            className="group flex items-center gap-2 rounded-xl border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-3.5 py-2 text-left text-[13px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
           >
-            <ArrowRight className="w-3.5 h-3.5 text-white/20 group-hover:text-white/50 transition-colors flex-shrink-0" />
+            <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-[color:var(--con-ink-3)] transition-colors group-hover:text-[color:var(--con-accent)]" />
             <span className="flex-1">{question}</span>
           </motion.button>
         ))}
@@ -72,10 +74,10 @@ interface ProactiveInsightCardProps {
 
 export function ProactiveInsightCard({ insight, onClickAction }: ProactiveInsightCardProps) {
   const iconConfig = {
-    trend: { icon: TrendingUp, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-    recommendation: { icon: Sparkles, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-    warning: { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-    opportunity: { icon: Zap, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    trend: { icon: TrendingUp, color: "text-[color:var(--con-accent)]" },
+    recommendation: { icon: Sparkles, color: "text-[color:var(--con-accent)]" },
+    warning: { icon: AlertTriangle, color: "text-[color:var(--con-wheat)]" },
+    opportunity: { icon: Zap, color: "text-[color:var(--con-sage)]" },
   };
 
   const config = iconConfig[insight.type];
@@ -85,27 +87,27 @@ export function ProactiveInsightCard({ insight, onClickAction }: ProactiveInsigh
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]"
+      className="con-panel mt-4 border-l-2 border-l-[color:var(--con-accent)] p-4"
     >
       <div className="flex items-start gap-3">
-        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center bg-white/5")}>
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-raised)]">
           <Icon className={cn("w-4 h-4", config.color)} />
         </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <p className={cn("font-semibold text-sm", config.color)}>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <p className="text-sm font-semibold text-[color:var(--con-ink)]">
               {insight.title}
             </p>
-            <span className="text-[9px] text-white/20 bg-white/5 px-1.5 py-0.5 rounded">AI INSIGHT</span>
+            <span className="con-mono rounded bg-[color:var(--con-raised)] px-1.5 py-0.5 text-[color:var(--con-ink-3)]">Insight</span>
           </div>
-          <p className="text-xs text-white/50 mb-2">{insight.description}</p>
+          <p className="mb-2 text-xs leading-relaxed text-[color:var(--con-ink-2)]">{insight.description}</p>
           {insight.actionable && (
             <button
               onClick={onClickAction}
-              className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
+              className="flex items-center gap-1.5 rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-raised)] px-3 py-1.5 text-xs font-medium text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
             >
               <Target className={cn("w-3 h-3", config.color)} />
-              <span className={config.color}>{insight.actionable}</span>
+              <span>{insight.actionable}</span>
             </button>
           )}
         </div>
@@ -132,47 +134,40 @@ export function ConfidenceIndicator({
   const config = {
     high: {
       icon: CheckCircle2,
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
-      label: "High Confidence",
-      description: "Based on authoritative sources",
+      color: "text-[color:var(--con-sage)]",
+      label: "High confidence",
     },
     medium: {
       icon: Info,
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
-      label: "Medium Confidence",
-      description: "Based on available data",
+      color: "text-[color:var(--con-accent)]",
+      label: "Medium confidence",
     },
     low: {
       icon: AlertCircle,
-      color: "text-amber-400",
-      bg: "bg-amber-500/10",
-      border: "border-amber-500/20",
-      label: "Low Confidence",
-      description: "Limited information available",
+      color: "text-[color:var(--con-wheat)]",
+      label: "Low confidence",
     },
   };
 
-  const { icon: Icon, color, bg, border, label, description } = config[confidence];
+  const { icon: Icon, color, label } = config[confidence];
 
   return (
-    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+    <div className="inline-flex items-center gap-2 rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-3 py-1.5">
       <Icon className={cn("w-3.5 h-3.5", color)} />
       <div className="flex items-center gap-2">
         <span className={cn("text-xs font-medium", color)}>{label}</span>
-        {avgRelevance && (
-          <span className="text-[10px] text-white/25">
+        {/* Match % is only meaningful when the answer is actually grounded —
+            never decorate a low-confidence answer with a big score. */}
+        {confidence !== "low" && avgRelevance ? (
+          <span className="con-mono text-[color:var(--con-ink-3)]">
             {Math.round(avgRelevance)}% match
           </span>
-        )}
-        {sourceCount && (
-          <span className="text-[10px] text-white/25">
-            • {sourceCount} sources
+        ) : null}
+        {sourceCount ? (
+          <span className="con-mono text-[color:var(--con-ink-3)]">
+            · {sourceCount} sources
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -197,13 +192,13 @@ export function EmbeddedChart({ visualData }: EmbeddedChartProps) {
       <motion.div
         initial={{ opacity: 0, height: 0 }}
         animate={{ opacity: 1, height: "auto" }}
-        className="mt-4 p-4 rounded-xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20"
+        className="con-panel mt-4 p-4"
       >
         <div className="flex items-center gap-2 mb-3">
-          <BarChart3 className="w-4 h-4 text-blue-400" />
-          <span className="text-sm font-semibold text-white">{visualData.title}</span>
+          <BarChart3 className="w-4 h-4 text-[color:var(--con-accent)]" />
+          <span className="text-sm font-semibold text-[color:var(--con-ink)]">{visualData.title}</span>
         </div>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-[color:var(--con-ink-3)]">
           Chart visualization available. Enable Intelligence Dashboard for enhanced data.
         </p>
       </motion.div>
@@ -225,47 +220,47 @@ export function EmbeddedChart({ visualData }: EmbeddedChartProps) {
       <motion.div
         initial={{ opacity: 0, height: 0 }}
         animate={{ opacity: 1, height: "auto" }}
-        className="mt-4 p-4 rounded-xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20"
+        className="con-panel mt-4 p-4"
       >
         <div className="flex items-center gap-2 mb-3">
-          <BarChart3 className="w-4 h-4 text-blue-400" />
-          <span className="text-sm font-semibold text-white">{visualData.title}</span>
-          <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20 ml-auto">
-            LIVE DATA
+          <BarChart3 className="w-4 h-4 text-[color:var(--con-accent)]" />
+          <span className="text-sm font-semibold text-[color:var(--con-ink)]">{visualData.title}</span>
+          <Badge variant="outline" className="con-mono ml-auto border-[color:var(--con-accent-line)] bg-[color:var(--con-accent-soft)] text-[10px] text-[color:var(--con-accent)]">
+            Live data
           </Badge>
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-3">
-          <div className="p-2.5 rounded-lg bg-slate-800/50">
-            <p className="text-xs text-slate-400 mb-1">Allocation</p>
-            <p className="text-lg font-bold text-white">${(allocation.amount / 1000).toFixed(1)}B</p>
+          <div className="rounded-lg bg-[color:var(--con-raised)] p-2.5">
+            <p className="con-mono mb-1 text-[color:var(--con-ink-3)]">Allocation</p>
+            <p className="text-lg font-bold text-[color:var(--con-ink)]">${(allocation.amount / 1000).toFixed(1)}B</p>
           </div>
-          <div className="p-2.5 rounded-lg bg-slate-800/50">
-            <p className="text-xs text-slate-400 mb-1">Growth</p>
+          <div className="rounded-lg bg-[color:var(--con-raised)] p-2.5">
+            <p className="con-mono mb-1 text-[color:var(--con-ink-3)]">Growth</p>
             <p className={cn(
               "text-lg font-bold",
-              allocation.change >= 0 ? "text-emerald-400" : "text-red-400"
+              allocation.change >= 0 ? "text-[color:var(--con-sage)]" : "text-[color:var(--con-rose)]"
             )}>
               {allocation.change > 0 ? "+" : ""}{allocation.change.toFixed(1)}%
             </p>
           </div>
-          <div className="p-2.5 rounded-lg bg-slate-800/50">
-            <p className="text-xs text-slate-400 mb-1">Share</p>
-            <p className="text-lg font-bold text-white">{percentage.toFixed(1)}%</p>
+          <div className="rounded-lg bg-[color:var(--con-raised)] p-2.5">
+            <p className="con-mono mb-1 text-[color:var(--con-ink-3)]">Share</p>
+            <p className="text-lg font-bold text-[color:var(--con-ink)]">{percentage.toFixed(1)}%</p>
           </div>
         </div>
 
-        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-[color:var(--con-raised)]">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${percentage}%` }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+            className="h-full bg-[color:var(--con-accent)]"
           />
         </div>
 
-        <p className="text-xs text-slate-400 mt-2">
-          Data from Intelligence Dashboard • {allocation.confidence.toUpperCase()} confidence
+        <p className="con-mono mt-2 text-[color:var(--con-ink-3)]">
+          Intelligence Dashboard · {allocation.confidence} confidence
         </p>
       </motion.div>
     );
@@ -282,30 +277,30 @@ export function EmbeddedChart({ visualData }: EmbeddedChartProps) {
       <motion.div
         initial={{ opacity: 0, height: 0 }}
         animate={{ opacity: 1, height: "auto" }}
-        className="mt-4 p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20"
+        className="con-panel mt-4 p-4"
       >
         <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <span className="text-sm font-semibold text-white">{visualData.title}</span>
-          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 ml-auto">
-            TOP OPPORTUNITIES
+          <TrendingUp className="w-4 h-4 text-[color:var(--con-sage)]" />
+          <span className="text-sm font-semibold text-[color:var(--con-ink)]">{visualData.title}</span>
+          <Badge variant="outline" className="con-mono ml-auto border-[color:var(--con-line-2)] bg-[color:var(--con-raised)] text-[10px] text-[color:var(--con-sage)]">
+            Top opportunities
           </Badge>
         </div>
 
         <div className="space-y-2">
           {careers.map((career, idx) => (
-            <div key={idx} className="p-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50">
+            <div key={idx} className="rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-raised)] p-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-white">{career.occupation}</span>
-                <span className="text-xs font-semibold text-emerald-400">+{career.growth.toFixed(0)}%</span>
+                <span className="text-sm font-medium text-[color:var(--con-ink)]">{career.occupation}</span>
+                <span className="text-xs font-semibold text-[color:var(--con-sage)]">+{career.growth.toFixed(0)}%</span>
               </div>
-              <p className="text-xs text-slate-400 mt-1">{career.sector}</p>
+              <p className="con-mono mt-1 text-[color:var(--con-ink-3)]">{career.sector}</p>
             </div>
           ))}
         </div>
 
-        <p className="text-xs text-slate-400 mt-2">
-          Data from Intelligence Dashboard • Updated daily
+        <p className="con-mono mt-2 text-[color:var(--con-ink-3)]">
+          Intelligence Dashboard · updated daily
         </p>
       </motion.div>
     );

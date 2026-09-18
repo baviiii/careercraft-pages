@@ -5,6 +5,11 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRAGMetadata } from "./useRAGMetadata";
+import {
+  routeMessage,
+  isRefusalAnswer,
+  type ThinkingStep,
+} from "@/lib/conversationRouter";
 
 // ============================================================================
 // TYPES - Enterprise-Grade
@@ -26,6 +31,10 @@ export interface ChatMessage {
   visualData?: VisualChartData;
   confidence?: "high" | "medium" | "low";
   queryIntent?: QueryIntent;
+  /** Live reasoning ledger — what the agent is doing / did, with timings. */
+  thinking?: ThinkingStep[];
+  /** False when the model answered with a grounded refusal. */
+  grounded?: boolean;
   // Evidence Chain - Government-Grade Traceability
   evidenceChain?: EvidenceChain;
   // Temporal Summary - Policy Version Awareness
@@ -408,6 +417,31 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
       queryIntent: intent,
     };
 
+    // ── PRE-RETRIEVAL GATE ─────────────────────────────────────────────────
+    // Greetings, thanks and other small talk are answered locally and
+    // instantly — no hybrid search, no model call, no rate-limit queue.
+    const route = routeMessage(content, focusArea);
+    if (route.kind !== "retrieve") {
+      conversationHistory.current.push(content);
+      setMessages(prev => [...prev, userMessage, {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: route.reply,
+        timestamp: new Date(),
+        followUpQuestions: route.followUps.length > 0 ? route.followUps : undefined,
+        grounded: true,
+        responseTime: Date.now() - startTime,
+        thinking: [{ id: "route", label: route.trace, status: "done", ms: Date.now() - startTime }],
+      }]);
+      return;
+    }
+
+    // Live thinking trace, rendered on the in-flight message.
+    const trace: ThinkingStep[] = [
+      { id: "search", label: "Searching the corpus", detail: "hybrid retrieval · cited synthesis", status: "active" },
+    ];
+    const tSearch = Date.now();
+
     // Loading message
     const loadingMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -415,6 +449,7 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
       content: "",
       timestamp: new Date(),
       isLoading: true,
+      thinking: trace.map(s => ({ ...s })),
     };
 
     setMessages(prev => [...prev, userMessage, loadingMessage]);
@@ -453,6 +488,8 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
           content: "",
           timestamp: new Date(),
           isStreaming: true,
+          grounded: true,
+          thinking: [{ id: "cache", label: "Answered from session cache", detail: "identical question this session", status: "done", ms: Date.now() - startTime }],
         }]);
 
         await streamResponse(responseId, cached.response, cached.sources);
@@ -471,6 +508,8 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
       const result = await chatQuery(enhancedQuery, null, focusArea);
 
       if (!result) throw new Error("No response");
+
+      trace[0] = { ...trace[0], status: "done", ms: Date.now() - tSearch, detail: `${result.sources.length} passages retrieved` };
 
       const responseTime = Date.now() - startTime;
 
@@ -492,14 +531,19 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
       // Check if should embed chart
       const visualData = shouldEmbedChart(content, intent);
 
-      // Use evidence chain confidence if available, otherwise fall back to relevance-based
+      // Honest confidence: a grounded refusal is never high-confidence,
+      // whatever the retrieval scores or evidence chain said.
+      const refusal = isRefusalAnswer(result.response);
       const evidenceChain: EvidenceChain | undefined = result.evidenceChain;
       const temporalSummary: TemporalSummary | undefined = result.temporalSummary;
-      const confidence: "high" | "medium" | "low" = evidenceChain?.confidence || 
-        (() => {
-          const avgRelevance = enhancedSources.reduce((sum, s) => sum + s.relevance, 0) / enhancedSources.length;
-          return avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
-        })();
+      const confidence: "high" | "medium" | "low" = refusal
+        ? "low"
+        : evidenceChain?.confidence ||
+          (() => {
+            if (enhancedSources.length === 0) return "low" as const;
+            const avgRelevance = enhancedSources.reduce((sum, s) => sum + s.relevance, 0) / enhancedSources.length;
+            return avgRelevance > 75 ? "high" : avgRelevance > 60 ? "medium" : "low";
+          })();
 
       // Cache the response
       setCachedResponse(content, {
@@ -521,6 +565,8 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
         proactiveInsight: insight,
         visualData,
         confidence,
+        grounded: !refusal,
+        thinking: trace.map(s => ({ ...s })),
         responseTime,
         tokens: result.tokens,
         queryIntent: intent,
@@ -548,13 +594,17 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
     } catch (error) {
       console.error("[EnterpriseRAG] Error:", error);
 
+      trace.forEach(s => { if (s.status === "active") s.status = "failed"; });
+
       setMessages(prev => prev.filter(m => !m.isLoading));
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "I encountered an error. Let me try a different approach. Could you rephrase your question?",
+        content: "I hit an error while retrieving from the corpus. Could you try again, or rephrase the question?",
         timestamp: new Date(),
         confidence: "low",
+        grounded: false,
+        thinking: trace.map(s => ({ ...s })),
       }]);
     }
   }, [
