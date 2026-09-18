@@ -15,6 +15,8 @@ interface PasteTextDialogProps {
   onToggleAIParsing: (v: boolean) => void;
   isProcessing: boolean;
   onProcess: () => void;
+  /** Guests have no AI access, so the toggle would be a dead control. */
+  isGuest: boolean;
 }
 
 export const PasteTextDialog = ({
@@ -26,6 +28,7 @@ export const PasteTextDialog = ({
   onToggleAIParsing,
   isProcessing,
   onProcess,
+  isGuest,
 }: PasteTextDialogProps) => {
   const words = pastedText.length
     ? pastedText.split(/\s+/).filter(Boolean).length
@@ -42,9 +45,11 @@ export const PasteTextDialog = ({
         </>
       }
       description={
-        useAIParsing
-          ? "AI will read the text and extract structured data."
-          : "Basic extraction. Flip AI on for a finer read."
+        isGuest
+          ? "Parsed on this device — no account needed. Check the fields afterwards."
+          : useAIParsing
+            ? "AI will read the text and extract structured data."
+            : "Basic extraction. Flip AI on for a finer read."
       }
       maxWidth="max-w-2xl"
       footer={
@@ -78,26 +83,31 @@ export const PasteTextDialog = ({
       }
     >
       <div className="space-y-4">
-        <label className="flex items-center justify-between border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] px-4 py-3 cursor-pointer">
-          <div className="flex items-center gap-2">
-            <Sparkles
-              className={`w-4 h-4 ${
-                useAIParsing
-                  ? "text-[color:var(--cc-rust)]"
-                  : "text-[color:var(--cc-ash)]"
-              }`}
+        {/* No toggle for guests: parse-resume needs a session, so the only
+            available reading is the local one. Offering a switch that can't
+            move is worse than not offering it. */}
+        {!isGuest && (
+          <label className="flex items-center justify-between border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] px-4 py-3 cursor-pointer">
+            <div className="flex items-center gap-2">
+              <Sparkles
+                className={`w-4 h-4 ${
+                  useAIParsing
+                    ? "text-[color:var(--cc-rust)]"
+                    : "text-[color:var(--cc-ash)]"
+                }`}
+              />
+              <span className="cc-label text-[color:var(--cc-ink)]">
+                AI parsing
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={useAIParsing}
+              onChange={(e) => onToggleAIParsing(e.target.checked)}
+              className="w-4 h-4 accent-[color:var(--cc-ink)]"
             />
-            <span className="cc-label text-[color:var(--cc-ink)]">
-              AI parsing
-            </span>
-          </div>
-          <input
-            type="checkbox"
-            checked={useAIParsing}
-            onChange={(e) => onToggleAIParsing(e.target.checked)}
-            className="w-4 h-4 accent-[color:var(--cc-ink)]"
-          />
-        </label>
+          </label>
+        )}
 
         <CraftTextarea
           value={pastedText}

@@ -18,6 +18,8 @@ import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { sanitizeEmail, sanitize } from "@/lib/security/sanitizers";
 import { detectXSS } from "@/lib/security/xss";
 import { AuthExperience } from "@/components/auth/AuthExperience";
+import { claimGuestDraft } from "@/features/resume-builder/lib/claimGuestDraft";
+import { takeGuestReturnTo } from "@/features/resume-builder/lib/guestDraft";
 
 const SESSION_TOKEN_KEY = "horus_session_token";
 const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim();
@@ -173,6 +175,32 @@ const Auth = () => {
   }, []);
 
   const checkAdminAndRedirect = async (userId: string) => {
+    /* Someone who built a résumé as a guest gets it filed under their new
+       account here, then dropped back where they left off rather than on a
+       dashboard they've never seen. Failing to claim must never block the
+       redirect — the draft stays in localStorage if the insert fails. */
+    let returnTo: string | null = null;
+    try {
+      const { claimed, resumeId } = await claimGuestDraft(userId);
+      returnTo = takeGuestReturnTo();
+
+      /* Claiming DELETES the local draft, and the builder only restores drafts
+         for guests — so returning to a bare /builder would hand them a blank
+         page under a toast saying their work came with them. Carry the new
+         row's id instead; the builder's ?id= loader reopens it. */
+      if (claimed && resumeId && returnTo === "/builder") {
+        returnTo = `/builder?id=${encodeURIComponent(resumeId)}`;
+      }
+
+      if (claimed) {
+        toast.success("Résumé saved to your account", {
+          description: "Your draft came with you — find it in My résumés.",
+        });
+      }
+    } catch (err) {
+      console.error("[Auth] Could not claim guest draft:", err);
+    }
+
     try {
       const { data: roleData } = await supabase
         .from("user_roles")
@@ -181,10 +209,10 @@ const Auth = () => {
         .eq("role", "admin")
         .maybeSingle();
       if (roleData) navigate("/admin");
-      else navigate("/dashboard");
+      else navigate(returnTo || "/dashboard");
     } catch (err) {
       console.error("Error checking admin status:", err);
-      navigate("/dashboard");
+      navigate(returnTo || "/dashboard");
     }
   };
 

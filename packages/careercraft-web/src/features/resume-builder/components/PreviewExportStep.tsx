@@ -43,6 +43,12 @@ interface PreviewExportStepProps {
   onChangeTemplate: () => void;
   onOpenSaveDialog: () => void;
   onExportPDF: () => void;
+  /** Building without an account — saving and download need one. */
+  isGuest: boolean;
+  /** False when storage refused the draft; never promise a save that failed. */
+  isDraftPersisted: boolean;
+  /** Stash the draft and send them to signup, then back here. */
+  onSignUpToExport: () => void;
 }
 
 export const PreviewExportStep = ({
@@ -58,6 +64,9 @@ export const PreviewExportStep = ({
   onChangeTemplate,
   onOpenSaveDialog,
   onExportPDF,
+  isGuest,
+  isDraftPersisted,
+  onSignUpToExport,
 }: PreviewExportStepProps) => {
   const meta = getTemplateMeta(selectedTemplate);
   const { preview, isRendering, renderFailed } = useResumePdfPreview({
@@ -99,6 +108,15 @@ export const PreviewExportStep = ({
         <div className="flex items-center gap-2 mb-4 max-w-[840px] mx-auto px-4 py-3 border border-amber-400 bg-amber-50 text-amber-900 text-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           This template has no PDF layout yet, so the export uses Modern 1. Pick another template if that's not what you want.
+        </div>
+      )}
+
+      {isGuest && (
+        <div className="max-w-[840px] mx-auto mb-4 px-4 py-3 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-rust-soft)] cc-font-editorial text-sm text-[color:var(--cc-ink-soft)]">
+          This is the finished résumé — the exact file you'll download.{" "}
+          {isDraftPersisted
+            ? "Your draft is saved on this device, and creating a free account brings it with you."
+            : "This browser is blocking storage, so the draft isn't being kept — create a free account before you leave this page."}
         </div>
       )}
 
@@ -176,29 +194,40 @@ export const PreviewExportStep = ({
                 <ArrowLeft className="w-4 h-4" />
                 Change template
               </button>
-              <button
-                onClick={onOpenSaveDialog}
-                disabled={isSaving}
-                className="cc-btn cc-btn-ghost"
-                style={{ padding: "0.65rem 0.95rem" }}
-              >
-                {isSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : currentResumeId ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {currentResumeId ? "Update" : "Save resume"}
-              </button>
-              <CraftButton onClick={onExportPDF} disabled={isExporting} size="sm">
-                {isExporting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
+              {/* Saving needs somewhere to save to, so guests don't see it. */}
+              {!isGuest && (
+                <button
+                  onClick={onOpenSaveDialog}
+                  disabled={isSaving}
+                  className="cc-btn cc-btn-ghost"
+                  style={{ padding: "0.65rem 0.95rem" }}
+                >
+                  {isSaving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : currentResumeId ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {currentResumeId ? "Update" : "Save resume"}
+                </button>
+              )}
+
+              {isGuest ? (
+                <CraftButton onClick={onSignUpToExport} size="sm">
                   <Download className="w-4 h-4" />
-                )}
-                Export PDF
-              </CraftButton>
+                  Create free account to download
+                </CraftButton>
+              ) : (
+                <CraftButton onClick={onExportPDF} disabled={isExporting} size="sm">
+                  {isExporting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  Export PDF
+                </CraftButton>
+              )}
             </div>
           </div>
         </div>

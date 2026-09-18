@@ -87,6 +87,10 @@ interface EditStepProps {
   onOpenJobDescDialog: () => void;
   onOpenSaveDialog: () => void;
   autoSaveStatus: AutoSaveStatus;
+  /** Building without an account — saving needs one. */
+  isGuest: boolean;
+  /** False when storage refused the draft; never promise a save that failed. */
+  isDraftPersisted: boolean;
   isSaving: boolean;
   currentResumeId: string | null;
 
@@ -132,6 +136,8 @@ export const EditStep = ({
   onOpenJobDescDialog,
   onOpenSaveDialog,
   autoSaveStatus,
+  isGuest,
+  isDraftPersisted,
   isSaving,
   currentResumeId,
   onBack,
@@ -166,8 +172,22 @@ export const EditStep = ({
           <h2 className="mt-3 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight">
             Fill in your details
           </h2>
-          <p className="mt-2 text-[15px] text-[color:var(--cc-ink-soft)]">
-            {autoSaveStatusLabel(autoSaveStatus)}
+          {/* A guest's work lives in localStorage, which can refuse the write
+              (private browsing, storage full). Say which of those is true —
+              telling someone their résumé is safe when it isn't is the one
+              message here that can actually cost them the work. */}
+          <p
+            className={`mt-2 text-[15px] ${
+              isGuest && !isDraftPersisted
+                ? "text-[color:var(--cc-rust)]"
+                : "text-[color:var(--cc-ink-soft)]"
+            }`}
+          >
+            {!isGuest
+              ? autoSaveStatusLabel(autoSaveStatus)
+              : isDraftPersisted
+                ? "Saved on this device. Create a free account to keep it."
+                : "This browser is blocking storage, so nothing is being saved — create a free account to keep your work."}
           </p>
         </div>
 
@@ -194,19 +214,21 @@ export const EditStep = ({
             )}
             {showLivePreview ? "Hide preview" : "Show preview"}
           </button>
-          <button
-            onClick={onOpenSaveDialog}
-            disabled={isSaving}
-            className="cc-btn cc-btn-ghost"
-            style={{ padding: "0.8rem 1.1rem" }}
-          >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {currentResumeId ? "Update" : "Save resume"}
-          </button>
+          {!isGuest && (
+            <button
+              onClick={onOpenSaveDialog}
+              disabled={isSaving}
+              className="cc-btn cc-btn-ghost"
+              style={{ padding: "0.8rem 1.1rem" }}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {currentResumeId ? "Update" : "Save resume"}
+            </button>
+          )}
         </div>
       </div>
 

@@ -249,3 +249,21 @@ export type SavedResumeRow = {
   content: any;
   created_at: string;
 };
+
+/**
+ * Why a guest is being sent to signup.
+ *
+ * Each of these is a capability that genuinely cannot work without a session,
+ * not a marketing gate: the AI endpoints verify a JWT and meter a per-user
+ * quota, and saving and exporting need somewhere to write. Keeping them in
+ * one union means the builder has exactly one route to signup, and each
+ * reason gets copy naming what the account actually unlocks.
+ *
+ * Lives here rather than in useResumeBuilder so the import hook and the step
+ * components can reference it without importing the hook that owns them.
+ */
+export type AccountGateReason =
+  | "export"
+  | "ai-read-file"
+  | "ai-smart-import"
+  | "ai-rewrite";

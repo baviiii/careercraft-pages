@@ -8,8 +8,10 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { useToast } from "@/hooks/use-toast";
 import { usePersonalization } from "@/hooks/usePersonalization";
@@ -18,6 +20,7 @@ import { rewriteBullet } from "@/lib/aiRewriter";
 import { type PdfDensity } from "@/lib/pdfExport";
 import { type AIResumeData } from "@/lib/resumeParser";
 
+import { loadGuestDraft, saveGuestDraft, setGuestReturnTo } from "../lib/guestDraft";
 import {
   aiDataToResumeData,
   createEmptyResumeData,
@@ -27,6 +30,7 @@ import { useResumeExport } from "./useResumeExport";
 import { useResumeImport } from "./useResumeImport";
 import { useResumePersistence } from "./useResumePersistence";
 import type {
+  AccountGateReason,
   AutoSaveStatus,
   ContactInfo,
   Education,
@@ -36,6 +40,27 @@ import type {
   TemplateId,
   UploadedFileType,
 } from "../types";
+
+const ACCOUNT_GATE_COPY: Record<AccountGateReason, { title: string; description: string }> = {
+  export: {
+    title: "Create a free account to download",
+    description: "Your résumé comes with you — it'll be waiting when you land back here.",
+  },
+  "ai-read-file": {
+    title: "Create a free account to read that file",
+    description:
+      "AI reading works on PDFs, Word files and photos. Or paste your résumé text to keep going without an account.",
+  },
+  "ai-smart-import": {
+    title: "Smart import needs a free account",
+    description:
+      "AI reads the whole file and fills every field. Paste text instead to keep building without one.",
+  },
+  "ai-rewrite": {
+    title: "Create a free account to rewrite bullets",
+    description: "Your draft comes with you — nothing you've typed is lost.",
+  },
+};
 
 /** Full API surface returned by the hook. */
 export interface UseResumeBuilderReturn {
@@ -99,6 +124,16 @@ export interface UseResumeBuilderReturn {
   userProfile: ReturnType<typeof usePersonalization>["profile"];
   hasPersonalizationData: boolean;
 
+  // guest mode — building without an account
+  /** True while there is no session. Drives which affordances show. */
+  isGuest: boolean;
+  /** False until the session check resolves; the page holds its render until then. */
+  isAuthResolved: boolean;
+  /** False when storage refused the draft — the UI must not promise it saved. */
+  isDraftPersisted: boolean;
+  /** Flush the draft, remember where we are, then send the guest to signup. */
+  requireAccount: (reason: AccountGateReason) => void;
+
   // ── mutations ──
   handleFile: (file: File) => Promise<void>;
   handleTextContent: (text: string) => Promise<void>;
@@ -153,6 +188,7 @@ export function useResumeBuilder(dialogs: {
   setPastedText: Dispatch<SetStateAction<string>>;
 }): UseResumeBuilderReturn {
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // ── Core state ──────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(0);
@@ -165,6 +201,88 @@ export function useResumeBuilder(dialogs: {
   const [jobDescription, setJobDescription] = useState("");
   const [rewritingBulletId, setRewritingBulletId] = useState<string | null>(null);
   const [showLivePreview, setShowLivePreview] = useState(false);
+
+  // ── Guest mode ──────────────────────────────────────────────
+  /* The builder is public. Everything local works without an account —
+     typing, templates, live preview, the PDF preview itself. Anything that
+     needs a server (AI, saving, export) routes through requireAccount. The
+     draft lives in localStorage until they sign up, at which point
+     claimGuestDraft files it under the new user. Declared before the
+     import/persistence hooks because they take isGuest. */
+
+  /* Defaults to guest deliberately. The session check is async, and the two
+     ways to be wrong are not equal: showing a signed-in user a guest button
+     for one frame is cosmetic, whereas showing a guest the ungated Export
+     button lets them walk straight through the gate. Fail closed.
+     ResumeBuilderPage also holds its render until isAuthResolved. */
+  const [isGuest, setIsGuest] = useState(true);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
+  const [isDraftPersisted, setIsDraftPersisted] = useState(true);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      setIsGuest(!session?.user);
+      setIsAuthResolved(true);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsGuest(!session?.user);
+      setIsAuthResolved(true);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  /* The one route from "guest hit something that needs a server" to "guest is
+     at signup with their work safe". Every gated affordance calls this; there
+     is no second path and no feature-specific redirect to keep in sync.
+
+     Held in a ref so the callback stays stable — otherwise it would change on
+     every keystroke and churn the import callbacks that close over it. */
+  const gateStateRef = useRef({ resumeData, selectedTemplate, currentStep });
+  useEffect(() => {
+    gateStateRef.current = { resumeData, selectedTemplate, currentStep };
+  });
+
+  const requireAccount = useCallback(
+    (reason: AccountGateReason) => {
+      const { resumeData: data, selectedTemplate: template, currentStep: step } =
+        gateStateRef.current;
+
+      /* Flush synchronously — the debounced autosave may not have fired and we
+         are about to navigate away. */
+      const persisted = saveGuestDraft(data, template, step);
+      setIsDraftPersisted(persisted);
+
+      const copy = ACCOUNT_GATE_COPY[reason];
+      if (persisted) {
+        setGuestReturnTo("/builder");
+        toast({ title: copy.title, description: copy.description });
+      } else {
+        /* Storage refused the write, so promising the draft will follow them
+           would be a lie. Send them anyway — signing up is still the right
+           next step — but tell them the truth about what's at risk. */
+        toast({
+          title: copy.title,
+          description:
+            "This browser is blocking local storage, so your draft can't be held while you sign up. Copy anything you'd hate to retype.",
+          variant: "destructive",
+        });
+      }
+
+      navigate("/auth");
+    },
+    [navigate, toast]
+  );
 
   // Personalization
   const {
@@ -190,6 +308,8 @@ export function useResumeBuilder(dialogs: {
     setCurrentStep,
     setShowPasteDialog: dialogs.setShowPasteDialog,
     setPastedText: dialogs.setPastedText,
+    isGuest,
+    requireAccount,
   });
 
   const {
@@ -234,13 +354,61 @@ export function useResumeBuilder(dialogs: {
     }
   }, []);
 
-  const { isExporting, exportToPDF } = useResumeExport({
+  const { isExporting, exportToPDF: runExport } = useResumeExport({
     resumeData,
     selectedTemplate,
     resumeDisplayName: resumeData.contact.name || "resume",
     pdfDensity,
     toast,
   });
+
+  /* The export button is hidden for guests, but the gate belongs on the
+     action, not only on the button that happens to call it. */
+  const exportToPDF = useCallback(async () => {
+    if (isGuest) {
+      requireAccount("export");
+      return;
+    }
+    await runExport();
+  }, [isGuest, requireAccount, runExport]);
+
+  /* Restore a guest's draft once we know they're a guest — but never
+     clobber content a handoff (ATS / rewrite / upload) already placed. */
+  useEffect(() => {
+    if (!isAuthResolved || !isGuest || draftRestored) return;
+    setDraftRestored(true);
+
+    const alreadyHasContent =
+      Boolean(resumeData.contact?.name?.trim()) ||
+      Boolean(resumeData.summary?.trim()) ||
+      resumeData.experience.length > 0;
+    if (alreadyHasContent) return;
+
+    const draft = loadGuestDraft();
+    if (!draft) return;
+
+    setResumeData(draft.resumeData);
+    setSelectedTemplate(draft.selectedTemplate);
+    setCurrentStep(draft.currentStep);
+    toast({
+      title: "Draft restored",
+      description:
+        "Picking up where you left off. Saved on this device until you create an account.",
+    });
+  }, [isAuthResolved, isGuest, draftRestored, resumeData, toast]);
+
+  /* Persist as they work. Debounced so we aren't writing on every keystroke.
+     The write can fail (private browsing, storage full); isDraftPersisted
+     carries that to the UI so it never claims work is safe when it isn't. */
+  useEffect(() => {
+    if (!isAuthResolved || !isGuest) return;
+
+    const timer = window.setTimeout(() => {
+      setIsDraftPersisted(saveGuestDraft(resumeData, selectedTemplate, currentStep));
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [isAuthResolved, isGuest, resumeData, selectedTemplate, currentStep]);
 
   // ── Bootstrap from sessionStorage / URL ─────────────────────
   useEffect(() => {
@@ -391,10 +559,16 @@ export function useResumeBuilder(dialogs: {
         setResumeData(content as ResumeData);
         if (metadata?.category) setSaveCategory(metadata.category);
         if (metadata?.tags) setSaveTags(metadata.tags);
+
+        /* The template lives in the JSON metadata for rows the builder wrote,
+           and in the template_id column for older ones. Supabase's generated
+           types don't cover the resumes table, so the column is narrowed here
+           rather than cast to any. */
+        const row = data as { template_id?: string | null };
         if (metadata?.template)
           setSelectedTemplate(metadata.template as TemplateId);
-        else if ((data as any).template_id)
-          setSelectedTemplate((data as any).template_id as TemplateId);
+        else if (row.template_id)
+          setSelectedTemplate(row.template_id as TemplateId);
         setResumeName(data.name);
         setSaveResumeName(data.name);
         setCurrentResumeId(data.id);
@@ -619,6 +793,14 @@ export function useResumeBuilder(dialogs: {
         return;
       }
 
+      /* rewrite-resume requires a verified session, so there is nothing to
+         attempt here as a guest — send them to signup before the call rather
+         than after it fails. */
+      if (isGuest) {
+        requireAccount("ai-rewrite");
+        return;
+      }
+
       const bulletId = `${expId}-${bulletIndex}`;
       setRewritingBulletId(bulletId);
       try {
@@ -639,7 +821,7 @@ export function useResumeBuilder(dialogs: {
         setRewritingBulletId(null);
       }
     },
-    [resumeData.experience, jobDescription, toast, updateBullet]
+    [resumeData.experience, jobDescription, toast, updateBullet, isGuest, requireAccount]
   );
 
   // Reference to keep the openSaveDialog helper tethered; avoids unused-var lints.
@@ -695,6 +877,11 @@ export function useResumeBuilder(dialogs: {
 
     userProfile,
     hasPersonalizationData,
+
+    isGuest,
+    isAuthResolved,
+    isDraftPersisted,
+    requireAccount,
 
     handleFile,
     handleTextContent,

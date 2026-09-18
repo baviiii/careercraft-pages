@@ -37,6 +37,7 @@ const CareerCoachPage = lazy(() => import("./pages/CareerCoachPage"));
 const ContactUs = lazy(() => import("./pages/ContactUs"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const TryUs = lazy(() => import("./pages/TryUs"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
@@ -103,6 +104,9 @@ function ProtectedLayout() {
   );
 }
 
+// TEMP: visual preview route for CareerCoach — remove before commit.
+const CareerCoachPreview = lazy(() => import("./components/rag/CareerCoach"));
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider delayDuration={0}>
@@ -112,6 +116,15 @@ const App = () => (
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
+            {/* TEMP: visual preview route for CareerCoach — remove before commit. */}
+            <Route
+              path="/__coach-preview"
+              element={
+                <div className="flex h-screen flex-col bg-[#F4F1EA] p-4 md:p-6">
+                  <CareerCoachPreview />
+                </div>
+              }
+            />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
@@ -119,19 +132,26 @@ const App = () => (
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/privacy" element={<Privacy />} />
-            <Route path="/try" element={<TryUs />} />
+            <Route path="/terms" element={<Terms />} />
+
+            {/* The résumé builder is deliberately public. Guests can build and
+                preview a real résumé; the gate is on export and save, handled
+                inside the builder itself. Legacy /templates and /editor point
+                here too, so those stay public for the same reason. */}
+            <Route path="/builder" element={<ResumeBuilder />} />
+            <Route path="/upload" element={<ResumeBuilder />} />
+            <Route path="/templates" element={<Navigate to="/builder" replace />} />
+            <Route path="/editor" element={<Navigate to="/builder" replace />} />
 
             <Route element={<ProtectedLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/upload" element={<ResumeBuilder />} />
               <Route path="/analysis" element={<Analysis />} />
               <Route path="/rewrite" element={<Rewrite />} />
               <Route path="/cover-letter" element={<CoverLetter />} />
               <Route path="/tracker" element={<JobTracker />} />
-              {/* Legacy second builder — folded into /builder */}
-              <Route path="/templates" element={<Navigate to="/builder" replace />} />
-              <Route path="/editor" element={<Navigate to="/builder" replace />} />
-              <Route path="/builder" element={<ResumeBuilder />} />
+              {/* /try runs an uncapped chat for whoever opens it, so it sits
+                  behind auth until there is a server-side rate limit. */}
+              <Route path="/try" element={<TryUs />} />
               <Route path="/my-resumes" element={<MyResumes />} />
               <Route path="/interview-prep" element={<InterviewPrep />} />
               <Route path="/interview-prep/room" element={<InterviewRoom />} />

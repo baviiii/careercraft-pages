@@ -9,10 +9,8 @@ import {
 } from "@/lib/resumeParser";
 import { auditFileOperation } from "@/lib/security/auditLog";
 
-import {
-  aiDataToResumeData,
-} from "../lib/resumeData";
-import type { ResumeData, UploadedFileType } from "../types";
+import { aiDataToResumeData, parseTextToResumeData } from "../lib/resumeData";
+import type { AccountGateReason, ResumeData, UploadedFileType } from "../types";
 
 type ToastFn = (props: Omit<ToastProps, "id"> & { action?: ToastActionElement }) => void;
 
@@ -22,6 +20,10 @@ interface UseResumeImportParams {
   setCurrentStep: Dispatch<SetStateAction<number>>;
   setShowPasteDialog: Dispatch<SetStateAction<boolean>>;
   setPastedText: Dispatch<SetStateAction<string>>;
+  /** Building without an account — the AI endpoints are unreachable. */
+  isGuest: boolean;
+  /** Send a guest to signup with their draft kept. */
+  requireAccount: (reason: AccountGateReason) => void;
 }
 
 export function useResumeImport({
@@ -30,6 +32,8 @@ export function useResumeImport({
   setCurrentStep,
   setShowPasteDialog,
   setPastedText,
+  isGuest,
+  requireAccount,
 }: UseResumeImportParams) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -60,6 +64,27 @@ export function useResumeImport({
 
   const handleTextContent = useCallback(
     async (text: string) => {
+      /* Two reasons to skip the model: the caller has no session (parse-resume
+         verifies the JWT, so the call cannot succeed), or a signed-in user
+         turned AI extraction off. Text is the one input with a real local
+         parser behind it, so either way pasting still works — no dead end,
+         and no signup wall on the one path that doesn't need one. */
+      const useAI = useAIParsing && !isGuest;
+
+      if (!useAI) {
+        setResumeData(parseTextToResumeData(text));
+        setShowPasteDialog(false);
+        setPastedText("");
+        setCurrentStep(1);
+        toast({
+          title: "Text added",
+          description: isGuest
+            ? "Parsed on this device — check the fields. A free account lets AI sort it for you."
+            : "Parsed without AI — check the fields, or switch AI extraction on to have it sorted.",
+        });
+        return;
+      }
+
       setIsProcessing(true);
       setUploadProgress(20);
       try {
@@ -88,11 +113,23 @@ export function useResumeImport({
         setUploadProgress(0);
       }
     },
-    [useAIParsing, toast, setResumeData, setShowPasteDialog, setPastedText, setCurrentStep]
+    [useAIParsing, isGuest, toast, setResumeData, setShowPasteDialog, setPastedText, setCurrentStep]
   );
 
   const handleFile = useCallback(
     async (file: File) => {
+      const isTextFile = file.type === "text/plain" || file.name.endsWith(".txt");
+
+      /* PDFs, Word files and images can only be read by the model, and
+         parse-resume requires a verified session — there is no local parser
+         to fall back to. Gate before any work happens rather than validating,
+         uploading and then surfacing a 401 as "Processing failed".
+         Text files have a local path, so they carry on below. */
+      if (isGuest && !isTextFile) {
+        requireAccount("ai-read-file");
+        return;
+      }
+
       setIsProcessing(true);
       setUploadProgress(0);
       try {
@@ -130,7 +167,7 @@ export function useResumeImport({
           fileType = "docx";
         } else if (file.type.startsWith("image/")) {
           fileType = "image";
-        } else if (file.type === "text/plain" || file.name.endsWith(".txt")) {
+        } else if (isTextFile) {
           fileType = "txt";
         }
         setUploadedFileType(fileType);
@@ -163,7 +200,15 @@ export function useResumeImport({
         setUploadProgress(0);
       }
     },
-    [secureValidateFile, toast, useAIParsing, setResumeData, setCurrentStep, handleTextContent]
+    [
+      secureValidateFile,
+      toast,
+      isGuest,
+      requireAccount,
+      setResumeData,
+      setCurrentStep,
+      handleTextContent,
+    ]
   );
 
   const applyAIResumeData = useCallback(
@@ -190,4 +235,3 @@ export function useResumeImport({
     applyAIResumeData,
   };
 }
-

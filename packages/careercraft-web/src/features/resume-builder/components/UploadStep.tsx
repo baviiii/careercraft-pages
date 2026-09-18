@@ -36,6 +36,9 @@ interface UploadStepProps {
   onAutoFillAndStart: () => void;
 
   isLoadingResumes: boolean;
+
+  /** Building without an account — hides the options that need one. */
+  isGuest: boolean;
 }
 
 export const UploadStep = ({
@@ -52,6 +55,7 @@ export const UploadStep = ({
   profileSkillCount,
   onAutoFillAndStart,
   isLoadingResumes,
+  isGuest,
 }: UploadStepProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: (files) => files[0] && onDropFile(files[0]),
@@ -133,31 +137,42 @@ export const UploadStep = ({
             )}
           </div>
 
-          {/* Upload setting */}
-          <div className="mt-3 flex items-center justify-between gap-4 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <Sparkles
-                className={`w-4 h-4 shrink-0 ${
-                  useAIParsing
-                    ? "text-[color:var(--cc-rust)]"
-                    : "text-[color:var(--cc-ash)]"
-                }`}
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-medium leading-tight">AI extraction</div>
-                <p className="mt-0.5 text-[13px] leading-snug text-[color:var(--cc-ash)]">
-                  {useAIParsing
-                    ? "Uploads are sorted into the right fields."
-                    : "Off — uploads come in as plain text."}
-                </p>
+          {/* Upload setting. Hidden for guests: AI reading needs an account,
+              so a toggle promising to turn it on would be a dead control. */}
+          {isGuest ? (
+            <p className="mt-3 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3 text-[13px] leading-snug text-[color:var(--cc-ash)]">
+              PDFs, Word files and photos are read by AI, which needs a free
+              account. Pasting your résumé text works right now without one.
+            </p>
+          ) : (
+            <div className="mt-3 flex items-center justify-between gap-4 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Sparkles
+                  className={`w-4 h-4 shrink-0 ${
+                    useAIParsing
+                      ? "text-[color:var(--cc-rust)]"
+                      : "text-[color:var(--cc-ash)]"
+                  }`}
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium leading-tight">AI extraction</div>
+                  {/* Says what it does, not what it used to claim: the toggle
+                      only governs text, because PDFs and images cannot be read
+                      without the model at all. */}
+                  <p className="mt-0.5 text-[13px] leading-snug text-[color:var(--cc-ash)]">
+                    {useAIParsing
+                      ? "Pasted text and .txt files are sorted into fields."
+                      : "Off — text comes in raw. PDFs and photos still use AI."}
+                  </p>
+                </div>
               </div>
+              <EditorialToggle
+                checked={useAIParsing}
+                onChange={onToggleAIParsing}
+                ariaLabel="Toggle AI extraction"
+              />
             </div>
-            <EditorialToggle
-              checked={useAIParsing}
-              onChange={onToggleAIParsing}
-              ariaLabel="Toggle AI extraction"
-            />
-          </div>
+          )}
         </div>
 
         {/* ── Alternatives ── */}
@@ -169,11 +184,16 @@ export const UploadStep = ({
           <OptionRow
             icon={Sparkles}
             title="Smart import"
-            desc="AI reads your file and fills every field — review before applying."
+            desc={
+              isGuest
+                ? "AI reads your file and fills every field. Needs a free account."
+                : "AI reads your file and fills every field — review before applying."
+            }
             onClick={onOpenAIImport}
+            requiresAccount={isGuest}
             featured
           />
-          {hasProfile && (
+          {!isGuest && hasProfile && (
             <OptionRow
               icon={User}
               title="Fill from profile"
@@ -181,17 +201,24 @@ export const UploadStep = ({
               onClick={onAutoFillAndStart}
             />
           )}
-          <OptionRow
-            icon={FolderOpen}
-            title="My résumés"
-            desc="Reopen a saved résumé."
-            onClick={onOpenLoad}
-            loading={isLoadingResumes}
-          />
+          {/* Both of these read from the account, so they're signed-in only. */}
+          {!isGuest && (
+            <OptionRow
+              icon={FolderOpen}
+              title="My résumés"
+              desc="Reopen a saved résumé."
+              onClick={onOpenLoad}
+              loading={isLoadingResumes}
+            />
+          )}
           <OptionRow
             icon={ClipboardPaste}
             title="Paste text"
-            desc="Paste from a document or email."
+            desc={
+              isGuest
+                ? "Paste from a document or email — no account needed."
+                : "Paste from a document or email."
+            }
             onClick={onOpenPaste}
           />
           <OptionRow
@@ -217,6 +244,8 @@ interface OptionRowProps {
   featured?: boolean;
   loading?: boolean;
   last?: boolean;
+  /** Marks the row as leading to signup, so the redirect isn't a surprise. */
+  requiresAccount?: boolean;
 }
 
 const OptionRow = ({
@@ -227,6 +256,7 @@ const OptionRow = ({
   featured,
   loading,
   last,
+  requiresAccount,
 }: OptionRowProps) => (
   <button
     onClick={onClick}
@@ -249,7 +279,20 @@ const OptionRow = ({
       />
     )}
     <span className="flex-1 min-w-0">
-      <span className="block text-sm font-medium leading-tight">{title}</span>
+      <span className="flex items-center gap-2 text-sm font-medium leading-tight">
+        {title}
+        {requiresAccount && (
+          <span
+            className={`shrink-0 border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
+              featured
+                ? "border-[color:var(--cc-cream)]/40 text-[color:var(--cc-cream)]/80"
+                : "border-[color:var(--cc-hair-strong)] text-[color:var(--cc-ash)]"
+            }`}
+          >
+            Free account
+          </span>
+        )}
+      </span>
       <span
         className={`mt-0.5 block text-[13px] leading-snug ${
           featured ? "text-[color:var(--cc-cream)]/75" : "text-[color:var(--cc-ash)]"

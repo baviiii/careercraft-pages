@@ -5,6 +5,7 @@
    ─────────────────────────────────────────────────────────── */
 
 import { AnimatePresence } from "framer-motion";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -80,6 +81,10 @@ export default function ResumeBuilderPage() {
     setSaveTags,
     userProfile,
     hasPersonalizationData,
+    isGuest,
+    isAuthResolved,
+    isDraftPersisted,
+    requireAccount,
     handleFile,
     handleTextContent,
     updateContact,
@@ -113,6 +118,23 @@ export default function ResumeBuilderPage() {
 
   const onStartFresh = () => setCurrentStep(1);
 
+  /* Guest-visible affordances differ from signed-in ones, and one of those
+     differences is whether Export downloads a file or opens a signup. Render
+     nothing decision-shaped until we know which user this is — a wrong guess
+     for even one frame is a clickable gate bypass. */
+  if (!isAuthResolved) {
+    return (
+      <CraftAppShell>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Loader2
+            className="h-6 w-6 animate-spin text-[color:var(--cc-ash)]"
+            aria-label="Loading the builder"
+          />
+        </div>
+      </CraftAppShell>
+    );
+  }
+
   return (
     <CraftAppShell>
       {/* Editorial masthead */}
@@ -123,7 +145,7 @@ export default function ResumeBuilderPage() {
             Build your résumé in <span className="cc-italic-wonk">four</span> steps.
           </>
         }
-        backTo="/dashboard"
+        backTo={isGuest ? "/" : "/dashboard"}
       />
 
       {/* Step rail */}
@@ -145,12 +167,19 @@ export default function ResumeBuilderPage() {
               onDropFile={handleFile}
               onOpenPaste={() => setShowPasteDialog(true)}
               onOpenLoad={loadSavedResumes}
-              onOpenAIImport={() => setShowAIImportDialog(true)}
+              /* Smart import is the one AI entry point that isn't a file drop,
+                 and it was the only one with no gate at all. */
+              onOpenAIImport={() =>
+                isGuest
+                  ? requireAccount("ai-smart-import")
+                  : setShowAIImportDialog(true)
+              }
               onStartFresh={onStartFresh}
               hasProfile={hasPersonalizationData}
               profileSkillCount={userProfile?.skills?.length ?? 0}
               onAutoFillAndStart={() => setShowAutoFillDialog(true)}
               isLoadingResumes={isLoadingResumes}
+              isGuest={isGuest}
             />
           )}
 
@@ -188,6 +217,8 @@ export default function ResumeBuilderPage() {
               autoSaveStatus={autoSaveStatus}
               isSaving={isSaving}
               currentResumeId={currentResumeId}
+              isGuest={isGuest}
+              isDraftPersisted={isDraftPersisted}
               onBack={() => setCurrentStep(0)}
               onNext={() => setCurrentStep(2)}
             />
@@ -218,6 +249,9 @@ export default function ResumeBuilderPage() {
               onChangeTemplate={() => setCurrentStep(2)}
               onOpenSaveDialog={openSaveDialog}
               onExportPDF={exportToPDF}
+              isGuest={isGuest}
+              isDraftPersisted={isDraftPersisted}
+              onSignUpToExport={() => requireAccount("export")}
             />
           )}
         </AnimatePresence>
@@ -233,6 +267,7 @@ export default function ResumeBuilderPage() {
         onToggleAIParsing={setUseAIParsing}
         isProcessing={isProcessing}
         onProcess={() => handleTextContent(pastedText)}
+        isGuest={isGuest}
       />
 
       <LoadResumeDialog
