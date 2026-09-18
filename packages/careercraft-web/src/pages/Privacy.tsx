@@ -8,31 +8,32 @@ const sections = [
     n: "01",
     title: "What we collect",
     items: [
-      "Information you provide — name, email, résumé data.",
-      "Usage signals used to improve the product, never sold.",
-      "Cookies for session and preference continuity.",
-      "Data from third parties only when you connect them.",
+      "Account details — your name, email and login credentials. Passwords are hashed; we never see them.",
+      "Career material you give us — résumés, cover letters, job applications you track, and answers you type into our tools.",
+      "Profile and preferences — target roles, locations and onboarding answers, used to tailor what you see.",
+      "Usage and session data — features used, device and browser information, and approximate location, kept for security and product improvement.",
+      "Cookies for session and preference continuity — not for cross-site tracking.",
     ],
   },
   {
     n: "02",
     title: "How we use it",
     items: [
-      "To run and refine your career intelligence workshop.",
-      "To personalise recommendations against SA signal.",
-      "To communicate with you about your account.",
-      "To analyse usage patterns in aggregate.",
-      "To comply with legal obligations.",
+      "To run the tools you use — parsing, analysing and rewriting your résumé, scoring job fit, interview practice and coaching.",
+      "AI processing: when you use an AI feature, your résumé or job text is sent to our AI providers to produce that result. It is not used to train AI models.",
+      "Job searches are sent to job boards to fetch live listings — the query and location only, never your identity.",
+      "To personalise recommendations against South Australian market and policy data.",
+      "To send service emails about your account — marketing only ever with your consent.",
+      "To analyse usage in aggregate and meet our legal obligations.",
     ],
   },
   {
     n: "03",
-    title: "How it is kept",
+    title: "Where it lives",
     items: [
-      "Industry-standard encryption in transit and at rest.",
-      "Data stored in encrypted, access-controlled databases.",
-      "Regular security audits and updates.",
-      "Strict role-based access inside the shop.",
+      "Encrypted in transit and at rest, in access-controlled databases with strict role-based access.",
+      "Hosted on cloud infrastructure (including Supabase, Vercel and Microsoft Azure), which may store or process data outside Australia. We hold providers to contractual safeguards consistent with the Australian Privacy Principles.",
+      "Third parties see only what is needed to run the feature you are using — nothing more.",
       "We never sell your personal information. Ever.",
     ],
   },
@@ -40,11 +41,11 @@ const sections = [
     n: "04",
     title: "Your rights",
     items: [
-      "Access your personal data at any time.",
-      "Request correction of anything inaccurate.",
-      "Request deletion of your account and data.",
-      "Opt out of marketing communications at will.",
-      "Export your data in a portable format.",
+      "We handle personal information in line with the Privacy Act 1988 (Cth) and the Australian Privacy Principles.",
+      "Access your personal data at any time, and request correction of anything inaccurate.",
+      "Request deletion of your account — we remove your data from our systems.",
+      "Export your data in a portable format, and opt out of marketing at will.",
+      "Unhappy with our answer? You can complain to us first, and to the Office of the Australian Information Commissioner (oaic.gov.au) if we don't resolve it.",
     ],
   },
 ];
@@ -92,11 +93,13 @@ export default function Privacy() {
             </div>
             <div className="col-span-12 md:col-span-8 cc-font-editorial text-xl md:text-[22px] leading-[1.5] text-[color:var(--cc-ink-soft)]">
               <p>
-                At Faircopy we take your privacy seriously. This policy
-                explains, in clear terms, how we collect, use, disclose and
-                safeguard your information when you use our platform. By using
-                Faircopy you agree to the collection and use of information
-                in accordance with this policy.
+                Faircopy is built in Adelaide and handles personal information
+                under the Privacy Act 1988 (Cth) and the Australian Privacy
+                Principles. Your résumé is some of the most personal data there
+                is — work history, education, referees — so this policy says
+                plainly what we collect, why, where it goes and what you can do
+                about it. By using Faircopy you agree to the practices
+                described here.
               </p>
             </div>
           </div>

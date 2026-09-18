@@ -148,7 +148,7 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
             className="mt-6 max-w-2xl cc-font-editorial text-xl leading-snug sm:text-2xl"
             style={{ color: "rgba(225, 224, 204, 0.92)", textShadow: "0 1px 24px rgba(0,0,0,0.6)" }}
           >
-            Resume building, job tracking and market signals in one calm, trusted workspace. No noise, no guesswork.
+            Build the résumé, aim it at the job, track every application. One calm workspace for the Australian job market.
           </motion.p>
 
           <motion.div
@@ -181,11 +181,11 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
                   </span>
                 </button>
                 <button
-                  onClick={() => navigate("/playground")}
+                  onClick={() => navigate("/builder")}
                   className="group inline-flex items-center gap-2 text-sm transition-colors sm:text-base"
                   style={{ color: "rgba(225, 224, 204, 0.85)" }}
                 >
-                  Try the playground
+                  Build one now — no account needed
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
               </>
@@ -243,30 +243,17 @@ const useCountUp = (target: string, inView: boolean, duration = 1400) => {
   return value;
 };
 
-/* ─────────────────────────── SPARKLINE ─────────────────────────── */
-
-const Sparkline = memo(({ points, color = "var(--cc-rust)" }: { points: number[]; color?: string }) => {
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const w = 120, h = 32, pad = 2;
-  const xStep = (w - pad * 2) / (points.length - 1);
-  const scale = (v: number) => h - pad - ((v - min) / (max - min || 1)) * (h - pad * 2);
-  const d = points.map((v, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${scale(v)}`).join(" ");
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-[120px] h-8 block">
-      <path d={d} stroke={color} strokeWidth={1.25} fill="none" vectorEffect="non-scaling-stroke" />
-      <circle cx={pad + (points.length - 1) * xStep} cy={scale(points[points.length - 1])} r={2} fill={color} />
-    </svg>
-  );
-});
-Sparkline.displayName = "Sparkline";
-
 /* ─────────────────────────── FIGURES ─────────────────────────── */
+
+/* Three figures a visitor can check for themselves: the template count,
+   the tool count, and the number of steps to a finished PDF. Nothing here
+   is a market statistic — if it can't be verified inside the app, it
+   doesn't belong on the page. */
 
 const FigureCell = memo(({
   row, index, inView,
 }: {
-  row: { fig: string; label: string; sub: string; spark: number[] };
+  row: { fig: string; label: string; sub: string };
   index: number;
   inView: boolean;
 }) => {
@@ -278,10 +265,7 @@ const FigureCell = memo(({
       transition={{ duration: 0.8, delay: index * 0.12, ease: [0.2, 0.8, 0.2, 1] }}
       className={`${SOFT_CARD} p-10 md:p-12`}
     >
-      <div className="flex items-center justify-end">
-        <Sparkline points={row.spark} />
-      </div>
-      <div className="mt-8 cc-font-display text-6xl md:text-7xl leading-none tracking-tight text-[color:var(--cc-ink)] cc-tabular">
+      <div className="cc-font-display text-6xl md:text-7xl leading-none tracking-tight text-[color:var(--cc-ink)] cc-tabular">
         {value}
       </div>
       <div className="mt-6 cc-font-editorial text-xl text-[color:var(--cc-ink-soft)]">{row.label}</div>
@@ -293,9 +277,9 @@ FigureCell.displayName = "FigureCell";
 
 const Figures = memo(() => {
   const rows = [
-    { fig: "7,412", label: "Roles indexed", sub: "39 SA industries", spark: [4, 6, 5, 7, 8, 6, 9, 11, 10, 12] },
-    { fig: "$2.1B", label: "Tracked investment", sub: "emerging sectors", spark: [3, 4, 3, 5, 6, 5, 7, 8, 9, 10] },
-    { fig: "96%", label: "Grounded in gov data", sub: "every claim sourced", spark: [7, 8, 7, 9, 9, 10, 10, 11, 11, 12] },
+    { fig: "25", label: "Résumé templates", sub: "modern · professional · creative · minimal" },
+    { fig: "9", label: "Tools in the workspace", sub: "first draft through to signed offer" },
+    { fig: "4", label: "Steps to a finished PDF", sub: "upload · edit · choose · export" },
   ];
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
@@ -305,8 +289,8 @@ const Figures = memo(() => {
       <SkyBackdrop tone="dawn" />
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-10">
         <CraftSectionHead
-          section="The numbers"
-          title={<>The numbers<br /><span className="cc-italic-wonk">behind the work.</span></>}
+          section="What's inside"
+          title={<>Everything the search<br /><span className="cc-italic-wonk">actually takes.</span></>}
         />
 
         <div className="mt-12 md:mt-16 opacity-70">
@@ -326,49 +310,138 @@ Figures.displayName = "Figures";
 
 /* ─────────────────────────── TOOLKIT ─────────────────────────── */
 
+/* The nine tools that actually exist in the app. The face carries the
+   promise in the reader's words; the back carries the specifics. No
+   numbering — these are a set you pick from, not a sequence you follow.
+   (The Method section below IS a sequence, and keeps its order.) */
 const toolkit = [
-  { n: "01", title: ["Policy", "Intelligence"], body: "Every SA policy and budget, parsed and cited line by line.", tags: ["Budget", "Strategy", "Citations"] },
-  { n: "02", title: ["Workforce", "Signals"], body: "Live sector growth, emerging roles, skill premiums.", tags: ["Sectors", "Demand", "Skills"] },
-  { n: "03", title: ["Résumé", "Workshop"], body: "Draft against the live demand signal. ATS-safe, hand-tuned.", tags: ["ATS", "Rewrite", "Templates"] },
-  { n: "04", title: ["Interview", "Practice"], body: "Rehearse with an AI coach who knows your sector.", tags: ["Mock", "Feedback", "Sector"] },
-  { n: "05", title: ["Investment", "Tracker"], body: "See where state funds flow and which skills they need.", tags: ["Grants", "Pipeline", "Forecast"] },
-  { n: "06", title: ["Career", "Pathways"], body: "Find adjacent roles, transferable skills, and clear next steps.", tags: ["Maps", "Adjacency", "Paths"] },
+  {
+    title: ["Résumé", "builder"],
+    face: "Start from the résumé you already have, or from nothing at all. Watch it take shape as you type.",
+    back: "Drop in a PDF, Word file or a photo and Faircopy reads your history out of it. Edit with the page live beside you, choose from 25 templates across four styles, then export a print-ready PDF.",
+    tags: ["Live preview", "25 templates", "PDF export"],
+  },
+  {
+    title: ["ATS", "analysis"],
+    face: "See what the screening software sees — while there's still time to do something about it.",
+    back: "Paste the job ad and get a compatibility score with the reasoning shown: which keywords matched, which requirements you meet, which you don't, and the red flags a recruiter would catch on the first pass. Reads résumés the Australian way — two pages and a referees section won't cost you marks.",
+    tags: ["Match score", "Keyword gaps", "Built for AU résumés"],
+  },
+  {
+    title: ["Bullet", "rewrite"],
+    face: "Turn “responsible for” into something a hiring manager actually remembers.",
+    back: "Point it at the role you're going for and rewrite any bullet against that job. You approve every line — nothing changes in your résumé until you say so.",
+    tags: ["Line by line", "Job-matched", "You approve"],
+  },
+  {
+    title: ["Cover", "letters"],
+    face: "A letter that sounds like you wrote it, for the role in front of you.",
+    back: "Draws on the résumé you've already built and the job ad you're answering, in Australian English — organised, not organized. Edit until it reads right, then keep it in your library or download it.",
+    tags: ["From your résumé", "Australian English", "Fully editable"],
+  },
+  {
+    title: ["Job", "tracker"],
+    face: "Every application in one place, so nothing quietly goes cold on you.",
+    back: "Log each role, move it along as things progress, and see at a glance what's waiting on you. Covers every state and territory.",
+    tags: ["Your pipeline", "Status at a glance", "Australia-wide"],
+  },
+  {
+    title: ["Interview", "practice"],
+    face: "Rehearse the hard questions before somebody asks them for real.",
+    back: "Work through the questions that come up for your role, step into a practice room and answer them properly, then read back how it went.",
+    tags: ["Practice room", "Role-specific", "Debrief"],
+  },
+  {
+    title: ["Browse", "jobs"],
+    face: "Openings across Australia, read for what the employer actually wants.",
+    back: "Search live listings, see which skills keep coming up and what they pay — then send the résumé you built here straight at them.",
+    tags: ["Live listings", "In-demand skills", "Salary"],
+  },
+  {
+    title: ["Market", "news"],
+    face: "What's moving in your industry, without the doomscroll.",
+    back: "A running read on hiring, pay and demand in the sectors you care about — so you know whether it's you or the market.",
+    tags: ["Hiring", "Pay", "By sector"],
+  },
+  {
+    title: ["Career", "insights"],
+    face: "Ask a real question about the market and get an answer with its sources attached.",
+    back: "Answers come back with the document behind them, so you can check the claim rather than take our word for it. Deepest on South Australia today, widening from there.",
+    tags: ["Cited answers", "Ask anything", "SA-deep"],
+  },
 ];
+
+/* The same cosy surface as SOFT_CARD, minus the hover translate — a
+   Tailwind transform utility on a face would overwrite the rotateY that
+   turns the card, so the hover here is shadow only. */
+const FLIP_FACE =
+  "rounded-[1.25rem] bg-[rgba(250,244,233,0.86)] border border-[rgba(14,12,10,0.06)] " +
+  "shadow-[0_22px_50px_-32px_rgba(70,45,20,0.5)] transition-shadow duration-500 " +
+  "group-hover:shadow-[0_32px_60px_-30px_rgba(70,45,20,0.55)] p-10 md:p-12 min-h-[21rem]";
 
 const ToolkitCard = memo(({ item, i }: { item: typeof toolkit[0]; i: number }) => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
+  const [open, setOpen] = useState(false);
+  const name = `${item.title[0]} ${item.title[1]}`;
+
   return (
-    <motion.article
+    <motion.div
       ref={ref}
       initial={{ opacity: 0, y: 32 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.7, delay: (i % 3) * 0.1, ease: [0.2, 0.8, 0.2, 1] }}
-      className={`${SOFT_CARD} group p-10 md:p-12 min-h-[300px] flex flex-col overflow-hidden`}
+      className="h-full"
     >
-      <div className="flex items-center justify-end">
-        <ArrowUpRight className="w-5 h-5 text-[color:var(--cc-ash)] transition-all duration-500 group-hover:rotate-45 group-hover:text-[color:var(--cc-rust)]" />
-      </div>
-
-      <h3 className="mt-10 cc-font-display text-3xl md:text-4xl leading-[0.95] tracking-tight text-[color:var(--cc-ink)]">
-        {item.title[0]}
-        <br />
-        <span className="cc-italic-wonk">{item.title[1]}</span>
-      </h3>
-
-      <p className="mt-6 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
-        {item.body}
-      </p>
-
-      <div
-        className="mt-auto pt-8 flex flex-wrap gap-2 opacity-0 translate-y-2 transition-all duration-500 group-hover:opacity-100 group-hover:translate-y-0"
-        aria-hidden="true"
+      <button
+        type="button"
+        className="cc-flip group h-full"
+        aria-expanded={open}
+        aria-label={open ? `${name} — back to summary` : `${name} — see how it works`}
+        onClick={() => setOpen((v) => !v)}
       >
-        {item.tags.map((t) => (
-          <span key={t} className="cc-tag">{t}</span>
-        ))}
-      </div>
-    </motion.article>
+        <span className="cc-flip-inner">
+          {/* The face — what this does for you */}
+          <span className={`cc-flip-face cc-flip-face--front ${FLIP_FACE}`}>
+            <span className="flex items-center justify-end">
+              <ArrowUpRight className="cc-flip-mark w-5 h-5 text-[color:var(--cc-ash)]" />
+            </span>
+
+            <span className="mt-10 block cc-font-display text-3xl md:text-4xl leading-[0.95] tracking-tight text-[color:var(--cc-ink)]">
+              {item.title[0]}
+              <br />
+              <span className="cc-italic-wonk">{item.title[1]}</span>
+            </span>
+
+            <span className="mt-6 block cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+              {item.face}
+            </span>
+
+            <span className="mt-auto pt-8 block cc-label-sm text-[color:var(--cc-rust)]">
+              Tap to see how it works
+            </span>
+          </span>
+
+          {/* The back — the specifics */}
+          <span className={`cc-flip-face cc-flip-face--back ${FLIP_FACE}`}>
+            <span className="flex items-center justify-between gap-4">
+              <span className="cc-label-sm text-[color:var(--cc-rust)]">{name}</span>
+              <ArrowUpRight className="cc-flip-mark w-5 h-5 text-[color:var(--cc-ash)]" />
+            </span>
+
+            <span className="mt-8 block cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
+              {item.back}
+            </span>
+
+            <span className="mt-auto pt-8 flex flex-wrap gap-2">
+              {item.tags.map((t) => (
+                <span key={t} className="cc-tag">{t}</span>
+              ))}
+            </span>
+          </span>
+        </span>
+      </button>
+    </motion.div>
   );
 });
 ToolkitCard.displayName = "ToolkitCard";
@@ -377,13 +450,13 @@ const Toolkit = memo(() => (
   <SkySection id="toolkit" tone="day">
     <CraftSectionHead
       section="The toolkit"
-      title={<>Six tools.<br /><span className="cc-italic-wonk">One workspace.</span></>}
-      sub={<>Every tool pairs what you want with live South Australian data.</>}
+      title={<>Nine tools.<br /><span className="cc-italic-wonk">One workspace.</span></>}
+      sub={<>Everything between the first draft and the signed offer. Tap any card to see what it actually does.</>}
     />
 
     <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {toolkit.map((t, i) => (
-        <ToolkitCard key={t.n} item={t} i={i} />
+        <ToolkitCard key={`${t.title[0]}-${t.title[1]}`} item={t} i={i} />
       ))}
     </div>
   </SkySection>
@@ -393,10 +466,12 @@ Toolkit.displayName = "Toolkit";
 /* ─────────────────────────── METHOD ─────────────────────────── */
 
 const Method = memo(() => {
+  /* A real sequence — you do these in order — so the numerals carry
+     information rather than decoration. */
   const steps = [
-    { title: "Gather", body: "Every SA policy document ingested and indexed — a structured archive." },
-    { title: "Interpret", body: "Policy cross-referenced with workforce data so patterns surface." },
-    { title: "Apply", body: "Build your résumé, rehearse interviews and plan your path with live data." },
+    { n: "01", title: "Bring what you have", body: "Upload an old résumé, paste it in, or start from a blank page. Either way you're editing within minutes." },
+    { n: "02", title: "Aim it at the job", body: "Score it against the ad, close the gaps it finds, and rewrite the lines that aren't pulling their weight." },
+    { n: "03", title: "Send it and track it", body: "Export a print-ready PDF, log the application, and keep every role moving from one board." },
   ];
   return (
     <SkySection id="method" tone="dusk">
@@ -418,7 +493,8 @@ const Method = memo(() => {
             transition={{ duration: 0.8, delay: i * 0.15, ease: [0.2, 0.8, 0.2, 1] }}
             className={`${SOFT_CARD} p-10 md:p-12`}
           >
-            <h3 className="cc-font-display text-3xl md:text-4xl tracking-tight text-[color:var(--cc-ink)]">
+            <div className="cc-label-sm cc-tabular text-[color:var(--cc-rust)]">{s.n}</div>
+            <h3 className="mt-4 cc-font-display text-3xl md:text-4xl tracking-tight text-[color:var(--cc-ink)]">
               {s.title}
             </h3>
             <p className="mt-5 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)] max-w-sm">
@@ -445,7 +521,7 @@ const Dispatches = memo(() => (
     <CraftSectionHead
       section="Updates"
       title={<>Latest from the<br /><span className="cc-italic-wonk">SA government.</span></>}
-      sub={<>A rolling feed of policy, funding and hiring news — sourced, dated, and always current.</>}
+      sub={<>The kind of signal Faircopy reads — policy, funding and hiring moves, each one sourced and dated.</>}
     />
 
     <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
@@ -489,17 +565,18 @@ Dispatches.displayName = "Dispatches";
 /* ─────────────────────────── SUBJECTS ─────────────────────────── */
 
 const subjects = [
-  { id: "A", who: "Job seekers", body: "Match your history against the sectors SA is actively funding." },
-  { id: "B", who: "Students", body: "Plot pathways from today's policy to tomorrow's demand." },
-  { id: "C", who: "Migrants", body: "Translate credentials and find visa-friendly, in-demand roles." },
-  { id: "D", who: "Career changers", body: "See adjacent roles, transferable skills, and real next steps." },
+  { id: "A", who: "Job seekers", body: "Stop rebuilding the same résumé from scratch for every role you go for." },
+  { id: "B", who: "Career changers", body: "Find the roles your experience already qualifies you for — and the words to prove it." },
+  { id: "C", who: "Students & graduates", body: "Write a first résumé that doesn't read like a first résumé." },
+  { id: "D", who: "New to Australia", body: "Put your experience into the shape Australian employers expect to read." },
 ];
 
 const Subjects = memo(() => (
   <SkySection id="subjects" tone="day">
     <CraftSectionHead
       section="Who it's for"
-      title={<>Four people.<br /><span className="cc-italic-wonk">One platform.</span></>}
+      title={<>Four people.<br /><span className="cc-italic-wonk">One workspace.</span></>}
+      sub={<>Built for the Australian market — every state and territory.</>}
     />
 
     <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-14">
@@ -551,10 +628,10 @@ const CTA = memo(({ session, navigate }: { session: Session | null; navigate: (t
       <div className="relative z-10 max-w-3xl mx-auto px-6 md:px-10 text-center">
         <div className="cc-label text-[color:var(--cc-rust)]">Get started</div>
         <h2 className="mt-4 cc-font-display text-4xl md:text-6xl leading-[1.02] tracking-tight text-[color:var(--cc-ink)]">
-          Ready to run your career search with less chaos?
+          Ready to run your job search with less chaos?
         </h2>
         <p className="mt-6 cc-font-editorial text-lg md:text-xl leading-snug text-[color:var(--cc-ink-soft)]">
-          Build your resume, track applications, and stay aligned with market demand from one place.
+          Nine tools, 25 templates, and one place to keep every application moving. Start with a résumé and go from there.
         </p>
         <div className="mt-10 flex items-center justify-center">
           <button

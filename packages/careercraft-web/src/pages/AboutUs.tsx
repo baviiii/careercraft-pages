@@ -9,15 +9,15 @@ import {
 } from "@/components/landing/CraftShell";
 
 const values = [
-  { n: "i.", title: "Mission", body: "Make policy, workforce and investment intelligence a common tool — not a privilege." },
-  { n: "ii.", title: "Vision", body: "Career decisions built on real data, not guesswork — available to everyone." },
-  { n: "iii.", title: "Values", body: "Transparent sources, accessible tools, thoughtful craft. Always cited, never salesy." },
+  { n: "i.", title: "Mission", body: "Give every Australian the market intelligence a top recruiter has — sourced, cited, and free to start." },
+  { n: "ii.", title: "Vision", body: "Career decisions made on evidence: where the funding flows, which skills it pays for, who is actually hiring." },
+  { n: "iii.", title: "Values", body: "Every claim cited. Australian conventions, never imported defaults. Built for the person, not the platform." },
 ];
 
 const pillars = [
   { k: "Built in", v: "Adelaide, SA" },
-  { k: "Grounded in", v: "Gov-verified data" },
-  { k: "Launched", v: "2026" },
+  { k: "Grounded in", v: "Official gov documents" },
+  { k: "Written for", v: "Australian hiring" },
   { k: "Updated", v: "Monthly, ongoing" },
 ];
 
@@ -40,12 +40,13 @@ export default function AboutUs() {
 
           <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · About</div>
           <h1 className="mt-4 cc-font-display text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight text-[color:var(--cc-ink)]">
-            A small team<br />
-            for <span className="cc-italic-wonk">big careers.</span>
+            Career tools with<br />
+            an <span className="cc-italic-wonk">Australian accent.</span>
           </h1>
           <p className="mt-8 cc-font-editorial text-2xl md:text-[28px] leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
-            Faircopy is a workspace for South Australians. We turn policy,
-            workforce data and opportunity into tools you can actually use.
+            Faircopy is a career workspace built in Adelaide for the Australian
+            job market — government data underneath, Australian conventions
+            throughout, and nothing we can't cite.
           </p>
         </div>
       </section>
@@ -85,15 +86,24 @@ export default function AboutUs() {
             </div>
             <div className="col-span-12 md:col-span-8 cc-font-editorial text-xl md:text-[22px] leading-[1.5] text-[color:var(--cc-ink-soft)] space-y-6">
               <p className="cc-dropcap">
-                Somewhere between a government PDF and a job advert, a person
-                has to decide what to do with the next decade of their life.
-                Most of the signal is buried. Most of the noise is paid for.
+                Every career tool we tried had the same accent — American.
+                Cut your résumé to one page. Drop your referees. Explain your
+                Cert III like it needs apologising for. Advice that quietly
+                costs Australians interviews, dressed up as best practice.
               </p>
               <p>
-                Faircopy surfaces the buried signal — every budget line, every
-                sector plan, every shortage list — and turns it into something
-                you can actually use. A résumé, an interview rehearsal, a career
-                map, each grounded in where South Australia is genuinely moving.
+                So we built the opposite. Faircopy reads what actually drives
+                hiring here — state budgets, sector plans, skills shortage
+                lists, funded training programs — parsed, indexed, and cited
+                down to the page number. And the writing tools speak
+                Australian: two to three pages, referees where they belong,
+                AQF qualifications by their proper names, and organised spelt
+                with an s.
+              </p>
+              <p>
+                When Faircopy says a sector is growing, it can show you the
+                budget line that says so. That is the whole idea: not louder
+                advice — evidence.
               </p>
               <p className="cc-font-display italic text-2xl text-[color:var(--cc-ink)]">
                 We build for the person using the tool — not the platform.

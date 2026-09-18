@@ -10,7 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { AuthHorizon } from "@/components/auth/AuthHorizon";
-import { FaircopyLockup, FaircopyMark } from "@/components/brand/FaircopyMark";
+import { FaircopyMark } from "@/components/brand/FaircopyMark";
 
 export type AuthMode = "signin" | "signup";
 
@@ -237,14 +237,21 @@ export const AuthExperience = ({
           <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-[color:var(--cc-cream)]" />
         </div>
         <section className="relative z-20 flex min-h-0 flex-1 flex-col bg-[rgba(247,247,244,0.97)] px-6 py-7 md:px-12 lg:min-h-screen lg:px-16">
-          <div className="flex items-center justify-between">
+          <header className="flex items-center justify-between gap-4">
             <button onClick={onBackHome} className="inline-flex items-center gap-2 cc-label-sm cc-link">
               <ArrowLeft className="h-4 w-4" /> Home
             </button>
-            <button onClick={onBackHome} className="flex items-center" aria-label="Faircopy home">
-              <FaircopyMark className="h-10 w-10" title="Faircopy" />
+            <button
+              onClick={onBackHome}
+              className="group inline-flex items-center gap-2.5 transition-opacity hover:opacity-80"
+              aria-label="Faircopy home"
+            >
+              <FaircopyMark className="h-8 w-8 transition-transform duration-300 group-hover:scale-[1.04]" />
+              <span className="hidden cc-font-display italic text-[1.2rem] leading-none tracking-tight sm:inline">
+                Faircopy
+              </span>
             </button>
-          </div>
+          </header>
 
           <div className="mx-auto flex w-full max-w-[440px] flex-1 items-center py-10">
             <div className="w-full">
@@ -268,7 +275,6 @@ export const AuthExperience = ({
                       >
                         <ArrowLeft className="h-4 w-4" /> Back to sign in
                       </button>
-                      <FaircopyLockup size="sm" className="mb-6" />
                       <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Recovery</div>
                       <h1 className="mt-3 cc-font-display text-4xl leading-[0.92] tracking-[-0.04em] md:text-5xl">
                         Find your way<br /><span className="cc-italic-wonk">back in.</span>
@@ -297,7 +303,6 @@ export const AuthExperience = ({
                     </>
                   ) : (
                     <>
-                      <FaircopyLockup size="sm" className="mb-6" />
                       <div className="cc-label text-[color:var(--cc-rust)]">
                         {mode === "signin" ? "§ 01 · Return" : "§ 01 · First entry"}
                       </div>
@@ -465,30 +470,28 @@ export const AuthExperience = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-[color:var(--cc-hair)] pt-4 cc-label-sm text-[color:var(--cc-ash)]">
-            <span>Private by design</span>
-            <span>Adelaide · 2026</span>
-          </div>
         </section>
 
         <aside className="relative hidden min-h-screen overflow-hidden bg-[#6ea8d4] lg:block">
           <AuthHorizon shift={focusedField} />
           <motion.div
-            className="absolute inset-0"
+            className="pointer-events-none absolute inset-0"
             animate={{
               background:
                 scene.accent === "password"
-                  ? "linear-gradient(160deg,rgba(14,12,10,.08),rgba(42,82,204,.16) 48%,rgba(14,12,10,.62))"
+                  ? "linear-gradient(180deg,rgba(14,12,10,.18) 0%,rgba(14,12,10,.08) 38%,rgba(14,12,10,.45) 100%)"
                   : scene.accent === "success"
-                    ? "linear-gradient(160deg,rgba(47,91,68,.10),rgba(14,12,10,.12) 48%,rgba(14,12,10,.58))"
-                    : "linear-gradient(160deg,rgba(14,12,10,.04),rgba(14,12,10,.02) 42%,rgba(14,12,10,.58))",
+                    ? "linear-gradient(180deg,rgba(14,12,10,.14) 0%,rgba(47,91,68,.12) 42%,rgba(14,12,10,.42) 100%)"
+                    : "linear-gradient(180deg,rgba(14,12,10,.12) 0%,rgba(14,12,10,.04) 40%,rgba(14,12,10,.4) 100%)",
             }}
             transition={{ duration: 0.8 }}
           />
 
           <div className="relative z-10 flex h-full flex-col justify-between p-10 xl:p-14">
             <div className="flex items-center justify-between text-[#E1E0CC]">
-              <span className="cc-label">A workspace for careers in motion</span>
+              <span className="cc-label drop-shadow-[0_1px_8px_rgba(0,0,0,0.35)]">
+                A workspace for careers in motion
+              </span>
             </div>
 
             <AnimatePresence mode="wait">
@@ -498,22 +501,24 @@ export const AuthExperience = ({
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                 exit={{ opacity: 0, y: -20, filter: "blur(8px)" }}
                 transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-                className="max-w-3xl pb-8 text-[#E1E0CC]"
+                className="max-w-3xl pb-2 text-[#E1E0CC]"
               >
-                <div className="cc-label text-[#9CB4FF]">{scene.eyebrow}</div>
-                <h2 className="mt-5 cc-font-display text-[clamp(4rem,7vw,8rem)] leading-[0.82] tracking-[-0.06em] text-balance">
+                <div className="cc-label text-[#9CB4FF] drop-shadow-[0_1px_8px_rgba(0,0,0,0.35)]">
+                  {scene.eyebrow}
+                </div>
+                <h2 className="mt-5 cc-font-display text-[clamp(3.5rem,6.5vw,7rem)] leading-[0.86] tracking-[-0.05em] text-balance drop-shadow-[0_2px_24px_rgba(0,0,0,0.35)]">
                   {scene.title}
                 </h2>
-                <div className="mt-8 min-h-16 max-w-xl border-l border-[#E1E0CC]/35 pl-5 text-xl leading-relaxed text-[#E1E0CC]/85">
+                <div className="mt-7 min-h-14 max-w-xl border-l border-[#E1E0CC]/35 pl-5 text-lg leading-relaxed text-[#E1E0CC]/85 drop-shadow-[0_1px_10px_rgba(0,0,0,0.3)]">
                   <Typewriter text={scene.line} />
                 </div>
-                <div className="mt-10 flex items-center gap-3 cc-label-sm text-[#E1E0CC]/65">
+                <div className="mt-8 flex items-center gap-3 cc-label-sm text-[#E1E0CC]/65">
                   <motion.span
                     className="h-2 w-2 rounded-full bg-[#9CB4FF]"
                     animate={{ scale: busy ? [1, 1.8, 1] : [1, 1.25, 1], opacity: [0.6, 1, 0.6] }}
                     transition={{ duration: busy ? 0.8 : 2.4, repeat: Infinity }}
                   />
-                  {busy ? "Working securely" : "Every field changes the view"}
+                  {busy ? "Connecting…" : "Every field changes the view"}
                 </div>
               </motion.div>
             </AnimatePresence>

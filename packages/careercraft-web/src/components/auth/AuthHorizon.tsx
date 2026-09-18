@@ -88,10 +88,10 @@ export const AuthHorizon = ({ shift = "idle", compact = false }: AuthHorizonProp
       ctx.fillRect(0, 0, width, height);
 
       const look = shiftRef.current;
-      const zoom = compact ? 1.06 : 1.18;
-      const panX = Math.sin(t * 0.22) * 0.05 + look.x;
-      // Tall auth column is sky-heavy; pull the meadow into the middle of the pane.
-      const panY = Math.cos(t * 0.16) * 0.03 + look.y - (compact ? 0.08 : 0.34);
+      // Cover the full pane — mild drift, no big sky bias that leaves a blank strip.
+      const zoom = compact ? 1.08 : 1.14;
+      const panX = Math.sin(t * 0.22) * 0.035 + look.x;
+      const panY = Math.cos(t * 0.16) * 0.02 + look.y - (compact ? 0.02 : 0.04);
 
       if (picture.complete && picture.naturalWidth) {
         const iw = picture.naturalWidth;
@@ -182,11 +182,6 @@ export const AuthHorizon = ({ shift = "idle", compact = false }: AuthHorizonProp
         animate={{ scale: shift === "password" ? 1.03 : 1 }}
         transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
       />
-      <div className="auth-horizon-grass" aria-hidden="true">
-        {Array.from({ length: 28 }, (_, i) => (
-          <span key={i} style={{ left: `${(i / 27) * 100}%`, animationDelay: `${(i % 7) * -0.35}s` }} />
-        ))}
-      </div>
       <div className="cc-grain absolute inset-0 opacity-20 mix-blend-overlay" />
     </div>
   );

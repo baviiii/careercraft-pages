@@ -117,6 +117,7 @@ export const CraftFooter = memo(() => {
               <li><a onClick={(e) => { e.preventDefault(); navigate("/about"); }} href="/about" className="cc-link">About</a></li>
               <li><a onClick={(e) => { e.preventDefault(); navigate("/contact"); }} href="/contact" className="cc-link">Contact</a></li>
               <li><a onClick={(e) => { e.preventDefault(); navigate("/privacy"); }} href="/privacy" className="cc-link">Privacy</a></li>
+              <li><a onClick={(e) => { e.preventDefault(); navigate("/terms"); }} href="/terms" className="cc-link">Terms</a></li>
             </ul>
           </div>
         </div>

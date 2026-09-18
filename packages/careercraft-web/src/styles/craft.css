@@ -165,32 +165,6 @@
   animation-duration: 20s;
 }
 
-@keyframes auth-horizon-blade {
-  0%, 100% { transform: rotate(-8deg) scaleY(1); }
-  50% { transform: rotate(11deg) scaleY(1.04); }
-}
-.auth-horizon-grass {
-  pointer-events: none;
-  position: absolute;
-  inset: auto 0 0;
-  height: 22%;
-  overflow: hidden;
-}
-.auth-horizon-grass span {
-  position: absolute;
-  bottom: -6%;
-  width: 7px;
-  height: 92%;
-  transform-origin: 50% 100%;
-  background: linear-gradient(180deg, #c6de6a 0%, #3f6a18 78%);
-  border-radius: 8px 8px 2px 2px;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-  animation: auth-horizon-blade 2.4s ease-in-out infinite;
-  opacity: 0.88;
-}
-.auth-horizon-grass span:nth-child(odd) { height: 78%; width: 5px; opacity: 0.7; animation-duration: 2.9s; }
-.auth-horizon-grass span:nth-child(3n) { height: 100%; width: 8px; animation-duration: 2.1s; }
-
 .auth-horizon-rays {
   pointer-events: none;
   position: absolute;
@@ -1467,72 +1441,60 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   CONSOLE — the carbon instrument surface.
+   COACH — the briefing desk.
 
-   A dark precision panel set into the cream page, the way a terminal sits
-   in a desk. Used by the Career Coach. Every ink here is contrast-checked
-   against --con-bg: ink 16.7:1, ink-2 10.1:1, ink-3 5.9:1, accent 6.5:1 —
-   the tertiary ramp is the floor and never goes below AA body text.
+   Same cream/ink/rust as the rest of Craft. The chat is a correspondence
+   surface, not a dark terminal dropped onto the page. --con-* aliases keep
+   the ledger, composer and ChatEnhancements on one token set.
    ═══════════════════════════════════════════════════════════════════════ */
 
 .cc-console {
-  --con-bg:          #101216;
-  --con-panel:       #171A20;
-  --con-raised:      #1E222A;
-  --con-line:        rgba(242, 242, 238, 0.09);
-  --con-line-2:      rgba(242, 242, 238, 0.17);
-  --con-ink:         #F2F2EE;
-  --con-ink-2:       #B9BFCB;
-  --con-ink-3:       #8B92A0;
-  --con-accent:      #6E92FF;
-  --con-accent-2:    #A8BEFF;
-  --con-accent-soft: rgba(110, 146, 255, 0.14);
-  --con-accent-line: rgba(110, 146, 255, 0.34);
-  --con-sage:        #6FBF95;
-  --con-wheat:       #E0B65C;
-  --con-rose:        #F0899B;
+  --con-bg:          var(--cc-cream);
+  --con-panel:       #FFFEFB;
+  --con-raised:      var(--cc-cream-2);
+  --con-line:        var(--cc-hair);
+  --con-line-2:      var(--cc-hair-strong);
+  --con-ink:         var(--cc-ink);
+  --con-ink-2:       var(--cc-ink-soft);
+  --con-ink-3:       var(--cc-ash);
+  --con-accent:      var(--cc-rust);
+  --con-accent-2:    var(--cc-rust-deep);
+  --con-accent-soft: var(--cc-rust-soft);
+  --con-accent-line: rgba(42, 82, 204, 0.32);
+  --con-sage:        var(--cc-signal);
+  --con-wheat:       var(--cc-wheat);
+  --con-rose:        #B54A58;
 
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(ellipse 80% 55% at 50% -10%, var(--con-accent-soft), transparent 70%),
+    linear-gradient(180deg, rgba(255, 254, 251, 0.55) 0%, transparent 28%),
     var(--con-bg);
   color: var(--con-ink);
 }
 
-/* Per-persona accent swap — one variable, everything downstream follows. */
-.cc-console[data-accent="sage"]  { --con-accent: var(--con-sage);  --con-accent-2: #9BD8B7; --con-accent-soft: rgba(111, 191, 149, 0.14); --con-accent-line: rgba(111, 191, 149, 0.34); }
-.cc-console[data-accent="wheat"] { --con-accent: var(--con-wheat); --con-accent-2: #F0D79A; --con-accent-soft: rgba(224, 182, 92, 0.14);  --con-accent-line: rgba(224, 182, 92, 0.34); }
-.cc-console[data-accent="rose"]  { --con-accent: var(--con-rose);  --con-accent-2: #F7B8C4; --con-accent-soft: rgba(240, 137, 155, 0.14); --con-accent-line: rgba(240, 137, 155, 0.34); }
+.cc-console[data-accent="sage"]  { --con-accent: var(--cc-signal); --con-accent-2: var(--cc-signal-deep); --con-accent-soft: var(--cc-signal-soft); --con-accent-line: rgba(63, 122, 92, 0.34); }
+.cc-console[data-accent="wheat"] { --con-accent: var(--cc-wheat);  --con-accent-2: var(--cc-wheat-deep);  --con-accent-soft: var(--cc-wheat-soft);  --con-accent-line: rgba(180, 135, 44, 0.38); }
+.cc-console[data-accent="rose"]  { --con-accent: #B54A58;         --con-accent-2: #8E3844;               --con-accent-soft: rgba(181, 74, 88, 0.12); --con-accent-line: rgba(181, 74, 88, 0.32); }
+.cc-console[data-accent="cobalt"]{ --con-accent: var(--cc-rust);  --con-accent-2: var(--cc-rust-deep);    --con-accent-soft: var(--cc-rust-soft);    --con-accent-line: rgba(42, 82, 204, 0.32); }
 
-/* Engineering grid — the faint substrate under everything. */
+/* Quiet ruled paper — one column of faint lines, not an engineering grid. */
 .cc-console__grid {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image:
-    linear-gradient(var(--con-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--con-line) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 5%, transparent 75%);
-  opacity: 0.6;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    rgba(20, 22, 26, 0.035) 28px
+  );
+  mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+  opacity: 0.7;
 }
 
-/* Registration marks — the four corner crosshairs of a print plate. */
-.cc-console__reg {
-  position: absolute;
-  width: 9px;
-  height: 9px;
-  z-index: 1;
-  pointer-events: none;
-  border: 1px solid var(--con-accent-line);
-  opacity: 0.75;
-}
-.cc-console__reg--tl { top: 10px; left: 10px;  border-right: 0; border-bottom: 0; }
-.cc-console__reg--tr { top: 10px; right: 10px; border-left: 0;  border-bottom: 0; }
-.cc-console__reg--bl { bottom: 10px; left: 10px;  border-right: 0; border-top: 0; }
-.cc-console__reg--br { bottom: 10px; right: 10px; border-left: 0;  border-top: 0; }
+.cc-console__reg { display: none; }
 
 /* Machine microtype — every label, readout and unit in the console. */
 .con-mono {
@@ -1568,8 +1530,8 @@
 }
 .con-btn:hover:not(:disabled) {
   color: var(--con-ink);
-  background: rgba(242, 242, 238, 0.07);
-  border-color: var(--con-line-2);
+  background: var(--con-raised);
+  border-color: var(--con-line);
 }
 .con-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .con-btn[data-active="true"] {
@@ -1597,12 +1559,12 @@
   height: 6px;
   border-radius: 999px;
   background: var(--con-sage);
-  box-shadow: 0 0 0 0 rgba(111, 191, 149, 0.55);
+  box-shadow: 0 0 0 0 var(--cc-signal-soft);
   animation: con-pulse 2.4s cubic-bezier(.4, 0, .6, 1) infinite;
 }
 @keyframes con-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(111, 191, 149, 0.5); }
-  50%      { box-shadow: 0 0 0 5px rgba(111, 191, 149, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 var(--cc-signal-soft); }
+  50%      { box-shadow: 0 0 0 5px transparent; }
 }
 
 /* Reasoning bar — the indeterminate sweep while the model thinks. */
@@ -1628,16 +1590,16 @@
 }
 
 /* Console scrollbars — thin, on-theme, always visible enough to grab. */
-.con-scroll { scrollbar-width: thin; scrollbar-color: rgba(242,242,238,0.22) transparent; }
+.con-scroll { scrollbar-width: thin; scrollbar-color: rgba(20, 22, 26, 0.22) transparent; }
 .con-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
 .con-scroll::-webkit-scrollbar-track { background: transparent; }
 .con-scroll::-webkit-scrollbar-thumb {
-  background: rgba(242, 242, 238, 0.18);
+  background: rgba(20, 22, 26, 0.16);
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: 999px;
 }
-.con-scroll::-webkit-scrollbar-thumb:hover { background: rgba(242, 242, 238, 0.32); background-clip: content-box; }
+.con-scroll::-webkit-scrollbar-thumb:hover { background: rgba(20, 22, 26, 0.28); background-clip: content-box; }
 
 /* Staggered entrance for the welcome grid. */
 .con-rise { animation: con-rise .55s cubic-bezier(.2, .8, .2, 1) both; }
@@ -1646,18 +1608,211 @@
   to   { opacity: 1; transform: none; }
 }
 
+/* ── Reasoning ledger — the flight recorder ─────────────────────────────
+   Live, it is the loading state: phases appear as they start and get
+   stamped with elapsed time as they land. Done, it collapses to a one-line
+   receipt that expands on demand. */
+.con-ledger {
+  margin-bottom: 12px;
+  border: 1px solid var(--con-line);
+  border-left: 2px solid var(--con-accent);
+  border-radius: 0.2rem 0.85rem 0.85rem 0.2rem;
+  background: var(--con-panel);
+  overflow: hidden;
+}
+.con-ledger--live { border-color: var(--con-accent-line); }
+
+.con-ledger__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--con-ink-3);
+  text-align: left;
+  cursor: pointer;
+  transition: color .18s ease;
+}
+.con-ledger__head:disabled { cursor: default; }
+.con-ledger__head:hover:not(:disabled) { color: var(--con-ink-2); }
+.con-ledger__count { margin-left: auto; opacity: .75; }
+
+.con-ledger__pulse {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--con-ink-3);
+}
+.con-ledger__pulse[data-state="live"]   { background: var(--con-accent); animation: con-ledger-pulse 1.2s cubic-bezier(.4,0,.6,1) infinite; }
+.con-ledger__pulse[data-state="done"]   { background: var(--con-sage); }
+.con-ledger__pulse[data-state="failed"] { background: var(--con-rose); }
+@keyframes con-ledger-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--con-accent-soft); }
+  50%      { box-shadow: 0 0 0 5px transparent; }
+}
+
+.con-ledger__list {
+  position: relative;
+  margin: 0;
+  padding: 2px 12px 12px;
+  list-style: none;
+}
+/* The rail every step node sits on. */
+.con-ledger__list::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 6px;
+  bottom: 18px;
+  width: 1px;
+  background: var(--con-line-2);
+}
+.con-ledger__step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 5px 0;
+}
+.con-ledger__node {
+  position: relative;
+  z-index: 1;
+  margin-top: 5px;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--con-ink-3);
+  outline: 3px solid var(--con-panel);
+}
+.con-ledger__step[data-status="done"]    .con-ledger__node { background: var(--con-accent); }
+.con-ledger__step[data-status="active"]  .con-ledger__node { background: var(--con-accent); animation: con-ledger-pulse 1.1s cubic-bezier(.4,0,.6,1) infinite; }
+.con-ledger__step[data-status="skipped"] .con-ledger__node { background: transparent; box-shadow: inset 0 0 0 1px var(--con-ink-3); }
+.con-ledger__step[data-status="failed"]  .con-ledger__node { background: var(--con-rose); }
+
+.con-ledger__label {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--con-ink-2);
+}
+.con-ledger__step[data-status="active"] .con-ledger__label { color: var(--con-ink); }
+.con-ledger__step[data-status="failed"] .con-ledger__label { color: var(--con-rose); }
+.con-ledger__ms {
+  color: var(--con-ink-3);
+  white-space: nowrap;
+}
+.con-ledger__step[data-status="active"] .con-ledger__ms { color: var(--con-accent); }
+.con-ledger__detail {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--con-ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* ── Welcome index — starter questions as a numbered ledger ───────────── */
+.con-prompt {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 16px 15px;
+  border: 1px solid var(--con-line);
+  border-radius: 0.2rem 1rem 1rem 0.2rem;
+  border-left: 2px solid var(--con-accent);
+  background: var(--con-panel);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .2s ease, background .2s ease, transform .2s ease;
+}
+.con-prompt:hover {
+  border-color: var(--con-accent-line);
+  background: var(--con-raised);
+  transform: translateY(-1px);
+}
+.con-prompt__idx {
+  padding-top: 2px;
+  color: var(--con-accent);
+}
+.con-prompt__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--con-ink);
+}
+
+/* ── Composer — one quiet bar, armed by input ─────────────────────────── */
+.con-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 10px 10px 14px;
+  border: 1px solid var(--con-line-2);
+  border-radius: 1.15rem;
+  background: var(--con-panel);
+  box-shadow: 0 10px 30px -22px rgba(20, 22, 26, 0.45);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.con-composer:focus-within {
+  border-color: var(--con-accent-line);
+  box-shadow: 0 0 0 3px var(--con-accent-soft);
+}
+.con-composer textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 168px;
+  resize: none;
+  border: 0;
+  background: transparent;
+  padding: 10px 6px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--con-ink);
+  outline: none;
+}
+.con-composer textarea::placeholder { color: var(--con-ink-3); }
+.con-composer textarea:disabled { opacity: 0.55; }
+.con-send {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--con-raised);
+  color: var(--con-ink-3);
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, transform .15s ease;
+}
+.con-send:disabled { cursor: not-allowed; }
+.con-send--armed {
+  background: var(--con-accent);
+  color: var(--con-bg);
+}
+.con-send--armed:hover { background: var(--con-accent-2); transform: translateY(-1px); }
+
 /* Accessibility — respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .con-pip,
   .con-sweep::after,
+  .con-ledger__pulse,
+  .con-ledger__node,
   .con-rise { animation: none !important; }
-  .con-btn { transition: none !important; }
+  .con-btn,
+  .con-prompt,
+  .con-composer,
+  .con-send { transition: none !important; }
+  .con-prompt:hover,
+  .con-send--armed:hover { transform: none !important; }
   .cc-blink,
   .auth-horizon-still,
   .auth-horizon-rays span,
   .auth-horizon-cloud,
   .auth-horizon-water,
-  .auth-horizon-grass span,
   .cc-engrave-anim path,
   .cc-engrave-anim circle,
   .cc-engrave-anim line,
@@ -1672,4 +1827,91 @@
   .cc-tab { transition: none !important; }
   .cc-card-hover:hover { transform: none !important; box-shadow: none !important; }
   .cc-lift:hover { transform: none !important; }
+}
+
+/* ─────────────────────────── FLIP CARD ───────────────────────────
+   A tool card whose face carries the promise and whose back carries
+   the detail. Both faces sit in the same grid cell, so the card sizes
+   itself to the taller of the two — no absolute positioning, and no
+   copy clipped off the back.                                       */
+
+.cc-flip {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  perspective: 1600px;
+}
+
+.cc-flip-inner {
+  display: grid;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.cc-flip[aria-expanded="true"] .cc-flip-inner {
+  transform: rotateY(180deg);
+}
+
+.cc-flip-face {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.cc-flip-face--back {
+  transform: rotateY(180deg);
+}
+
+/* The turn signal — a small mark that rotates with the card's state. */
+.cc-flip-mark {
+  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              color 400ms ease;
+}
+
+.cc-flip[aria-expanded="true"] .cc-flip-mark {
+  transform: rotate(180deg);
+  color: var(--cc-rust);
+}
+
+.cc-flip:focus-visible {
+  outline: none;
+}
+
+.cc-flip:focus-visible .cc-flip-face {
+  outline: 2px solid var(--cc-rust);
+  outline-offset: 4px;
+}
+
+/* Without motion the card cross-fades instead of turning. Backface
+   culling has to come off too, or both faces would stay visible. */
+@media (prefers-reduced-motion: reduce) {
+  .cc-flip-inner,
+  .cc-flip-mark {
+    transition: none;
+  }
+
+  .cc-flip[aria-expanded="true"] .cc-flip-inner,
+  .cc-flip-face--back,
+  .cc-flip[aria-expanded="true"] .cc-flip-mark {
+    transform: none;
+  }
+
+  .cc-flip-face {
+    -webkit-backface-visibility: visible;
+    backface-visibility: visible;
+    transition: opacity 160ms linear;
+  }
+
+  .cc-flip-face--back { opacity: 0; }
+  .cc-flip[aria-expanded="true"] .cc-flip-face--front { opacity: 0; }
+  .cc-flip[aria-expanded="true"] .cc-flip-face--back { opacity: 1; }
 }
