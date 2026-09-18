@@ -104,9 +104,6 @@ function ProtectedLayout() {
   );
 }
 
-// TEMP: visual preview route for CareerCoach — remove before commit.
-const CareerCoachPreview = lazy(() => import("./components/rag/CareerCoach"));
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider delayDuration={0}>
@@ -116,15 +113,6 @@ const App = () => (
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
-            {/* TEMP: visual preview route for CareerCoach — remove before commit. */}
-            <Route
-              path="/__coach-preview"
-              element={
-                <div className="flex h-screen flex-col bg-[#F4F1EA] p-4 md:p-6">
-                  <CareerCoachPreview />
-                </div>
-              }
-            />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
