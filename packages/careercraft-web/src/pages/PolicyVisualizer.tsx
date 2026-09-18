@@ -1,8 +1,33 @@
-import { useState, useEffect } from "react";
+/**
+ * Policy & Investment Visualizer — budget figures extracted from the corpus.
+ *
+ * Every number on this page is one value read out of one document in the Horus
+ * corpus, shown with the document it came from and, where the extraction
+ * supports it, the sentence that states it.
+ *
+ * ── WHY THERE IS NO TOTAL, AND NO YEAR-ON-YEAR TREND ──────────────────────
+ * The obvious chart for a budget page is "spending per year", and it cannot be
+ * built honestly from this data. The extracted `amount_aud` values are not a
+ * homogeneous series: the same field holds discrete measures, portfolio
+ * roll-ups ("Total Consolidated Account payments") and balance-sheet stocks
+ * ("Total Assets"), across two budget years and two jurisdictions, with the
+ * same measure frequently extracted more than once. Summing them produces a
+ * large, confident number that matches nothing in any document — and no reader
+ * could tell it apart from a real one.
+ *
+ * So the page ranks individual measures instead. A bar is a figure a document
+ * states. That is a weaker claim than a total, and it is one we can actually
+ * back.
+ *
+ * This replaces a version of this page whose charts were hardcoded arrays —
+ * invented budget splits, an invented $450M allocation, an invented 12,500
+ * jobs. Nothing here is a placeholder; if the corpus has no figures for a
+ * period, the page says so rather than drawing something.
+ */
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { Session } from "@supabase/supabase-js";
 import { AstralShell } from "@/components/astral";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,135 +41,288 @@ import {
 } from "@/components/ui/select";
 import {
   BarChart3,
-  TrendingUp,
-  ArrowRight,
   FileText,
-  ExternalLink,
   DollarSign,
   Building2,
-  GraduationCap,
-  Briefcase,
-  Zap,
-  Heart,
-  Factory,
+  Quote,
+  AlertCircle,
+  RefreshCw,
   Info,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend, Treemap } from "recharts";
-
-const budgetData = [
-  { name: "Healthcare", value: 8.2, growth: 12, color: "hsl(346, 77%, 50%)" },
-  { name: "Education", value: 5.4, growth: 8, color: "hsl(262, 83%, 58%)" },
-  { name: "Infrastructure", value: 4.1, growth: 15, color: "hsl(25, 95%, 53%)" },
-  { name: "Defence", value: 3.8, growth: 22, color: "hsl(215, 70%, 50%)" },
-  { name: "Clean Energy", value: 2.6, growth: 45, color: "hsl(142, 71%, 45%)" },
-  { name: "Technology", value: 1.9, growth: 28, color: "hsl(200, 98%, 48%)" },
-  { name: "Social Services", value: 1.5, growth: 5, color: "hsl(340, 75%, 55%)" },
-];
-
-const investmentTimeline = [
-  { year: "2021-22", total: 18.2, healthcare: 6.8, education: 4.2, energy: 1.2 },
-  { year: "2022-23", total: 21.5, healthcare: 7.2, education: 4.8, energy: 1.8 },
-  { year: "2023-24", total: 24.1, healthcare: 7.8, education: 5.1, energy: 2.2 },
-  { year: "2024-25", total: 26.3, healthcare: 8.0, education: 5.3, energy: 2.5 },
-  { year: "2025-26", total: 28.5, healthcare: 8.2, education: 5.4, energy: 2.6 },
-];
-
-const policyConnections = [
-  {
-    policy: "SA Workforce Strategy 2024",
-    investment: "$450M",
-    skills: ["Digital Literacy", "Green Skills", "Healthcare"],
-    jobs: 12500,
-    icon: Briefcase,
-  },
-  {
-    policy: "Education Future Fund",
-    investment: "$280M",
-    skills: ["STEM", "Vocational Training", "Languages"],
-    jobs: 8200,
-    icon: GraduationCap,
-  },
-  {
-    policy: "Hydrogen Jobs Plan",
-    investment: "$593M",
-    skills: ["Engineering", "Technical Trades", "Safety"],
-    jobs: 4100,
-    icon: Zap,
-  },
-  {
-    policy: "Health Workforce Plan",
-    investment: "$1.2B",
-    skills: ["Nursing", "Allied Health", "Mental Health"],
-    jobs: 15600,
-    icon: Heart,
-  },
-  {
-    policy: "Advanced Manufacturing",
-    investment: "$380M",
-    skills: ["Automation", "Robotics", "Quality Control"],
-    jobs: 3800,
-    icon: Factory,
-  },
-];
-
-const careerPathways = [
-  { from: "Government Investment", to: "Skills Programs", value: 100 },
-  { from: "Skills Programs", to: "TAFE SA Courses", value: 60 },
-  { from: "Skills Programs", to: "University Pathways", value: 40 },
-  { from: "TAFE SA Courses", to: "Apprenticeships", value: 35 },
-  { from: "TAFE SA Courses", to: "Direct Employment", value: 25 },
-  { from: "University Pathways", to: "Graduate Programs", value: 30 },
-  { from: "Apprenticeships", to: "Skilled Workforce", value: 35 },
-  { from: "Graduate Programs", to: "Skilled Workforce", value: 30 },
-  { from: "Direct Employment", to: "Skilled Workforce", value: 25 },
-];
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  LabelList,
+} from "recharts";
+import {
+  useBudgetIntelligence,
+  type BudgetSourceFilter,
+} from "@/hooks/useBudgetIntelligence";
+import type { HorusBudgetAllocation } from "@/lib/horusKnowledge";
 
 const container = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } }
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
 };
 
 const item = {
   hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0 }
+  show: { opacity: 1, y: 0 },
 };
+
+/** Jurisdiction is the one thing colour encodes here. */
+const SOURCE_COLOR: Record<string, string> = {
+  federal: "hsl(var(--chart-federal))",
+  state: "hsl(var(--chart-state))",
+  other: "hsl(var(--muted-foreground))",
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  federal: "Commonwealth",
+  state: "South Australia",
+  other: "Other",
+};
+
+/** Compact money, at the precision the underlying figure actually supports. */
+function formatAmount(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1e9) return `$${(value / 1e9).toFixed(abs >= 1e10 ? 0 : 1)}bn`;
+  if (abs >= 1e6) return `$${(value / 1e6).toFixed(abs >= 1e8 ? 0 : 1)}m`;
+  if (abs >= 1e3) return `$${(value / 1e3).toFixed(0)}k`;
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+/** Long measure names have to fit an axis without pushing the plot off-screen. */
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+interface ChartDatum {
+  id: string;
+  label: string;
+  amount: number;
+  allocation: HorusBudgetAllocation;
+}
+
+function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartDatum }> }) {
+  if (!active || !payload?.length) return null;
+  const { allocation } = payload[0].payload;
+  return (
+    <div className="max-w-xs rounded-lg border border-border bg-card p-3 shadow-lg">
+      <p className="text-sm font-medium text-foreground">{allocation.name}</p>
+      <p className="mt-1 text-lg font-semibold text-foreground">
+        {formatAmount(allocation.amountAud)}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {SOURCE_LABEL[allocation.source]}
+        {allocation.period ? ` · ${allocation.period}` : ""}
+      </p>
+      {allocation.funders.length > 0 && (
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Funded by {allocation.funders.slice(0, 2).join(", ")}
+          {allocation.funders.length > 2 ? ` +${allocation.funders.length - 2}` : ""}
+        </p>
+      )}
+      <p className="mt-1.5 text-[11px] text-muted-foreground">Click for the source</p>
+    </div>
+  );
+}
+
+/**
+ * The provenance panel — the reason this page exists in this form.
+ *
+ * The evidence quote hangs off the funding relationship, which means it
+ * sometimes states the amount and sometimes only establishes who funds what.
+ * Those are different strengths of claim, so they get different labels; the
+ * backend computes which case applies.
+ */
+function MeasureDetail({ allocation }: { allocation: HorusBudgetAllocation }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            variant="outline"
+            style={{
+              borderColor: SOURCE_COLOR[allocation.source],
+              color: SOURCE_COLOR[allocation.source],
+            }}
+          >
+            {SOURCE_LABEL[allocation.source]}
+          </Badge>
+          <Badge variant="secondary" className="text-xs capitalize">
+            {allocation.type}
+          </Badge>
+          {allocation.period && (
+            <Badge variant="outline" className="font-mono text-xs">
+              {allocation.period}
+            </Badge>
+          )}
+        </div>
+        <h3 className="mt-2 text-lg font-semibold text-foreground">{allocation.name}</h3>
+        <p className="mt-1 text-3xl font-semibold text-foreground">
+          {formatAmount(allocation.amountAud)}
+        </p>
+      </div>
+
+      {allocation.funders.length > 0 && (
+        <div>
+          <p className="mb-1.5 text-xs uppercase tracking-wider text-muted-foreground">
+            Recorded funders
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {allocation.funders.map((funder) => (
+              <Badge key={funder} variant="secondary" className="text-xs">
+                {funder}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <p className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground">
+          <Quote className="h-3 w-3" />
+          {allocation.evidence
+            ? allocation.evidenceStatesAmount
+              ? "Source sentence — states this figure"
+              : "Relationship evidence — does not state the figure"
+            : "No quote recorded"}
+        </p>
+        {allocation.evidence ? (
+          <>
+            <blockquote
+              className={cn(
+                "border-l-2 py-1 pl-3 text-sm italic text-foreground/90",
+                allocation.evidenceStatesAmount ? "border-accent-emerald" : "border-border",
+              )}
+            >
+              “{allocation.evidence}”
+            </blockquote>
+            {!allocation.evidenceStatesAmount && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                This quote establishes the funding relationship. The amount was read
+                elsewhere in the same document — open the source to confirm it.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            The extraction recorded this amount without a backing sentence. Treat it as
+            unverified until checked against the source document.
+          </p>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-xs uppercase tracking-wider text-muted-foreground">
+          Source {allocation.documents.length === 1 ? "document" : "documents"}
+        </p>
+        <ul className="space-y-1">
+          {allocation.documents.map((doc) => (
+            <li key={doc.id} className="flex items-start gap-2 text-sm text-foreground/90">
+              <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+              <span>{doc.title}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 export default function PolicyVisualizer() {
   const navigate = useNavigate();
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState("2025-26");
-  const [expandedPolicy, setExpandedPolicy] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const {
+    periods,
+    selectedPeriod,
+    setSelectedPeriod,
+    sourceFilter,
+    setSourceFilter,
+    allocations,
+    funders,
+    loadingPeriods,
+    loadingFigures,
+    error,
+    reload,
+  } = useBudgetIntelligence({ limit: 22 });
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        if (!session) navigate("/auth");
-      }
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!nextSession) navigate("/auth");
+    });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
       if (!session) navigate("/auth");
-      setLoading(false);
+      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  if (loading) {
+  const chartData = useMemo<ChartDatum[]>(
+    () =>
+      allocations.map((allocation) => ({
+        id: allocation.id,
+        label: truncate(allocation.name, 42),
+        amount: allocation.amountAud,
+        allocation,
+      })),
+    [allocations],
+  );
+
+  // Default the detail panel to the largest measure so the page is never a
+  // chart with an empty space beside it.
+  const selectedIndex = Math.max(
+    0,
+    allocations.findIndex((a) => a.id === selectedId),
+  );
+  const selected = allocations[selectedIndex] ?? null;
+
+  const step = (delta: number) => {
+    if (allocations.length === 0) return;
+    const next =
+      (selectedIndex + delta + allocations.length) % allocations.length;
+    setSelectedId(allocations[next].id);
+  };
+
+  const periodOptions = useMemo(
+    () => [...periods].sort((a, b) => b.measures - a.measures),
+    [periods],
+  );
+
+  /* Scale for the funder bars. Taken from the whole list rather than assuming
+     funders[0] is the largest — the payload carries no ordering guarantee, and
+     a wrong assumption here renders bars past 100% and out of their track. */
+  const widestFunder = useMemo(
+    () => funders.reduce((max, f) => Math.max(max, f.measureCount), 0) || 1,
+    [funders],
+  );
+
+  if (authLoading) {
     return (
       <AstralShell
         title={<span className="as-gradient-text">Policy & Investment</span>}
-        subtitle="Loading telemetry"
+        subtitle="Loading"
         backTo="/dashboard"
       >
-        <div className="flex items-center justify-center h-64">
+        <div className="flex h-64 items-center justify-center">
           <div
-            className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
+            className="h-8 w-8 animate-spin rounded-full border-2 border-t-transparent"
             style={{ borderColor: "var(--as-aurora-1)", borderTopColor: "transparent" }}
           />
         </div>
@@ -152,285 +330,341 @@ export default function PolicyVisualizer() {
     );
   }
 
+  const chartHeight = Math.max(280, chartData.length * 30 + 40);
+
   return (
     <AstralShell
       title={<span className="as-gradient-text">Policy & Investment</span>}
-      subtitle={`SA Government · ${selectedYear}`}
+      subtitle={
+        selectedPeriod ? `Budget papers · ${selectedPeriod}` : "Budget papers"
+      }
       backTo="/dashboard"
     >
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="space-y-8"
-      >
-        {/* Header */}
+      <motion.div variants={container} initial="hidden" animate="show" className="space-y-8">
+        {/* Header + filters */}
         <motion.div variants={item}>
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <BarChart3 className="w-6 h-6 text-primary" />
+              <div className="mb-2 flex items-center gap-3">
+                <BarChart3 className="h-6 w-6 text-primary" />
                 <Badge variant="outline" className="border-primary/30 text-primary">
-                  <FileText className="w-3 h-3 mr-1" />
-                  Policy Data
+                  <FileText className="mr-1 h-3 w-3" />
+                  Extracted from source documents
                 </Badge>
               </div>
-              <h1 className="text-3xl font-display font-bold text-foreground">
-                Policy & Investment Visualizer
+              <h1 className="font-display text-3xl font-bold text-foreground">
+                Policy &amp; Investment Visualizer
               </h1>
-              <p className="text-muted-foreground mt-2 max-w-2xl">
-                Understand how SA Government investments translate into skills, jobs, and career opportunities.
-                Data sourced from official budget documents and workforce strategies.
+              <p className="mt-2 max-w-2xl text-muted-foreground">
+                Individual budget measures found in the corpus, ranked by the amount
+                each document states. Select a measure to see the document and the
+                sentence behind it.
               </p>
             </div>
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-40 bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {investmentTimeline.map(y => (
-                  <SelectItem key={y.year} value={y.year}>{y.year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                value={sourceFilter}
+                onValueChange={(value) => setSourceFilter(value as BudgetSourceFilter)}
+              >
+                <SelectTrigger className="w-44 bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All jurisdictions</SelectItem>
+                  <SelectItem value="state">South Australia</SelectItem>
+                  <SelectItem value="federal">Commonwealth</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={selectedPeriod ?? ""}
+                onValueChange={setSelectedPeriod}
+                disabled={loadingPeriods || periodOptions.length === 0}
+              >
+                <SelectTrigger className="w-44 bg-background/50">
+                  <SelectValue placeholder={loadingPeriods ? "Loading…" : "No periods"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {periodOptions.map((p) => (
+                    <SelectItem key={p.period} value={p.period}>
+                      {p.period} · {p.measures}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </motion.div>
 
-        {/* Budget Overview */}
-        <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Error — distinct from "no data", because a chart cannot show the difference */}
+        {error && (
+          <motion.div variants={item}>
+            <Card className="border-destructive/40 bg-destructive/5">
+              <CardContent className="flex items-start gap-3 py-4">
+                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    Could not load budget figures
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{error}</p>
+                </div>
+                <Button variant="outline" size="sm" className="gap-2" onClick={reload}>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Ranked measures + provenance */}
+        <motion.div variants={item} className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <Card className="glass border-border/50 lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-accent-gold" />
-                Budget Allocation by Sector ({selectedYear})
+                <DollarSign className="h-5 w-5 text-accent-gold" />
+                Measures by stated amount
+                {selectedPeriod ? ` (${selectedPeriod})` : ""}
               </CardTitle>
               <CardDescription>
-                Billions AUD allocated to key sectors
+                Each bar is one figure from one document. Amounts are not comparable as
+                a total — some measures are programme line items and others are
+                portfolio roll-ups.
               </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={budgetData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(val) => `$${val}B`} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" width={100} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                      formatter={(value) => [`$${value}B`, "Allocation"]}
+              {/* Legend: colour carries jurisdiction, so it is never colour-alone */}
+              <div className="flex flex-wrap items-center gap-4 pt-1">
+                {(["state", "federal"] as const).map((source) => (
+                  <span key={source} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span
+                      className="h-2.5 w-2.5 rounded-sm"
+                      style={{ backgroundColor: SOURCE_COLOR[source] }}
                     />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                      {budgetData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                    {SOURCE_LABEL[source]}
+                  </span>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-accent-emerald" />
-                Growth Leaders
-              </CardTitle>
-              <CardDescription>
-                YoY investment growth by sector
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {budgetData
-                  .sort((a, b) => b.growth - a.growth)
-                  .slice(0, 5)
-                  .map((sector, i) => (
-                    <div key={sector.name} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: sector.color }}>
-                        {i + 1}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground text-sm">{sector.name}</p>
-                        <div className="w-full h-2 bg-muted rounded-full mt-1 overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(sector.growth / 50) * 100}%` }}
-                            transition={{ duration: 0.8, delay: i * 0.1 }}
-                            className="h-full rounded-full"
-                            style={{ backgroundColor: sector.color }}
-                          />
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="font-mono">
-                        +{sector.growth}%
-                      </Badge>
-                    </div>
+              {loadingFigures ? (
+                <div className="space-y-2" aria-busy="true" aria-label="Loading measures">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-6 animate-pulse rounded bg-muted"
+                      style={{ width: `${95 - i * 9}%` }}
+                    />
                   ))}
-              </div>
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="flex h-48 flex-col items-center justify-center text-center">
+                  <Info className="mb-2 h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">
+                    No figures extracted for this selection
+                  </p>
+                  <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                    The corpus contains no budget measures for{" "}
+                    {selectedPeriod ?? "this period"}
+                    {sourceFilter !== "all" ? ` from ${SOURCE_LABEL[sourceFilter]}` : ""}.
+                    Try another period or jurisdiction.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ height: chartHeight }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={chartData}
+                      layout="vertical"
+                      margin={{ top: 4, right: 64, bottom: 4, left: 4 }}
+                      barCategoryGap={2}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="hsl(var(--border))"
+                        horizontal={false}
+                      />
+                      <XAxis
+                        type="number"
+                        tick={{ fontSize: 11 }}
+                        stroke="hsl(var(--muted-foreground))"
+                        tickFormatter={formatAmount}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="label"
+                        tick={{ fontSize: 11 }}
+                        stroke="hsl(var(--muted-foreground))"
+                        width={220}
+                        interval={0}
+                      />
+                      <Tooltip
+                        content={<ChartTooltip />}
+                        cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.4 }}
+                      />
+                      <Bar
+                        dataKey="amount"
+                        radius={[0, 4, 4, 0]}
+                        // Recharts spreads the datum onto the click argument but
+                        // also keeps the original under `payload`; which one is
+                        // populated depends on the mark, so read both.
+                        onClick={(entry: unknown) => {
+                          const hit = entry as
+                            | { id?: string; payload?: { id?: string } }
+                            | undefined;
+                          setSelectedId(hit?.id ?? hit?.payload?.id ?? null);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        {chartData.map((datum) => (
+                          <Cell
+                            key={datum.id}
+                            fill={SOURCE_COLOR[datum.allocation.source]}
+                            fillOpacity={
+                              selected && selected.id !== datum.id ? 0.55 : 1
+                            }
+                          />
+                        ))}
+                        <LabelList
+                          dataKey="amount"
+                          position="right"
+                          formatter={formatAmount}
+                          style={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
-        </motion.div>
 
-        {/* Investment Timeline */}
-        <motion.div variants={item}>
           <Card className="glass border-border/50">
             <CardHeader>
-              <CardTitle>5-Year Investment Trajectory</CardTitle>
+              <CardTitle className="text-base">Where this figure comes from</CardTitle>
               <CardDescription>
-                Historical and projected government spending across key sectors
+                {selected
+                  ? `Measure ${selectedIndex + 1} of ${allocations.length}`
+                  : "Select a measure"}
               </CardDescription>
+              {/* Clicking a bar is mouse-only; these give the same selection a
+                  keyboard path, which is the whole reason they exist. */}
+              {allocations.length > 1 && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => step(-1)}
+                    aria-label="Previous measure"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => step(1)}
+                    aria-label="Next measure"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={investmentTimeline}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="year" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(val) => `$${val}B`} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="healthcare" name="Healthcare" stackId="a" fill="hsl(346, 77%, 50%)" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="education" name="Education" stackId="a" fill="hsl(262, 83%, 58%)" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="energy" name="Clean Energy" stackId="a" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {loadingFigures ? (
+                <div className="space-y-3" aria-busy="true">
+                  <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+                  <div className="h-8 w-2/3 animate-pulse rounded bg-muted" />
+                  <div className="h-20 w-full animate-pulse rounded bg-muted" />
+                </div>
+              ) : selected ? (
+                <MeasureDetail allocation={selected} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nothing to show for this selection.
+                </p>
+              )}
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Policy to Career Connections */}
-        <motion.div variants={item}>
-          <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-primary" />
-            Policy → Skills → Jobs Pipeline
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {policyConnections.map((policy) => {
-              const isExpanded = expandedPolicy === policy.policy;
-              return (
-                <motion.div
-                  key={policy.policy}
-                  layout
-                  className={cn(
-                    "cursor-pointer",
-                    isExpanded && "md:col-span-2 lg:col-span-3"
-                  )}
-                >
-                  <Card
-                    className={cn(
-                      "transition-all duration-300",
-                      isExpanded ? "border-primary/50 bg-primary/5" : "hover:border-primary/30"
-                    )}
-                    onClick={() => setExpandedPolicy(isExpanded ? null : policy.policy)}
-                  >
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <policy.icon className="w-6 h-6 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className="font-semibold text-foreground">{policy.policy}</h3>
-                            <ChevronDown className={cn(
-                              "w-5 h-5 text-muted-foreground transition-transform flex-shrink-0",
-                              isExpanded && "rotate-180"
-                            )} />
-                          </div>
-                          <div className="flex items-center gap-4 text-sm mb-3">
-                            <span className="text-accent-gold font-semibold">{policy.investment}</span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-accent-emerald">{policy.jobs.toLocaleString()} jobs</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {policy.skills.slice(0, isExpanded ? undefined : 2).map(skill => (
-                              <Badge key={skill} variant="secondary" className="text-xs">
-                                {skill}
-                              </Badge>
-                            ))}
-                            {!isExpanded && policy.skills.length > 2 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{policy.skills.length - 2}
-                              </Badge>
-                            )}
+        {/* Funders — counts, never totals */}
+        {funders.length > 0 && (
+          <motion.div variants={item}>
+            <Card className="glass border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Bodies recorded as funding measures
+                </CardTitle>
+                <CardDescription>
+                  How many distinct measures each body is linked to in the knowledge
+                  graph for {selectedPeriod}. These are counts of measures, not spending
+                  totals.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-3">
+                  {funders.map((funder) => {
+                    return (
+                      <li key={funder.name} className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {funder.name}
+                          </p>
+                          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{
+                                width: `${(funder.measureCount / widestFunder) * 100}%`,
+                              }}
+                              transition={{ duration: 0.6 }}
+                              className="h-full rounded-full"
+                              style={{ backgroundColor: "hsl(var(--primary))" }}
+                            />
                           </div>
                         </div>
-                      </div>
-
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          className="mt-4 pt-4 border-t border-border"
-                        >
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="p-4 rounded-lg bg-muted/50">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Investment Flow</p>
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="font-medium">Policy</span>
-                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-                                <span className="font-medium">Training</span>
-                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
-                                <span className="font-medium">Employment</span>
-                              </div>
-                            </div>
-                            <div className="p-4 rounded-lg bg-muted/50">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Training Providers</p>
-                              <div className="flex flex-wrap gap-1">
-                                <Badge variant="outline" className="text-xs">TAFE SA</Badge>
-                                <Badge variant="outline" className="text-xs">UniSA</Badge>
-                                <Badge variant="outline" className="text-xs">Adelaide Uni</Badge>
-                              </div>
-                            </div>
-                            <div className="p-4 rounded-lg bg-muted/50">
-                              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Timeline</p>
-                              <p className="text-sm font-medium">2024-2028 (4 year program)</p>
-                            </div>
+                        <div className="w-28 flex-shrink-0 text-right">
+                          <p className="font-mono text-sm text-foreground">
+                            {funder.measureCount}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {funder.measureCount === 1 ? "measure" : "measures"}
+                          </p>
+                        </div>
+                        {funder.largestMeasure && (
+                          <div className="hidden w-40 flex-shrink-0 text-right md:block">
+                            <p className="truncate text-xs text-muted-foreground">
+                              largest
+                            </p>
+                            <p className="font-mono text-sm text-foreground">
+                              {formatAmount(funder.largestMeasure.amountAud)}
+                            </p>
                           </div>
-                          <div className="mt-4 flex items-center gap-3">
-                            <Button variant="default" size="sm" className="gap-2">
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              View Policy Document
-                            </Button>
-                            <Button variant="outline" size="sm" className="gap-2">
-                              <Info className="w-3.5 h-3.5" />
-                              AI Summary
-                            </Button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        </motion.div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
-        {/* Source Attribution */}
+        {/* Provenance */}
         <motion.div variants={item}>
           <Card className="glass border-border/50 bg-muted/30">
             <CardContent className="py-4">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <FileText className="w-4 h-4" />
-                <span>
-                  Data sources: SA Budget Papers 2025-26, SA Workforce Strategy, SA Skills Commission Reports.
-                  Last updated: December 2024.
-                </span>
-                <Button variant="link" size="sm" className="ml-auto text-primary p-0 h-auto">
-                  View all sources →
-                </Button>
+              <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                <FileText className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <p>
+                  Figures are extracted from the budget papers held in the Horus corpus
+                  and shown individually, with the document and — where the extraction
+                  records one — the sentence stating them. They are deliberately never
+                  summed: the corpus mixes programme measures, portfolio roll-ups and
+                  balance-sheet totals across two budget years and two jurisdictions, so
+                  a total would be misleading. Where a quote evidences a funding
+                  relationship but not the amount, the panel says so.
+                </p>
               </div>
             </CardContent>
           </Card>

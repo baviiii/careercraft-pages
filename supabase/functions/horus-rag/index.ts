@@ -35,6 +35,9 @@ import {
   HorusNotFound,
   horusMutate,
   horusQuery,
+  type HorusBudgetAllocations,
+  type HorusBudgetFunders,
+  type HorusBudgetPeriod,
   type HorusCareersSearch,
   type HorusGraphQuery,
   type HorusOccupationProfile,
@@ -117,7 +120,13 @@ type Op =
   | "skill-gap"
   | "traverse"
   | "entity-lookup"
-  | "metadata";
+  | "metadata"
+  | "budget-periods"
+  | "budget-allocations"
+  | "budget-funders";
+
+/** Entity types Horus accepts for a budget allocation read. */
+const BUDGET_TYPES = ["program", "funding", "policy"] as const;
 
 interface RequestBody {
   op?: Op;
@@ -132,6 +141,12 @@ interface RequestBody {
   operation?: "stats" | "documents" | "categories";
   filters?: { category?: string; sector?: string; tags?: string[] };
   options?: { topK?: number; systemPrompt?: string };
+  budget?: {
+    period?: string;
+    source?: "federal" | "state" | "other";
+    types?: Array<"program" | "funding" | "policy">;
+    limit?: number;
+  };
 }
 
 /**
@@ -153,6 +168,9 @@ const RequestSchema = z.object({
     "traverse",
     "entity-lookup",
     "metadata",
+    "budget-periods",
+    "budget-allocations",
+    "budget-funders",
   ]).optional(),
   query: z.string().max(8_000).optional(),
   name: z.string().max(300).optional(),
@@ -171,6 +189,12 @@ const RequestSchema = z.object({
   options: z.object({
     topK: z.number().int().min(1).max(50).optional(),
     systemPrompt: z.string().max(8_000).optional(),
+  }).optional(),
+  budget: z.object({
+    period: z.string().max(40).optional(),
+    source: z.enum(["federal", "state", "other"]).optional(),
+    types: z.array(z.enum(BUDGET_TYPES)).min(1).max(3).optional(),
+    limit: z.number().int().min(1).max(100).optional(),
   }).optional(),
 });
 
@@ -430,6 +454,40 @@ Deno.serve(
           case "metadata": {
             const result = await horusQuery("rag.metadata", {
               operation: body.operation ?? "stats",
+            });
+            return json(result);
+          }
+
+          // Budget reads pass straight through. Unlike the retrieval ops above
+          // there is no shape to adapt: these procedures were written for this
+          // UI, and every field — the evidence quote, the corroboration flag,
+          // the source documents — exists so the client can show where a figure
+          // came from. Reshaping here could only lose that.
+          case "budget-periods": {
+            const result = await horusQuery<{ periods: HorusBudgetPeriod[] }>(
+              "budget.periods",
+              {},
+            );
+            return json(result);
+          }
+
+          case "budget-allocations": {
+            const result = await horusQuery<HorusBudgetAllocations>(
+              "budget.allocations",
+              {
+                ...(body.budget?.period && { period: body.budget.period }),
+                ...(body.budget?.source && { source: body.budget.source }),
+                ...(body.budget?.types && { types: body.budget.types }),
+                limit: Math.min(Math.max(body.budget?.limit ?? 25, 1), 100),
+              },
+            );
+            return json(result);
+          }
+
+          case "budget-funders": {
+            const result = await horusQuery<HorusBudgetFunders>("budget.funders", {
+              ...(body.budget?.period && { period: body.budget.period }),
+              limit: Math.min(Math.max(body.budget?.limit ?? 12, 1), 50),
             });
             return json(result);
           }

@@ -69,6 +69,69 @@ export interface HorusGraphResult {
   notFound?: boolean;
 }
 
+/* ── Budget ────────────────────────────────────────────────────────────────
+   Figures extracted from the budget papers in the corpus.
+
+   Each amount is a single value read out of a single document, carrying the
+   document and — where the extraction supports it — the sentence that states
+   it. Horus exposes no totals on purpose: `amount_aud` mixes discrete
+   measures, portfolio roll-ups and balance-sheet stocks across two budget
+   years and two jurisdictions, so any sum would look authoritative while
+   corresponding to nothing in any document. Do not add these up in the UI.
+
+   MIRROR: these interfaces are duplicated in
+   supabase/functions/_shared/ai/horus-knowledge.ts. horus-rag passes budget
+   payloads through untransformed, so the two must agree field for field.
+   They are not shared from one module because the edge functions run on Deno
+   with URL imports and cannot resolve this package. Change one, change both. */
+
+export interface HorusBudgetPeriod {
+  period: string;
+  measures: number;
+}
+
+export interface HorusBudgetDocumentRef {
+  id: string;
+  title: string;
+  category: string | null;
+}
+
+export interface HorusBudgetAllocation {
+  id: string;
+  name: string;
+  type: string;
+  amountAud: number;
+  period: string | null;
+  source: "federal" | "state" | "other";
+  evidence: string | null;
+  /**
+   * Whether `evidence` states `amountAud` itself. When false, the quote
+   * evidences the funding relationship only and the figure was read elsewhere
+   * in the document — render the two cases differently.
+   */
+  evidenceStatesAmount: boolean;
+  funders: string[];
+  documents: HorusBudgetDocumentRef[];
+}
+
+export interface HorusBudgetAllocations {
+  allocations: HorusBudgetAllocation[];
+  period: string | null;
+  basis: string;
+}
+
+export interface HorusBudgetFunder {
+  name: string;
+  type: string;
+  measureCount: number;
+  largestMeasure: { name: string; amountAud: number } | null;
+}
+
+export interface HorusBudgetFunders {
+  funders: HorusBudgetFunder[];
+  basis: string;
+}
+
 type Op =
   | "search"
   | "careers-search"
@@ -78,7 +141,10 @@ type Op =
   | "skill-gap"
   | "traverse"
   | "entity-lookup"
-  | "metadata";
+  | "metadata"
+  | "budget-periods"
+  | "budget-allocations"
+  | "budget-funders";
 
 async function callHorus<T>(op: Op, payload: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke(FUNCTION, {
@@ -146,4 +212,27 @@ export function horusTraverse(entity: string, depth = 2): Promise<HorusGraphResu
 
 export function horusMetadata(operation: "stats" | "documents" | "categories" = "stats") {
   return callHorus<Record<string, unknown>>("metadata", { operation });
+}
+
+/** Budget periods the corpus carries extracted figures for, with measure counts. */
+export function horusBudgetPeriods(): Promise<{ periods: HorusBudgetPeriod[] }> {
+  return callHorus<{ periods: HorusBudgetPeriod[] }>("budget-periods", {});
+}
+
+/** Measures ranked by the amount stated for them, each with its provenance. */
+export function horusBudgetAllocations(budget: {
+  period?: string;
+  source?: "federal" | "state" | "other";
+  types?: Array<"program" | "funding" | "policy">;
+  limit?: number;
+}): Promise<HorusBudgetAllocations> {
+  return callHorus<HorusBudgetAllocations>("budget-allocations", { budget });
+}
+
+/** Bodies the graph records as funding measures, ranked by measure count. */
+export function horusBudgetFunders(budget: {
+  period?: string;
+  limit?: number;
+}): Promise<HorusBudgetFunders> {
+  return callHorus<HorusBudgetFunders>("budget-funders", { budget });
 }

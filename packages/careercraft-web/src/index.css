@@ -49,6 +49,14 @@
     --info: 200 95% 55%;
     --info-foreground: 0 0% 100%;
 
+    /* Chart categorical — jurisdiction of a budget figure.
+       Teal/coral is a blue-orange pair, which survives red-green colour
+       blindness. Steps are chosen per mode against that mode's surface, not
+       flipped: verified with the palette validator (OKLCH lightness band,
+       chroma floor, CVD ΔE, contrast). Light: #1085A2 / #C94B1D. */
+    --chart-federal: 192 82% 35%;
+    --chart-state: 16 75% 45%;
+
     --muted: 214 32% 93%;
     --muted-foreground: 215 20% 50%;
 
@@ -119,6 +127,11 @@
 
     --success: 162 78% 48%;
     --success-foreground: 0 0% 100%;
+
+    /* Dark steps of the same two hues — re-validated against the dark card
+       surface (#0F182E), not lightened copies. Dark: #1E9CBD / #D96038. */
+    --chart-federal: 192 73% 43%;
+    --chart-state: 15 68% 54%;
 
     --muted: 222 50% 18%;
     --muted-foreground: 215 20% 62%;

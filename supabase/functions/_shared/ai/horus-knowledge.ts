@@ -44,7 +44,10 @@ export type HorusQueryPath =
   | "graph.query"
   | "graph.stats"
   | "entities.list"
-  | "rag.metadata";
+  | "rag.metadata"
+  | "budget.periods"
+  | "budget.allocations"
+  | "budget.funders";
 
 export type HorusMutationPath = "rag.query" | "rag.chat";
 
@@ -308,4 +311,69 @@ export interface HorusGraphQuery {
   entity: { id: string; name: string; type: string };
   nodes: HorusGraphNode[];
   edges: HorusGraphEdge[];
+}
+
+/* ── Budget ────────────────────────────────────────────────────────────────
+   Extracted budget figures from the knowledge graph. Every amount is ONE
+   value read out of ONE document — Horus deliberately exposes no summed
+   totals, because `amount_aud` mixes discrete measures, portfolio roll-ups
+   and balance-sheet stocks across two budget years and two jurisdictions.
+   Adding them would produce an authoritative-looking number matching nothing
+   in any document. Do not reintroduce that by summing on this side.
+
+   MIRROR: these interfaces are duplicated in
+   packages/careercraft-web/src/lib/horusKnowledge.ts. horus-rag passes budget
+   payloads through untransformed, so the two must agree field for field.
+   They are not shared from one module because this file runs on Deno with URL
+   imports and cannot resolve the web package. Change one, change both. */
+
+export interface HorusBudgetPeriod {
+  /** As written in the documents: "2026-27", "2025-26 to 2029-30". */
+  period: string;
+  measures: number;
+}
+
+export interface HorusBudgetDocumentRef {
+  id: string;
+  title: string;
+  category: string | null;
+}
+
+export interface HorusBudgetAllocation {
+  id: string;
+  name: string;
+  type: string;
+  amountAud: number;
+  period: string | null;
+  /** Which government published the figure. Never let a federal one read as state. */
+  source: "federal" | "state" | "other";
+  /** Verbatim sentence behind the `funds` edge into this measure. */
+  evidence: string | null;
+  /**
+   * Whether `evidence` states `amountAud` itself. When false the quote proves
+   * the funding relationship only, and the figure came from elsewhere in the
+   * document — the UI must say so rather than implying the quote is its source.
+   */
+  evidenceStatesAmount: boolean;
+  funders: string[];
+  documents: HorusBudgetDocumentRef[];
+}
+
+export interface HorusBudgetAllocations {
+  allocations: HorusBudgetAllocation[];
+  period: string | null;
+  basis: string;
+}
+
+export interface HorusBudgetFunder {
+  name: string;
+  type: string;
+  /** Distinct funded measures in the graph — a count, never a total. */
+  measureCount: number;
+  largestMeasure: { name: string; amountAud: number } | null;
+}
+
+export interface HorusBudgetFunders {
+  funders: HorusBudgetFunder[];
+  basis: string;
 }
