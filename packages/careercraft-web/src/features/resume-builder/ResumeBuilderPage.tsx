@@ -58,8 +58,6 @@ export default function ResumeBuilderPage() {
     currentResumeId,
     isProcessing,
     uploadProgress,
-    useAIParsing,
-    setUseAIParsing,
     showLivePreview,
     setShowLivePreview,
     activeSection,
@@ -162,8 +160,6 @@ export default function ResumeBuilderPage() {
               key="step-upload"
               isProcessing={isProcessing}
               uploadProgress={uploadProgress}
-              useAIParsing={useAIParsing}
-              onToggleAIParsing={setUseAIParsing}
               onDropFile={handleFile}
               onOpenPaste={() => setShowPasteDialog(true)}
               onOpenLoad={loadSavedResumes}
@@ -263,11 +259,8 @@ export default function ResumeBuilderPage() {
         onOpenChange={setShowPasteDialog}
         pastedText={pastedText}
         onPastedTextChange={setPastedText}
-        useAIParsing={useAIParsing}
-        onToggleAIParsing={setUseAIParsing}
         isProcessing={isProcessing}
         onProcess={() => handleTextContent(pastedText)}
-        isGuest={isGuest}
       />
 
       <LoadResumeDialog

@@ -21,9 +21,6 @@ interface UploadStepProps {
   isProcessing: boolean;
   uploadProgress: number;
 
-  useAIParsing: boolean;
-  onToggleAIParsing: (value: boolean) => void;
-
   onDropFile: (file: File) => void;
 
   onOpenPaste: () => void;
@@ -44,8 +41,6 @@ interface UploadStepProps {
 export const UploadStep = ({
   isProcessing,
   uploadProgress,
-  useAIParsing,
-  onToggleAIParsing,
   onDropFile,
   onOpenPaste,
   onOpenLoad,
@@ -137,41 +132,21 @@ export const UploadStep = ({
             )}
           </div>
 
-          {/* Upload setting. Hidden for guests: AI reading needs an account,
-              so a toggle promising to turn it on would be a dead control. */}
+          {/* The AI-extraction toggle is gone: every import path is read by
+              the model now, so there is nothing left to switch. Guests still
+              see the file gate, because only the text path takes anonymous
+              calls — page images are too expensive to leave unauthenticated. */}
           {isGuest ? (
             <p className="mt-3 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3 text-[13px] leading-snug text-[color:var(--cc-ash)]">
               PDFs, Word files and photos are read by AI, which needs a free
-              account. Pasting your résumé text works right now without one.
+              account. Pasting your résumé text works right now without one —
+              AI reads that too.
             </p>
           ) : (
-            <div className="mt-3 flex items-center justify-between gap-4 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <Sparkles
-                  className={`w-4 h-4 shrink-0 ${
-                    useAIParsing
-                      ? "text-[color:var(--cc-rust)]"
-                      : "text-[color:var(--cc-ash)]"
-                  }`}
-                />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium leading-tight">AI extraction</div>
-                  {/* Says what it does, not what it used to claim: the toggle
-                      only governs text, because PDFs and images cannot be read
-                      without the model at all. */}
-                  <p className="mt-0.5 text-[13px] leading-snug text-[color:var(--cc-ash)]">
-                    {useAIParsing
-                      ? "Pasted text and .txt files are sorted into fields."
-                      : "Off — text comes in raw. PDFs and photos still use AI."}
-                  </p>
-                </div>
-              </div>
-              <EditorialToggle
-                checked={useAIParsing}
-                onChange={onToggleAIParsing}
-                ariaLabel="Toggle AI extraction"
-              />
-            </div>
+            <p className="mt-3 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3 text-[13px] leading-snug text-[color:var(--cc-ash)]">
+              Everything you bring in — PDFs, Word files, photos, pasted text —
+              is read by AI and sorted into fields. Check them before you file.
+            </p>
           )}
         </div>
 
@@ -309,34 +284,3 @@ const OptionRow = ({
   </button>
 );
 
-interface EditorialToggleProps {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  ariaLabel: string;
-}
-
-/** Tiny editorial toggle styled with ink/paper. */
-const EditorialToggle = ({
-  checked,
-  onChange,
-  ariaLabel,
-}: EditorialToggleProps) => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={checked}
-    aria-label={ariaLabel}
-    onClick={() => onChange(!checked)}
-    className={`relative w-12 h-6 shrink-0 border border-[color:var(--cc-ink)] transition-colors ${
-      checked ? "bg-[color:var(--cc-ink)]" : "bg-[color:var(--cc-cream)]"
-    }`}
-  >
-    <span
-      className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 transition-transform ${
-        checked
-          ? "translate-x-[26px] bg-[color:var(--cc-cream)]"
-          : "translate-x-[2px] bg-[color:var(--cc-ink)]"
-      }`}
-    />
-  </button>
-);

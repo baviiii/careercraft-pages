@@ -178,7 +178,14 @@
       "PowerShell(git remote *)",
       "Bash(echo \"=== TSC EXIT: $? ===\")",
       "Bash(git rev-list *)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(openssl s_client -connect faircopy.au:443 -servername faircopy.au)",
+      "Bash(openssl x509 *)",
+      "Bash(openssl s_client -connect www.faircopy.au:443 -servername www.faircopy.au)",
+      "Bash(nslookup -type=caa faircopy.au 1.1.1.1)",
+      "Bash(nslookup -type=caa www.faircopy.au 1.1.1.1)",
+      "Bash(nslookup www.faircopy.au 1.1.1.1)",
+      "Bash(nslookup faircopy.au 1.1.1.1)"
     ],
     "deny": [],
     "ask": []

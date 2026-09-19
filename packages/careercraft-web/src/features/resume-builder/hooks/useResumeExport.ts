@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 
-import { type ToastActionElement, type ToastProps } from "@/hooks/use-toast";
+import { type Toast } from "@/hooks/use-toast";
 import { exportResumeToPdf, type PdfDensity } from "@/lib/pdfExport";
 
 import type { ResumeData, TemplateId } from "../types";
 
-type ToastFn = (props: Omit<ToastProps, "id"> & { action?: ToastActionElement }) => void;
+type ToastFn = (props: Toast) => void;
 
 interface UseResumeExportParams {
   resumeData: ResumeData;

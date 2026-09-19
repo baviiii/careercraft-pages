@@ -1063,9 +1063,17 @@ export function Creative6Pdf({ data: d }: { data: TemplateData }) {
                         }}
                       />
                     </View>
+                    {/* maxLines is a react-pdf STYLE property, not a prop on
+                        <Text> — passed as a prop it is silently dropped and a
+                        long skill name wraps out of this 64pt column. */}
                     <Text
-                      maxLines={1}
-                      style={{ ...fsize(9), color: tw.green[200], width: px(64) }}
+                      style={{
+                        ...fsize(9),
+                        color: tw.green[200],
+                        width: px(64),
+                        maxLines: 1,
+                        textOverflow: "ellipsis",
+                      }}
                     >
                       {skill}
                     </Text>

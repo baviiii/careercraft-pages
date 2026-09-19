@@ -1,0 +1,124 @@
+# Concerns
+
+Known issues parked on purpose. **None of these crash anything** — they're
+decisions to make when there's time, not bugs to chase now.
+
+Add to this file rather than fixing mid-ship.
+
+---
+
+## 1. Guests get more résumé parses than free accounts
+
+**Found:** 2026-09-19, while opening `parse-resume` to guests.
+
+| Who | Text parses |
+|---|---|
+| Guest, no account | 10 per hour, forever |
+| Free account | **3 per month** |
+
+The free-plan number comes from `plan_limits` (seeded in
+`supabase/migrations/20260821000100_plans_and_limits.sql`): free plan,
+resource `parse-resume`, `monthly_limit 3`, `hourly_limit 3`.
+
+Guest limits are in `supabase/functions/parse-resume/index.ts`
+(`GUEST_HOURLY_PER_IP = 10`, `GUEST_HOURLY_TOTAL = 500`).
+
+**Why it matters:** signing up is currently a downgrade for this feature.
+Anyone who hits the wall learns to log out instead.
+
+**Not urgent because:** nothing breaks, and until there's real signup traffic
+nobody hits 3/month anyway.
+
+**Decide later:** raise the free plan's `parse-resume` limits (a small
+migration), or lower the guest allowance below the free plan's. Leaning
+towards raising free — a parse is cheap and it's the moment someone decides
+the product works.
+
+---
+
+## 2. Azure Document Intelligence — dead code paths, live credentials
+
+**Found:** 2026-09-19.
+
+No code calls Azure DI anymore. It was removed with the decommissioned
+CareerCraft Azure estate; `parse-resume` uses gpt-4o-mini vision instead.
+Verified: no `analyzeDocument`, no `prebuilt-*`, no DI endpoint call anywhere
+in the repo.
+
+**But the setup plumbing still references it:**
+
+- `set-supabase-secrets.ps1` (lines ~32-34) and `set-supabase-secrets.sh`
+  (~29-31) still push `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `_KEY` to
+  Supabase.
+- `supabase/RAG-ENV-SETUP.md:112` still claims *"the `parse-resume` function
+  uses Azure Document Intelligence + GPT-4o-mini"*. Wrong.
+- `.env.example:20` is the only one that's correct — says REMOVED.
+
+**Why it matters:** setting up a fresh environment from these scripts/docs
+provisions and wires a service nothing uses. Relevant now that Azure has been
+recommissioned a different way — the stale docs describe the old shape.
+
+**Not urgent because:** setting an unused secret costs nothing and breaks
+nothing.
+
+**Decide later:** strip DI from the two secrets scripts and correct
+`RAG-ENV-SETUP.md`. Unrelated: `DocumentIntelligenceVisualizer` in
+`CareerExplorer.tsx` / `TryUs.tsx` is a Horus-era React component, same words,
+nothing to do with Azure DI — leave it alone.
+
+---
+
+## 3. The CI typecheck gate doesn't check anything
+
+**Found:** 2026-09-20.
+
+`.github/workflows/deploy.yml:59` runs `npm run typecheck`, which is
+`tsc --noEmit` with no project flag. That resolves to `tsconfig.json`, which
+has `"files": []` and only project references — so it compiles **zero files**
+and always passes.
+
+The real check is `npx tsc --noEmit -p tsconfig.app.json`, which currently
+reports **14 errors** (all pre-existing, spread across `useEnterpriseRAG`,
+`usePersonalization`, `usePlansAdmin`, `pdfExport`, `resumeParser`,
+`UserManagement`, `Settings`, `NextGenInsights`).
+
+**Why it matters:** this is how a real bug survived — `creative.tsx` passed
+`maxLines` as a prop instead of a style, react-pdf silently ignored it, and
+the only thing reporting it was a typecheck nobody was running.
+
+**Not urgent because:** the errors are pre-existing and none of them crash at
+runtime today.
+
+**Decide later:** point `typecheck` at `tsconfig.app.json` — but fix or
+baseline the 14 errors first, or CI starts failing every deploy immediately.
+
+---
+
+## 4. Smaller notes from the same change
+
+- **Guest résumés go to Azure with no account.** Names, phones, emails, and
+  referees' contact details — referees being third parties who never agreed to
+  anything. The privacy policy should cover guest processing. This is the one
+  here with legal rather than technical consequences.
+- **The regex fallback hides breakage.** If `parse-resume` is misconfigured,
+  guests silently get bad parses instead of errors. Watch `[parse-resume]`
+  logs after deploying rather than assuming silence = working.
+- **Per-IP rate limiting may be soft.** The IP comes from `x-forwarded-for`.
+  Unverified whether Supabase replaces or appends it — if it appends, the
+  10/hour per-IP limit is forgeable. The global 500/hour bucket is the one
+  that actually holds, so cost stays capped either way.
+- **The global bucket is deniable.** One attacker burning 500/hour drops every
+  real guest to the regex fallback. Deliberate trade: caps money, not
+  availability.
+- **No alerting on any of it.** Nothing tells you when the global cap
+  saturates.
+- **60k accepted, 15k actually read.** `JsonBodySchema` takes up to 60,000
+  characters but the prompt only sees `MAX_INPUT_CHARS` (15,000 — roughly a
+  5-6 page résumé, so ~3.5x a normal one). A longer paste is silently
+  truncated with no signal. Either stop accepting more than is read, or tell
+  the user it was cut.
+- **No test runner exists.** `careercraft-web` has no vitest/jest configured
+  at all, so "add tests for the guest vs auth branching" means standing up the
+  harness first — not a quick win. Untested: `optionalUser`, guest/auth
+  branching, rate-limit keys, and the references/awards/volunteer/publications
+  mapper.

@@ -184,3 +184,9 @@ function useToast() {
 }
 
 export { useToast, toast };
+
+/* The argument toast() actually takes. Exported because hooks that receive a
+   toast function as a parameter need to type it, and rebuilding the shape by
+   hand from Radix's ToastProps gets it wrong — ToastProps is the Radix
+   component's props and carries no title or description. */
+export type { Toast };

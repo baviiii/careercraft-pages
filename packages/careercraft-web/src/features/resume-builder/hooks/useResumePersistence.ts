@@ -1,11 +1,11 @@
 import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
 
-import { type ToastActionElement, type ToastProps } from "@/hooks/use-toast";
+import { type Toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 import type { AutoSaveStatus, ResumeData, SavedResumeRow, TemplateId } from "../types";
 
-type ToastFn = (props: Omit<ToastProps, "id"> & { action?: ToastActionElement }) => void;
+type ToastFn = (props: Toast) => void;
 
 interface UseResumePersistenceParams {
   toast: ToastFn;
