@@ -41,9 +41,14 @@ export const CraftNav = memo(({ variant = "cream", session = null, hideAuthCtas 
       className="fixed top-0 left-0 right-0 z-50 backdrop-blur-sm border-b border-transparent"
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-16 flex items-center justify-between">
-        <button onClick={() => navigate("/")} className="flex items-center gap-2.5" aria-label="Faircopy home">
+        <button onClick={() => navigate("/")} className="flex shrink-0 items-center gap-2.5" aria-label="Faircopy home">
           <FaircopyMark className="h-9 w-9 drop-shadow-[0_6px_14px_rgba(42,82,204,0.22)]" title="Faircopy" />
-          <span className="cc-font-display italic text-[22px] tracking-tight">Faircopy</span>
+          {/* The wordmark is the first thing to go on a narrow screen. The mark
+              alone still reads as Faircopy, and this row also has to fit the
+              auth CTAs — which are the reason someone is here. The button keeps
+              its aria-label, so the accessible name survives the text being
+              hidden. Matches the auth header, which already does this. */}
+          <span className="hidden sm:inline cc-font-display italic text-[22px] tracking-tight">Faircopy</span>
         </button>
 
         <div className="hidden md:flex items-center gap-10 cc-label">
@@ -53,7 +58,9 @@ export const CraftNav = memo(({ variant = "cream", session = null, hideAuthCtas 
         </div>
 
         {!hideAuthCtas && (
-          <div className="flex items-center gap-3">
+          /* shrink-0 so the CTAs never get compressed into a wrapped,
+             overlapping mess by a long brand block beside them. */
+          <div className="flex shrink-0 items-center gap-3">
             {session ? (
               <button onClick={() => navigate("/dashboard")} className={btnClasses}>
                 Dashboard <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
