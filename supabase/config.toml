@@ -96,7 +96,12 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.parse-resume]
-verify_jwt = true
+# false so guests can paste résumé text and get a real AI read without an
+# account. Auth is not skipped — it moved inside the function: optionalUser()
+# resolves a session when there is one (plan quota, billed to that user) and
+# falls back to IP + global rate limits for guests. File uploads still require
+# a session and are rejected in-handler.
+verify_jwt = false
 
 [functions.onboard-analyze]
 verify_jwt = true

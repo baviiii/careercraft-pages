@@ -1,6 +1,6 @@
 /* Paste-text dialog — editorial styling, not a shadcn panel. */
 
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
 
@@ -11,12 +11,8 @@ interface PasteTextDialogProps {
   onOpenChange: (open: boolean) => void;
   pastedText: string;
   onPastedTextChange: (text: string) => void;
-  useAIParsing: boolean;
-  onToggleAIParsing: (v: boolean) => void;
   isProcessing: boolean;
   onProcess: () => void;
-  /** Guests have no AI access, so the toggle would be a dead control. */
-  isGuest: boolean;
 }
 
 export const PasteTextDialog = ({
@@ -24,11 +20,8 @@ export const PasteTextDialog = ({
   onOpenChange,
   pastedText,
   onPastedTextChange,
-  useAIParsing,
-  onToggleAIParsing,
   isProcessing,
   onProcess,
-  isGuest,
 }: PasteTextDialogProps) => {
   const words = pastedText.length
     ? pastedText.split(/\s+/).filter(Boolean).length
@@ -44,13 +37,7 @@ export const PasteTextDialog = ({
           Type it <span className="cc-italic-wonk">in</span>.
         </>
       }
-      description={
-        isGuest
-          ? "Parsed on this device — no account needed. Check the fields afterwards."
-          : useAIParsing
-            ? "AI will read the text and extract structured data."
-            : "Basic extraction. Flip AI on for a finer read."
-      }
+      description="AI reads the text and sorts it into fields — no account needed. Paste straight from a PDF; scrambled columns are fine."
       maxWidth="max-w-2xl"
       footer={
         <>
@@ -82,33 +69,10 @@ export const PasteTextDialog = ({
         </>
       }
     >
+      {/* The AI-parsing toggle that sat here is gone. Its "off" position
+          selected a regex parser that cannot read a multi-column paste — a
+          switch whose only function was to produce a worse result. */}
       <div className="space-y-4">
-        {/* No toggle for guests: parse-resume needs a session, so the only
-            available reading is the local one. Offering a switch that can't
-            move is worse than not offering it. */}
-        {!isGuest && (
-          <label className="flex items-center justify-between border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] px-4 py-3 cursor-pointer">
-            <div className="flex items-center gap-2">
-              <Sparkles
-                className={`w-4 h-4 ${
-                  useAIParsing
-                    ? "text-[color:var(--cc-rust)]"
-                    : "text-[color:var(--cc-ash)]"
-                }`}
-              />
-              <span className="cc-label text-[color:var(--cc-ink)]">
-                AI parsing
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={useAIParsing}
-              onChange={(e) => onToggleAIParsing(e.target.checked)}
-              className="w-4 h-4 accent-[color:var(--cc-ink)]"
-            />
-          </label>
-        )}
-
         <CraftTextarea
           value={pastedText}
           onChange={(e) => onPastedTextChange(e.target.value)}

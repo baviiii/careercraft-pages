@@ -87,8 +87,6 @@ export interface UseResumeBuilderReturn {
   isProcessing: boolean;
   uploadProgress: number;
   uploadedFileType: UploadedFileType;
-  useAIParsing: boolean;
-  setUseAIParsing: Dispatch<SetStateAction<boolean>>;
   isSecurityValidating: boolean;
 
   // preview
@@ -296,8 +294,6 @@ export function useResumeBuilder(dialogs: {
     isProcessing,
     uploadProgress,
     uploadedFileType,
-    useAIParsing,
-    setUseAIParsing,
     isSecurityValidating,
     handleFile,
     handleTextContent,
@@ -849,8 +845,6 @@ export function useResumeBuilder(dialogs: {
     isProcessing,
     uploadProgress,
     uploadedFileType,
-    useAIParsing,
-    setUseAIParsing,
     isSecurityValidating,
 
     showLivePreview,

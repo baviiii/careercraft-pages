@@ -1,7 +1,7 @@
 import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
 
 import { useSecureResumeUpload } from "@/hooks/useSecurity";
-import { type ToastActionElement, type ToastProps } from "@/hooks/use-toast";
+import { type Toast } from "@/hooks/use-toast";
 import {
   type AIResumeData,
   extractResumeFromFile,
@@ -12,7 +12,7 @@ import { auditFileOperation } from "@/lib/security/auditLog";
 import { aiDataToResumeData, parseTextToResumeData } from "../lib/resumeData";
 import type { AccountGateReason, ResumeData, UploadedFileType } from "../types";
 
-type ToastFn = (props: Omit<ToastProps, "id"> & { action?: ToastActionElement }) => void;
+type ToastFn = (props: Toast) => void;
 
 interface UseResumeImportParams {
   toast: ToastFn;
@@ -38,7 +38,6 @@ export function useResumeImport({
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFileType, setUploadedFileType] = useState<UploadedFileType>(null);
-  const [useAIParsing, setUseAIParsing] = useState(true);
 
   const {
     validateFile: secureValidateFile,
@@ -64,27 +63,14 @@ export function useResumeImport({
 
   const handleTextContent = useCallback(
     async (text: string) => {
-      /* Two reasons to skip the model: the caller has no session (parse-resume
-         verifies the JWT, so the call cannot succeed), or a signed-in user
-         turned AI extraction off. Text is the one input with a real local
-         parser behind it, so either way pasting still works — no dead end,
-         and no signup wall on the one path that doesn't need one. */
-      const useAI = useAIParsing && !isGuest;
-
-      if (!useAI) {
-        setResumeData(parseTextToResumeData(text));
-        setShowPasteDialog(false);
-        setPastedText("");
-        setCurrentStep(1);
-        toast({
-          title: "Text added",
-          description: isGuest
-            ? "Parsed on this device — check the fields. A free account lets AI sort it for you."
-            : "Parsed without AI — check the fields, or switch AI extraction on to have it sorted.",
-        });
-        return;
-      }
-
+      /* AI reads every paste, guest or not — parse-resume takes anonymous
+         calls on the text path behind a rate limit. This used to fall to a
+         local regex parser for guests, and that parser cannot do the one job
+         that matters here: pasted résumés are nearly always copied out of a
+         two-column PDF, where the columns interleave and headings weld onto
+         neighbouring sentences. Matching `^education` against that text finds
+         nothing, so everything landed in the summary and the rest came back
+         empty. It survives below as a crash fallback only. */
       setIsProcessing(true);
       setUploadProgress(20);
       try {
@@ -97,23 +83,29 @@ export function useResumeImport({
         });
         setUploadProgress(100);
         setResumeData(data);
-        setShowPasteDialog(false);
-        setPastedText("");
-        setCurrentStep(1);
       } catch (error) {
-        console.error("Text processing error:", error);
+        /* Losing the paste is worse than parsing it badly, so fall back rather
+           than fail — but say plainly that the result needs checking, because
+           on a multi-column source it will be rough. */
+        console.error("AI text parsing failed, falling back to local parse:", error);
+        setResumeData(parseTextToResumeData(text));
         toast({
-          title: "Processing failed",
+          title: "AI read unavailable",
           description:
-            error instanceof Error ? error.message : "Could not process the text",
+            error instanceof Error && /rate limit/i.test(error.message)
+              ? "Too many reads just now. Your text was sorted roughly on this device — check every field."
+              : "Sorted roughly on this device instead. Check every field, then try again in a moment for a cleaner read.",
           variant: "destructive",
         });
       } finally {
+        setShowPasteDialog(false);
+        setPastedText("");
+        setCurrentStep(1);
         setIsProcessing(false);
         setUploadProgress(0);
       }
     },
-    [useAIParsing, isGuest, toast, setResumeData, setShowPasteDialog, setPastedText, setCurrentStep]
+    [toast, setResumeData, setShowPasteDialog, setPastedText, setCurrentStep]
   );
 
   const handleFile = useCallback(
@@ -227,8 +219,6 @@ export function useResumeImport({
     isProcessing,
     uploadProgress,
     uploadedFileType,
-    useAIParsing,
-    setUseAIParsing,
     isSecurityValidating,
     handleFile,
     handleTextContent,

@@ -245,6 +245,53 @@ function mapEdgeParsedToAIResumeData(parsed: Record<string, unknown>): AIResumeD
       description: proj.description || '',
       technologies: proj.technologies ?? [],
     })),
+    /* These four were parsed by the edge function and then dropped here, so
+       they vanished on every import. Referees matter most: a Referees section
+       is standard in Australia and losing three of them silently is not a
+       cosmetic gap. ResumeData and formatResumeDataAsText already carry all
+       four — only this mapper was missing. */
+    references: (p.references ?? [])
+      .filter((ref: any) => ref?.name)
+      .map((ref: any, index: number) => ({
+        id: `ref-${index}`,
+        name: ref.name,
+        title: ref.title ?? undefined,
+        company: ref.company ?? undefined,
+        phone: ref.phone ?? undefined,
+        email: ref.email ?? undefined,
+        relationship: ref.relationship ?? undefined,
+      })),
+    awards: (p.awards ?? [])
+      .filter((award: any) => award?.title)
+      .map((award: any, index: number) => ({
+        id: `award-${index}`,
+        title: award.title,
+        issuer: award.issuer ?? undefined,
+        date: award.date ?? undefined,
+        description: award.description ?? undefined,
+      })),
+    volunteer: (p.volunteer ?? [])
+      .filter((vol: any) => vol?.role || vol?.organization)
+      .map((vol: any, index: number) => ({
+        id: `vol-${index}`,
+        role: vol.role ?? '',
+        organization: vol.organization ?? '',
+        location: vol.location ?? undefined,
+        startDate: vol.startDate ?? undefined,
+        endDate: vol.endDate ?? undefined,
+        current: vol.current ?? false,
+        description: vol.description ?? undefined,
+      })),
+    publications: (p.publications ?? [])
+      .filter((pub: any) => pub?.title)
+      .map((pub: any, index: number) => ({
+        id: `pub-${index}`,
+        title: pub.title,
+        publisher: pub.publisher ?? undefined,
+        date: pub.date ?? undefined,
+        url: pub.url ?? undefined,
+        description: pub.description ?? undefined,
+      })),
   };
 }
 

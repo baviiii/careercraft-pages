@@ -1,6 +1,7 @@
 // Auth helpers for edge functions.
 //
 // requireUser():    throws UnauthorizedError on missing/invalid JWT.
+// optionalUser():   resolves a user when there is one, null for guests.
 // requireAdmin():   additionally checks the caller has an admin role (uses RPC `is_admin`).
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
@@ -25,6 +26,35 @@ export async function requireUser(req: Request): Promise<AuthContext> {
   if (!jwt) throw new UnauthorizedError("Invalid Authorization header");
 
   return await verifyUserToken(jwt);
+}
+
+/**
+ * Resolve the caller when they have a real session, null when they don't.
+ *
+ * Guest-capable endpoints need this because header presence cannot answer
+ * "is this a guest?" — supabase-js always sends an Authorization header, and
+ * with no session it sends the anon key, which is a well-formed JWT that
+ * simply resolves to no user. The only reliable test is to try verifying it.
+ *
+ * An expired session therefore lands on the guest path instead of a 401. That
+ * is deliberate on endpoints that serve guests anyway: the caller gets a
+ * usable result under anonymous limits rather than an error they can't act on
+ * without re-authenticating in the middle of a task. Endpoints that must know
+ * who is calling — anything that reads or writes user data — keep using
+ * requireUser() and still reject them.
+ */
+export async function optionalUser(req: Request): Promise<AuthContext | null> {
+  try {
+    return await requireUser(req);
+  } catch (err) {
+    /* ONLY "this token does not identify a user" means guest. A bare catch
+       here would turn a missing SUPABASE_URL, or any unexpected throw, into
+       "everyone is a guest" — signed-in users would silently drop to guest
+       rate limits instead of their plan quota, and the misconfiguration that
+       caused it would never surface. Let anything else propagate as a 5xx. */
+    if (err instanceof UnauthorizedError) return null;
+    throw err;
+  }
 }
 
 /**
