@@ -1,6 +1,7 @@
 import { useEffect, useState, memo, useRef, ReactNode, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePostAuthDestination } from "@/lib/postAuthDestination";
 import { Session } from "@supabase/supabase-js";
 import { motion, useInView } from "framer-motion";
 import { ArrowUpRight, ArrowRight } from "lucide-react";
@@ -661,15 +662,31 @@ const Index = memo(() => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let cancelled = false;
+
+    /* OAuth and email-confirmation links both come back to "/", so this page
+       is where most new sessions are first seen — including the ones that
+       belong to a guest mid-way through building a résumé. It used to send
+       every session to /dashboard, which silently threw that away. The
+       destination is not this page's call to make; see postAuthDestination. */
+    const routeSession = async (s: Session | null) => {
+      if (cancelled || !s) return;
+      const destination = await resolvePostAuthDestination(s.user.id);
+      if (!cancelled) navigate(destination, { replace: true });
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
       setSession(s);
-      if (s) navigate("/dashboard");
+      void routeSession(s);
     });
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
-      if (s) navigate("/dashboard");
+      void routeSession(s);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   return (
