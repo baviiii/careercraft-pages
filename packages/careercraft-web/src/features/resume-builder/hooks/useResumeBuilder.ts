@@ -20,7 +20,14 @@ import { rewriteBullet } from "@/lib/aiRewriter";
 import { type PdfDensity } from "@/lib/pdfExport";
 import { type AIResumeData } from "@/lib/resumeParser";
 
-import { loadGuestDraft, saveGuestDraft, setGuestReturnTo } from "../lib/guestDraft";
+import { claimGuestDraft } from "../lib/claimGuestDraft";
+import {
+  hasMeaningfulGuestDraft,
+  loadGuestDraft,
+  saveGuestDraft,
+  setGuestReturnTo,
+  takeHandoffNote,
+} from "../lib/guestDraft";
 import {
   aiDataToResumeData,
   createEmptyResumeData,
@@ -218,11 +225,19 @@ export function useResumeBuilder(dialogs: {
   const [isDraftPersisted, setIsDraftPersisted] = useState(true);
   const [draftRestored, setDraftRestored] = useState(false);
 
+  /** Who is signed in, for the rescue path. A ref because the effect that
+   *  needs it must not re-run when the session object identity changes. */
+  const userIdRef = useRef<string | null>(null);
+  /** True once the arrival message has been shown, so the rescue below does
+   *  not say the same thing twice in different words. */
+  const handoffAnnouncedRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
+      userIdRef.current = session?.user?.id ?? null;
       setIsGuest(!session?.user);
       setIsAuthResolved(true);
     });
@@ -230,6 +245,7 @@ export function useResumeBuilder(dialogs: {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      userIdRef.current = session?.user?.id ?? null;
       setIsGuest(!session?.user);
       setIsAuthResolved(true);
     });
@@ -239,6 +255,39 @@ export function useResumeBuilder(dialogs: {
       subscription.unsubscribe();
     };
   }, []);
+
+  /* The arrival half of the handoff.
+     The message about what happened to their draft is deliberately NOT shown
+     at the /auth end: OAuth and email-confirmation links both reload the
+     page, and a toast is in-memory, so it would be gone before they got
+     here. The resolver leaves a note; this reads it where they land, and the
+     read consumes it so a refresh can never replay it. */
+  useEffect(() => {
+    if (!isAuthResolved || isGuest) return;
+
+    const note = takeHandoffNote();
+    if (!note) return;
+
+    handoffAnnouncedRef.current = true;
+
+    if (note.outcome === "claim-failed") {
+      toast({
+        title: "Couldn't file your résumé automatically",
+        description:
+          "It's still saved on this device and has been reopened here — save it when you're ready.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Your résumé came with you",
+      description:
+        note.intent === "export"
+          ? "Filed under your account. Download it below."
+          : "Filed under your account — find it any time in My résumés.",
+    });
+  }, [isAuthResolved, isGuest, toast]);
 
   /* The one route from "guest hit something that needs a server" to "guest is
      at signup with their work safe". Every gated affordance calls this; there
@@ -263,7 +312,11 @@ export function useResumeBuilder(dialogs: {
 
       const copy = ACCOUNT_GATE_COPY[reason];
       if (persisted) {
-        setGuestReturnTo("/builder");
+        /* The reason travels with the path. Only `export` can actually be
+           finished on the way back — the AI gates needed a File or a job
+           description that cannot survive a redirect — so the resolver uses
+           it to pick the step they land on rather than resuming blindly. */
+        setGuestReturnTo("/builder", reason);
         toast({ title: copy.title, description: copy.description });
       } else {
         /* Storage refused the write, so promising the draft will follow them
@@ -368,10 +421,22 @@ export function useResumeBuilder(dialogs: {
     await runExport();
   }, [isGuest, requireAccount, runExport]);
 
-  /* Restore a guest's draft once we know they're a guest — but never
-     clobber content a handoff (ATS / rewrite / upload) already placed. */
+  /* Restore a local draft — but never clobber content a handoff
+     (ATS / rewrite / upload / ?id=) already placed.
+
+     This runs for signed-in users too, and that is the point. A draft only
+     gets cleared once it is safely on the server, so any failure between
+     "guest clicked sign up" and "row inserted" leaves one sitting in
+     localStorage. The old guest-only guard meant that draft became
+     permanently invisible the moment they had an account: still on disk,
+     never read by anything again. Now it gets claimed on arrival instead. */
   useEffect(() => {
-    if (!isAuthResolved || !isGuest || draftRestored) return;
+    if (!isAuthResolved || draftRestored) return;
+
+    /* A ?id= load owns the editor — it has its own async fetch in flight and
+       restoring underneath it would race. */
+    if (new URLSearchParams(window.location.search).get("id")) return;
+
     setDraftRestored(true);
 
     const alreadyHasContent =
@@ -386,11 +451,46 @@ export function useResumeBuilder(dialogs: {
     setResumeData(draft.resumeData);
     setSelectedTemplate(draft.selectedTemplate);
     setCurrentStep(draft.currentStep);
-    toast({
-      title: "Draft restored",
-      description:
-        "Picking up where you left off. Saved on this device until you create an account.",
-    });
+
+    if (isGuest) {
+      toast({
+        title: "Draft restored",
+        description:
+          "Picking up where you left off. Saved on this device until you create an account.",
+      });
+      return;
+    }
+
+    /* Signed in with a stranded draft: the claim never completed. Finish it
+       now rather than leaving them to notice their résumé is missing. The
+       handoff note, if one is waiting, already told them what happened — so
+       stay quiet unless this rescue is itself the news. */
+    if (!hasMeaningfulGuestDraft(draft)) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const userId = userIdRef.current;
+        if (!userId) return;
+        const { claimed, resumeId } = await claimGuestDraft(userId);
+        if (cancelled) return;
+        if (claimed && resumeId) {
+          setCurrentResumeId(resumeId);
+          if (!handoffAnnouncedRef.current) {
+            toast({
+              title: "Draft recovered",
+              description: "It didn't save the first time — it's filed under your account now.",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("[builder] Could not rescue stranded draft:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthResolved, isGuest, draftRestored, resumeData, toast]);
 
   /* Persist as they work. Debounced so we aren't writing on every keystroke.
@@ -568,7 +668,16 @@ export function useResumeBuilder(dialogs: {
         setResumeName(data.name);
         setSaveResumeName(data.name);
         setCurrentResumeId(data.id);
-        setCurrentStep(1);
+
+        /* Someone who signed up specifically to download lands on the export
+           step with the PDF already rendering, not on the edit form with the
+           download button three clicks away. Anything else opens for editing
+           as before. Clamped, because the value comes from the URL. */
+        const rawStep = urlParams.get("step");
+        const stepParam = rawStep === null ? NaN : Number(rawStep);
+        setCurrentStep(
+          Number.isInteger(stepParam) && stepParam >= 0 && stepParam <= 3 ? stepParam : 1,
+        );
       } catch (e) {
         console.error("Error loading resume from URL id:", e);
       }

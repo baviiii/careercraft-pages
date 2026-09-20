@@ -18,8 +18,8 @@ import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { sanitizeEmail, sanitize } from "@/lib/security/sanitizers";
 import { detectXSS } from "@/lib/security/xss";
 import { AuthExperience } from "@/components/auth/AuthExperience";
-import { claimGuestDraft } from "@/features/resume-builder/lib/claimGuestDraft";
-import { takeGuestReturnTo } from "@/features/resume-builder/lib/guestDraft";
+import { peekGuestReturn } from "@/features/resume-builder/lib/guestDraft";
+import { resolvePostAuthDestination } from "@/lib/postAuthDestination";
 
 const SESSION_TOKEN_KEY = "horus_session_token";
 const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim();
@@ -68,6 +68,29 @@ const loginSchema = z.object({
 });
 
 const resetEmailSchema = z.object({ email: emailSchema });
+
+/* ─── why a builder guest was sent here ─── */
+/* Mirrors ACCOUNT_GATE_COPY in useResumeBuilder, but phrased for someone who
+   has already arrived and is looking at a form, rather than for the moment
+   they clicked. Keyed by AccountGateReason. */
+const GATE_NOTICE: Record<string, { title: string; body: string }> = {
+  export: {
+    title: "Create your account to download",
+    body: "Your résumé is saved and comes with you — it'll be open and ready the moment you're in.",
+  },
+  "ai-read-file": {
+    title: "Create your account to read that file",
+    body: "AI reading works on PDFs, Word files and photos. Your draft is saved; you'll just need to pick the file again once you're in.",
+  },
+  "ai-smart-import": {
+    title: "Smart import needs an account",
+    body: "AI reads the whole file and fills every field. Your draft is saved; choose the file again once you're in.",
+  },
+  "ai-rewrite": {
+    title: "Create your account to rewrite bullets",
+    body: "Your draft comes with you — nothing you've typed is lost.",
+  },
+};
 
 /* ─── provider marks ─── */
 const GoogleMark = () => (
@@ -123,6 +146,19 @@ const Auth = () => {
   const [rateLimitMessage, setRateLimitMessage] = useState("");
   const [, setSession] = useState<Session | null>(null);
 
+  /* Why this visitor is here, if they were sent by a gate in the builder.
+     Read once on mount and NOT consumed — the redirect resolver is the only
+     consumer, and eating the record here would break the return trip.
+
+     This is page text rather than a toast on purpose: it has to stay legible
+     for as long as it takes to fill in a signup form, and two of the three
+     signup flows reload the page, which wipes toast state entirely. */
+  const [gateNotice] = useState(() => {
+    const pending = peekGuestReturn();
+    if (!pending?.intent) return null;
+    return GATE_NOTICE[pending.intent] ?? null;
+  });
+
   /* Password strength */
   useEffect(() => {
     if (!password) {
@@ -174,46 +210,15 @@ const Auth = () => {
     return true;
   }, []);
 
-  const checkAdminAndRedirect = async (userId: string) => {
-    /* Someone who built a résumé as a guest gets it filed under their new
-       account here, then dropped back where they left off rather than on a
-       dashboard they've never seen. Failing to claim must never block the
-       redirect — the draft stays in localStorage if the insert fails. */
-    let returnTo: string | null = null;
-    try {
-      const { claimed, resumeId } = await claimGuestDraft(userId);
-      returnTo = takeGuestReturnTo();
-
-      /* Claiming DELETES the local draft, and the builder only restores drafts
-         for guests — so returning to a bare /builder would hand them a blank
-         page under a toast saying their work came with them. Carry the new
-         row's id instead; the builder's ?id= loader reopens it. */
-      if (claimed && resumeId && returnTo === "/builder") {
-        returnTo = `/builder?id=${encodeURIComponent(resumeId)}`;
-      }
-
-      if (claimed) {
-        toast.success("Résumé saved to your account", {
-          description: "Your draft came with you — find it in My résumés.",
-        });
-      }
-    } catch (err) {
-      console.error("[Auth] Could not claim guest draft:", err);
-    }
-
-    try {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
-      if (roleData) navigate("/admin");
-      else navigate(returnTo || "/dashboard");
-    } catch (err) {
-      console.error("Error checking admin status:", err);
-      navigate(returnTo || "/dashboard");
-    }
+  /* Claiming the guest draft and picking the landing page used to live here.
+     It moved to postAuthDestination because this page is only mounted for one
+     of the three signup flows — OAuth and email-confirmation links both come
+     back to "/", so anything that only runs here never ran for them. The
+     success message moved too: it is written as a note and shown wherever the
+     visitor actually lands, since a toast does not survive a page reload. */
+  const redirectAfterAuth = async (userId: string) => {
+    const destination = await resolvePostAuthDestination(userId);
+    navigate(destination, { replace: true });
   };
 
   const trackAuthEvent = useCallback(
@@ -264,7 +269,7 @@ const Auth = () => {
             new Date().getTime() - new Date(currentSession.user.created_at).getTime() < 60000;
           trackAuthEvent(isNewUser ? "signup_success" : "login_success", currentSession.user.email, currentSession.user.id);
         }
-        checkAdminAndRedirect(currentSession.user.id);
+        redirectAfterAuth(currentSession.user.id);
       }
     });
 
@@ -276,7 +281,7 @@ const Auth = () => {
           currentSession.user.created_at &&
           new Date().getTime() - new Date(currentSession.user.created_at).getTime() < 60000;
         trackAuthEvent(isNewUser ? "signup_success" : "login_success", currentSession.user.email, currentSession.user.id);
-        setTimeout(() => checkAdminAndRedirect(currentSession.user.id), 0);
+        setTimeout(() => redirectAfterAuth(currentSession.user.id), 0);
       }
     });
 
@@ -354,7 +359,21 @@ const Auth = () => {
         throw error;
       }
       await trackAuthEvent("signup_success", sanitizedEmail, data.user?.id);
-      toast.success("Account created! Please check your email to verify your account.");
+
+      /* Whether a confirmation email exists is a project setting, not
+         something this form can assume. signUp returns a session when
+         confirmations are OFF — in that case they are already signed in and
+         the auth listener is about to redirect them, so telling them to go
+         and check their inbox sends them looking for mail that will never
+         arrive. Only promise an email when there is no session. */
+      if (data.session) {
+        toast.success("Account created", { description: "Taking you to your work…" });
+      } else {
+        toast.success("Account created!", {
+          description: "Check your email to verify your account.",
+        });
+      }
+
       setEmail("");
       setPassword("");
       setFullName("");
@@ -436,397 +455,6 @@ const Auth = () => {
     setErrors({});
   };
 
-  /* ─── UI ─── */
-  const renderLegacyUi = () => (
-    <main className="cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] overflow-x-hidden antialiased">
-      <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12">
-        {/* LEFT — editorial marquee */}
-        <aside className="relative lg:col-span-5 bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)] px-6 md:px-10 py-12 md:py-16 flex flex-col justify-between overflow-hidden">
-          <div className="absolute inset-0 cc-grain pointer-events-none" />
-          <div className="relative">
-            <button
-              onClick={() => navigate("/")}
-              className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-cream)] cc-link"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to home
-            </button>
-
-            <div className="mt-14 md:mt-20">
-              <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · Sign in</div>
-              <h1 className="mt-4 cc-font-display leading-[0.86] tracking-[-0.035em] text-5xl md:text-6xl lg:text-7xl">
-                <span className="block">Welcome</span>
-                <span className="block cc-italic-wonk text-[color:var(--cc-rust)]">back.</span>
-              </h1>
-              <p className="mt-8 cc-font-editorial text-xl md:text-[22px] leading-[1.45] text-[color:var(--cc-cream)]/80 max-w-md">
-                Sign in to access your résumé, interview practice and career
-                map — all grounded in live South Australian data.
-              </p>
-            </div>
-          </div>
-
-          <div className="relative mt-16 grid grid-cols-3 gap-4 md:gap-6 border-t border-[color:var(--cc-cream)]/20 pt-6">
-            <div>
-              <div className="cc-label-sm text-[color:var(--cc-cream)]/55">Launched</div>
-              <div className="cc-font-display italic text-2xl md:text-3xl mt-1">2026</div>
-            </div>
-            <div>
-              <div className="cc-label-sm text-[color:var(--cc-cream)]/55">Built in</div>
-              <div className="cc-font-display italic text-2xl md:text-3xl mt-1">Adelaide</div>
-            </div>
-            <div>
-              <div className="cc-label-sm text-[color:var(--cc-cream)]/55">Free</div>
-              <div className="cc-font-display italic text-2xl md:text-3xl mt-1">to begin</div>
-            </div>
-          </div>
-        </aside>
-
-        {/* RIGHT — form */}
-        <section className="lg:col-span-7 flex items-start lg:items-center justify-center px-6 md:px-10 py-14 md:py-16">
-          <div className="w-full max-w-md">
-            {/* Rate limit banner */}
-            <AnimatePresence>
-              {isRateLimited && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mb-8 border-2 border-[color:var(--cc-rust)] bg-[color:var(--cc-cream)] p-4 flex items-start gap-3"
-                >
-                  <AlertTriangle className="w-5 h-5 text-[color:var(--cc-rust)] flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="cc-label text-[color:var(--cc-rust)]">Security Alert</p>
-                    <p className="mt-1 cc-font-editorial text-[17px] text-[color:var(--cc-ink-soft)]">{rateLimitMessage}</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {showForgotPassword ? (
-              /* ─── Reset password panel ─── */
-              <motion.div
-                key="reset"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35 }}
-              >
-                <button
-                  onClick={() => setShowForgotPassword(false)}
-                  className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-ink)] cc-link mb-8"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back to sign in
-                </button>
-                <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Reset</div>
-                <h2 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
-                  Reset your<br /><span className="cc-italic-wonk">password.</span>
-                </h2>
-                <p className="mt-5 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] leading-snug">
-                  Enter your email — we'll post a secure reset link. Valid for one hour.
-                </p>
-
-                <form onSubmit={handleForgotPassword} className="mt-10 space-y-8">
-                  <div>
-                    <label htmlFor="reset-email" className="cc-label-sm text-[color:var(--cc-ash)]">Email address</label>
-                    <input
-                      id="reset-email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      placeholder="you@example.com"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      className="cc-input mt-2"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isResetLoading || isRateLimited}
-                    className="cc-btn cc-btn-primary w-full"
-                  >
-                    {isResetLoading ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
-                    ) : (
-                      <>Send Reset Link <ArrowUpRight className="w-4 h-4 cc-arrow-up" /></>
-                    )}
-                  </button>
-                </form>
-              </motion.div>
-            ) : (
-              /* ─── Sign in / Sign up ─── */
-              <motion.div
-                key="auth"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35 }}
-              >
-                {/* Mode switch */}
-                <div className="flex items-end justify-between mb-10">
-                  <div>
-                    <div className="cc-label text-[color:var(--cc-rust)]">
-                      {mode === "signin" ? "§ 01 · Return" : "§ 01 · First entry"}
-                    </div>
-                    <h2 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
-                      {mode === "signin" ? (
-                        <>Welcome<br /><span className="cc-italic-wonk">back.</span></>
-                      ) : (
-                        <>Open a<br /><span className="cc-italic-wonk">new file.</span></>
-                      )}
-                    </h2>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-6 border-b border-[color:var(--cc-hair-strong)] mb-10">
-                  {(["signin", "signup"] as Mode[]).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => switchMode(m)}
-                      className={`pb-4 cc-label relative transition-colors ${
-                        mode === m ? "text-[color:var(--cc-ink)]" : "text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
-                      }`}
-                    >
-                      {m === "signin" ? "Sign in" : "Create account"}
-                      {mode === m && (
-                        <motion.span
-                          layoutId="auth-underline"
-                          className="absolute left-0 right-0 -bottom-px h-[2px] bg-[color:var(--cc-ink)]"
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* OAuth */}
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={handleGoogleAuth}
-                    disabled={isGoogleLoading || isMicrosoftLoading || isRateLimited}
-                    className="cc-btn cc-btn-ghost w-full"
-                  >
-                    {isGoogleLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleMark />}
-                    Continue with Google
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleMicrosoftAuth}
-                    disabled={isGoogleLoading || isMicrosoftLoading || isRateLimited}
-                    className="cc-btn cc-btn-ghost w-full"
-                  >
-                    {isMicrosoftLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MicrosoftMark />}
-                    Continue with Microsoft
-                  </button>
-                </div>
-
-                {/* Divider */}
-                <div className="flex items-center gap-4 my-8">
-                  <div className="flex-1 h-px bg-[color:var(--cc-hair-strong)]" />
-                  <span className="cc-label-sm text-[color:var(--cc-ash)]">or by hand</span>
-                  <div className="flex-1 h-px bg-[color:var(--cc-hair-strong)]" />
-                </div>
-
-                {/* Email/password form */}
-                {mode === "signin" ? (
-                  <form onSubmit={handleSignIn} className="space-y-7">
-                    <div>
-                      <label htmlFor="signin-email" className="cc-label-sm text-[color:var(--cc-ash)]">Email</label>
-                      <input
-                        id="signin-email"
-                        type="email"
-                        required
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className={`cc-input mt-2 ${errors.email ? "cc-input-error" : ""}`}
-                      />
-                      <FieldError msg={errors.email} />
-                    </div>
-
-                    <div>
-                      <label htmlFor="signin-password" className="cc-label-sm text-[color:var(--cc-ash)]">Password</label>
-                      <div className="relative">
-                        <input
-                          id="signin-password"
-                          type={showPassword ? "text" : "password"}
-                          required
-                          autoComplete="current-password"
-                          placeholder="your secret"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className={`cc-input mt-2 pr-10 ${errors.password ? "cc-input-error" : ""}`}
-                        />
-                        <button
-                          type="button"
-                          tabIndex={-1}
-                          onClick={() => setShowPassword((v) => !v)}
-                          className="absolute right-0 bottom-3 text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      <FieldError msg={errors.password} />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading || isRateLimited}
-                      className="cc-btn cc-btn-primary w-full"
-                    >
-                      {isLoading ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>
-                      ) : (
-                        <>Sign In <ArrowUpRight className="w-4 h-4 cc-arrow-up" /></>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isRateLimited}
-                      onClick={() => setShowForgotPassword(true)}
-                      className="w-full cc-label text-[color:var(--cc-ink)] cc-link"
-                    >
-                      Forgot your password?
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleSignUp} className="space-y-7">
-                    <div>
-                      <label htmlFor="signup-name" className="cc-label-sm text-[color:var(--cc-ash)]">Full name</label>
-                      <input
-                        id="signup-name"
-                        type="text"
-                        required
-                        autoComplete="name"
-                        placeholder="e.g. Ada Lovelace"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className={`cc-input mt-2 ${errors.fullName ? "cc-input-error" : ""}`}
-                      />
-                      <FieldError msg={errors.fullName} />
-                    </div>
-
-                    <div>
-                      <label htmlFor="signup-email" className="cc-label-sm text-[color:var(--cc-ash)]">Email</label>
-                      <input
-                        id="signup-email"
-                        type="email"
-                        required
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className={`cc-input mt-2 ${errors.email ? "cc-input-error" : ""}`}
-                      />
-                      <FieldError msg={errors.email} />
-                    </div>
-
-                    <div>
-                      <label htmlFor="signup-password" className="cc-label-sm text-[color:var(--cc-ash)]">Password</label>
-                      <div className="relative">
-                        <input
-                          id="signup-password"
-                          type={showPassword ? "text" : "password"}
-                          required
-                          autoComplete="new-password"
-                          placeholder="eight characters at least"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className={`cc-input mt-2 pr-10 ${errors.password ? "cc-input-error" : ""}`}
-                        />
-                        <button
-                          type="button"
-                          tabIndex={-1}
-                          onClick={() => setShowPassword((v) => !v)}
-                          className="absolute right-0 bottom-3 text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      <FieldError msg={errors.password} />
-
-                      {password && (
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between cc-label-sm">
-                            <span className="text-[color:var(--cc-ash)]">Strength</span>
-                            <span
-                              className={
-                                passwordStrength === 100
-                                  ? "text-[color:var(--cc-ink)]"
-                                  : "text-[color:var(--cc-rust)]"
-                              }
-                            >
-                              {strengthLabel}
-                            </span>
-                          </div>
-                          <div className="mt-2 flex gap-1.5">
-                            {[0, 1, 2, 3, 4].map((i) => (
-                              <div
-                                key={i}
-                                className="h-1 flex-1"
-                                style={{
-                                  background:
-                                    passwordStrength / 20 > i
-                                      ? passwordStrength === 100
-                                        ? "var(--cc-ink)"
-                                        : "var(--cc-rust)"
-                                      : "var(--cc-hair-strong)",
-                                }}
-                              />
-                            ))}
-                          </div>
-                          <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1 cc-font-mono text-[11px] uppercase tracking-[0.18em]">
-                            {[
-                              { ok: password.length >= 8, t: "8+ chars" },
-                              { ok: /[A-Z]/.test(password), t: "Uppercase" },
-                              { ok: /[a-z]/.test(password), t: "Lowercase" },
-                              { ok: /[0-9]/.test(password), t: "Number" },
-                              { ok: /[^A-Za-z0-9]/.test(password), t: "Symbol" },
-                            ].map((r, i) => (
-                              <li
-                                key={i}
-                                className={`flex items-center gap-1.5 ${
-                                  r.ok ? "text-[color:var(--cc-ink)]" : "text-[color:var(--cc-ash)]"
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3 h-3" /> {r.t}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading || isRateLimited || passwordStrength < 100}
-                      className="cc-btn cc-btn-primary w-full"
-                    >
-                      {isLoading ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> Creating file…</>
-                      ) : (
-                        <>Create Account <ArrowUpRight className="w-4 h-4 cc-arrow-up" /></>
-                      )}
-                    </button>
-
-                    <p className="cc-label-sm text-[color:var(--cc-ash)] text-center">
-                      Free to start · No card required
-                    </p>
-                  </form>
-                )}
-              </motion.div>
-            )}
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-
-  // Keep the previous composition available while the new reactive auth
-  // experience settles in; it is intentionally not rendered.
-  void renderLegacyUi;
-
   return (
     <AuthExperience
       mode={mode}
@@ -852,6 +480,7 @@ const Auth = () => {
       isResetLoading={isResetLoading}
       isRateLimited={isRateLimited}
       rateLimitMessage={rateLimitMessage}
+      gateNotice={gateNotice}
       onSignIn={handleSignIn}
       onSignUp={handleSignUp}
       onForgotPassword={handleForgotPassword}

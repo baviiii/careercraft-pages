@@ -14,10 +14,11 @@
    control, and pretending otherwise is how the last one shipped broken.
    ─────────────────────────────────────────────────────────── */
 
-import type { ResumeData, TemplateId } from "../types";
+import type { AccountGateReason, ResumeData, TemplateId } from "../types";
 
 const DRAFT_KEY = "cc-guest-resume-draft";
 const RETURN_KEY = "cc-guest-return-to";
+const NOTE_KEY = "cc-guest-handoff-note";
 
 /** Bump when the shape changes so stale drafts are dropped, not crashed on. */
 const DRAFT_VERSION = 1;
@@ -25,6 +26,10 @@ const DRAFT_VERSION = 1;
 /** A return path is only meaningful for one signup attempt. An hour covers
  *  the slowest realistic path (confirmation email, coffee, click). */
 const RETURN_TTL_MS = 60 * 60 * 1000;
+
+/** A handoff note describes what just happened, so it is only interesting for
+ *  the redirect it was written for. Minutes, not hours. */
+const NOTE_TTL_MS = 5 * 60 * 1000;
 
 export interface GuestDraft {
   version: number;
@@ -117,33 +122,118 @@ export function hasMeaningfulGuestDraft(draft = loadGuestDraft()): boolean {
 
 interface StoredReturn {
   path: string;
+  /** Which gate sent them. Decides how much of the journey we can resume. */
+  intent?: AccountGateReason;
   savedAt: number;
 }
 
-export function setGuestReturnTo(path: string): void {
+export interface GuestReturn {
+  path: string;
+  intent: AccountGateReason | null;
+}
+
+export function setGuestReturnTo(path: string, intent?: AccountGateReason): void {
   try {
-    const payload: StoredReturn = { path, savedAt: Date.now() };
+    const payload: StoredReturn = { path, intent, savedAt: Date.now() };
     window.localStorage.setItem(RETURN_KEY, JSON.stringify(payload));
   } catch {
     /* fall back to the default redirect */
   }
 }
 
-/** Read and consume the stored path. Returns null if absent, expired, or not
- *  a same-origin app path. */
-export function takeGuestReturnTo(): string | null {
+/** Shared validation for both the peek and the consuming read. */
+function readReturn(): GuestReturn | null {
   try {
     const raw = window.localStorage.getItem(RETURN_KEY);
     if (!raw) return null;
-    window.localStorage.removeItem(RETURN_KEY);
 
-    const { path, savedAt } = JSON.parse(raw) as StoredReturn;
+    const { path, intent, savedAt } = JSON.parse(raw) as StoredReturn;
     if (!path || typeof savedAt !== "number") return null;
     if (Date.now() - savedAt > RETURN_TTL_MS) return null;
 
     // Only ever return same-origin app paths — never an absolute URL, and
     // never a protocol-relative one, which navigates off-site.
-    return path.startsWith("/") && !path.startsWith("//") ? path : null;
+    if (!path.startsWith("/") || path.startsWith("//")) return null;
+
+    return { path, intent: intent ?? null };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Look at the pending return WITHOUT consuming it.
+ *
+ * /auth uses this to explain why the visitor is there. It must not consume:
+ * the resolver that actually performs the redirect is the only consumer, and
+ * if the banner ate the record the redirect would silently stop working.
+ */
+export function peekGuestReturn(): GuestReturn | null {
+  return readReturn();
+}
+
+/** Read and consume the stored return. Returns null if absent, expired, or
+ *  not a same-origin app path. */
+export function takeGuestReturnTo(): GuestReturn | null {
+  const result = readReturn();
+  try {
+    window.localStorage.removeItem(RETURN_KEY);
+  } catch {
+    /* nothing to do */
+  }
+  return result;
+}
+
+/* ── What just happened, told at the other end ────────────── */
+
+/*
+ * A toast lives in memory, and two of the three signup flows (OAuth, email
+ * confirmation) reload the page — so a message shown at the /auth end is
+ * guaranteed to be gone by the time the person arrives. The note is written
+ * where the outcome is known and read where the person actually lands.
+ *
+ * Read-and-delete, plus a short TTL: it can fire exactly once, so a refresh
+ * never replays it and a redirect that never completed can't leave a stale
+ * message waiting weeks later.
+ */
+
+export type HandoffOutcome =
+  /** Draft was filed under the new account and is open in front of them. */
+  | "claimed"
+  /** Insert failed; the local draft was kept and has been reopened. */
+  | "claim-failed"
+  /** Found stranded in localStorage on a later visit and rescued. */
+  | "recovered";
+
+export interface HandoffNote {
+  outcome: HandoffOutcome;
+  intent: AccountGateReason | null;
+  savedAt: number;
+}
+
+export function setHandoffNote(
+  outcome: HandoffOutcome,
+  intent: AccountGateReason | null,
+): void {
+  try {
+    const payload: HandoffNote = { outcome, intent, savedAt: Date.now() };
+    window.localStorage.setItem(NOTE_KEY, JSON.stringify(payload));
+  } catch {
+    /* the redirect still works; they just won't get the message */
+  }
+}
+
+export function takeHandoffNote(): HandoffNote | null {
+  try {
+    const raw = window.localStorage.getItem(NOTE_KEY);
+    if (!raw) return null;
+    window.localStorage.removeItem(NOTE_KEY);
+
+    const note = JSON.parse(raw) as HandoffNote;
+    if (!note?.outcome || typeof note.savedAt !== "number") return null;
+    if (Date.now() - note.savedAt > NOTE_TTL_MS) return null;
+
+    return note;
   } catch {
     return null;
   }

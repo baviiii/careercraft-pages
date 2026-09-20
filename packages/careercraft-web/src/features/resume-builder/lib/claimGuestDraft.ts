@@ -31,6 +31,52 @@ export interface ClaimResult {
  */
 let inFlight: Promise<ClaimResult> | null = null;
 
+/*
+ * The latch above is module-scoped, which means it is per TAB. Email
+ * confirmation opens a NEW tab, and supabase-js persists the session to
+ * localStorage — so the original tab receives a storage event, fires its own
+ * SIGNED_IN, and starts a second claim. Two tabs, two contexts, two inserts
+ * of the same résumé.
+ *
+ * This lock is the cross-tab half. It is deliberately crude: a timestamp in
+ * localStorage, checked immediately before the insert. Two tabs can still
+ * interleave inside the few milliseconds between read and write, but that
+ * window is far smaller than the seconds-long one it closes, and the cost of
+ * losing the race is a duplicate row rather than lost work. A heavier
+ * mechanism (BroadcastChannel, a deterministic insert key) would buy
+ * certainty this path does not need.
+ */
+const CLAIM_LOCK_KEY = "cc-guest-claim-lock";
+const CLAIM_LOCK_TTL_MS = 30_000;
+
+function acquireClaimLock(): boolean {
+  try {
+    const raw = window.localStorage.getItem(CLAIM_LOCK_KEY);
+    if (raw) {
+      const heldAt = Number(raw);
+      // A stale lock must never wedge the claim permanently — a tab that
+      // crashed mid-insert would otherwise strand every future draft.
+      if (Number.isFinite(heldAt) && Date.now() - heldAt < CLAIM_LOCK_TTL_MS) {
+        return false;
+      }
+    }
+    window.localStorage.setItem(CLAIM_LOCK_KEY, String(Date.now()));
+    return true;
+  } catch {
+    // Storage refused. There is no draft to claim in that case either, so
+    // proceeding is harmless.
+    return true;
+  }
+}
+
+function releaseClaimLock(): void {
+  try {
+    window.localStorage.removeItem(CLAIM_LOCK_KEY);
+  } catch {
+    /* the TTL will clear it */
+  }
+}
+
 export function claimGuestDraft(userId: string): Promise<ClaimResult> {
   if (!inFlight) {
     inFlight = runClaim(userId).finally(() => {
@@ -50,6 +96,14 @@ async function runClaim(userId: string): Promise<ClaimResult> {
   }
   if (!draft) return { claimed: false };
 
+  /* Another tab is already filing this draft. Report "not claimed" rather
+     than inserting a second copy — the caller keeps the local draft, and the
+     builder's recovery pass will reconcile on arrival. */
+  if (!acquireClaimLock()) {
+    console.warn("[claimGuestDraft] Another tab holds the claim lock; skipping insert.");
+    return { claimed: false };
+  }
+
   try {
     const contentWithMetadata = {
       ...draft.resumeData,
@@ -66,12 +120,20 @@ async function runClaim(userId: string): Promise<ClaimResult> {
       ? `${draft.resumeData.contact.name.trim()} — Résumé`
       : "Untitled Résumé";
 
-    // Supabase's generated types don't cover the resumes table, so the insert
-    // needs a cast — same approach as useResumePersistence.saveResume.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const insertInto = supabase.from("resumes").insert as any;
+    /* Supabase's generated types don't cover the resumes table, so the insert
+       needs a cast — same approach as useResumePersistence.saveResume.
 
-    const { data, error } = await insertInto({
+       Call it INLINE. Assigning `.insert` to a variable first detaches it
+       from its query builder, so `this` is undefined when it runs and the
+       method throws "Cannot read properties of undefined (reading 'url')"
+       before any request leaves the browser. That is what the earlier
+       version did, which meant this function could only ever land in its
+       catch: every guest draft was reported unclaimed and no résumé was
+       ever filed. Parenthesised member access keeps the binding. */
+    const { data, error } = await (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase.from("resumes").insert as any
+    )({
       user_id: userId,
       name,
       content: JSON.stringify(contentWithMetadata),
@@ -92,5 +154,7 @@ async function runClaim(userId: string): Promise<ClaimResult> {
     console.error("[claimGuestDraft] Could not file the guest draft:", error);
     // Draft intentionally left in localStorage so the work survives.
     return { claimed: false };
+  } finally {
+    releaseClaimLock();
   }
 }

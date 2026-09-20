@@ -44,6 +44,8 @@ interface AuthExperienceProps {
   isResetLoading: boolean;
   isRateLimited: boolean;
   rateLimitMessage: string;
+  /** Why a builder guest was sent here. Null for an ordinary visit. */
+  gateNotice: { title: string; body: string } | null;
   onSignIn: (event: React.FormEvent) => void;
   onSignUp: (event: React.FormEvent) => void;
   onForgotPassword: (event: React.FormEvent) => void;
@@ -188,6 +190,7 @@ export const AuthExperience = ({
   isResetLoading,
   isRateLimited,
   rateLimitMessage,
+  gateNotice,
   onSignIn,
   onSignUp,
   onForgotPassword,
@@ -255,6 +258,19 @@ export const AuthExperience = ({
 
           <div className="mx-auto flex w-full max-w-[440px] flex-1 items-center py-10">
             <div className="w-full">
+              {/* Sits above the form and stays put. A guest who came from the
+                  builder needs to know their work is safe for as long as it
+                  takes them to sign up — longer than any toast lives, and
+                  across the page reload that OAuth performs. */}
+              {gateNotice && !showForgotPassword && (
+                <div className="mb-8 border-l-2 border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)] px-4 py-3.5">
+                  <p className="cc-label text-[color:var(--cc-rust)]">{gateNotice.title}</p>
+                  <p className="mt-1.5 text-[15px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+                    {gateNotice.body}
+                  </p>
+                </div>
+              )}
+
               <AnimatePresence mode="wait">
                 <motion.div
                   key={showForgotPassword ? "reset" : mode}
