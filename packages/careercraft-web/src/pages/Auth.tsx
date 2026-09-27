@@ -90,6 +90,22 @@ const GATE_NOTICE: Record<string, { title: string; body: string }> = {
     title: "Create your account to rewrite bullets",
     body: "Your draft comes with you — nothing you've typed is lost.",
   },
+  "continue-ats": {
+    title: "Create your account for ATS check",
+    body: "Your draft comes with you — then you can score it against a job ad.",
+  },
+  "continue-jobs": {
+    title: "Create your account to browse jobs",
+    body: "Your draft comes with you — then you can open roles across Australia.",
+  },
+  "continue-news": {
+    title: "Create your account for market news",
+    body: "Your draft comes with you — then you can see hiring and pay by sector.",
+  },
+  "continue-chat": {
+    title: "Create your account for career chat",
+    body: "Your draft comes with you — then you can ask with sources attached.",
+  },
 };
 
 /* ─── provider marks ─── */

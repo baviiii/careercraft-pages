@@ -14,7 +14,19 @@
    control, and pretending otherwise is how the last one shipped broken.
    ─────────────────────────────────────────────────────────── */
 
-import type { AccountGateReason, ResumeData, TemplateId } from "../types";
+import {
+  GUEST_RETURN_ALLOWLIST,
+  type AccountGateReason,
+  type ResumeData,
+  type TemplateId,
+} from "../types";
+
+function isAllowedReturnPath(path: string): boolean {
+  // Allow `/builder?id=…&step=3` — the allowlist is path-prefix by route
+  // segment, not a blind startsWith (that would accept `/builder-evil`).
+  const pathname = path.split(/[?#]/)[0] ?? "";
+  return (GUEST_RETURN_ALLOWLIST as readonly string[]).includes(pathname);
+}
 
 const DRAFT_KEY = "cc-guest-resume-draft";
 const RETURN_KEY = "cc-guest-return-to";
@@ -133,6 +145,9 @@ export interface GuestReturn {
 }
 
 export function setGuestReturnTo(path: string, intent?: AccountGateReason): void {
+  if (!path.startsWith("/") || path.startsWith("//") || !isAllowedReturnPath(path)) {
+    return;
+  }
   try {
     const payload: StoredReturn = { path, intent, savedAt: Date.now() };
     window.localStorage.setItem(RETURN_KEY, JSON.stringify(payload));
@@ -151,9 +166,11 @@ function readReturn(): GuestReturn | null {
     if (!path || typeof savedAt !== "number") return null;
     if (Date.now() - savedAt > RETURN_TTL_MS) return null;
 
-    // Only ever return same-origin app paths — never an absolute URL, and
-    // never a protocol-relative one, which navigates off-site.
-    if (!path.startsWith("/") || path.startsWith("//")) return null;
+    // Only ever return same-origin app paths on the allowlist — never an
+    // absolute URL, never a protocol-relative one, never an arbitrary route.
+    if (!path.startsWith("/") || path.startsWith("//") || !isAllowedReturnPath(path)) {
+      return null;
+    }
 
     return { path, intent: intent ?? null };
   } catch {

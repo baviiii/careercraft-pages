@@ -27,8 +27,39 @@ const PdfBlobViewer = lazy(() =>
 );
 
 import { useResumePdfPreview } from "../hooks/useResumePdfPreview";
-import type { ResumeData, TemplateId } from "../types";
+import type { AccountGateReason, ResumeData, TemplateId } from "../types";
 import { getTemplateMeta } from "../types";
+
+/** Quiet discovery rows — not a toolkit tour. Guests only. */
+const CONTINUE_ROWS: Array<{
+  reason: Extract<
+    AccountGateReason,
+    "continue-ats" | "continue-jobs" | "continue-news" | "continue-chat"
+  >;
+  title: string;
+  line: string;
+}> = [
+  {
+    reason: "continue-ats",
+    title: "ATS check",
+    line: "Score this against a job ad",
+  },
+  {
+    reason: "continue-jobs",
+    title: "Browse jobs",
+    line: "Openings across Australia",
+  },
+  {
+    reason: "continue-news",
+    title: "Market news",
+    line: "Hiring and pay by sector",
+  },
+  {
+    reason: "continue-chat",
+    title: "Career chat",
+    line: "Ask with sources attached",
+  },
+];
 
 interface PreviewExportStepProps {
   resumeData: ResumeData;
@@ -49,6 +80,13 @@ interface PreviewExportStepProps {
   isDraftPersisted: boolean;
   /** Stash the draft and send them to signup, then back here. */
   onSignUpToExport: () => void;
+  /** Guest picked a next tool; same signup path, different return. */
+  onContinueWithDraft: (
+    reason: Extract<
+      AccountGateReason,
+      "continue-ats" | "continue-jobs" | "continue-news" | "continue-chat"
+    >,
+  ) => void;
 }
 
 export const PreviewExportStep = ({
@@ -67,6 +105,7 @@ export const PreviewExportStep = ({
   isGuest,
   isDraftPersisted,
   onSignUpToExport,
+  onContinueWithDraft,
 }: PreviewExportStepProps) => {
   const meta = getTemplateMeta(selectedTemplate);
   const { preview, isRendering, renderFailed } = useResumePdfPreview({
@@ -118,6 +157,40 @@ export const PreviewExportStep = ({
             ? "Your draft is saved on this device, and creating a free account brings it with you."
             : "This browser is blocking storage, so the draft isn't being kept — create a free account before you leave this page."}
         </div>
+      )}
+
+      {isGuest && (
+        <motion.div
+          className="max-w-[840px] mx-auto mb-6 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.35, delay: 0.08 }}
+        >
+          <div className="px-4 pt-4 pb-3 border-b border-[color:var(--cc-hair)]">
+            <div className="cc-label text-[color:var(--cc-rust)]">Also with this draft</div>
+            <p className="mt-1.5 cc-font-editorial text-sm text-[color:var(--cc-ink-soft)]">
+              Create a free account and your résumé comes with you — then open one of these.
+            </p>
+          </div>
+          <ul className="divide-y divide-[color:var(--cc-hair)]">
+            {CONTINUE_ROWS.map((row) => (
+              <li key={row.reason}>
+                <button
+                  type="button"
+                  onClick={() => onContinueWithDraft(row.reason)}
+                  className="group flex w-full items-baseline justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-[color:var(--cc-cream-2)]"
+                >
+                  <span className="cc-font-display text-lg tracking-tight text-[color:var(--cc-ink)] underline-offset-4 group-hover:underline group-hover:decoration-[color:var(--cc-rust)]">
+                    {row.title}
+                  </span>
+                  <span className="cc-font-editorial text-sm text-[color:var(--cc-ash)] shrink min-w-0 text-right">
+                    {row.line}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </motion.div>
       )}
 
       {/* The actual PDF, page for page */}

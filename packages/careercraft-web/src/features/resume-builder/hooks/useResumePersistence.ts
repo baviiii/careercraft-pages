@@ -136,12 +136,15 @@ export function useResumePersistence({
       const content = JSON.stringify(contentWithMetadata);
 
       if (currentResumeId) {
-        const { error } = await (supabase.from("resumes").update as any)({
-          name: saveResumeName || "Untitled Résumé",
-          content,
-          template_id: selectedTemplate,
-          updated_at: new Date().toISOString(),
-        }).eq("id", currentResumeId);
+        const { error } = await supabase
+          .from("resumes")
+          .update({
+            name: saveResumeName || "Untitled Résumé",
+            content,
+            template_id: selectedTemplate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", currentResumeId);
         if (error) throw error;
 
         toast({
@@ -149,17 +152,19 @@ export function useResumePersistence({
           description: "Your updates were saved to this resume.",
         });
       } else {
-        const { data, error } = await (supabase.from("resumes").insert as any)({
-          user_id: user.id,
-          name: saveResumeName || "Untitled Résumé",
-          content,
-          file_type: "builder",
-          template_id: selectedTemplate,
-        })
-          .select()
+        const { data, error } = await supabase
+          .from("resumes")
+          .insert({
+            user_id: user.id,
+            name: saveResumeName || "Untitled Résumé",
+            content,
+            file_type: "builder",
+            template_id: selectedTemplate,
+          })
+          .select("id")
           .single();
         if (error) throw error;
-        if (data) setCurrentResumeId((data as any).id);
+        if (data) setCurrentResumeId(data.id);
 
         toast({
           title: "Resume saved",

@@ -47,6 +47,7 @@ import type {
   TemplateId,
   UploadedFileType,
 } from "../types";
+import { CONTINUE_RETURN_PATH } from "../types";
 
 const ACCOUNT_GATE_COPY: Record<AccountGateReason, { title: string; description: string }> = {
   export: {
@@ -66,6 +67,22 @@ const ACCOUNT_GATE_COPY: Record<AccountGateReason, { title: string; description:
   "ai-rewrite": {
     title: "Create a free account to rewrite bullets",
     description: "Your draft comes with you — nothing you've typed is lost.",
+  },
+  "continue-ats": {
+    title: "Create a free account for ATS check",
+    description: "Your draft comes with you — then score it against a job ad.",
+  },
+  "continue-jobs": {
+    title: "Create a free account to browse jobs",
+    description: "Your draft comes with you — then open roles across Australia.",
+  },
+  "continue-news": {
+    title: "Create a free account for market news",
+    description: "Your draft comes with you — then see hiring and pay by sector.",
+  },
+  "continue-chat": {
+    title: "Create a free account for career chat",
+    description: "Your draft comes with you — then ask with sources attached.",
   },
 };
 
@@ -137,7 +154,10 @@ export interface UseResumeBuilderReturn {
   /** False when storage refused the draft — the UI must not promise it saved. */
   isDraftPersisted: boolean;
   /** Flush the draft, remember where we are, then send the guest to signup. */
-  requireAccount: (reason: AccountGateReason) => void;
+  requireAccount: (
+    reason: AccountGateReason,
+    options?: { returnTo?: string },
+  ) => void;
 
   // ── mutations ──
   handleFile: (file: File) => Promise<void>;
@@ -301,7 +321,7 @@ export function useResumeBuilder(dialogs: {
   });
 
   const requireAccount = useCallback(
-    (reason: AccountGateReason) => {
+    (reason: AccountGateReason, options?: { returnTo?: string }) => {
       const { resumeData: data, selectedTemplate: template, currentStep: step } =
         gateStateRef.current;
 
@@ -310,13 +330,20 @@ export function useResumeBuilder(dialogs: {
       const persisted = saveGuestDraft(data, template, step);
       setIsDraftPersisted(persisted);
 
+      const continuePath =
+        reason in CONTINUE_RETURN_PATH
+          ? CONTINUE_RETURN_PATH[reason as keyof typeof CONTINUE_RETURN_PATH]
+          : undefined;
+      const returnTo = options?.returnTo ?? continuePath ?? "/builder";
+
       const copy = ACCOUNT_GATE_COPY[reason];
       if (persisted) {
         /* The reason travels with the path. Only `export` can actually be
            finished on the way back — the AI gates needed a File or a job
            description that cannot survive a redirect — so the resolver uses
-           it to pick the step they land on rather than resuming blindly. */
-        setGuestReturnTo("/builder", reason);
+           it to pick the step they land on rather than resuming blindly.
+           continue-* reasons land on another tool after claim. */
+        setGuestReturnTo(returnTo, reason);
         toast({ title: copy.title, description: copy.description });
       } else {
         /* Storage refused the write, so promising the draft will follow them
