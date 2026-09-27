@@ -183,23 +183,52 @@ copy — not from colour saturation. The rest of Faircopy already proves this.
 
 Each phase ships on its own and leaves the page working.
 
-### Phase 0 — done
-Honest states, real counts, topK fix, metadata/sector fix.
+### Phase 0 — done, but the claim above was wrong
+Honest states, real counts, metadata/sector fix.
 
-### Phase 1 — Delete (½ day, no design decisions)
-Remove the 1,335 dead lines and the set dressing. Merge the three
-"notable things" components. 26 → ~12.
-*Ship it. The page gets faster and simpler with zero risk.*
+Two corrections, both found 2026-09-27:
 
-### Phase 2 — Perceived speed (1 day)
-Per-tab progressive rendering, named waits with estimates, localStorage
-cache keyed on corpus timestamp.
-*Biggest single UX win available. Independent of any styling.*
+- **The topK fix was never applied.** `horus-rag` validated `topK` with
+  `.max(50)` and *rejected* larger values; the client asked for 120 on funding
+  and 60 on careers. Those two tabs 400'd on every load for months, surfacing
+  as empty panels rather than an error — which is why it was repeatedly
+  diagnosed as a dead backend. Fixed on both sides now. It is an edge function,
+  so it needs `supabase functions deploy horus-rag`, not a git push.
+- **"No fabricated figures left on the page" was not true.** `deterministicValue()`
+  was still hashing names into career growth rates and skill demand scores, and
+  the Skills ROI carousel was entirely hardcoded — ROI 1,580%, salary increase
+  $127,000, lifetime value $2.4M, break even 2.4 weeks. See §8.
 
-### Phase 3 — Reframe (1–2 days)
-New tab structure, one lead finding at the top, copy rewritten for a job
-seeker. Still on the old styling — **deliberately**, so the information
-architecture is judged on its own before paint hides it.
+### Phase 1 — Delete — **done**
+Six components (~2,200 lines) and the set dressing: the UTC clock, the
+"Receiving" pill, the hardcoded "Signal active", the simulated SystemStatus
+lights, the System Status panel, three sparkle badges and a "Live" pill.
+
+The "merge the three notable-things components" item is **not needed**.
+`CareerPulse` was the real duplicate and it is deleted; `BreakingNews` and
+`ExecutiveSummary` render in different places for different jobs —
+`ExecutiveSummary` lives *inside* `FundingDashboard`. Merging them would be
+churn.
+
+Also deleted `IntelligenceNav` and 15 other dead files repo-wide, plus 9
+orphaned npm dependencies.
+
+### Phase 2 — Perceived speed — **done**
+`snapshotCache.ts` paints last visit's figures immediately, labelled with their
+age, and discards them when the corpus size changes. `Promise.all` →
+`allSettled` with per-tab painting, so `globalLoading` clears on first settle
+and one failure cannot strand the others.
+
+### Phase 3 — Reframe — **mostly done**
+Tabs are questions. The hero has a lead finding and reports findings rather
+than chunk counts. All six panels reframed: headings answer the tab's question,
+three "Real-time" claims removed, genre badges gone.
+
+Still open: the `FundingDashboard` / `CareersDashboard` story carousels remain
+structurally analyst-shaped, and §4.4 (make findings actionable) is Phase 5.
+
+Still on the old styling — **deliberately**, so the information architecture is
+judged on its own before paint hides it.
 
 ### Phase 4 — Retheme (2–3 days)
 Migrate the ~12 survivors to `--cc-*`. Shell and the three dashboards first
@@ -226,3 +255,55 @@ to change is the one way to guarantee wasted work.
    explicitly South Australian.
 4. **Can the 30–50s be reduced server-side?** If Horus can cache these four
    standing queries, Phase 2 gets much easier.
+
+---
+
+## 8. The fabricated figures (found 2026-09-27)
+
+§2 of this document says "do not design around data that is not there". The
+page was doing exactly that, in two shapes, and §4.6 recorded it as fixed.
+
+**`deterministicValue(seed, min, max)`** hashed a string into a range. Its own
+comment said it existed so numbers would not change between renders — which is
+the tell, because stability is what a measurement has. It produced career growth
+rates (15–25% for "high demand" wording, 5–15% for "growing"), skill demand
+scores (60–95) and skill growth rates (5–35). A role called "Registered Nurse"
+showed the same +21.3% on every visit. Removed; it has no callers.
+
+Consequently `SkillDemand.demand` and `.growth` are now **optional**, and the UI
+says "named, no figure stated" rather than drawing a bar. A document mentioning
+a skill is evidence the skill matters; it is not a score.
+
+**Hardcoded literals rendered as findings.** In careers: "12,000+ open
+positions", "42.0% growth", "Healthcare" as the fallback sector, plus
+"Avg Timeline 6-12 months" and "Success Rate 87%" which were not fallbacks at
+all — no field fed them.
+
+**The Skills ROI carousel**, deleted whole: ROI 1,580% · Job Security 96% ·
+investment $3,200 · salary increase $127,000 · break even 2.4 weeks · lifetime
+value $2.4M · "Fast Track to $100K+" · Starting Salary $94K · Success Rate 89% ·
+"340% salary multiplier" · Competition "Low". One narrative opened with
+"Data shows" before an invented multiplier, beside real dollar amounts parsed
+from budget papers, inheriting their credibility.
+
+The corpus holds skills, categories, sectors and training pathways. It holds no
+salaries, no completion times, no success rates and no return on investment —
+not "none reliable", none. There was no honest version to write.
+
+### The rule this leaves
+
+**A figure appears only if a document states it.** Absent is rendered as absent
+— "—", or a sentence saying no figure was stated — never as zero, never as an
+average diluted by the rows that have no figure, and never behind an "est."
+badge, which implies a derivation.
+
+Two traps worth naming, because both were live:
+
+- `(x.growth || 0) > 10` reads *missing* as *zero*, silently excluding every row
+  the documents describe qualitatively. Key off the demand label instead.
+- Summing stated percentages and dividing by **all** rows printed "+0.4%" as
+  though measured. Divide by the rows that actually have figures, or show "—".
+
+And note **CONCERNS #6**: `strictNullChecks` is off, so adding `?` to a type
+enforces nothing. Three `.toFixed()` crash sites had to be found by grep. Every
+new optional field needs a manual sweep of its readers.

@@ -134,7 +134,7 @@ baseline the 14 errors first, or CI starts failing every deploy immediately.
 
 ---
 
-## 6. The only in-repo chat guardrails were dead code
+## 5. The only in-repo chat guardrails were dead code
 
 **Found:** 2026-09-27, during the dead-code sweep.
 
@@ -158,3 +158,33 @@ admin-editable and has been edited. This is unverified, not known-broken.
 **Decide later:** read the live `career` prompt row in Supabase. If it has no
 refusal section, paste one in — it is a text edit in `/admin`, not a deploy.
 The deleted wording is recoverable from git history if you want it verbatim.
+
+---
+
+## 6. `strictNullChecks` is off, so optional fields are unenforced
+
+**Found:** 2026-09-27, while making `SkillDemand.demand` optional.
+
+`packages/careercraft-web/tsconfig.json` sets `strictNullChecks: false` (also
+`noImplicitAny: false`, `noUnusedLocals: false`, `noUnusedParameters: false`).
+
+Marking a field optional therefore changes **nothing** the compiler checks.
+`skill.growth.toFixed(1)` on `growth?: number` compiles clean and throws at
+runtime. Three such sites existed in the intelligence panels and had to be
+found by grep; one of them — `ExecutiveSummary`'s `topCareer?.growth.toFixed(1)`
+— optional-chained the object but not the field, and had been printing
+`NaN% projected growth` in production for as long as any career lacked a figure.
+
+Combined with #3 (the typecheck script compiles zero files), the
+practical position is that **nothing** checks nullability in this codebase.
+
+**Why it matters:** the honest-data work depends on absent figures being
+absent. Every `?` added to a type is a promise the compiler is not keeping, so
+each one needs a manual sweep of its readers.
+
+**Not urgent because:** turning `strictNullChecks` on now would surface a large
+backlog at once, and the 14 errors in #3 are not even being read yet.
+
+**Decide later:** fix #3 first so the gate runs at all. Then enable
+`strictNullChecks` and work the list down, or enable it for `src/contexts` and
+`src/components/intelligence` only, where the honest-data invariants live.
