@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
 import { CraftEmpty } from "@/components/craft/AppPrimitives";
@@ -19,7 +20,6 @@ import { DeleteJobDialog } from "./dialogs/DeleteJobDialog";
 import { EditJobDialog } from "./dialogs/EditJobDialog";
 import { useJobAutomation } from "./hooks/useJobAutomation";
 import { useJobDiscovery } from "./hooks/useJobDiscovery";
-import { useJobFitScoring } from "./hooks/useJobFitScoring";
 import { useJobTracker } from "./hooks/useJobTracker";
 import {
   STATUS_ACCENT,
@@ -29,6 +29,7 @@ import {
 import type { ApplicationStatus, JobApplication } from "./types";
 
 export default function JobTrackerPage() {
+  const navigate = useNavigate();
   const {
     loading,
     applications,
@@ -61,7 +62,6 @@ export default function JobTrackerPage() {
     terms: perso.profile.searchTerms?.length ? perso.profile.searchTerms : undefined,
     ready: !perso.loading,
   });
-  const fitScoring = useJobFitScoring();
   const automation = useJobAutomation();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -121,9 +121,28 @@ export default function JobTrackerPage() {
 
   useEffect(() => {
     if (!viewTarget) return;
-    fitScoring.refreshScores(viewTarget.id).catch(() => undefined);
     automation.loadEvents(viewTarget.id).catch(() => undefined);
-  }, [viewTarget, fitScoring.refreshScores, automation.loadEvents]);
+  }, [viewTarget, automation.loadEvents]);
+
+  /* Hand an application to the real analyser rather than scoring it here.
+     /analysis already reads both of these on mount — `?id=` preselects the
+     saved résumé (useAnalysis.ts), and the `jobDescription` sessionStorage key
+     prefills the textarea — so the user arrives with the work done and can
+     paste over the description when the job board only gave an extract.
+
+     sessionStorage rather than route state because that is the channel
+     /analysis already listens on, and it survives the page's own reloads. */
+  const analyseApplication = useCallback(
+    (app: JobApplication) => {
+      try {
+        sessionStorage.setItem("jobDescription", app.job_description ?? "");
+      } catch {
+        /* Private mode or a full quota. The page still opens; they paste. */
+      }
+      navigate(app.resume_id ? `/analysis?id=${app.resume_id}` : "/analysis");
+    },
+    [navigate],
+  );
 
   /* ───── Loading state ─────────────────────────────────────── */
   if (loading) {
@@ -397,10 +416,8 @@ export default function JobTrackerPage() {
         resumeName={viewTarget ? getResumeName(viewTarget.resume_id) : null}
         hasCoverLetter={Boolean(viewTarget?.cover_letter_id)}
         onEdit={setEditTarget}
-        fitScores={viewTarget ? fitScoring.scoresByApplication[viewTarget.id] || [] : []}
         events={viewTarget ? automation.eventsByApplication[viewTarget.id] || [] : []}
-        isScoring={fitScoring.isScoring}
-        onGenerateFitScore={(id) => fitScoring.generateScore(id)}
+        onAnalyse={analyseApplication}
         onLoadTimeline={(id) => automation.loadEvents(id).then(() => undefined)}
         onClassifyEmail={(id, subject, body, requireConfirm) =>
           automation.classifyEmail(id, subject, body, requireConfirm)

@@ -44,8 +44,21 @@ const JobSchema = z.object({
   currency: z.string().max(10).nullable().optional(),
   job_type: z.string().max(60).nullable().optional(),
   is_remote: z.boolean().optional(),
-  description_snippet: z.string().max(4000).nullable().optional(),
-  full_description: z.string().max(40_000).nullable().optional(),
+  /*
+   * One field, because there is only ever one string.
+   *
+   * This used to be `description_snippet` plus a `full_description` capped at
+   * 40,000 characters, and `toJob` filled them from the same value. Adzuna's
+   * search API does not return the advert body — their docs say, twice,
+   * "we currently only provide a snipped of the job description in the
+   * response", and the full text is only behind `redirect_url`, which points
+   * back through Adzuna rather than at the employer.
+   *
+   * So `full_description` was never full: both fields held the same ~200
+   * characters. Naming it that way is how it ended up being written into
+   * `job_applications.job_description` and treated as analysable input.
+   */
+  description_snippet: z.string().max(4_000).nullable().optional(),
   posted_at: z.string().max(60).nullable().optional(),
 });
 
@@ -90,7 +103,8 @@ async function toJob(raw: Record<string, unknown>): Promise<Job> {
   const title = (raw.title as string) || "Untitled role";
   const company = (raw.company as { display_name?: string })?.display_name || "Unknown company";
   const location = (raw.location as { display_name?: string })?.display_name || null;
-  const full = stripHtml((raw.description as string) || "");
+  /* Adzuna truncates this; see the schema note above. Named for what it is. */
+  const snippet = stripHtml((raw.description as string) || "");
 
   return {
     id: await sha256(`${canonicalUrl || ""}|${title}|${company}`.toLowerCase()),
@@ -104,9 +118,8 @@ async function toJob(raw: Record<string, unknown>): Promise<Job> {
     salary_max: Number.isFinite(raw.salary_max) ? (raw.salary_max as number) : null,
     currency: "AUD",
     job_type: normalizeJobType(raw.contract_time as string),
-    is_remote: detectRemote(title, full),
-    description_snippet: full.slice(0, 300) || null,
-    full_description: full || null,
+    is_remote: detectRemote(title, snippet),
+    description_snippet: snippet || null,
     posted_at: (raw.created as string) || null,
   };
 }
@@ -251,7 +264,9 @@ serve(handler(async (req) => {
           ? `$${Math.round(job.salary_min / 1000)}k - $${Math.round(job.salary_max / 1000)}k`
           : null,
       job_type: job.job_type ?? null,
-      job_description: job.full_description ?? null,
+      /* The extract, all we have. JobDetailPanel checks its length and tells
+         the user to paste the real ad before running an ATS check. */
+      job_description: job.description_snippet ?? null,
       notes: body.notes ?? null,
     })
     .select("id")

@@ -8,7 +8,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { STATUS_META, formatAppliedDate, statusPillClass } from "../types";
-import type { ApplicationEvent, JobApplication, JobFitScore } from "../types";
+import type { ApplicationEvent, JobApplication } from "../types";
 
 interface JobDetailPanelProps {
   application: JobApplication | null;
@@ -17,10 +17,9 @@ interface JobDetailPanelProps {
   resumeName: string | null;
   hasCoverLetter: boolean;
   onEdit: (app: JobApplication) => void;
-  fitScores?: JobFitScore[];
   events?: ApplicationEvent[];
-  isScoring?: boolean;
-  onGenerateFitScore?: (applicationId: string) => void;
+  /** Hand this application to /analysis with its résumé and ad prefilled. */
+  onAnalyse?: (app: JobApplication) => void;
   onLoadTimeline?: (applicationId: string) => void;
   onClassifyEmail?: (
     applicationId: string,
@@ -53,10 +52,8 @@ export const JobDetailPanel = ({
   resumeName,
   hasCoverLetter,
   onEdit,
-  fitScores = [],
   events = [],
-  isScoring = false,
-  onGenerateFitScore,
+  onAnalyse,
   onLoadTimeline,
   onClassifyEmail,
   onConfirmStatusUpdate,
@@ -81,7 +78,12 @@ export const JobDetailPanel = ({
 
   const meta = STATUS_META[application.status];
   const pillClass = statusPillClass(application.status);
-  const latestFit = fitScores[0];
+
+  /* Adzuna gives ~200 characters, so length is the only signal available for
+     "is this the real ad or an extract". 400 is deliberately generous: a
+     genuine ad is thousands of characters, and anything near the threshold is
+     not worth scoring either way. */
+  const hasFullDescription = (application.job_description?.trim().length ?? 0) >= 400;
 
   return (
     <CraftDialog
@@ -215,61 +217,53 @@ export const JobDetailPanel = ({
           </section>
         )}
 
-        {/* Fit scoring */}
+        {/* ───── ATS check ─────────────────────────────────────────────
+            This was "Fit scoring": a button calling the job-fit-score
+            function, which counted how many words the résumé and the ad had
+            in common. It reported "Strong alignment on team" and "Missing
+            mention of dynamic", with three next-actions identical for every
+            job. It read as an AI analysis and was a word-overlap ratio.
+
+            It now hands off to /analysis, the real analyser, which already
+            accepts a preselected résumé and a prefilled job description.
+            One analyser for the whole product instead of two.
+
+            The snippet warning is the important part. Adzuna's search API
+            returns a truncated description — their docs say so twice — so an
+            application saved from a job search carries roughly 200
+            characters. Analysing that would produce a confident verdict from
+            almost no input. So we say so, and point at the posting, because
+            the real workflow is: open the ad, copy it, paste it. */}
         <section>
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <div className="cc-font-sans text-sm font-semibold text-[color:var(--cc-rust)]">
-              Fit scoring
-            </div>
-            {onGenerateFitScore && (
-              <CraftButton
-                variant="ghost"
-                onClick={() => onGenerateFitScore(application.id)}
-                disabled={isScoring}
-              >
-                <Brain className="w-4 h-4" />
-                {isScoring ? "Scoring..." : "Generate fit score"}
-              </CraftButton>
-            )}
+          <div className="cc-font-sans text-sm font-semibold text-[color:var(--cc-rust)] mb-2">
+            ATS check
           </div>
-          {latestFit ? (
-            <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="cc-font-sans text-xs font-medium text-[color:var(--cc-ash)]">
-                  Latest score
-                </span>
-                <span className="cc-pill cc-pill-rust">{latestFit.score}/100</span>
-              </div>
-              {latestFit.strengths?.length > 0 && (
-                <div>
-                  <div className="cc-font-sans text-xs font-medium text-[color:var(--cc-ash)]">
-                    Strengths
-                  </div>
-                  <ul className="mt-1 list-disc pl-5 text-sm text-[color:var(--cc-ink-soft)]">
-                    {latestFit.strengths.slice(0, 3).map((s, i) => (
-                      <li key={`${s}-${i}`}>{s}</li>
-                    ))}
-                  </ul>
-                </div>
+          <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-4 space-y-3">
+            <p className="cc-font-sans text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+              {hasFullDescription
+                ? "Score this résumé against the job description below, and see the keywords an applicant tracking system would miss."
+                : "The job board only gave us a short extract of this ad, which is not enough to score against. Open the posting, copy the full description, and paste it on the next screen."}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {onAnalyse && (
+                <CraftButton onClick={() => onAnalyse(application)}>
+                  <Brain className="w-4 h-4" />
+                  {hasFullDescription ? "Run ATS check" : "Paste the ad and check"}
+                </CraftButton>
               )}
-              {latestFit.gaps?.length > 0 && (
-                <div>
-                  <div className="cc-font-sans text-xs font-medium text-[color:var(--cc-ash)]">
-                    Gaps
-                  </div>
-                  <ul className="mt-1 list-disc pl-5 text-sm text-[color:var(--cc-ink-soft)]">
-                    {latestFit.gaps.slice(0, 3).map((g, i) => (
-                      <li key={`${g}-${i}`}>{g}</li>
-                    ))}
-                  </ul>
-                </div>
+              {application.job_url && (
+                <CraftButton
+                  variant="ghost"
+                  onClick={() =>
+                    window.open(application.job_url as string, "_blank")
+                  }
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Open posting to copy
+                </CraftButton>
               )}
             </div>
-          ) : (
-            <p className="text-[14px] text-[color:var(--cc-ash)]">
-              No fit score yet. Generate one to see match strengths, gaps, and actions.
-            </p>
-          )}
+          </div>
         </section>
 
         {/* Email automation */}
