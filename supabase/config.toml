@@ -115,9 +115,6 @@ verify_jwt = true
 [functions.horus-rag]
 verify_jwt = true
 
-[functions.job-fit-score]
-verify_jwt = true
-
 [functions.job-email-events]
 verify_jwt = true
 
