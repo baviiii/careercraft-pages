@@ -60,17 +60,14 @@ class SimpleCache {
 const alertsCache = new SimpleCache();
 const chartCache = new SimpleCache();
 
-// Deterministic pseudo-random based on string hash (avoids Math.random() causing numbers to change every render)
-function deterministicValue(seed: string, min: number, max: number): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    const ch = seed.charCodeAt(i);
-    hash = ((hash << 5) - hash) + ch;
-    hash |= 0;
-  }
-  const normalized = (Math.abs(hash) % 1000) / 1000; // 0..0.999
-  return min + normalized * (max - min);
-}
+/* `deterministicValue(seed, min, max)` lived here: a string hash normalised
+   into a range. Its comment said it existed so numbers would not change every
+   render — which is the tell. Stability is what a measurement has, so a figure
+   that never moved read as measured. It fed career growth rates, skill demand
+   scores, skill growth rates, category trends and job counts. None of those
+   exist in the corpus.
+
+   No callers left. Absent figures are absent now. */
 
 // ============================================================================
 // Types
@@ -125,13 +122,24 @@ export interface CareerOpportunity {
 
 export interface SkillDemand {
   name: string;
-  demand: number;
-  growth: number;
+  /**
+   * Demand score, 0-100, ONLY when a document states one.
+   *
+   * Was required, and was filled by hashing the skill's name into 70-95
+   * whenever a document merely mentioned the skill. The UI rendered that as
+   * "~84%" with an "est." badge — but a hash of a string is not an estimate
+   * of anything, and "approximately 84%" is a claim either way. Undefined
+   * now means undefined, and the UI says so.
+   */
+  demand?: number;
+  /** Demand growth, same rule: a stated figure or nothing. */
+  growth?: number;
   sector: string;
   category: "technical" | "soft" | "emerging";
   trainingAvailable: boolean;
   relatedCareers?: string[];
-  estimated?: boolean; // true when demand/growth are derived, not from document data
+  /** True when the figures came from a document rather than being absent. */
+  estimated?: boolean;
 }
 
 export interface TrainingProgram {
@@ -1145,22 +1153,32 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
                 const combinedText = content + ' ' + blockText;
 
                 // Check for high-demand indicators
+                /* The document says "Registered Nurses are in high demand".
+                   That supports the DEMAND LABEL and nothing more.
+
+                   This used to also set `career.growth` from
+                   deterministicValue(occupation + '-high', 15, 25) — a hash
+                   of the occupation name scaled into a plausible range. It
+                   was stable across reloads, which is precisely what made it
+                   convincing: the same role showed +21.3% every visit, so it
+                   behaved exactly like a measurement. No document states it.
+
+                   `growth` stays undefined. Every consumer already handles
+                   that — the dashboards filter on `growth !== undefined` —
+                   and a role named as in demand with no percentage beside it
+                   is what the source actually says. */
                 if (combinedText.includes('high demand') ||
                     combinedText.includes('high growth') ||
                     combinedText.includes('critical shortage') ||
                     combinedText.includes('strong demand')) {
-                  // Estimate high growth (15-25%) — deterministic based on occupation name
-                  career.growth = deterministicValue(occupation + '-high', 15, 25);
                   career.demand = "high";
                   career.trending = true;
-                  console.log(`[extractCareerOpportunities] ℹ Inferred HIGH growth for ${occupation} from demand indicators`);
+                  console.log(`[extractCareerOpportunities] ℹ ${occupation}: high demand stated, no growth figure`);
                 } else if (combinedText.includes('growing') ||
                            combinedText.includes('increasing') ||
                            combinedText.includes('expanding')) {
-                  // Estimate medium growth (5-15%) — deterministic
-                  career.growth = deterministicValue(occupation + '-med', 5, 15);
                   career.demand = "medium";
-                  console.log(`[extractCareerOpportunities] ℹ Inferred MEDIUM growth for ${occupation} from growth indicators`);
+                  console.log(`[extractCareerOpportunities] ℹ ${occupation}: growth language, no figure stated`);
                 }
               }
 
@@ -2103,12 +2121,14 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: Math.floor(deterministicValue(skill + '-tech-d', 70, 95)),
-              growth: deterministicValue(skill + '-tech-g', 8, 20),
+              /* A document mentioning this skill is evidence the skill
+                 matters here. It is not evidence of a demand score or a
+                 growth rate, and both used to be hashed from the skill's
+                 own name. Left absent. */
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "technical",
               trainingAvailable: true,
-              estimated: true,
+              estimated: false,
             });
           }
         }
@@ -2118,12 +2138,14 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: Math.floor(deterministicValue(skill + '-soft-d', 60, 90)),
-              growth: deterministicValue(skill + '-soft-g', 5, 15),
+              /* A document mentioning this skill is evidence the skill
+                 matters here. It is not evidence of a demand score or a
+                 growth rate, and both used to be hashed from the skill's
+                 own name. Left absent. */
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "soft",
               trainingAvailable: true,
-              estimated: true,
+              estimated: false,
             });
           }
         }
@@ -2133,12 +2155,14 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: Math.floor(deterministicValue(skill + '-emrg-d', 75, 95)),
-              growth: deterministicValue(skill + '-emrg-g', 15, 35),
+              /* A document mentioning this skill is evidence the skill
+                 matters here. It is not evidence of a demand score or a
+                 growth rate, and both used to be hashed from the skill's
+                 own name. Left absent. */
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "emerging",
               trainingAvailable: true,
-              estimated: true,
+              estimated: false,
             });
           }
         }
@@ -2198,12 +2222,15 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
             skillsMap.set(skill, {
               name: skill,
-              demand: !isNaN(number) && number <= 100 ? number : Math.floor(deterministicValue(skill + '-ans-d', 70, 95)),
-              growth: !isNaN(number) && number > 100 ? number / 10 : deterministicValue(skill + '-ans-g', 8, 23),
+              /* A number parsed out of the answer text is real. The
+                 fallbacks were not: both branches ended in a hash of the
+                 skill name. No number means no number. */
+              demand: !isNaN(number) && number <= 100 ? number : undefined,
+              growth: !isNaN(number) && number > 100 ? number / 10 : undefined,
               sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
               category,
               trainingAvailable: true,
-              estimated: isNaN(number) || number > 100,
+              estimated: !isNaN(number),
             });
           }
         }
@@ -2225,18 +2252,29 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
         skillsMap.set(skill, {
           name: skill,
-          demand: Math.floor(deterministicValue(skill + '-fb-d', 70, 95)),
-          growth: deterministicValue(skill + '-fb-g', 8, 23),
+          /* Matched because the answer names this skill near the word
+             "demand" or "critical". That is a real signal and the reason to
+             list it. It is not a score — both fields were hashes of the
+             skill's own name. */
           sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
           category,
           trainingAvailable: true,
-          estimated: true,
+          estimated: false,
         });
       }
     }
 
+    /* `b.demand - a.demand` yields NaN once demand is optional, and a NaN
+       comparator leaves the array in whatever order it was built. Skills with
+       a stated figure sort first and highest; the rest follow alphabetically
+       so the list is stable and scannable. */
     return Array.from(skillsMap.values())
-      .sort((a, b) => b.demand - a.demand)
+      .sort((a, b) => {
+        if (a.demand !== undefined && b.demand !== undefined) return b.demand - a.demand;
+        if (a.demand !== undefined) return -1;
+        if (b.demand !== undefined) return 1;
+        return a.name.localeCompare(b.name);
+      })
       .slice(0, 15);
   }, [normalizeSector]);
 

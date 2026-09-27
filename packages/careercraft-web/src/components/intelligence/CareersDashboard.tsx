@@ -209,6 +209,27 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     setCurrentPage(1);
   }, [effectiveSearch, filterSector, filterDemand, sortField, sortDirection]);
 
+  /* Three helpers so the story cards cannot quietly turn an absent figure
+     into a measured zero. Growth is stated for only some occupations — the
+     documents routinely name a role as in demand without quantifying it — so
+     `reduce((s, c) => s + (c.growth || 0), 0) / all.length` averaged real
+     percentages across roles that had none and printed the diluted result as
+     "+0.4%". Same for summed job counts. */
+  const statedGrowth = (list: typeof careerOpportunities) =>
+    list.filter(c => c.growth !== undefined);
+
+  const avgStatedGrowth = (list: typeof careerOpportunities): string => {
+    const withFigures = statedGrowth(list);
+    if (withFigures.length === 0) return "—";
+    const avg = withFigures.reduce((s, c) => s + (c.growth ?? 0), 0) / withFigures.length;
+    return `+${avg.toFixed(1)}%`;
+  };
+
+  const sumStatedJobs = (list: typeof careerOpportunities): string => {
+    const total = list.reduce((s, c) => s + (c.jobs ?? 0), 0);
+    return total > 0 ? total.toLocaleString() : "—";
+  };
+
   // Career Opportunity Stories - MUST be before conditional return
   const careerStories = useMemo(() => {
     const topGrowthSector = sectorGrowth[0];
@@ -224,13 +245,61 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     return [
       {
         id: "high-demand-boom",
-        title: `💼 ${topGrowthSector?.sector || "Healthcare"}: The High-Demand Career Wave`,
-        narrative: `With ${topGrowthSector?.jobs?.toLocaleString() || "12,000+"} open positions and ${(topGrowthSector?.growth ?? 42).toFixed(1)}% growth, this sector is creating unprecedented opportunity. Entry requirements are dropping while salaries climb.`,
+        /* Every figure in this block used to be invented when the data was
+           missing, and two were invented unconditionally.
+
+           "12,000+ open positions" was the fallback for an absent job count.
+           "42.0% growth" was the fallback for an absent growth rate — a
+           precise-looking decimal, from nothing. "Healthcare" was the
+           fallback sector, so a reader with no data was told about a
+           healthcare boom in a state whose figures had not loaded. Worst:
+           "Avg Timeline 6-12 months" and "Success Rate 87%" were not
+           fallbacks at all, they were constants — no field anywhere feeds
+           them, the corpus contains no such measure, and 87% was presented
+           beside real dollar amounts as though it shared their provenance.
+
+           Now it states what is in the documents and nothing else. */
+        title: topGrowthSector?.sector
+          ? `${topGrowthSector.sector}: the roles named most`
+          : "Roles named in the workforce plans",
+        narrative: (() => {
+          if (!topGrowthSector) {
+            return "No sector figures have loaded, so there is nothing to compare yet.";
+          }
+          const parts = [
+            `${topGrowthSector.sector} carries more of the named occupations than any other sector in these documents`,
+          ];
+          if (topGrowthSector.jobs > 0) {
+            parts.push(`${topGrowthSector.jobs.toLocaleString()} openings are stated`);
+          } else {
+            parts.push("the documents name the roles without stating headcounts");
+          }
+          if (topGrowthSector.growth > 0) {
+            parts.push(`average stated growth is ${topGrowthSector.growth.toFixed(1)}%`);
+          }
+          return `${parts.join("; ")}.`;
+        })(),
         metrics: [
-          { label: "Open Positions", value: `${topGrowthSector?.jobs?.toLocaleString() || "12,000+"}`, icon: Briefcase },
-          { label: "Growth Rate", value: `+${(topGrowthSector?.growth ?? 42).toFixed(1)}%`, icon: TrendingUp },
-          { label: "Avg Timeline", value: "6-12 months", icon: Clock },
-          { label: "Success Rate", value: "87%", icon: Target },
+          {
+            label: "Openings stated",
+            value: topGrowthSector?.jobs ? topGrowthSector.jobs.toLocaleString() : "—",
+            icon: Briefcase,
+          },
+          {
+            label: "Stated growth",
+            value: topGrowthSector?.growth ? `+${topGrowthSector.growth.toFixed(1)}%` : "—",
+            icon: TrendingUp,
+          },
+          {
+            label: "Roles named",
+            value: String(careerOpportunities.filter(c => c.sector === topGrowthSector?.sector).length),
+            icon: Target,
+          },
+          {
+            label: "Sectors hiring",
+            value: String(new Set(careerOpportunities.map(c => c.sector)).size),
+            icon: Clock,
+          },
         ],
         conversationStarters: [
           `Show me the fastest path to a ${topGrowthSector?.sector || "healthcare"} career`,
@@ -248,8 +317,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
         metrics: [
           { label: "Top Salary", value: highestPayingCareers[0]?.salary || "Competitive", icon: DollarSign },
           { label: "High-Pay Roles", value: `${highestPayingCareers.length}`, icon: Users },
-          { label: "Avg Growth", value: `+${highestPayingCareers.length > 0 ? (highestPayingCareers.reduce((s, c) => s + (c.growth || 0), 0) / highestPayingCareers.length).toFixed(1) : "0"}%`, icon: TrendingUp },
-          { label: "Total Positions", value: highestPayingCareers.reduce((s, c) => s + (c.jobs || 0), 0).toLocaleString(), icon: Briefcase },
+          { label: "Avg stated growth", value: avgStatedGrowth(highestPayingCareers), icon: TrendingUp },
+          { label: "Openings stated", value: sumStatedJobs(highestPayingCareers), icon: Briefcase },
         ],
         conversationStarters: [
           "Which high-paying careers have the lowest competition?",
@@ -261,14 +330,18 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       {
         id: "career-switcher",
         title: "🔄 Career Transition Opportunities",
+        /* "High-growth roles" counted `(c.growth || 0) > 10`, which reads a
+           missing figure as 0 and therefore excludes every role the documents
+           describe as in demand without a percentage — most of them. The
+           demand label is the signal that actually exists. */
         narrative: careerOpportunities.length > 2
-          ? `With ${careerOpportunities.filter(c => (c.growth || 0) > 10).length} high-growth roles and ${new Set(careerOpportunities.map(c => c.sector)).size} sectors hiring, career transitions are well-supported by government-funded retraining programs.`
+          ? `${careerOpportunities.filter(c => c.demand === "high" || c.trending).length} of these roles are described as in strong demand, across ${new Set(careerOpportunities.map(c => c.sector)).size} sectors.`
           : `Career transition pathways are available across growing sectors with government support.`,
         metrics: [
-          { label: "Growing Roles", value: `${careerOpportunities.filter(c => (c.growth || 0) > 10).length}`, icon: TrendingUp },
-          { label: "Sectors Hiring", value: `${new Set(careerOpportunities.map(c => c.sector)).size}`, icon: Clock },
-          { label: "Total Openings", value: careerOpportunities.reduce((s, c) => s + (c.jobs || 0), 0).toLocaleString(), icon: Target },
-          { label: "Avg Growth", value: `+${careerOpportunities.length > 0 ? (careerOpportunities.reduce((s, c) => s + (c.growth || 0), 0) / careerOpportunities.length).toFixed(1) : "0"}%`, icon: Award },
+          { label: "In strong demand", value: `${careerOpportunities.filter(c => c.demand === "high" || c.trending).length}`, icon: TrendingUp },
+          { label: "Sectors hiring", value: `${new Set(careerOpportunities.map(c => c.sector)).size}`, icon: Clock },
+          { label: "Openings stated", value: sumStatedJobs(careerOpportunities), icon: Target },
+          { label: "Avg stated growth", value: avgStatedGrowth(careerOpportunities), icon: Award },
         ],
         conversationStarters: [
           "Show me career switch paths from my current industry",

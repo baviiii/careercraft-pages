@@ -236,7 +236,14 @@ export function AIInsightsPanel({
       if (emerging.length > 0) {
         fallbacks.push({
           title: `${emerging.length} Emerging Skills Signal Future Demand`,
-          explanation: `Skills like ${emerging[0].name} are increasingly prioritized through funding and policy alignment, with ${emerging[0].growth.toFixed(1)}% demand growth.`,
+          /* `emerging[0].growth.toFixed(1)` threw once growth became
+             optional, and before that it printed a hash of the skill's name
+             as a demand-growth rate. The sentence stands without it. */
+          explanation: `Skills like ${emerging[0].name} are increasingly prioritized through funding and policy alignment${
+            emerging[0].growth !== undefined
+              ? `, with ${emerging[0].growth.toFixed(1)}% demand growth`
+              : ""
+          }.`,
           whyItMatters: "Early investment in these capabilities provides competitive advantage in evolving job markets.",
           evidenceSignal: `Cross-referencing funding allocations and workforce data reveals consistent skill prioritization.`,
           trendDirection: "up",
