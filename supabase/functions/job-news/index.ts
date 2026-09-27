@@ -137,6 +137,8 @@ serve(handler(async (req) => {
       console.log(`API Keys available - JSearch: ${!!JSEARCH_API_KEY}, Adzuna: ${!!ADZUNA_APP_ID && !!ADZUNA_APP_KEY}`);
       
       const jobs: any[] = [];
+      /* One lookup for the whole request, not one per job. */
+      const skillVocabulary = await loadSkillVocabulary();
       const pageNum = page || 1;
       const searchQuery = query || "";
       const auLocation = location || "australia";
@@ -176,7 +178,7 @@ serve(handler(async (req) => {
                 source: "JSearch",
                 logo: job.employer_logo,
                 isRemote: job.job_is_remote || false,
-                skills: extractSkillsFromText(job.job_description || ""),
+                skills: extractSkillsFromText(job.job_description || "", skillVocabulary),
                 category: categorizeJob("", job.job_title),
               }));
             })
@@ -223,7 +225,7 @@ serve(handler(async (req) => {
                 source: "SEEK/Adzuna",
                 isRemote: (job.title || "").toLowerCase().includes("remote") ||
                           (job.description || "").toLowerCase().includes("work from home"),
-                skills: extractSkillsFromText(job.description || ""),
+                skills: extractSkillsFromText(job.description || "", skillVocabulary),
                 category: categorizeJob(job.category?.label, job.title),
               }));
             })
@@ -763,6 +765,7 @@ serve(handler(async (req) => {
       console.log(`Fetching ${action} - pulling from ALL job APIs. Industry: ${industry || 'All'}, Level: ${experienceLevel || 'All'}`);
       
       const allJobs: any[] = [];
+      const skillVocabulary = await loadSkillVocabulary();
       const fetchPromises = [];
       
       // Construct query based on industry to get relevant base data
@@ -978,7 +981,7 @@ serve(handler(async (req) => {
           const t = tag.toLowerCase().trim();
           if (t.length > 1) skillCounts[t] = (skillCounts[t] || 0) + 1;
         });
-        const skills = extractSkillsFromText(job.description || "");
+        const skills = extractSkillsFromText(job.description || "", skillVocabulary);
         skills.forEach(s => {
           skillCounts[s.toLowerCase()] = (skillCounts[s.toLowerCase()] || 0) + 1;
         });
@@ -1423,33 +1426,63 @@ function extractSkills(tags: string[]): string[] {
 
 // Helper: Extract skills from job description text
 /*
- * A hardcoded list of software-engineering terms, and the reason the job match
- * score used to favour IT roles over everything else.
+ * Skills named in a job advert, read against the canonical `skill_tags` table.
  *
- * There is no nursing, teaching, trades, aged care, hospitality or retail
- * skill in here. So for a nurse in Adelaide this returned [] on every job, the
- * match score lost its largest signal entirely, and a React developer got the
- * full weight — in a product whose whole positioning is the Australian market
+ * This was a hardcoded array of 38 software-engineering terms — react,
+ * typescript, aws, docker, kubernetes, tensorflow — with nothing for nursing,
+ * teaching, trades, aged care, hospitality or retail. It returned [] on every
+ * job outside software, in a product whose positioning is the Australian market
  * and non-IT careers.
  *
- * Scoring no longer depends on this: `isJobRecommended` matches the user's own
- * skills (resolved from skill_tags) against the advert text, which is
- * profession-agnostic by construction — a nurse's vocabulary finds nursing
- * ads. This list now only feeds the "Hot skills" panel and the pills on a job
- * card, so it is display-only and still IT-shaped. Worth replacing with
- * skill_tags; it is no longer load-bearing.
+ * `skill_tags` is the right source because it GROWS. Onboarding upserts every
+ * skill it extracts from a real résumé into it (see applySkills in
+ * onboarding-api.ts), so the vocabulary widens with the actual user base
+ * instead of with whatever a developer remembered to type. Its original seed is
+ * still IT-and-interview shaped, so early on this reads similar to the old
+ * list — the difference is that it improves on its own from here, and nobody
+ * has to maintain a list of every skill in every profession.
+ *
+ * Loaded once per request and passed down, not queried per job.
  */
-function extractSkillsFromText(text: string): string[] {
-  const skillKeywords = [
-    "react", "typescript", "javascript", "python", "java", "node.js", "nodejs",
-    "aws", "azure", "gcp", "docker", "kubernetes", "sql", "postgresql", "mongodb",
-    "graphql", "rest", "api", "git", "ci/cd", "agile", "scrum", "linux",
-    "html", "css", "vue", "angular", "next.js", "express", "django", "flask",
-    "machine learning", "ai", "data science", "tensorflow", "pytorch"
-  ];
-  
-  const textLower = text.toLowerCase();
-  return skillKeywords.filter(skill => textLower.includes(skill)).slice(0, 6);
+async function loadSkillVocabulary(): Promise<string[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from("skill_tags")
+      .select("name")
+      .limit(2000);
+    if (error) throw error;
+    return (data || [])
+      .map((r: { name: string }) => r.name)
+      .filter((n): n is string => !!n && n.trim().length > 0);
+  } catch (e) {
+    /* Skills are decoration on a job card. If this lookup fails the listings
+       must still render, so fail to an empty vocabulary rather than an error. */
+    console.error("[job-news] skill vocabulary lookup failed:", e);
+    return [];
+  }
+}
+
+/**
+ * Word-boundary match, not substring: the boundary classes exclude +, # and &
+ * so "C++" and "C#" match as themselves, a bare "C" does not match inside
+ * them, and "R" matches "Excel, R and SQL" but not "our R&D team".
+ * Mirrors the matcher in usePersonalization.isJobRecommended.
+ */
+function extractSkillsFromText(text: string, vocabulary: string[]): string[] {
+  if (!text || vocabulary.length === 0) return [];
+  const haystack = text.toLowerCase();
+  const found: string[] = [];
+  for (const name of vocabulary) {
+    const n = name.trim().toLowerCase();
+    if (!n) continue;
+    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^a-z0-9+#&])${escaped}([^a-z0-9+#&]|$)`, "i").test(haystack)) {
+      found.push(name);
+      if (found.length >= 6) break;
+    }
+  }
+  return found;
 }
 
 // Helper: Get top skills from job listings
