@@ -16,7 +16,6 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
 
 export function InvestmentHighlights() {
@@ -95,8 +94,10 @@ export function InvestmentHighlights() {
             <Target className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Investment Highlights</h2>
-            <p className="text-sm text-pink-200/80">Key funding signals</p>
+            {/* "Investment Highlights · Key funding signals" is three words
+                for "important" and no statement of what is important. */}
+            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Worth knowing</h2>
+            <p className="text-sm text-pink-200/80">The figures that stand out</p>
           </div>
         </div>
       </div>
@@ -157,7 +158,9 @@ export function InvestmentHighlights() {
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-pink-300 uppercase tracking-wide mb-1">AI Insight</p>
+              {/* Was "AI Insight". The reader does not need telling which
+                  parts a model wrote — they need telling what it found. */}
+              <p className="text-xs font-semibold text-pink-300 uppercase tracking-wide mb-1">Linked finding</p>
               <p className="text-sm text-white drop-shadow">{crossTabInsights[0].title}</p>
               <p className="text-xs text-pink-200/70 mt-1">{crossTabInsights[0].connection}</p>
             </div>

@@ -1,8 +1,14 @@
 /**
- * HORUS Intelligence Hero — Command Center Overview
- * 
- * A stunning hero section styled like a classified intelligence briefing system.
- * Features real-time metrics, cross-sector connections, and AI-discovered patterns.
+ * The masthead for the South Australian job market page: four figures read
+ * from the state's published record — committed spending, the roles it names,
+ * the skills behind them, and where those line up.
+ *
+ * This docblock used to say "styled like a classified intelligence briefing
+ * system" with "real-time metrics". That was an accurate description of the
+ * component and the reason it had to change: the reader is a job seeker, the
+ * source is a set of documents tabled once a year, and nothing here is
+ * real-time. Every figure waits on its own request and shows "—" when the
+ * documents do not state one.
  */
 
 import { useMemo, useState, useEffect } from "react";

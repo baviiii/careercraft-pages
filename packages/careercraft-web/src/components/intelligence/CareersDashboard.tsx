@@ -24,7 +24,6 @@ import {
   Download,
   Eye,
   Loader2,
-  Sparkles,
   Zap,
   Target,
   MessageSquare,
@@ -317,19 +316,31 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           </div>
           <div>
             <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 bg-clip-text text-transparent">
-              Career Opportunities
+              Who's hiring
             </h2>
+            {/* The job count is conditional now. `totalJobs ?? 0` printed
+                "0 jobs" next to a real list of occupations, because the
+                corpus routinely names a role as in demand without stating a
+                headcount — the normal case, not the exception. Zero read as
+                "nobody is hiring for any of these", which is the opposite of
+                what the documents say. */}
             <p className="text-sm text-slate-300 flex items-center gap-2">
-              <span className="font-semibold text-pink-400">{filteredCareers.length}</span> careers •
-              <span className="font-semibold text-rose-400">{(totalJobs ?? 0).toLocaleString()}</span> jobs
+              <span className="font-semibold text-pink-400">{filteredCareers.length}</span>
+              {filteredCareers.length === 1 ? "role" : "roles"}
+              {(totalJobs ?? 0) > 0 ? (
+                <>
+                  • <span className="font-semibold text-rose-400">{totalJobs!.toLocaleString()}</span> openings
+                </>
+              ) : (
+                <span className="text-slate-400">· no headcounts stated</span>
+              )}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-400 border-pink-400/30 gap-1 px-3 py-1.5 backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="font-semibold">AI-Powered</span>
-          </Badge>
+          {/* A sparkle badge reading "AI-Powered" sat beside Export. It
+              labelled the panel with its own genre and carried no figure.
+              Same badge removed from the funding and skills headers. */}
           <Button variant="outline" size="sm" className="gap-2 border-pink-400/30 hover:bg-pink-500/10 hover:border-pink-400/50">
             <Download className="w-4 h-4" />Export
           </Button>
@@ -349,15 +360,17 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                 <Lightbulb className="w-5 h-5 text-white" />
               </div>
               <div>
+                {/* "Career Intelligence · Real-time AI Analysis" described
+                    the machinery and claimed a liveness the source does not
+                    have. Workforce plans are published documents. */}
                 <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-pink-400 to-rose-400 bg-clip-text text-transparent">
-                  Career Intelligence
+                  What the workforce plans say
                 </h3>
-                <p className="text-xs text-pink-200 font-medium">Real-time AI Analysis</p>
+                <p className="text-xs text-pink-200 font-medium">
+                  Read from South Australia's published reporting
+                </p>
               </div>
-              <Badge className="bg-gradient-to-r from-pink-500/30 to-rose-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
-                <Sparkles className="w-3 h-3 mr-1" />
-                AI-Powered
-              </Badge>
+              {/* "AI-Powered" badge removed — see FundingDashboard. */}
             </div>
           <div className="flex items-center gap-2">
             {careerStories.map((_, idx) => (
@@ -445,7 +458,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="font-display text-2xl font-bold text-white drop-shadow-lg">Sector Growth Rates</h3>
+            <h3 className="font-display text-2xl font-bold text-white drop-shadow-lg">Which sectors are growing</h3>
             <p className="text-sm text-pink-200/80">Click to filter careers by sector</p>
           </div>
           <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40 backdrop-blur-sm">
@@ -523,14 +536,17 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
               <Users className="w-6 h-6 text-white" />
             </div>
-            <div className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
-              <span className="text-xs font-bold text-blue-600">LIVE</span>
-            </div>
+            {/* A bold "LIVE" pill sat here, over a figure that is zero
+                whenever the corpus names roles without stating headcounts —
+                which is most of the time. A liveness stamp on an absent
+                number is the exact pattern this pass is removing. */}
           </div>
           <p className="text-4xl font-bold bg-gradient-to-br from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
-            {(totalJobs ?? 0).toLocaleString()}
+            {(totalJobs ?? 0) > 0 ? totalJobs!.toLocaleString() : "—"}
           </p>
-          <p className="text-sm font-semibold text-slate-200">Total Opportunities</p>
+          <p className="text-sm font-semibold text-slate-200">
+            {(totalJobs ?? 0) > 0 ? "Openings stated" : "No headcounts stated"}
+          </p>
           <p className="text-xs text-slate-400 mt-1">Active job postings across all sectors</p>
         </motion.div>
 
@@ -585,9 +601,9 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           <div className="flex items-center gap-3">
             <Briefcase className="w-5 h-5 text-pink-300" />
             <h3 className="font-display text-lg font-semibold text-white drop-shadow-lg">
-              Career Opportunities
+              Roles the documents name
               <span className="ml-2 text-sm font-normal text-pink-200">
-                ({filteredCareers.length} total)
+                ({filteredCareers.length})
               </span>
             </h3>
           </div>

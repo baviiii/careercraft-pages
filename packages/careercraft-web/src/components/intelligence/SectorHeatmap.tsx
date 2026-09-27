@@ -108,8 +108,13 @@ export function SectorHeatmap() {
             <BarChart3 className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Sector Heatmap</h2>
-            <p className="text-sm text-pink-200/80">Investment intensity by sector</p>
+            {/* "Sector Heatmap" over "Investment intensity by sector" named
+                the chart type and then the axis. Neither tells the reader
+                what they will learn, and "intensity" is a word this data
+                does not support — it is a share of a total, which is a thing
+                anyone can read directly. */}
+            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Which sectors get the most</h2>
+            <p className="text-sm text-pink-200/80">Share of committed spending</p>
           </div>
         </div>
         <Badge className="text-xs bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-pink-200 border-pink-400/40 backdrop-blur-sm">{heatmapData.length} sectors</Badge>

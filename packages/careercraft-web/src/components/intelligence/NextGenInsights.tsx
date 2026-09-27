@@ -387,7 +387,8 @@ export function DataStoriesPanel() {
 }
 
 // ============================================================================
-// LIVE DISCOVERY FEED - Real-time AI insights
+// Rotating feed of findings derived from the four tabs. Not a stream — the
+// findings exist before the feed shows them, and pause stops the rotation.
 // ============================================================================
 
 interface Discovery {
@@ -589,7 +590,12 @@ export function LiveDiscoveryFeed() {
             )}
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Live Discovery</h3>
+            {/* "Live Discovery" implied findings arriving as you watch. The
+                feed rotates through findings already computed from the four
+                tabs; play/pause controls the rotation, not a stream. The
+                pulsing dot beside it is honest about that — the heading was
+                not. */}
+            <h3 className="text-lg font-bold text-white">Notable findings</h3>
             {/* Was "AI is analyzing patterns right now…", printed under a
                 spinner whether or not anything was running — and it never
                 was when the corpus was down. State the finding count. */}

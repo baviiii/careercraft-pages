@@ -1,11 +1,15 @@
 /**
  * IntelligenceOverview - Main intelligence dashboard page
  * 
- * Features:
- * - Centralized IntelligenceContext for cost-efficient data fetching
- * - AI-powered insights with cross-tab connections
- * - Stunning hero section with real-time metrics
- * - Tab-based navigation with lazy loading
+ * - IntelligenceContext owns the fetching; four standing queries, one per
+ *   tab, each taking 20-50 seconds and each painting the moment it lands.
+ * - A stored snapshot fills the page before any request returns, labelled
+ *   with its age, and is discarded if the corpus size has changed.
+ * - Tabs are questions, not categories. The ids still key the fetches.
+ *
+ * Nothing on this page is real-time — the docblock used to claim it was. The
+ * source is South Australia's published budget papers, workforce plans and
+ * skills reporting.
  */
 
 import { useState, useEffect as ReactUseEffect, useRef, useMemo } from "react";

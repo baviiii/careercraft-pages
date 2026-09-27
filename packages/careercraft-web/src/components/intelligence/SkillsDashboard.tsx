@@ -221,19 +221,27 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
           </div>
           <div>
             <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-purple-500 via-pink-500 to-purple-600 bg-clip-text text-transparent">
-              Skills Intelligence
+              What to learn
             </h2>
+            {/* The second half of this line read "AI-Powered ROI" — a
+                marketing phrase sitting in the slot where a figure belongs,
+                beside a real count. Replaced with the thing a reader can act
+                on: whether there is a training pathway attached. */}
             <p className="text-sm text-slate-400 flex items-center gap-2">
-              <span className="font-semibold text-purple-400">{filteredSkills.length}</span> skills in demand •
-              <span className="font-semibold text-pink-400">AI-Powered ROI</span>
+              <span className="font-semibold text-purple-400">{filteredSkills.length}</span>
+              {filteredSkills.length === 1 ? "skill in demand" : "skills in demand"}
+              {trainingPrograms.length > 0 && (
+                <>
+                  • <span className="font-semibold text-pink-400">{trainingPrograms.length}</span>
+                  {trainingPrograms.length === 1 ? "training pathway" : "training pathways"}
+                </>
+              )}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 border-purple-400/30 gap-1 px-3 py-1.5 backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="font-semibold">AI-Powered ROI</span>
-          </Badge>
+          {/* A sparkle badge reading "AI-Powered ROI" sat here. Removed with
+              its counterparts on the funding and careers headers. */}
           <Button variant="outline" size="sm" className="gap-2 border-pink-400/30 hover:bg-pink-500/10 hover:border-pink-400/50">
             <Download className="w-4 h-4" />Export
           </Button>
@@ -253,15 +261,18 @@ export function SkillsDashboard({ searchQuery = "" }: SkillsDashboardProps) {
                 <Calculator className="w-5 h-5 text-white" />
               </div>
               <div>
+                {/* Was "Skills ROI Intelligence · Real-time skills
+                    analysis". Three abstractions and a false liveness claim,
+                    over content that is a reading of published skills
+                    reporting. */}
                 <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  Skills ROI Intelligence
+                  Which skills pay off
                 </h3>
-                <p className="text-xs text-slate-300 font-medium">Real-time skills analysis</p>
+                <p className="text-xs text-slate-300 font-medium">
+                  Read from South Australia's skills reporting
+                </p>
               </div>
-              <Badge className="bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
-                <Sparkles className="w-3 h-3 mr-1" />
-                AI-Powered
-              </Badge>
+              {/* "AI-Powered" badge removed — see FundingDashboard. */}
             </div>
           <div className="flex items-center gap-2">
             {skillsStories.map((_, idx) => (
