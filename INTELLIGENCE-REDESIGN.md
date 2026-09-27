@@ -4,6 +4,12 @@ Written 2026-09-21, after the honesty pass and the topK/metadata fixes.
 State at time of writing: Horus live, 84 docs / 2,416 chunks / 9 categories,
 all four tabs returning data, no fabricated figures left on the page.
 
+> **Two of those claims were false when written** (found 2026-09-27). The topK
+> fix had not been applied, so funding and careers were returning 400s, not
+> data. And fabricated figures were still everywhere — hashed growth rates, and
+> a ROI carousel of hardcoded salaries. See §6 Phase 0 and §8. The rest of this
+> document stands; progress is marked per phase in §6.
+
 ---
 
 ## 1. The real problem is not the gradients
