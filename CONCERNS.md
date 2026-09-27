@@ -50,9 +50,12 @@ in the repo.
 - `set-supabase-secrets.ps1` (lines ~32-34) and `set-supabase-secrets.sh`
   (~29-31) still push `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `_KEY` to
   Supabase.
-- `supabase/RAG-ENV-SETUP.md:112` still claims *"the `parse-resume` function
-  uses Azure Document Intelligence + GPT-4o-mini"*. Wrong.
 - `.env.example:20` is the only one that's correct — says REMOVED.
+
+**Half resolved 2026-09-27:** `supabase/RAG-ENV-SETUP.md` claimed at line 112
+that `parse-resume` used Azure Document Intelligence. That file is deleted —
+along with the rest of the Azure-Functions-RAG docs, which described a
+retrieval path the code no longer has. Only the two secrets scripts are left.
 
 **Why it matters:** setting up a fresh environment from these scripts/docs
 provisions and wires a service nothing uses. Relevant now that Azure has been
@@ -61,8 +64,8 @@ recommissioned a different way — the stale docs describe the old shape.
 **Not urgent because:** setting an unused secret costs nothing and breaks
 nothing.
 
-**Decide later:** strip DI from the two secrets scripts and correct
-`RAG-ENV-SETUP.md`. Unrelated: `DocumentIntelligenceVisualizer` in
+**Decide later:** strip DI from the two secrets scripts. Unrelated:
+`DocumentIntelligenceVisualizer` in
 `CareerExplorer.tsx` / `TryUs.tsx` is a Horus-era React component, same words,
 nothing to do with Azure DI — leave it alone.
 

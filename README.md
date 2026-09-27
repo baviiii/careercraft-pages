@@ -1,68 +1,48 @@
-# Horus Intelligence - AI-Powered Career & Policy Platform
+# Faircopy
 
-## Project Overview
+A résumé workshop for the Australian job market. Build the file, check it against a
+job ad, track applications, and read what the market is actually doing.
 
-Horus Intelligence is an AI-powered platform for understanding policy, workforce trends, and career opportunities. Transform complex data into actionable insights.
+Deployed to Vercel on push to `main`. Live docs worth reading before you change
+anything: [LAUNCH-TODO.md](LAUNCH-TODO.md) (what's left before launch),
+[CONCERNS.md](CONCERNS.md) (known issues parked on purpose),
+[MONETIZATION-PLAN.md](MONETIZATION-PLAN.md) (plans, limits, the token ledger).
 
-## Getting Started
+## Layout
 
-### Prerequisites
+```
+packages/careercraft-web    the React app (Vite + TypeScript + Tailwind + shadcn)
+packages/shared             types shared between the app and the functions
+supabase/functions          edge functions — every AI call goes through one
+supabase/migrations         schema, RLS, plans and limits
+```
 
-- Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-### Installation
+## Running it
 
 ```sh
-# Step 1: Clone the repository
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory
-cd careercraft-pages
-
-# Step 3: Install the necessary dependencies
 npm i
-
-# Step 4: Start the development server
-npm run dev
+npm run dev          # turbo dev across the workspace
+npm run typecheck    # per-package tsc --noEmit
 ```
 
-## Technologies
+## Where the AI comes from
 
-This project is built with:
+Everything — résumé parsing, ATS scoring, rewrites, cover letters, the chat and the
+Intelligence corpus — goes through the **Horus** gateway (`horus.bavi.au`) via the
+`horus-rag` and `infer` edge functions. There is no second retrieval path: the old
+Azure AI Search / Azure Functions estate has been removed, on purpose, so an outage
+shows up as an outage instead of silently answering from a stale corpus.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Supabase
-- Azure AI Services
+The one carve-out is `parse-resume`, which calls Azure OpenAI vision directly
+because Horus `/api/infer` does not accept image inputs yet.
 
-## Deployment
+## Environment
 
-Build the project for production:
+See `.env.example` for the full list. The ones that matter: `SUPABASE_*`,
+`HORUS_BASE_URL` + `HORUS_API_KEY`, `AZURE_OPENAI_*` (vision carve-out),
+`ADZUNA_*` / `JSEARCH_API_KEY` (job search). `VITE_HORUS_RAG=off` disables the
+retrieval path.
 
-```sh
-npm run build
-```
+---
 
-The built files will be in the `dist` directory, ready to be deployed to your hosting provider.
-
-## Features
-
-- **Horus Chat**: AI-powered chat assistant with RAG (Retrieval-Augmented Generation) capabilities
-- **Policy Analysis**: Deep insights into government policies and strategic direction
-- **Career Intelligence**: Job market trends, training programs, and career guidance
-- **Admin Dashboard**: Comprehensive admin panel for managing prompts, sessions, and analytics
-
-## Environment Variables
-
-Make sure to configure the following environment variables:
-
-- `VITE_SUPABASE_URL`: Your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
-- `GEMINI_API_KEY`: Google Gemini API key (for AI-assisted features)
-
-## License
-
-Copyright © 2024 Horus Intelligence. All rights reserved.
+© 2026 Faircopy. All rights reserved.
