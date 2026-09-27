@@ -13,18 +13,12 @@ import {
   TrendingDown,
   DollarSign,
   Briefcase,
-  Sparkles,
   Zap,
   Target,
   ArrowUpRight,
   Activity,
-  Shield,
-  Eye,
-  Cpu,
   Network,
   AlertTriangle,
-  CheckCircle,
-  Circle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -48,85 +42,27 @@ const item = {
   },
 } as const;
 
-const pulseRing = {
-  initial: { scale: 1, opacity: 0.8 },
-  animate: { 
-    scale: [1, 1.5, 1], 
-    opacity: [0.8, 0, 0.8],
-  },
-};
-
-/*
- * This was labelled "Simulated system status for briefing feel" and that is
- * exactly what it was: three green lights hardcoded to active/complete,
- * printed directly above a counter reading "0 docs indexed". A reader
- * looking at a page of zeros was being told every subsystem was healthy.
- *
- * "offline" is the state that was missing. Green now has to be earned.
- */
-const SystemStatus = ({
-  label,
-  status,
-}: {
-  label: string;
-  status: "active" | "processing" | "complete" | "offline";
-}) => (
-  <div className="flex items-center gap-2 text-xs">
-    <div className="relative">
-      {status === "active" && (
-        <>
-          <Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" />
-          <motion.div
-            className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-400"
-            animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-          />
-        </>
-      )}
-      {status === "processing" && (
-        <Circle className="w-2 h-2 fill-amber-400 text-amber-400 animate-pulse" />
-      )}
-      {status === "complete" && (
-        <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />
-      )}
-      {/* Hollow and still. No fill, no ring, no pulse. */}
-      {status === "offline" && (
-        <Circle className="w-2 h-2 text-slate-600" />
-      )}
-    </div>
-    <span className={cn(
-      "font-mono uppercase tracking-wide",
-      status === "active" ? "text-emerald-400" :
-      status === "processing" ? "text-amber-400" :
-      status === "offline" ? "text-slate-600" : "text-slate-500"
-    )}>
-      {label}
-    </span>
-  </div>
-);
+/* `pulseRing` and the `SystemStatus` component lived here.
+   pulseRing animated the ring behind the deleted HORUS v2.0 eye logo.
+   SystemStatus drew the Vector Search / AI Analysis / Pattern Detection
+   lights, which went with the panel above the stat cards. Both had exactly
+   one caller each, and both callers are gone. */
 
 export function IntelligenceHero() {
   const {
-    metrics,
     totalBudget,
     totalJobs,
     topGrowthSector,
     emergingTrends,
     crossTabInsights,
-    globalLoading,
     getTabData,
     fundingAllocations,
     careerOpportunities,
     skillsDemand,
   } = useIntelligence();
 
-  /* Same test the page masthead uses: documents are the only proof the
-     corpus answered. Everything else on this hero can render happily
-     against an empty response. */
-  const isConnected = (metrics?.totalDocuments ?? 0) > 0;
-
   /* Each card waits on ITS OWN request, not on all four.
-     globalLoading is now only true until the first tab lands, so using it
+     globalLoading is only true until the first tab lands, so using it
      per-card would make a finished card look finished before its own data
      had actually arrived. These are the real per-tab flags. */
   const fundingLoading = getTabData("funding").loading;
@@ -145,10 +81,17 @@ export function IntelligenceHero() {
 
      Loading now means a fetch is in flight — nothing else. A resolved-but-
      empty figure shows "—" and says why, which is a finding, not a wait. */
+  /* Labels are what the reader wants to know, not how the data is filed.
+     These were FISCAL ALLOCATION, WORKFORCE SIGNALS, CAPABILITY DEMAND and
+     AI CONNECTIONS — monospace small caps, which is the typography of a
+     classification stamp. The page's whole credibility problem was that it
+     addressed an intelligence analyst while serving someone in Adelaide
+     working out whether to retrain as an enrolled nurse. The figures under
+     these labels never changed; only who they are speaking to did. */
   const heroStats = useMemo(() => [
     {
       id: "budget",
-      label: "FISCAL ALLOCATION",
+      label: "Where the money goes",
       value: totalBudget > 0 ? `$${(totalBudget / 1000).toFixed(1)}B` : "—",
       subValue:
         fundingAllocations.length > 0
@@ -163,7 +106,7 @@ export function IntelligenceHero() {
     },
     {
       id: "careers",
-      label: "WORKFORCE SIGNALS",
+      label: "Who's hiring",
       /* Falls back to the count of roles. The corpus often names occupations
          without stating headcounts, and "11 roles" is a real answer where a
          summed 0 jobs is not. */
@@ -188,7 +131,7 @@ export function IntelligenceHero() {
     },
     {
       id: "skills",
-      label: "CAPABILITY DEMAND",
+      label: "What to learn",
       value: skillsDemand.length > 0 ? skillsDemand.length.toString() : "—",
       subValue:
         skillsDemand.length > 0
@@ -203,12 +146,15 @@ export function IntelligenceHero() {
     },
     {
       id: "connections",
-      label: "AI CONNECTIONS",
+      label: "How they connect",
       value: crossTabInsights.length > 0 ? crossTabInsights.length.toString() : "—",
+      /* "Cross-sector patterns" described the method. What a reader wants is
+         the shape of the claim: funding in one sector moving with hiring in
+         another — health money up, nursing roles growing. */
       subValue:
         crossTabInsights.length > 0
-          ? "Cross-sector patterns"
-          : connectionsLoading ? "Comparing sectors" : "No patterns found",
+          ? `${crossTabInsights.length === 1 ? "Link" : "Links"} between spending and hiring`
+          : connectionsLoading ? "Comparing sectors" : "No links found",
       icon: Network,
       gradient: "from-emerald-500 via-teal-500 to-cyan-500",
       bgGradient: "from-emerald-500/10 to-teal-500/5",
@@ -304,46 +250,21 @@ export function IntelligenceHero() {
               </p>
             </div>
 
-            {/* System Status Panel */}
-            <div className="hidden md:flex flex-col items-end gap-2 p-4 rounded-xl bg-slate-900/50 border border-slate-700/50 backdrop-blur-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <Cpu className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">System Status</span>
-              </div>
-              {/* Every light now derives from whether documents actually
-                  arrived. With an empty corpus there is no index to search,
-                  nothing to analyse and nothing to detect patterns in — so
-                  all three read offline rather than green. */}
-              <SystemStatus
-                label="Vector Search"
-                status={globalLoading ? "processing" : isConnected ? "active" : "offline"}
-              />
-              <SystemStatus
-                label="AI Analysis"
-                status={globalLoading ? "processing" : isConnected ? "complete" : "offline"}
-              />
-              <SystemStatus
-                label="Pattern Detection"
-                status={globalLoading ? "processing" : isConnected ? "active" : "offline"}
-              />
-              <div className="mt-2 pt-2 border-t border-slate-700/50">
-                <div className="flex items-center gap-2">
-                  <Shield
-                    className={cn("w-3 h-3", isConnected ? "text-emerald-400" : "text-slate-600")}
-                  />
-                  <span
-                    className={cn(
-                      "text-[10px] font-mono",
-                      isConnected ? "text-emerald-400" : "text-slate-500",
-                    )}
-                  >
-                    {isConnected
-                      ? `${metrics?.totalDocuments?.toLocaleString()} docs indexed`
-                      : "Archive not connected"}
-                  </span>
-                </div>
-              </div>
-            </div>
+            {/* A "System Status" panel stood here: a CPU icon, and three
+                lights labelled Vector Search, AI Analysis and Pattern
+                Detection, over a shield reading "N docs indexed".
+
+                The previous pass made those lights honest — they followed
+                the real connection state instead of being hardcoded green.
+                Honest was not enough. "Vector Search: active" is a retrieval
+                implementation detail, and it was occupying the top-right of
+                the page for a reader who wants to know which roles South
+                Australia is hiring for. Nobody outside this codebase knows
+                what pattern detection being green would mean for them.
+
+                Connection state is reported once, in the topbar, where the
+                freshness line already lives. A second opinion in a more
+                emphatic typeface is not more information. */}
           </motion.div>
 
           {/* Metrics Grid */}
@@ -401,6 +322,15 @@ export function IntelligenceHero() {
                     )}
                   </div>
                   
+                  {/* Label first.
+                      It sat under the figure in 10px mono uppercase with
+                      widest tracking — the typography of a classification
+                      stamp, which also meant `uppercase` shouted the new
+                      sentence-case wording back into the voice being
+                      removed. A reader needs to know what a number counts
+                      before they read it, so it leads. */}
+                  <p className="text-xs text-slate-400 mb-1.5">{stat.label}</p>
+
                   {/* Value */}
                   <AnimatePresence mode="wait">
                     {stat.loading ? (
@@ -424,15 +354,10 @@ export function IntelligenceHero() {
                         <p className="text-3xl lg:text-4xl font-black text-white tracking-tight">
                           {stat.value}
                         </p>
-                        <p className="text-xs text-slate-400 mt-1">{stat.subValue}</p>
+                        <p className="text-xs text-slate-500 mt-1">{stat.subValue}</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  
-                  {/* Label */}
-                  <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-4">
-                    {stat.label}
-                  </p>
                 </div>
               </motion.div>
             ))}
@@ -449,8 +374,14 @@ export function IntelligenceHero() {
                   <Zap className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">AI-Discovered Connections</h3>
-                  <p className="text-xs text-slate-500">Cross-sector patterns detected by semantic analysis</p>
+                  {/* Was "AI-Discovered Connections" over "Cross-sector
+                      patterns detected by semantic analysis" — a description
+                      of the method, twice, with the reader's question
+                      answered nowhere. Say what the links are. */}
+                  <h3 className="text-sm font-bold text-white">Where spending and hiring line up</h3>
+                  <p className="text-xs text-slate-500">
+                    Sectors whose funding and workforce signals move together in the same documents
+                  </p>
                 </div>
               </div>
               
