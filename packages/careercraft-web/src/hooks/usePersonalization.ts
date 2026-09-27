@@ -104,6 +104,66 @@ export interface NewsPreferences {
    so every surface (jobs, market, news) can show a consistent rating. */
 export type MatchBand = 'strong' | 'good' | 'fair' | 'low';
 
+/* ── Industry matching ───────────────────────────────────────────────────────
+   Two taxonomies that do not agree, and no shared vocabulary between them.
+
+   Our side is `INDUSTRIES` in useUserProfile: 20 title-case values, some
+   compound ("Finance & Banking"). A job arrives with whatever `categorizeJob`
+   produced — one of five collapsed lowercase words, or a raw Adzuna label like
+   "Trade & Construction Jobs".
+
+   A whole-string `includes` was wrong in both directions. "Finance & Banking"
+   can never be found inside "finance", because the needle is longer than the
+   haystack — so anyone in finance silently lost this signal. Comparing
+   significant words instead fixes that, and the explicit synonyms cover the
+   cases where the two taxonomies simply use different nouns for the same
+   sector. Everything here is auditable: if a user says the industry match is
+   wrong, the reason is one of these lines.
+
+   This is exactly the work an embedding would do without a table — "Education"
+   and "Teaching Jobs" are near-identical in vector space and share no word.
+   Worth revisiting if this list grows past about twenty entries; below that,
+   a map you can read beats a model you cannot. */
+const INDUSTRY_STOP_WORDS = new Set(['and', 'the', 'of', 'jobs', 'other']);
+
+function industryTokens(value: string): string[] {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 2 && !INDUSTRY_STOP_WORDS.has(w));
+}
+
+/** Words a job board is likely to use for one of our industries. */
+const INDUSTRY_SYNONYMS: Record<string, string[]> = {
+  'education': ['teaching', 'training', 'academic'],
+  'real estate': ['property'],
+  'non-profit': ['charity', 'voluntary', 'community'],
+  'transportation': ['logistics', 'warehouse', 'transport', 'driving'],
+  'technology': ['software', 'engineering'],
+  'healthcare': ['nursing', 'medical', 'care'],
+  'media & entertainment': ['creative', 'advertising'],
+  'government': ['public sector', 'defence'],
+};
+
+export function industryMatches(
+  industry: string,
+  category?: string,
+  title?: string,
+): boolean {
+  const wanted = [
+    ...industryTokens(industry),
+    ...(INDUSTRY_SYNONYMS[industry.toLowerCase()] ?? []).flatMap(industryTokens),
+  ];
+  if (wanted.length === 0) return false;
+
+  /* Category is the board's own classification and far more reliable than the
+     title, which rarely names a sector — "Healthcare" does not appear in
+     "Registered Nurse - Ward 3B". Title stays as a fallback for the sources
+     that send no category at all. */
+  const haystack = industryTokens(`${category ?? ''} ${title ?? ''}`);
+  return wanted.some((w) => haystack.includes(w));
+}
+
 export function matchLevel(score: number): { match: number; band: MatchBand } {
   const match = score <= 0 ? 0 : Math.round(100 * (1 - Math.exp(-score / 35)));
   const band: MatchBand =
@@ -510,10 +570,7 @@ export function usePersonalization() {
        `category` field is what classifies a posting ("Healthcare & Nursing
        Jobs"), so check that first and keep the title as a fallback. */
     if (profile.industry) {
-      const industry = profile.industry.toLowerCase();
-      const inCategory = job.category?.toLowerCase().includes(industry);
-      const inTitle = job.title?.toLowerCase().includes(industry);
-      if (inCategory || inTitle) {
+      if (industryMatches(profile.industry, job.category, job.title)) {
         score += 10;
         reasons.push('Industry match');
       }
