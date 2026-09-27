@@ -108,6 +108,12 @@ export default function JobTrackerPage() {
           location: job.location ?? undefined,
           salaryMin: job.salary_min ?? undefined,
           salaryMax: job.salary_max ?? undefined,
+          salaryIsPredicted: job.salary_is_predicted,
+          category: job.category ?? undefined,
+          /* Was passing no text at all, so the skills signal could not fire
+             here even in principle. The snippet is short, but a job title plus
+             two sentences still names the skills that matter. */
+          description: job.description_snippet ?? undefined,
           isRemote: job.is_remote,
         }).score,
       }))

@@ -207,8 +207,12 @@ serve(handler(async (req) => {
                 location: job.location?.display_name || "Australia",
                 salaryMin: job.salary_min,
                 salaryMax: job.salary_max,
+                /* Adzuna predicts a range when the advert does not quote
+                   one and flags it as "1". Unflagged, a guess reads as the
+                   employer's figure — see the note in job-search. */
+                salaryIsPredicted: String(job.salary_is_predicted ?? "") === "1",
                 salary: job.salary_min && job.salary_max 
-                  ? `$${Math.round(job.salary_min/1000)}k - $${Math.round(job.salary_max/1000)}k`
+                  ? `$${Math.round(job.salary_min/1000)}k - $${Math.round(job.salary_max/1000)}k${String(job.salary_is_predicted ?? "") === "1" ? " (est.)" : ""}`
                   : null,
                 type: job.contract_time === "full_time" ? "Full-time" : 
                       job.contract_time === "part_time" ? "Part-time" : 
@@ -1418,6 +1422,23 @@ function extractSkills(tags: string[]): string[] {
 }
 
 // Helper: Extract skills from job description text
+/*
+ * A hardcoded list of software-engineering terms, and the reason the job match
+ * score used to favour IT roles over everything else.
+ *
+ * There is no nursing, teaching, trades, aged care, hospitality or retail
+ * skill in here. So for a nurse in Adelaide this returned [] on every job, the
+ * match score lost its largest signal entirely, and a React developer got the
+ * full weight — in a product whose whole positioning is the Australian market
+ * and non-IT careers.
+ *
+ * Scoring no longer depends on this: `isJobRecommended` matches the user's own
+ * skills (resolved from skill_tags) against the advert text, which is
+ * profession-agnostic by construction — a nurse's vocabulary finds nursing
+ * ads. This list now only feeds the "Hot skills" panel and the pills on a job
+ * card, so it is display-only and still IT-shaped. Worth replacing with
+ * skill_tags; it is no longer load-bearing.
+ */
 function extractSkillsFromText(text: string): string[] {
   const skillKeywords = [
     "react", "typescript", "javascript", "python", "java", "node.js", "nodejs",

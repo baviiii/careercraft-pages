@@ -125,8 +125,12 @@ interface Job {
   salary?: string;
   salaryMin?: number;
   salaryMax?: number;
+  /** True when the board predicted the salary rather than the employer stating it. */
+  salaryIsPredicted?: boolean;
   type: string;
   description: string;
+  /** The board's classification, used for the industry signal in the match score. */
+  category?: string;
   url: string;
   postedAt: string;
   source: string;
@@ -497,9 +501,15 @@ export default function AustralianJobs() {
         salary: job.salary,
         salaryMin: job.salaryMin,
         salaryMax: job.salaryMax,
+        salaryIsPredicted: job.salaryIsPredicted,
         location: job.location,
         type: job.type,
-        skills: job.skills,
+        category: job.category,
+        /* Skills are read out of this now, against the user's own skill list.
+           `skills` is no longer passed: the server fills it from a hardcoded
+           list of 38 software terms, so it was empty for every nurse, tradie
+           and teacher — and that was the score's biggest signal. */
+        description: job.description,
         isRemote: job.isRemote,
       });
       return {

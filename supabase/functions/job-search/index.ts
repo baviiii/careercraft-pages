@@ -45,6 +45,20 @@ const JobSchema = z.object({
   job_type: z.string().max(60).nullable().optional(),
   is_remote: z.boolean().optional(),
   /*
+   * Both of these were being thrown away.
+   *
+   * `category` is the board's own classification ("Healthcare & Nursing
+   * Jobs"). The match scorer was testing the user's industry against the job
+   * TITLE, which almost never contains it, so that signal was nearly dead.
+   *
+   * `salary_is_predicted` matters more: Adzuna predicts a range for adverts
+   * that do not quote one. Dropping the flag meant a prediction was stored and
+   * displayed as though the employer had stated it, and scored against the
+   * user's real salary floor.
+   */
+  category: z.string().max(200).nullable().optional(),
+  salary_is_predicted: z.boolean().optional(),
+  /*
    * One field, because there is only ever one string.
    *
    * This used to be `description_snippet` plus a `full_description` capped at
@@ -118,6 +132,9 @@ async function toJob(raw: Record<string, unknown>): Promise<Job> {
     salary_max: Number.isFinite(raw.salary_max) ? (raw.salary_max as number) : null,
     currency: "AUD",
     job_type: normalizeJobType(raw.contract_time as string),
+    category: (raw.category as { label?: string })?.label || null,
+    /* Adzuna sends this as the string "0" or "1", not a boolean. */
+    salary_is_predicted: String(raw.salary_is_predicted ?? "") === "1",
     is_remote: detectRemote(title, snippet),
     description_snippet: snippet || null,
     posted_at: (raw.created as string) || null,
@@ -259,9 +276,15 @@ serve(handler(async (req) => {
       status: "applied",
       job_url: job.canonical_url ?? null,
       location: job.location ?? null,
+      /* Say when the range is Adzuna's prediction rather than the employer's
+         figure. This is saved onto the application and read back weeks later,
+         by which point nobody remembers which ads quoted pay — so an
+         unmarked estimate becomes a remembered fact. */
       salary_range:
         job.salary_min && job.salary_max
-          ? `$${Math.round(job.salary_min / 1000)}k - $${Math.round(job.salary_max / 1000)}k`
+          ? `$${Math.round(job.salary_min / 1000)}k - $${Math.round(job.salary_max / 1000)}k${
+              job.salary_is_predicted ? " (est.)" : ""
+            }`
           : null,
       job_type: job.job_type ?? null,
       /* The extract, all we have. JobDetailPanel checks its length and tells

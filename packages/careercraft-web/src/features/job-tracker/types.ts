@@ -41,6 +41,10 @@ export interface JobCatalogJob {
   currency: string | null;
   job_type: string | null;
   is_remote: boolean;
+  /** The board's classification, e.g. "Healthcare & Nursing Jobs". */
+  category: string | null;
+  /** True when the board predicted the salary instead of the employer stating it. */
+  salary_is_predicted: boolean;
   description_snippet: string | null;
   /* Was `full_description`. Adzuna never sent a full description — see the
      note in supabase/functions/job-search/index.ts. */

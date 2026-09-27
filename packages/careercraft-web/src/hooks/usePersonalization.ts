@@ -389,9 +389,14 @@ export function usePersonalization() {
     salary?: string;
     salaryMin?: number;
     salaryMax?: number;
+    /** True when the board predicted this salary instead of the employer stating it. */
+    salaryIsPredicted?: boolean;
     location?: string;
     type?: string;
-    skills?: string[];
+    /** The board's own classification, e.g. "Healthcare & Nursing Jobs". */
+    category?: string;
+    /** Job title + advert text. Skills are read out of this. */
+    description?: string;
     isRemote?: boolean;
   }) => {
     let score = 0;
@@ -418,14 +423,51 @@ export function usePersonalization() {
       reasons.push('Similar to current role');
     }
 
-    // Match skills
-    const userSkillNames = profile.skills.map(s => s.name.toLowerCase());
-    const matchedSkills = (job.skills || []).filter(s => 
-      userSkillNames.some(us => s.toLowerCase().includes(us) || us.includes(s.toLowerCase()))
-    );
+    /* ── Skills ───────────────────────────────────────────────────────────
+       This branch never ran. It read `job.skills`, a field nothing ever
+       populated — the job-search function's schema has no such key — so
+       `(job.skills || [])` was always empty and the single most meaningful
+       signal for a career changer contributed nothing.
+
+       The fix does not need a new field. The user's own skill names are
+       already resolved here (user_skills -> skill_tags), and that list IS the
+       vocabulary worth matching: look for those names in the advert text.
+       Matching a known list against prose is a very different thing from
+       comparing two bags of words — only terms that mean something can hit.
+
+       Two guards the old code lacked:
+
+       - Word boundaries, not substrings. The old test was bidirectional
+         `includes`, so a user skill of "R" matched any job skill containing
+         the letter r, and "C" matched everything. Skills under two
+         characters are skipped outright.
+       - A cap. `matchedSkills.length * 10` was unbounded, so a job listing
+         fifteen loosely-matching skills scored +150 against +30 for actually
+         matching the target role. Many weak skills outranked the right job.
+         Four is the most that can count. */
+    const haystack = `${job.title || ""} ${job.description || ""}`.toLowerCase();
+    const matchedSkills = haystack
+      ? profile.skills
+          .map(s => s.name)
+          .filter(name => {
+            const n = name.trim().toLowerCase();
+            if (!n) return false;
+            const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            /* `+`, `#` and `&` are excluded from the boundary classes, which
+               is what makes one-character skills safe to match:
+                 - "C++" and "C#" match as themselves, and a bare "C" does not
+                   match the C inside them
+                 - "R" matches "Excel, R and SQL" but not "our R&D team"
+               Verified against those cases before shipping. */
+            return new RegExp(`(^|[^a-z0-9+#&])${escaped}([^a-z0-9+#&]|$)`, "i").test(haystack);
+          })
+      : [];
     if (matchedSkills.length > 0) {
-      score += matchedSkills.length * 10;
-      reasons.push(`${matchedSkills.length} skill${matchedSkills.length > 1 ? 's' : ''} match`);
+      const counted = Math.min(matchedSkills.length, 4);
+      score += counted * 10;
+      reasons.push(
+        `${matchedSkills.length} of your skill${matchedSkills.length > 1 ? 's' : ''} mentioned`,
+      );
     }
 
     // Match location
@@ -442,17 +484,39 @@ export function usePersonalization() {
       reasons.push('Remote work available');
     }
 
-    // Match salary
+    /* ── Salary ───────────────────────────────────────────────────────────
+       Only score a salary the employer actually stated. Adzuna predicts a
+       range for ads that do not quote one and flags it with
+       `salary_is_predicted`; this used to award the full +15 either way, so a
+       machine's guess could satisfy the user's real salary floor. A predicted
+       range still counts for something — it is a reasonable signal about the
+       role — but it should not carry the same weight as a published figure,
+       and it must not claim the ad "meets" anything. */
     const jobSalaryMin = job.salaryMin || 0;
     if (profile.desiredSalaryMin && jobSalaryMin >= profile.desiredSalaryMin) {
-      score += 15;
-      reasons.push('Meets salary expectations');
+      if (job.salaryIsPredicted) {
+        score += 7;
+        reasons.push('Estimated pay is in range');
+      } else {
+        score += 15;
+        reasons.push('Meets salary expectations');
+      }
     }
 
-    // Match industry
-    if (profile.industry && job.title?.toLowerCase().includes(profile.industry.toLowerCase())) {
-      score += 10;
-      reasons.push('Industry match');
+    /* ── Industry ─────────────────────────────────────────────────────────
+       This tested the industry name against the job TITLE, which almost never
+       contains it — "Healthcare" does not appear in "Registered Nurse - Ward
+       3B" — so the signal was very nearly dead too. The board's own
+       `category` field is what classifies a posting ("Healthcare & Nursing
+       Jobs"), so check that first and keep the title as a fallback. */
+    if (profile.industry) {
+      const industry = profile.industry.toLowerCase();
+      const inCategory = job.category?.toLowerCase().includes(industry);
+      const inTitle = job.title?.toLowerCase().includes(industry);
+      if (inCategory || inTitle) {
+        score += 10;
+        reasons.push('Industry match');
+      }
     }
 
     return {
