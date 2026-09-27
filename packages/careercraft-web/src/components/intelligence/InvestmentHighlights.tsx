@@ -62,8 +62,8 @@ export function InvestmentHighlights() {
       });
     });
 
-    // Largest allocation
-    const largest = fundingAllocations[0];
+    // Largest allocation — sorted here, not assumed from arrival order.
+    const largest = [...fundingAllocations].sort((a, b) => b.amount - a.amount)[0];
     if (largest && !items.find(i => i.title === largest.sector)) {
       items.push({
         title: largest.sector,

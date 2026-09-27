@@ -1,0 +1,171 @@
+/* ───────────────────────────────────────────────────────────
+   Observatory bridge — TEMPORARY, and it should shrink.
+
+   The /intelligence surface was built dark: roughly 250 hardcoded Tailwind
+   classes across its components say `text-white`, `bg-slate-900`,
+   `text-slate-400`, `border-slate-700`, plus ~320 decorative gradients.
+   None of that is a design token, so repointing --as-* at the Faircopy
+   palette could not reach it — and on a cream ground, `text-white` is
+   invisible.
+
+   Rewriting every class name across twenty components in one pass would be
+   a large, untestable change. This shim does it at the stylesheet level
+   instead: scoped under `.as-root` so it cannot touch the rest of the
+   product, and mapping the dark-theme utilities onto paper equivalents.
+
+   It is a bridge, not a destination. The right end state is components that
+   use --cc-* directly and this file deleted. Every class removed from a
+   component is a line that can come out of here; if this file ever grows,
+   something has gone the wrong way.
+
+   Loaded last (main.tsx) so it wins over the utility classes it overrides.
+   ─────────────────────────────────────────────────────────── */
+
+/* ── Shell ──────────────────────────────────────────────── */
+
+/* The page carries both `as-root` and `ds-shell`, and ds-shell sets
+   `color: var(--ds-fg)` (#0f172a, a slate near-black) which wins over the
+   astral token. Two near-blacks a few points apart is the kind of drift
+   that makes a product feel assembled rather than designed. Repointing
+   --ds-fg globally would reach every surface using the ds-* layer, so it is
+   pinned here instead, for this page only. */
+.as-root,
+.as-root .ds-shell {
+  color: var(--cc-ink);
+  background: var(--cc-cream);
+}
+
+/* ── Ground ─────────────────────────────────────────────── */
+
+/* Every slate ground and every opacity variant of it. The `/60` and `/70`
+   suffixed ones were missed on the first pass and left ink-on-slate at a
+   2.63 ratio. */
+.as-root [class*="bg-slate-"],
+.as-root [class*="bg-gray-8"],
+.as-root [class*="bg-gray-9"],
+.as-root [class*="bg-zinc-8"],
+.as-root [class*="bg-zinc-9"] {
+  background-color: var(--cc-cream) !important;
+}
+
+/* Panels that were "darker than the page" become "paper with a rule". */
+.as-root [class*="bg-slate-900/5"],
+.as-root [class*="bg-slate-800/5"] {
+  background-color: var(--cc-cream-2) !important;
+}
+
+/* ── Text ───────────────────────────────────────────────── */
+
+/* Includes the opacity variants — `text-white/60` is a different class name
+   from `text-white`, and those were the worst offenders in the audit:
+   white-at-60% sitting on white-at-5% scored a contrast ratio of 1.0,
+   i.e. perfectly invisible. */
+.as-root .text-white,
+.as-root [class*="text-white/"] {
+  color: var(--cc-ink) !important;
+}
+
+.as-root [class*="bg-white/"] {
+  background-color: var(--cc-cream-2) !important;
+}
+
+.as-root .text-slate-100,
+.as-root .text-slate-200,
+.as-root .text-slate-300 {
+  color: var(--cc-ink-soft) !important;
+}
+
+.as-root .text-slate-400,
+.as-root .text-slate-500,
+.as-root .text-slate-600 {
+  color: var(--cc-ash) !important;
+}
+
+/* Tinted body copy — pink-200, blue-300 and friends were carrying emphasis
+   on a dark ground. On paper they become the accent or plain ink. */
+/* All tint levels, not just 200/300. The 400s were missed on the first
+   pass and showed up in the contrast audit — blue-400 body copy on cream
+   scored 2.37, purple-400 2.46, both under the 3.0 floor for supporting
+   text. Matching the colour name alone covers every level. */
+.as-root [class*="text-pink-"],
+.as-root [class*="text-purple-"],
+.as-root [class*="text-blue-"],
+.as-root [class*="text-cyan-"],
+.as-root [class*="text-violet-"],
+.as-root [class*="text-indigo-"],
+.as-root [class*="text-sky-"],
+.as-root [class*="text-fuchsia-"] {
+  color: var(--cc-rust) !important;
+}
+
+/* Semantic colours keep their meaning — these are the only hues that
+   survive the retheme, because they are the only ones that mean something. */
+.as-root [class*="text-emerald-"],
+.as-root [class*="text-green-"],
+.as-root [class*="text-teal-"] {
+  color: var(--cc-signal) !important;
+}
+
+.as-root [class*="text-amber-"],
+.as-root [class*="text-yellow-"],
+.as-root [class*="text-orange-"] {
+  color: var(--cc-wheat-deep) !important;
+}
+
+.as-root [class*="text-red-"],
+.as-root [class*="text-rose-"] {
+  color: #A33A3A !important;
+}
+
+/* ── Rules ──────────────────────────────────────────────── */
+
+.as-root [class*="border-slate-"],
+.as-root [class*="border-white/"] {
+  border-color: var(--cc-hair) !important;
+}
+
+/* ── Decoration ─────────────────────────────────────────── */
+
+/* The gradient chips. Each panel had its own three-stop gradient, which is
+   why the page read as a swatch library.
+
+   They flatten to a soft tint rather than a solid accent block. Solid was
+   the first attempt and it collided with the text rules above: an element
+   with both a gradient background and tinted text ended up accent-on-accent
+   — the contrast audit found "8 sectors" and "Fastest growing sector" at a
+   ratio of 1.0, the same blue on itself. A tint keeps every foreground
+   colour legible regardless of what sits on it. */
+.as-root [class*="bg-gradient-to-"] {
+  background-image: none !important;
+  background-color: var(--cc-rust-soft) !important;
+}
+
+/* Icons in those chips were white-on-colour and would vanish on a tint. */
+.as-root [class*="bg-gradient-to-"] > svg,
+.as-root [class*="bg-gradient-to-"] .text-white > svg {
+  color: var(--cc-rust) !important;
+}
+
+/* …except where a gradient was doing layout work as a faint panel wash, in
+   which case it should simply disappear rather than become a solid block. */
+.as-root [class*="from-slate-"],
+.as-root [class*="via-slate-"],
+.as-root [class*="/5"][class*="bg-gradient-to-"],
+.as-root [class*="/10"][class*="bg-gradient-to-"] {
+  background-color: transparent !important;
+}
+
+/* Glow shadows read as smudges on paper. */
+.as-root [class*="shadow-blue-"],
+.as-root [class*="shadow-purple-"],
+.as-root [class*="shadow-pink-"],
+.as-root [class*="shadow-emerald-"],
+.as-root .shadow-2xl {
+  box-shadow: none !important;
+}
+
+/* Backdrop blur exists to separate glass from a busy dark field. There is
+   no busy field any more. */
+.as-root [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+}

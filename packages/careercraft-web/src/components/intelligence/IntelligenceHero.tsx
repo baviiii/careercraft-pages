@@ -56,14 +56,27 @@ const pulseRing = {
   },
 };
 
-// Simulated system status for briefing feel
-const SystemStatus = ({ label, status }: { label: string; status: "active" | "processing" | "complete" }) => (
+/*
+ * This was labelled "Simulated system status for briefing feel" and that is
+ * exactly what it was: three green lights hardcoded to active/complete,
+ * printed directly above a counter reading "0 docs indexed". A reader
+ * looking at a page of zeros was being told every subsystem was healthy.
+ *
+ * "offline" is the state that was missing. Green now has to be earned.
+ */
+const SystemStatus = ({
+  label,
+  status,
+}: {
+  label: string;
+  status: "active" | "processing" | "complete" | "offline";
+}) => (
   <div className="flex items-center gap-2 text-xs">
     <div className="relative">
       {status === "active" && (
         <>
           <Circle className="w-2 h-2 fill-emerald-400 text-emerald-400" />
-          <motion.div 
+          <motion.div
             className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-400"
             animate={{ scale: [1, 2], opacity: [0.5, 0] }}
             transition={{ duration: 1.5, repeat: Infinity }}
@@ -76,11 +89,16 @@ const SystemStatus = ({ label, status }: { label: string; status: "active" | "pr
       {status === "complete" && (
         <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />
       )}
+      {/* Hollow and still. No fill, no ring, no pulse. */}
+      {status === "offline" && (
+        <Circle className="w-2 h-2 text-slate-600" />
+      )}
     </div>
     <span className={cn(
       "font-mono uppercase tracking-wide",
-      status === "active" ? "text-emerald-400" : 
-      status === "processing" ? "text-amber-400" : "text-slate-500"
+      status === "active" ? "text-emerald-400" :
+      status === "processing" ? "text-amber-400" :
+      status === "offline" ? "text-slate-600" : "text-slate-500"
     )}>
       {label}
     </span>
@@ -96,92 +114,110 @@ export function IntelligenceHero() {
     emergingTrends,
     crossTabInsights,
     globalLoading,
+    getTabData,
     fundingAllocations,
     careerOpportunities,
     skillsDemand,
   } = useIntelligence();
 
-  // Typing effect for briefing title
-  const [displayedTitle, setDisplayedTitle] = useState("");
-  const fullTitle = "INTELLIGENCE BRIEFING";
-  
-  useEffect(() => {
-    if (globalLoading) return;
-    let i = 0;
-    const timer = setInterval(() => {
-      if (i <= fullTitle.length) {
-        setDisplayedTitle(fullTitle.slice(0, i));
-        i++;
-      } else {
-        clearInterval(timer);
-      }
-    }, 50);
-    return () => clearInterval(timer);
-  }, [globalLoading]);
+  /* Same test the page masthead uses: documents are the only proof the
+     corpus answered. Everything else on this hero can render happily
+     against an empty response. */
+  const isConnected = (metrics?.totalDocuments ?? 0) > 0;
 
+  /* Each card waits on ITS OWN request, not on all four.
+     globalLoading is now only true until the first tab lands, so using it
+     per-card would make a finished card look finished before its own data
+     had actually arrived. These are the real per-tab flags. */
+  const fundingLoading = getTabData("funding").loading;
+  const careersLoading = getTabData("careers").loading;
+  const skillsLoading = getTabData("skills").loading;
+  /* Cross-tab patterns are computed from the other three, so this card is
+     honestly still working until they have all reported. */
+  const connectionsLoading = fundingLoading || careersLoading || skillsLoading;
+
+  /* `loading` used to be defined as "the number is zero" — loading:
+     totalJobs === 0 and friends. That conflates two different facts, and
+     when the answer genuinely IS zero the card never stops loading: careers
+     returned 11 real opportunities, none of which carried a job count, so
+     Workforce Signals sat on a skeleton and "Scanning…" permanently. Same
+     for AI Connections whenever no cross-sector pattern was found.
+
+     Loading now means a fetch is in flight — nothing else. A resolved-but-
+     empty figure shows "—" and says why, which is a finding, not a wait. */
   const heroStats = useMemo(() => [
     {
       id: "budget",
       label: "FISCAL ALLOCATION",
       value: totalBudget > 0 ? `$${(totalBudget / 1000).toFixed(1)}B` : "—",
-      subValue: fundingAllocations.length > 0 ? `${fundingAllocations.length} sectors tracked` : "Analyzing...",
+      subValue:
+        fundingAllocations.length > 0
+          ? `${fundingAllocations.length} sectors tracked`
+          : fundingLoading ? "Reading budget papers" : "No figures found",
       icon: DollarSign,
       gradient: "from-amber-500 via-orange-500 to-red-500",
       bgGradient: "from-amber-500/10 to-orange-500/5",
       borderColor: "border-amber-500/30",
       trend: fundingAllocations[0]?.change || 0,
-      loading: totalBudget === 0,
+      loading: fundingLoading && totalBudget === 0,
     },
     {
       id: "careers",
       label: "WORKFORCE SIGNALS",
-      value: totalJobs > 0 ? totalJobs.toLocaleString() : "—",
-      subValue: careerOpportunities.length > 0 ? `${careerOpportunities.filter(c => c.trending).length} high-growth roles` : "Scanning...",
+      /* Falls back to the count of roles. The corpus often names occupations
+         without stating headcounts, and "11 roles" is a real answer where a
+         summed 0 jobs is not. */
+      value:
+        totalJobs > 0
+          ? totalJobs.toLocaleString()
+          : careerOpportunities.length > 0
+            ? careerOpportunities.length.toString()
+            : "—",
+      subValue:
+        careerOpportunities.length > 0
+          ? totalJobs > 0
+            ? `${careerOpportunities.filter(c => c.trending).length} high-growth roles`
+            : `${careerOpportunities.length} roles · no headcounts stated`
+          : careersLoading ? "Reading workforce data" : "No roles found",
       icon: Briefcase,
       gradient: "from-blue-500 via-cyan-500 to-teal-500",
       bgGradient: "from-blue-500/10 to-cyan-500/5",
       borderColor: "border-blue-500/30",
       trend: careerOpportunities.length > 0 ? careerOpportunities.reduce((sum, c) => sum + (c.growth ?? 0), 0) / careerOpportunities.length : 0,
-      loading: totalJobs === 0,
+      loading: careersLoading && careerOpportunities.length === 0,
     },
     {
       id: "skills",
       label: "CAPABILITY DEMAND",
       value: skillsDemand.length > 0 ? skillsDemand.length.toString() : "—",
-      subValue: skillsDemand.length > 0 ? `${skillsDemand.filter(s => s.category === "emerging").length} emerging` : "Processing...",
+      subValue:
+        skillsDemand.length > 0
+          ? `${skillsDemand.filter(s => s.category === "emerging").length} emerging`
+          : skillsLoading ? "Reading skills reporting" : "No skills found",
       icon: Brain,
       gradient: "from-purple-500 via-pink-500 to-rose-500",
       bgGradient: "from-purple-500/10 to-pink-500/5",
       borderColor: "border-purple-500/30",
       trend: skillsDemand.length > 0 ? skillsDemand.reduce((sum, s) => sum + (s.growth ?? 0), 0) / skillsDemand.length : 0,
-      loading: skillsDemand.length === 0,
+      loading: skillsLoading && skillsDemand.length === 0,
     },
     {
       id: "connections",
       label: "AI CONNECTIONS",
       value: crossTabInsights.length > 0 ? crossTabInsights.length.toString() : "—",
-      subValue: crossTabInsights.length > 0 ? "Cross-sector patterns" : "Discovering...",
+      subValue:
+        crossTabInsights.length > 0
+          ? "Cross-sector patterns"
+          : connectionsLoading ? "Comparing sectors" : "No patterns found",
       icon: Network,
       gradient: "from-emerald-500 via-teal-500 to-cyan-500",
       bgGradient: "from-emerald-500/10 to-teal-500/5",
       borderColor: "border-emerald-500/30",
       trend: crossTabInsights.filter(c => c.impact === "positive").length * 15,
-      loading: crossTabInsights.length === 0,
+      loading: connectionsLoading && crossTabInsights.length === 0,
     },
-  ], [totalBudget, totalJobs, fundingAllocations, careerOpportunities, skillsDemand, crossTabInsights]);
-
-  const currentTime = new Date().toLocaleTimeString("en-AU", { 
-    hour: "2-digit", 
-    minute: "2-digit",
-    hour12: false 
-  });
-
-  const currentDate = new Date().toLocaleDateString("en-AU", { 
-    weekday: "short",
-    day: "numeric", 
-    month: "short",
-    year: "numeric"
-  });
+  ], [totalBudget, totalJobs, fundingAllocations, careerOpportunities, skillsDemand, crossTabInsights,
+      fundingLoading, careersLoading, skillsLoading, connectionsLoading]);
 
   return (
     <div className="relative overflow-hidden rounded-3xl mb-8">
@@ -245,65 +281,65 @@ export function IntelligenceHero() {
         >
           {/* Header with classified briefing style */}
           <motion.div variants={item} className="flex items-start justify-between mb-10">
-            <div className="flex items-start gap-4">
-              {/* HORUS Logo */}
-              <div className="relative">
-                <motion.div 
-                  className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-2xl shadow-blue-500/30"
-                  whileHover={{ scale: 1.05, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 400 }}
-                >
-                  <Eye className="w-8 h-8 text-white" />
-                </motion.div>
-                {/* Pulse ring */}
-                <motion.div 
-                  className="absolute inset-0 rounded-2xl border-2 border-blue-400/50"
-                  variants={pulseRing}
-                  animate="animate"
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
-              </div>
-              
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-3xl font-display font-black text-white tracking-tight">
-                    HORUS
-                  </h1>
-                  <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 font-mono text-[10px] px-2">
-                    v2.0
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm text-slate-400 tracking-widest">
-                    {displayedTitle}
-                    <motion.span 
-                      animate={{ opacity: [1, 0] }} 
-                      transition={{ duration: 0.5, repeat: Infinity }}
-                    >
-                      _
-                    </motion.span>
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 font-mono">
-                  {currentDate} • {currentTime} ACST
-                </p>
-              </div>
+            {/* Was a "HORUS v2.0" masthead: a gradient eye logo with an
+                infinite pulse ring, the product's internal codename set as a
+                3xl black display heading, a version badge, a blinking
+                typewriter rendering of "INTELLIGENCE BRIEFING_", and a live
+                clock to the second.
+
+                None of it was information. Horus is the inference gateway,
+                not something a job seeker has heard of or needs to; the
+                version number is meaningless to them; and the typewriter
+                spent its animation budget spelling out a phrase that
+                describes the page's genre rather than its contents.
+
+                Replaced with a plain statement of what this actually is. */}
+            <div>
+              <h1 className="text-2xl font-display font-bold text-white tracking-tight">
+                South Australian job market
+              </h1>
+              <p className="text-sm text-slate-400 mt-1 max-w-md">
+                Budget papers, workforce plans and skills reporting from the
+                state's public record.
+              </p>
             </div>
-            
+
             {/* System Status Panel */}
             <div className="hidden md:flex flex-col items-end gap-2 p-4 rounded-xl bg-slate-900/50 border border-slate-700/50 backdrop-blur-sm">
               <div className="flex items-center gap-2 mb-2">
                 <Cpu className="w-4 h-4 text-blue-400" />
                 <span className="text-xs font-mono text-slate-400 uppercase tracking-wide">System Status</span>
               </div>
-              <SystemStatus label="Vector Search" status={globalLoading ? "processing" : "active"} />
-              <SystemStatus label="AI Analysis" status={globalLoading ? "processing" : "complete"} />
-              <SystemStatus label="Pattern Detection" status="active" />
+              {/* Every light now derives from whether documents actually
+                  arrived. With an empty corpus there is no index to search,
+                  nothing to analyse and nothing to detect patterns in — so
+                  all three read offline rather than green. */}
+              <SystemStatus
+                label="Vector Search"
+                status={globalLoading ? "processing" : isConnected ? "active" : "offline"}
+              />
+              <SystemStatus
+                label="AI Analysis"
+                status={globalLoading ? "processing" : isConnected ? "complete" : "offline"}
+              />
+              <SystemStatus
+                label="Pattern Detection"
+                status={globalLoading ? "processing" : isConnected ? "active" : "offline"}
+              />
               <div className="mt-2 pt-2 border-t border-slate-700/50">
                 <div className="flex items-center gap-2">
-                  <Shield className="w-3 h-3 text-emerald-400" />
-                  <span className="text-[10px] font-mono text-emerald-400">
-                    {metrics?.totalDocuments?.toLocaleString() || "0"} docs indexed
+                  <Shield
+                    className={cn("w-3 h-3", isConnected ? "text-emerald-400" : "text-slate-600")}
+                  />
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono",
+                      isConnected ? "text-emerald-400" : "text-slate-500",
+                    )}
+                  >
+                    {isConnected
+                      ? `${metrics?.totalDocuments?.toLocaleString()} docs indexed`
+                      : "Archive not connected"}
                   </span>
                 </div>
               </div>

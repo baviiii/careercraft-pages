@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
 import { useImpactQueries } from "@/hooks/useImpactQueries";
 import { detectImpactAnomalies, type Anomaly } from "@/lib/impactAnomalyDetection";
+import { IntelligenceState } from "./IntelligenceState";
 
 // ============================================================================
 // DATA STORY - Narrative-driven insights
@@ -71,10 +72,19 @@ export function DataStoriesPanel() {
 
     // Story from top funding allocation
     if (fundingAllocations.length > 0) {
-      const top = fundingAllocations[0];
-      const totalBudget = fundingAllocations.reduce((s, a) => s + a.amount, 0);
+      /* Sort here rather than trusting the caller's order.
+         This read fundingAllocations[0] and called it "the largest share".
+         The array is sorted upstream, but not on every path that can
+         populate it, and the failure was silent and self-contradicting: the
+         panel announced "Health receives the largest share at 17.3%" and
+         then, in the same sentence, "Infrastructure follows with $7.0B" —
+         a figure four times larger. Two claims on one page disagreeing is
+         worse than either being absent. */
+      const byAmount = [...fundingAllocations].sort((a, b) => b.amount - a.amount);
+      const top = byAmount[0];
+      const totalBudget = byAmount.reduce((s, a) => s + a.amount, 0);
       const share = totalBudget > 0 ? ((top.amount / totalBudget) * 100).toFixed(1) : "0";
-      const second = fundingAllocations[1];
+      const second = byAmount[1];
 
       generated.push({
         id: `funding-${top.sector}`,
@@ -172,27 +182,37 @@ export function DataStoriesPanel() {
       }
     }
 
-    return generated.length > 0 ? generated : [{
-      id: "loading",
-      title: "📊 Intelligence Loading...",
-      narrative: "Data stories are generated from real-time analysis of funding allocations, career trends, and skills demand. Run a search or wait for data to load.",
-      impact: "medium",
-      dataPoints: [],
-      deepDive: { question: "How are stories generated?", insights: ["Stories are built from live budget, career, and skills data", "They update automatically as new data arrives"] },
-      conversationStarters: ["What sectors have the most funding?", "Show me high-growth careers"],
-    }];
+    /* No placeholder story. There used to be one titled "Intelligence
+       Loading…" that was not loading anything — it was a permanent resident
+       of this panel whenever the corpus was unreachable, dressed up as a
+       transient state. An empty list is rendered honestly below instead. */
+    return generated;
   }, [fundingAllocations, careerOpportunities, skillsDemand]);
 
-  // Auto-rotate stories
+  const hasStories = stories.length > 0;
+
+  // Auto-rotate stories. Guarded on hasStories so an empty list cannot
+  // drive a modulo-by-zero and leave activeStory as NaN.
   useEffect(() => {
-    if (!isAutoPlay) return;
+    if (!isAutoPlay || !hasStories) return;
     const timer = setInterval(() => {
       setActiveStory((prev) => (prev + 1) % stories.length);
     }, 12000);
     return () => clearInterval(timer);
-  }, [isAutoPlay, stories.length]);
+  }, [isAutoPlay, hasStories, stories.length]);
 
   const currentStory = stories[activeStory];
+
+  if (!hasStories) {
+    return (
+      <IntelligenceState
+        kind="offline"
+        icon={Sparkles}
+        title="No stories to tell yet."
+        detail="Stories are written from funding, career and skills figures in the South Australian archive. None have come through, so there is nothing to summarise."
+      />
+    );
+  }
 
   return (
     <Card className="p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700 shadow-2xl">
@@ -204,7 +224,13 @@ export function DataStoriesPanel() {
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">Data Stories</h3>
-            <p className="text-xs text-slate-400">AI-discovered insights from 54+ documents</p>
+            {/* Was "AI-discovered insights from 54+ documents" — a hardcoded
+                figure that rendered above a counter reading 0, and was wrong
+                even when the corpus was up (~84 documents). Count what is
+                actually on screen. */}
+            <p className="text-xs text-slate-400">
+              Drawn from {stories.length} {stories.length === 1 ? "reading" : "readings"} of the SA archive
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -429,8 +455,10 @@ export function LiveDiscoveryFeed() {
 
       // Generate discoveries from funding data
       if (fundingAllocations.length >= 2) {
-        const top = fundingAllocations[0];
-        const second = fundingAllocations[1];
+        // Sorted locally — see the note on the funding story above.
+        const byAmount = [...fundingAllocations].sort((a, b) => b.amount - a.amount);
+        const top = byAmount[0];
+        const second = byAmount[1];
         if (top.change > 5 || top.change < -5) {
           realDiscoveries.push({
             id: String(++idCounter),
@@ -533,6 +561,17 @@ export function LiveDiscoveryFeed() {
     }
   };
 
+  if (discoveries.length === 0) {
+    return (
+      <IntelligenceState
+        kind="offline"
+        icon={Brain}
+        title="Nothing to report."
+        detail="Findings surface here when funding or workforce figures move against their trend. No figures have arrived from the archive, so nothing has been compared."
+      />
+    );
+  }
+
   return (
     <Card className="p-6 bg-slate-900/50 border-slate-700">
       {/* Header */}
@@ -542,11 +581,23 @@ export function LiveDiscoveryFeed() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
               <Brain className="w-5 h-5 text-white" />
             </div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
+            {/* The pulsing dot only runs while the feed is actually live.
+                Paused means paused — a blinking "live" light over a frozen
+                feed is the same false signal as the caption below used to be. */}
+            {!isPaused && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
+            )}
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">Live Discovery</h3>
-            <p className="text-xs text-slate-400">AI is analyzing patterns right now...</p>
+            {/* Was "AI is analyzing patterns right now…", printed under a
+                spinner whether or not anything was running — and it never
+                was when the corpus was down. State the finding count. */}
+            <p className="text-xs text-slate-400">
+              {isPaused
+                ? `Paused · ${discoveries.length} ${discoveries.length === 1 ? "finding" : "findings"}`
+                : `${discoveries.length} ${discoveries.length === 1 ? "finding" : "findings"} from the latest figures`}
+            </p>
           </div>
         </div>
         <Button

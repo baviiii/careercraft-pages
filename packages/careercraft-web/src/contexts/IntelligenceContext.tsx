@@ -12,6 +12,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
 import { SEMANTIC_QUERIES, parseInsightResponse, getTabPrompt } from "@/lib/intelligencePrompts";
+import { clearSnapshot, loadSnapshot, saveSnapshot } from "@/lib/intelligence/snapshotCache";
 
 // ============================================================================
 // Cache for alerts and chart chunks
@@ -191,6 +192,17 @@ interface IntelligenceState {
   globalLoading: boolean;
   activeTab: IntelligenceTab;
   searchQuery: string;
+
+  /**
+   * When the currently-displayed figures were captured, if they came from a
+   * stored snapshot rather than this session's fetch.
+   *
+   * Null once live data replaces them. The UI uses this to say "showing
+   * readings from 2 hours ago, refreshing…" instead of presenting stale
+   * numbers as current — the whole point of caching them is undone if the
+   * reader cannot tell which they are looking at.
+   */
+  snapshotAge: number | null;
 }
 
 interface IntelligenceContextType extends IntelligenceState {
@@ -224,6 +236,19 @@ interface IntelligenceContextType extends IntelligenceState {
 const IntelligenceContext = createContext<IntelligenceContextType | null>(null);
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * The largest topK horus-rag will accept.
+ *
+ * Two ceilings sit behind this and they agree: the request schema validates
+ * `topK` with `.max(50)` and rejects anything above it outright, and
+ * `runSearch` then clamps `maxSources` to 50 because Horus caps there. So 50
+ * is not a tuning knob — it is the most the corpus can return, and asking
+ * for more fails the whole request rather than returning fewer results.
+ *
+ * Keep this in step with `supabase/functions/horus-rag/index.ts`.
+ */
+const HORUS_MAX_TOP_K = 50;
 
 /** Remove sectors that share the same amount as a preferred sector (common RAG misattribution, e.g. Defence $2.4B also shown as Technology $2.4B). */
 function removeSameAmountDuplicates(allocations: FundingAllocation[]): FundingAllocation[] {
@@ -283,6 +308,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     globalLoading: true,
     activeTab: "overview",
     searchQuery: "",
+    snapshotAge: null,
   });
 
   const fetchInProgress = useRef<Set<IntelligenceTab>>(new Set());
@@ -2372,8 +2398,19 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       const result = await semanticSearch(
         queryConfig.primary,
         queryConfig.filters || {},
-        { 
-          topK: tab === "careers" ? 60 : tab === "funding" ? 120 : 40, // funding: more chunks, no category filter — get full budget tables from all doc types
+        {
+          /* Capped at HORUS_MAX_TOP_K. funding asked for 120 and careers for
+             60, and both were silently broken: horus-rag validates topK with
+             `z.number().max(50)` and rejects anything larger, so those two
+             tabs 400'd on every load while overview and skills (40) went
+             through. That is why Fiscal Allocation and Workforce Signals sat
+             as empty skeletons and Sectors read 0.
+
+             Raising the ceiling would not have helped — runSearch clamps
+             maxSources to 50 regardless, because Horus itself caps there. 50
+             IS the full budget table; 120 was asking for something that has
+             never existed. */
+          topK: tab === "careers" || tab === "funding" ? HORUS_MAX_TOP_K : 40,
           systemPrompt: tabPrompt, // Pass tab-specific intelligence analyst prompt
         }
       );
@@ -2820,7 +2857,41 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
     const initialize = async () => {
       console.log("[IntelligenceContext] Starting initialization...");
-      
+
+      /* Paint last visit's answers before doing any network work.
+
+         Everything below takes 20–50 seconds per tab. Without this the user
+         stares at skeletons for the better part of a minute on every single
+         visit, including a reload. The snapshot is replaced the moment fresh
+         data lands; until then the page is usable and the freshness line
+         says how old what they are reading is.
+
+         Document count is unknown at this point, so the snapshot is
+         accepted on age alone here. Once metadata arrives below, a snapshot
+         captured against a different corpus size is discarded. */
+      const snapshot = loadSnapshot();
+      if (snapshot) {
+        console.log("[IntelligenceContext] Restoring snapshot from", new Date(snapshot.savedAt));
+        setState(prev => ({
+          ...prev,
+          metrics: (snapshot.metrics as IntelligenceMetrics | null) ?? prev.metrics,
+          fundingAllocations: snapshot.fundingAllocations as FundingAllocation[],
+          careerOpportunities: snapshot.careerOpportunities as CareerOpportunity[],
+          skillsDemand: snapshot.skillsDemand as SkillDemand[],
+          trainingPrograms: snapshot.trainingPrograms as TrainingProgram[],
+          crossTabInsights: snapshot.crossTabInsights as CrossTabInsight[],
+          overview: { ...prev.overview, insights: (snapshot.insights.overview ?? []) as InsightOutput[] },
+          funding: { ...prev.funding, insights: (snapshot.insights.funding ?? []) as InsightOutput[] },
+          careers: { ...prev.careers, insights: (snapshot.insights.careers ?? []) as InsightOutput[] },
+          skills: { ...prev.skills, insights: (snapshot.insights.skills ?? []) as InsightOutput[] },
+          snapshotAge: snapshot.savedAt,
+          /* Content is on screen, so the page is no longer blank-loading.
+             Per-tab flags still report the refresh in flight. */
+          globalLoading: false,
+          isInitialized: true,
+        }));
+      }
+
       try {
         // Fetch metrics and overview in parallel
         console.log("[IntelligenceContext] Fetching bulk data...");
@@ -2834,45 +2905,140 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           const stats = bulkData.stats as any;
           const categories = bulkData.categories as any;
 
+          /* Shapes here come from useRAGMetadata, NOT raw from Horus —
+             getStats already renames documents/chunks to
+             totalDocuments/totalChunks, and getCategories already renames
+             category/documents to name-ish/count. Read those normalised
+             names, not the wire format.
+
+             What was genuinely broken is `categories.sectors`: getCategories
+             hard-codes it to [] because the corpus has no sector facet (it
+             was an old-index concept). So this always mapped an empty array
+             and the Sectors tile read 0 and Top sector "—" while 84
+             documents sat indexed. Sectors now come from funding
+             allocations, where they are actually stated — see the
+             topSectors memo below.
+
+             The synthesized figures are gone too. `trend`, `growth` and
+             `jobs` were deterministicValue() output: a hash of the category
+             name scaled into a plausible-looking range, stable across
+             reloads, which is exactly what made them read as measurements. */
           setState(prev => ({
             ...prev,
             metrics: {
-              totalDocuments: stats?.totalDocuments || categories?.categories?.reduce((sum: number, c: any) => sum + c.count, 0) || 0,
+              totalDocuments:
+                stats?.totalDocuments ||
+                (categories?.categories ?? []).reduce(
+                  (sum: number, c: any) => sum + (c.count ?? 0),
+                  0,
+                ),
               totalChunks: stats?.totalChunks || 0,
               lastUpdated: new Date(),
               categories: (categories?.categories || []).map((c: any) => ({
                 name: c.category,
-                count: c.count,
-                trend: Math.floor(deterministicValue(c.category + '-trend', 2, 12)),
+                count: c.count ?? 0,
+                /* No trend data exists in this endpoint. 0 means "unknown",
+                   and the UI must not render it as a movement. */
+                trend: 0,
               })),
-              topSectors: (categories?.sectors || []).slice(0, 5).map((s: any, idx: number) => ({
-                name: s.value,
-                growth: Math.floor(deterministicValue(s.value + '-growth', 3, 18)),
-                jobs: s.count * Math.floor(deterministicValue(s.value + '-jobm', 30, 80)),
-              })),
+              /* Left empty on purpose; the topSectors memo fills it from
+                 funding once that tab resolves. */
+              topSectors: [],
             },
             // Keep globalLoading true until tab data is fetched
           }));
+
+          /* Now that the corpus size is known, a snapshot captured against a
+             different one describes documents that are no longer the set
+             being reported. Drop those figures rather than leave them on
+             screen under a freshness line that implies they still apply. */
+          const liveDocCount =
+            (stats?.totalDocuments as number | undefined) ??
+            (categories?.categories ?? []).reduce(
+              (sum: number, c: any) => sum + (c.count ?? 0),
+              0,
+            );
+          if (snapshot && snapshot.documentCount !== liveDocCount) {
+            console.log(
+              `[IntelligenceContext] Snapshot was for ${snapshot.documentCount} docs, corpus now ${liveDocCount} — discarding`,
+            );
+            clearSnapshot();
+            setState(prev => ({
+              ...prev,
+              fundingAllocations: [],
+              careerOpportunities: [],
+              skillsDemand: [],
+              trainingPrograms: [],
+              crossTabInsights: [],
+              snapshotAge: null,
+            }));
+          }
         } else {
           console.warn("[IntelligenceContext] No bulk data returned, continuing with initialization");
         }
 
-        // Fetch all tab data in parallel for overview cards
-        // Keep globalLoading true while fetching
+        /* Progressive, not all-or-nothing.
+
+           This used to `await Promise.all([...])` and only then drop
+           globalLoading. The four requests take wildly different times —
+           funding regularly lands 30 seconds before careers — so every panel
+           on the page waited for the slowest one, and the user stared at
+           skeletons with data already in memory.
+
+           Now each tab paints the moment it resolves. globalLoading means
+           "nothing has arrived yet" and clears on the FIRST settle; after
+           that, per-tab loading flags (already maintained by fetchTabData)
+           carry the remaining waits. allSettled so one failure cannot strand
+           the others — that is how funding and careers took the whole page
+           down with them when they were 400ing. */
         console.log("[IntelligenceContext] Fetching all tab data...");
-        await Promise.all([
-          fetchTabData("overview"),
-          fetchTabData("funding"),
-          fetchTabData("careers"),
-          fetchTabData("skills"),
-        ]);
-        
-        // Only set globalLoading to false AFTER all tab data is fetched
+
+        let firstSettled = false;
+        const clearGlobalLoadingOnce = () => {
+          if (firstSettled) return;
+          firstSettled = true;
+          setState(prev => ({ ...prev, isInitialized: true, globalLoading: false }));
+        };
+
+        const tabs: IntelligenceTab[] = ["overview", "funding", "careers", "skills"];
+        await Promise.allSettled(
+          tabs.map(tab =>
+            fetchTabData(tab).finally(clearGlobalLoadingOnce),
+          ),
+        );
+
+        /* Belt and braces: if every request rejected before resolving,
+           firstSettled is still true via finally, but assert the terminal
+           state so the UI can never hang on a skeleton. Also clears
+           snapshotAge — what is on screen is now this session's data. */
         setState(prev => ({
           ...prev,
           isInitialized: true,
           globalLoading: false,
+          snapshotAge: null,
         }));
+
+        /* Persist for the next visit. Written once, after everything has
+           settled, so a snapshot is always internally consistent — never
+           this hour's funding beside last hour's careers. */
+        const s = stateRef.current;
+        if (s.metrics && s.metrics.totalDocuments > 0) {
+          saveSnapshot({
+            documentCount: s.metrics.totalDocuments,
+            metrics: s.metrics,
+            fundingAllocations: s.fundingAllocations,
+            careerOpportunities: s.careerOpportunities,
+            skillsDemand: s.skillsDemand,
+            trainingPrograms: s.trainingPrograms,
+            crossTabInsights: s.crossTabInsights,
+            insights: {
+              overview: s.overview.insights,
+              funding: s.funding.insights,
+              careers: s.careers.insights,
+              skills: s.skills.insights,
+            },
+          });
+        }
         console.log("[IntelligenceContext] Initialization complete");
       } catch (err) {
         console.error("[IntelligenceContext] Initialization error:", err);
@@ -2980,6 +3146,35 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     return sorted[0]?.sector || "Technology";
   }, [state.fundingAllocations]);
 
+  /**
+   * Sectors, from the only place the corpus actually states them.
+   *
+   * The metadata endpoint has no sector data — the previous code read a
+   * `categories.sectors` key that does not exist and then invented growth
+   * and job figures to fill the gap. Funding allocations are real: sector
+   * names and dollar amounts parsed out of the budget papers, each carrying
+   * its own confidence.
+   *
+   * `jobs` is deliberately absent rather than estimated. Nothing in the
+   * funding data says how many jobs a sector holds, and a made-up headcount
+   * next to a real dollar figure is worse than no headcount at all.
+   */
+  const topSectors = useMemo(
+    () =>
+      [...state.fundingAllocations]
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 5)
+        .map((f) => ({ name: f.sector, growth: f.change ?? 0, jobs: 0 })),
+    [state.fundingAllocations],
+  );
+
+  /* Metrics with the derived sectors folded back in, so consumers keep
+     reading a single `metrics` object. */
+  const metrics = useMemo(
+    () => (state.metrics ? { ...state.metrics, topSectors } : state.metrics),
+    [state.metrics, topSectors],
+  );
+
   const emergingTrends = useMemo(() => {
     const trends: string[] = [];
     
@@ -3018,6 +3213,9 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
   const value: IntelligenceContextType = {
     ...state,
+    /* After the spread: overrides state.metrics with the version carrying
+       sectors derived from funding. Order matters here. */
+    metrics,
     setActiveTab,
     setSearchQuery,
     refreshTab,

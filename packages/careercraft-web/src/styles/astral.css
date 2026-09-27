@@ -3,6 +3,13 @@
    Canonical tokens now live in src/styles/design-system.css.
    Keep this file only for class-level compatibility while migrating.
    Do not add new colors/tokens/classes here.
+
+   Retheme note: the violet / cyan / rose "aurora" literals that used to be
+   hardcoded throughout this file now resolve to the single Faircopy accent
+   via color-mix, each keeping its original alpha so emphasis and depth
+   survive. Three decorative hues meant colour marked nothing — every panel
+   simply had a different one. Anything still reading as a gradient here is
+   a candidate for deletion, not recolouring.
    ─────────────────────────────────────────────────────────── */
 
 :root {
@@ -33,11 +40,14 @@
 }
 
 .as-root {
+  /* Was 'Inter'. The Observatory is the only surface in the product that
+     did not use the Faircopy stack, which is a large part of why it read as
+     a different application. */
   font-family: 'Inter', system-ui, sans-serif;
   color: var(--as-ion);
   background: var(--as-void);
 }
-.as-root ::selection { background: rgba(124, 92, 255, 0.45); color: #fff; }
+.as-root ::selection { background: var(--cc-rust-soft); color: var(--cc-ink); }
 
 /* ─────────────────────────── Nebula field ─────────────────────────── */
 
@@ -46,35 +56,25 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(
-      60vw 60vh
-      at calc(20% + (var(--as-mx)) * 24px) calc(28% + (var(--as-my)) * 20px),
-      rgba(124, 92, 255, 0.32),
-      transparent 60%
-    ),
-    radial-gradient(
-      70vw 50vh
-      at calc(80% + (var(--as-mx)) * -32px) calc(70% + (var(--as-my)) * -24px),
-      rgba(34, 211, 238, 0.22),
-      transparent 60%
-    ),
-    radial-gradient(
-      50vw 42vh
-      at calc(58% + (var(--as-mx)) * 18px) calc(12% + (var(--as-my)) * 10px),
-      rgba(244, 114, 182, 0.16),
-      transparent 55%
-    ),
-    linear-gradient(180deg, var(--as-void) 0%, var(--as-abyss) 60%, var(--as-void) 100%);
-  filter: saturate(1.1);
+  /* Was three cursor-tracking radial gradients — violet, cyan and rose — over
+     a near-black ground, plus a breathing teal glow on ::after. It was the
+     single strongest signal that this page belonged to a different product,
+     and on paper it is actively wrong.
+
+     Replaced with a flat paper ground and one barely-there warm wash, so the
+     surface has depth without colour doing decoration. The cursor parallax
+     goes with it: a background that follows the mouse is motion with no
+     meaning, and this page now reserves motion for things that are actually
+     happening. */
+  background: var(--cc-cream);
 }
 
 .as-nebula::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(45vw 40vh at 50% 100%, rgba(94, 234, 212, 0.10), transparent 60%);
-  animation: as-breathe 14s ease-in-out infinite;
+  background:
+    radial-gradient(70vw 50vh at 50% -10%, var(--cc-rust-soft), transparent 70%);
 }
 
 @keyframes as-breathe {
@@ -98,9 +98,10 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
+  /* Hairline grid in ink rather than periwinkle, so it reads as ruled paper. */
   background-image:
-    linear-gradient(rgba(150, 180, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(150, 180, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(var(--cc-hair) 1px, transparent 1px),
+    linear-gradient(90deg, var(--cc-hair) 1px, transparent 1px);
   background-size: 72px 72px;
   mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
   -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
@@ -117,15 +118,21 @@
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.7) 100%);
+  /* Was a heavy black vignette for the dark theme. On paper it read as a
+     smudge round the edges of the page. */
+  background: none;
 }
 
 /* ─────────────────────────── Typography ─────────────────────────── */
 
 .as-display {
-  font-family: 'Space Grotesk', 'Inter', sans-serif;
+  /* Bricolage Grotesque — the Faircopy display face. Was Space Grotesk,
+     which appeared nowhere else in the product. */
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-synthesis: none;
   letter-spacing: -0.025em;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .as-italic {
@@ -155,17 +162,14 @@
 .as-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 
 .as-gradient-text {
-  background: linear-gradient(120deg, #FFFFFF 0%, #CBD5FF 40%, #22D3EE 85%);
-  -webkit-background-clip: text;
-          background-clip: text;
-  color: transparent;
+  /* Was a white→periwinkle→cyan gradient. On paper it was illegible, and
+     on any ground it made the page title decoration rather than text. */
+  color: var(--cc-ink);
 }
 
 .as-gradient-text-warm {
-  background: linear-gradient(120deg, #F472B6 0%, #A78BFA 55%, #22D3EE 100%);
-  -webkit-background-clip: text;
-          background-clip: text;
-  color: transparent;
+  /* Was rose→violet→cyan. Same reasoning; this one now carries the accent. */
+  color: var(--cc-rust);
 }
 
 /* ─────────────────────────── Glass panel ─────────────────────────── */
@@ -194,10 +198,10 @@
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    rgba(124, 92, 255, 0.45),
-    rgba(34, 211, 238, 0.25) 40%,
-    rgba(244, 114, 182, 0.25) 80%,
-    rgba(124, 92, 255, 0.15)
+    color-mix(in srgb, var(--cc-rust) 45%, transparent),
+    color-mix(in srgb, var(--cc-rust) 25%, transparent) 40%,
+    color-mix(in srgb, var(--cc-rust) 25%, transparent) 80%,
+    color-mix(in srgb, var(--cc-rust) 15%, transparent)
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -220,8 +224,8 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(94, 234, 212, 0.10) 45%,
-    rgba(124, 92, 255, 0.14) 55%,
+    color-mix(in srgb, var(--cc-rust) 10%, transparent) 45%,
+    color-mix(in srgb, var(--cc-rust) 14%, transparent) 55%,
     transparent 100%
   );
   animation: as-scan 9s cubic-bezier(0.4, 0.1, 0.4, 1) infinite;
@@ -238,11 +242,11 @@
 }
 
 .as-panel:hover {
-  border-color: rgba(124, 92, 255, 0.45);
+  border-color: color-mix(in srgb, var(--cc-rust) 45%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 40px 90px -30px rgba(124, 92, 255, 0.35),
-    0 0 0 1px rgba(124, 92, 255, 0.15);
+    0 40px 90px -30px color-mix(in srgb, var(--cc-rust) 35%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--cc-rust) 15%, transparent);
 }
 
 .as-panel-flat {
@@ -305,19 +309,19 @@
   white-space: nowrap;
 }
 .as-btn:hover {
-  border-color: rgba(124, 92, 255, 0.6);
-  background: rgba(124, 92, 255, 0.12);
-  box-shadow: 0 0 24px rgba(124, 92, 255, 0.3);
+  border-color: color-mix(in srgb, var(--cc-rust) 60%, transparent);
+  background: color-mix(in srgb, var(--cc-rust) 12%, transparent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--cc-rust) 30%, transparent);
   color: #fff;
 }
 .as-btn-primary {
-  background: linear-gradient(135deg, rgba(124, 92, 255, 0.32), rgba(34, 211, 238, 0.22));
-  border-color: rgba(124, 92, 255, 0.5);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cc-rust) 32%, transparent), color-mix(in srgb, var(--cc-rust) 22%, transparent));
+  border-color: color-mix(in srgb, var(--cc-rust) 50%, transparent);
   color: #fff;
 }
 .as-btn-primary:hover {
-  background: linear-gradient(135deg, rgba(124, 92, 255, 0.55), rgba(34, 211, 238, 0.35));
-  box-shadow: 0 0 36px rgba(124, 92, 255, 0.55);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cc-rust) 55%, transparent), color-mix(in srgb, var(--cc-rust) 35%, transparent));
+  box-shadow: 0 0 36px color-mix(in srgb, var(--cc-rust) 55%, transparent);
 }
 
 /* ─────────────────────────── Tabs ─────────────────────────── */
@@ -325,9 +329,10 @@
 .as-tabs {
   display: inline-flex;
   padding: 4px;
-  background: rgba(12, 16, 40, 0.7);
-  border: 1px solid var(--as-hair-strong);
-  backdrop-filter: blur(20px);
+  /* Was a near-black pill. On paper the inactive labels sat at a 1.31
+     contrast ratio — effectively unreadable. */
+  background: var(--cc-cream-2);
+  border: 1px solid var(--cc-hair);
   border-radius: 999px;
   gap: 2px;
 }
@@ -350,12 +355,12 @@
 }
 .as-tab:hover { color: var(--as-ion); }
 .as-tab[data-state="active"] {
-  color: #fff;
-  background: linear-gradient(135deg, rgba(124, 92, 255, 0.55), rgba(34, 211, 238, 0.32));
-  box-shadow:
-    0 0 0 1px rgba(124, 92, 255, 0.45),
-    0 10px 36px -10px rgba(124, 92, 255, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  /* Solid accent with paper text. Was white on a translucent accent
+     gradient, which on a light pill left the selected tab at a 1.15
+     contrast ratio — the one label a reader most needs to see. */
+  color: var(--cc-cream);
+  background: var(--cc-rust);
+  box-shadow: none;
 }
 
 /* ─────────────────────────── Rules / dividers ─────────────────────────── */
@@ -411,8 +416,8 @@
   background:
     radial-gradient(
       300px circle at var(--as-hx, 50%) var(--as-hy, 50%),
-      rgba(124, 92, 255, 0.18),
-      rgba(34, 211, 238, 0.12) 40%,
+      color-mix(in srgb, var(--cc-rust) 18%, transparent),
+      color-mix(in srgb, var(--cc-rust) 12%, transparent) 40%,
       transparent 70%
     );
   opacity: 0;
@@ -429,7 +434,7 @@
   background: rgba(150, 180, 255, 0.14);
   border-radius: 999px;
 }
-.as-root *::-webkit-scrollbar-thumb:hover { background: rgba(124, 92, 255, 0.4); }
+.as-root *::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--cc-rust) 40%, transparent); }
 
 /* ─────────────────────────── Reduced motion ─────────────────────────── */
 

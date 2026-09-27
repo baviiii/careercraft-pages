@@ -82,24 +82,41 @@
   --cc-wheat-deep: #8A6620;
   --cc-wheat-soft: rgba(180, 135, 44, 0.16);
 
-  /* Legacy compatibility bridge: astral */
-  --as-void: #f8fafc;
-  --as-abyss: #f1f5f9;
-  --as-deep: #e8eef8;
-  --as-nebula: #e3eafe;
-  --as-panel: rgba(255, 255, 255, 0.86);
-  --as-panel-2: rgba(255, 255, 255, 0.72);
-  --as-ion: var(--ds-fg);
-  --as-ion-soft: #334155;
-  --as-mist: #475569;
-  --as-ash: #64748b;
-  --as-hair: rgba(15, 23, 42, 0.08);
-  --as-hair-strong: rgba(15, 23, 42, 0.18);
-  --as-aurora-1: #635bff;
-  --as-aurora-2: #14b8ff;
-  --as-aurora-3: #8b80ff;
-  --as-signal: var(--ds-success);
-  --as-gold: #f5c451;
+  /* ── Legacy compatibility bridge: astral ──────────────────────────────
+     The Observatory (/intelligence) was built in its own dark "astral"
+     language — deep navy panels, violet/cyan/rose auroras, Inter — and
+     never migrated when the rest of the product moved to paper and carbon.
+     It read as a different product bolted onto Faircopy.
+
+     Rather than rewrite twenty components' class names, the bridge is
+     repointed: every `var(--as-*)` now resolves to the Faircopy palette, so
+     the whole surface inherits paper, ink and the persona accent at once.
+     These are aliases, not new values — changing a --cc-* token moves the
+     Observatory with it, and the accent set by data-cc-accent applies here
+     too.
+
+     The three "aurora" hues collapse to ONE accent on purpose. Carrying
+     violet, cyan and rose meant colour marked nothing: each panel simply had
+     a different hue. Ink and paper carry the page; the accent is for
+     emphasis; signal green means good news and wheat means caution. If a
+     colour does not mean something consistently, it should not be here. */
+  --as-void: var(--cc-cream);
+  --as-abyss: var(--cc-cream);
+  --as-deep: var(--cc-cream-2);
+  --as-nebula: var(--cc-cream-3);
+  --as-panel: var(--cc-cream);
+  --as-panel-2: var(--cc-cream-2);
+  --as-ion: var(--cc-ink);
+  --as-ion-soft: var(--cc-ink-soft);
+  --as-mist: var(--cc-ink-soft);
+  --as-ash: var(--cc-ash);
+  --as-hair: var(--cc-hair);
+  --as-hair-strong: var(--cc-hair-strong);
+  --as-aurora-1: var(--cc-rust);
+  --as-aurora-2: var(--cc-rust);
+  --as-aurora-3: var(--cc-rust-deep);
+  --as-signal: var(--cc-signal);
+  --as-gold: var(--cc-wheat);
 }
 
 /* ── Persona accent palettes ─────────────────────────────────────────────
