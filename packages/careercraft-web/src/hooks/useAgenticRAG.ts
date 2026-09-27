@@ -7,12 +7,16 @@
  * - useEnterpriseRAG handles standard hybrid RAG
  * - User can switch between modes in UI
  * 
- * BACKEND INTEGRATION:
- * - PRIMARY: Horus (horus-rag edge function) — Postgres knowledge graph and the
- *   Content Understanding corpus. Graph edges carry the sentence they were
- *   extracted from, so relationship claims are auditable.
- * - LEGACY (fallback only, being archived): agentic-planner /
- *   intersection-reasoning / graph-query Azure Functions over Cosmos Gremlin.
+ * BACKEND: Horus (horus-rag edge function), and only Horus — the Postgres
+ * knowledge graph and the Content Understanding corpus. Graph edges carry the
+ * sentence they were extracted from, so relationship claims are auditable.
+ *
+ * There is no fallback. This block used to describe the agentic-planner,
+ * intersection-reasoning and graph-query Azure Functions over Cosmos Gremlin
+ * as "legacy, fallback only" — that stack is decommissioned and the calls are
+ * gone from this file. Describing a path that cannot be taken sends the next
+ * reader looking for a second engine to check when something returns nothing.
+ * If a request here fails, it failed at Horus.
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";

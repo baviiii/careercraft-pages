@@ -85,6 +85,12 @@ reports **14 errors** (all pre-existing, spread across `useEnterpriseRAG`,
 `usePersonalization`, `usePlansAdmin`, `pdfExport`, `resumeParser`,
 `UserManagement`, `Settings`, `NextGenInsights`).
 
+**Confirmed again 2026-09-27**, and it bites: `npm run typecheck` passed clean
+immediately after a dead-code sweep that had deleted a component still imported
+by `DocumentIntelligenceVisualizer`. `npx vite build` caught it in 2.5 seconds
+with an `UNRESOLVED_IMPORT`. Until the script is fixed, **`vite build` is the
+gate** — never trust `typecheck` to tell you a deletion was safe.
+
 **Why it matters:** this is how a real bug survived — `creative.tsx` passed
 `maxLines` as a prop instead of a style, react-pdf silently ignored it, and
 the only thing reporting it was a typecheck nobody was running.
@@ -125,3 +131,30 @@ baseline the 14 errors first, or CI starts failing every deploy immediately.
   harness first — not a quick win. Untested: `optionalUser`, guest/auth
   branching, rate-limit keys, and the references/awards/volunteer/publications
   mapper.
+
+---
+
+## 6. The only in-repo chat guardrails were dead code
+
+**Found:** 2026-09-27, during the dead-code sweep.
+
+`src/lib/careerGuardrails.ts` held `CAREER_SYSTEM_DISCLAIMER` and
+`CAREER_SAFETY_RULES` — explicit refusals for medical, legal and financial
+advice, plus "do not invent SA Government programs". Nothing imported it, and
+that text existed nowhere else in the repo. So those rules were not being
+applied anywhere. Deleted with the rest of the dead code.
+
+Live prompts come from the database via `promptLoader.ts`, falling back to
+`FALLBACK_CAREER_PROMPT` in that same file. The fallback covers tone, sourcing
+and structure — it does **not** carry any refusal rules.
+
+**Why it matters:** the chat surface will answer a medical or legal question if
+the DB prompt does not tell it not to, and the repo no longer contains the text
+that says it shouldn't.
+
+**Not urgent because:** the DB prompt may well carry equivalent rules — it is
+admin-editable and has been edited. This is unverified, not known-broken.
+
+**Decide later:** read the live `career` prompt row in Supabase. If it has no
+refusal section, paste one in — it is a text edit in `/admin`, not a deploy.
+The deleted wording is recoverable from git history if you want it verbatim.
