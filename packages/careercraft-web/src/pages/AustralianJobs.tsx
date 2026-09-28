@@ -521,6 +521,32 @@ export default function AustralianJobs() {
         reasons: result.reasons,
       };
     });
+
+    /* Phase 0 measurement — see PERSONALISATION-PLAN.md.
+       `industryMatches` maps the board's category onto our 20 industries using
+       word overlap plus a short synonym list, and that list was written against
+       the Adzuna labels I EXPECTED, not ones I had seen: their /categories
+       endpoint needs a key I do not have. So the 14/14 it scores is against
+       predicted labels, not real ones.
+
+       Rather than guess again, report the categories that matched nothing.
+       Aggregated per search and de-duplicated, so this is a line or two per
+       search rather than one per job. Delete once the synonym list has been
+       checked against a real /categories response. */
+    if (import.meta.env.DEV) {
+      const unmatched = new Set(
+        jobsWithScore
+          .filter((j) => !j.reasons?.includes('Industry match') && j.category)
+          .map((j) => j.category as string),
+      );
+      if (unmatched.size > 0) {
+        console.warn(
+          '[match] categories that matched no industry:',
+          [...unmatched].sort(),
+        );
+      }
+    }
+
     return jobsWithScore.sort((a, b) => (b.match ?? 0) - (a.match ?? 0));
   }, [jobs, hasPersonalizationData, isJobRecommended]);
 

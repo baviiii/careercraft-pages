@@ -271,10 +271,17 @@ const Auth = () => {
 
   useEffect(() => {
     let hasTrackedInitialSession = false;
+    let cancelled = false;
+    const pending = new Set<number>();
 
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      if (currentSession) {
+    /* Same wait as the homepage. The callback (and a getSession that
+       resolves in the same turn) still holds Supabase's auth lock. Filing
+       the guest draft before that lock drops is what made a first sign-in
+       report the résumé as lost. */
+    const finishSignIn = (currentSession: Session) => {
+      const timer = window.setTimeout(() => {
+        pending.delete(timer);
+        if (cancelled) return;
         const urlParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const isOAuthRedirect = urlParams.has("code") || hashParams.has("access_token");
@@ -285,8 +292,14 @@ const Auth = () => {
             new Date().getTime() - new Date(currentSession.user.created_at).getTime() < 60000;
           trackAuthEvent(isNewUser ? "signup_success" : "login_success", currentSession.user.email, currentSession.user.id);
         }
-        redirectAfterAuth(currentSession.user.id);
-      }
+        void redirectAfterAuth(currentSession.user.id);
+      }, 0);
+      pending.add(timer);
+    };
+
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      if (currentSession) finishSignIn(currentSession);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, currentSession) => {
@@ -296,12 +309,21 @@ const Auth = () => {
         const isNewUser =
           currentSession.user.created_at &&
           new Date().getTime() - new Date(currentSession.user.created_at).getTime() < 60000;
-        trackAuthEvent(isNewUser ? "signup_success" : "login_success", currentSession.user.email, currentSession.user.id);
-        setTimeout(() => redirectAfterAuth(currentSession.user.id), 0);
+        const timer = window.setTimeout(() => {
+          pending.delete(timer);
+          if (cancelled) return;
+          trackAuthEvent(isNewUser ? "signup_success" : "login_success", currentSession.user.email, currentSession.user.id);
+          void redirectAfterAuth(currentSession.user.id);
+        }, 0);
+        pending.add(timer);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      pending.forEach((timer) => window.clearTimeout(timer));
+      subscription.unsubscribe();
+    };
   }, [navigate, trackAuthEvent]);
 
   /* ─── OAuth handlers ─── */

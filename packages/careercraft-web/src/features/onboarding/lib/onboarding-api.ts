@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import {
+  describeNormalizationLoss,
   normalizeAnalysis,
   normalizeProficiency,
   normalizeSkillCategory,
@@ -144,6 +145,19 @@ export async function applyOnboarding({ userId, analysis: edited, source }: Appl
   // The reveal step lets the user type anything — canonicalise once more.
   const analysis = normalizeAnalysis(edited);
 
+  /* Record what canonicalisation threw away. See the note on
+     describeNormalizationLoss: an "Aged Care" résumé very likely becomes
+     industry 'Other', which can never match a job or article again, and we do
+     not currently know how often that happens.
+
+     Fire-and-forget on purpose — this is measurement, and a user must never
+     fail onboarding because a telemetry insert did. Goes to activity_logs
+     rather than a new table: it is purpose-built for this (action + details
+     JSONB + severity), already insertable, and — unlike
+     job_tracker_telemetry — actually present in the generated Supabase types,
+     so this needs no cast. */
+  void recordNormalizationLoss(userId, edited, source);
+
   // Identity fields fill blanks only; onboarding must never overwrite a name
   // or phone the user set themselves.
   const { data: current } = await supabase
@@ -269,6 +283,36 @@ async function applyPreferences(userId: string, analysis: OnboardingAnalysis): P
     { onConflict: 'user_id' },
   );
   if (error) throw error;
+}
+
+/**
+ * Phase 0 measurement. Delete once we know whether normalisation loss is real.
+ *
+ * Writes at most one row per onboarding, and only when something was actually
+ * lost, so a clean run costs nothing.
+ */
+async function recordNormalizationLoss(
+  userId: string,
+  raw: OnboardingAnalysis,
+  source: OnboardingSource,
+): Promise<void> {
+  try {
+    const losses = describeNormalizationLoss(raw);
+    if (losses.length === 0) return;
+
+    console.warn('[onboarding] normalisation dropped values:', losses);
+
+    await supabase.from('activity_logs').insert({
+      user_id: userId,
+      action: 'onboarding_normalization_loss',
+      entity_type: 'profile',
+      severity: 'info',
+      details: { source, losses } as unknown as Json,
+    });
+  } catch (e) {
+    /* Never surface this. It is a measurement of a problem, not a feature. */
+    console.warn('[onboarding] could not record normalisation loss:', e);
+  }
 }
 
 // Upsert skills, resolving names to canonical skill_tags (user_skills.skill_id FK).

@@ -321,3 +321,73 @@ export function normalizeAnalysis(a: OnboardingAnalysis): OnboardingAnalysis {
     confidence: a.confidence ?? { overall: 0.5, persona: 0.5, skills: 0.5 },
   };
 }
+
+/* ── Diagnostics ─────────────────────────────────────────────────────────────
+   Onboarding is two stages with very different characters. Extraction is AI
+   (`onboard-analyze` → horusGenerateObject) and copes with any résumé, any
+   profession, any phrasing. Normalisation — everything above — then forces that
+   onto closed enums, and that is where a versatile answer can become a narrow
+   one.
+
+   `normalizeIndustry` is the sharp edge. It tries an exact match against the 20
+   INDUSTRIES, then five aliases (it, ict, fintech, defence, mining), then a
+   keyword list, and failing all three returns 'Other'. A résumé that reads
+   "Aged Care" or "Allied Health" very likely lands on 'Other' — and 'Other'
+   never matches a job or an article again, because `industryMatches` treats it
+   as a stop word. Silently, permanently, for that user.
+
+   Whether that is worth fixing depends entirely on how often it happens, and
+   that is a measurement, not an argument. This reports what was lost so the
+   caller can record it; it does no I/O itself, because this module is pure and
+   should stay that way.
+
+   Delete this once the question is answered. */
+
+export interface NormalizationLoss {
+  field: string;
+  /** What the AI actually said. */
+  raw: string;
+  /** What it became — 'Other', or null when the value was dropped. */
+  normalized: string | null;
+}
+
+export function describeNormalizationLoss(a: OnboardingAnalysis): NormalizationLoss[] {
+  const losses: NormalizationLoss[] = [];
+  const ip = (a.inferredProfile ?? {}) as OnboardingInferredProfile;
+
+  const rawIndustry = cleanStr(ip.industry);
+  if (rawIndustry) {
+    const got = normalizeIndustry(rawIndustry);
+    /* 'Other' is only a loss when the AI said something else — a résumé that
+       genuinely reads "Other" was normalised correctly. */
+    if (got === 'Other' && rawIndustry.toLowerCase() !== 'other') {
+      losses.push({ field: 'industry', raw: rawIndustry, normalized: got });
+    }
+  }
+
+  const rawLevel = cleanStr(ip.career_level);
+  if (rawLevel && normalizeCareerLevel(rawLevel) === null) {
+    losses.push({ field: 'career_level', raw: rawLevel, normalized: null });
+  }
+
+  const rawYears = cleanStr(ip.years_of_experience);
+  if (rawYears && normalizeYearsOfExperience(rawYears) === null) {
+    losses.push({ field: 'years_of_experience', raw: rawYears, normalized: null });
+  }
+
+  const rawStatus = cleanStr(ip.employment_status);
+  if (rawStatus && normalizeEmploymentStatus(rawStatus) === null) {
+    losses.push({ field: 'employment_status', raw: rawStatus, normalized: null });
+  }
+
+  /* Preferred industries go through the same funnel, and a dropped entry here
+     costs the user a job-preference filter rather than the whole signal. */
+  for (const raw of cleanList(a.jobPreferences?.industries, 5)) {
+    const got = normalizeIndustry(raw);
+    if (got === 'Other' && raw.toLowerCase() !== 'other') {
+      losses.push({ field: 'jobPreferences.industries', raw, normalized: got });
+    }
+  }
+
+  return losses;
+}
