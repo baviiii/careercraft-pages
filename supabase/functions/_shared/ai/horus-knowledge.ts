@@ -377,3 +377,162 @@ export interface HorusBudgetFunders {
   funders: HorusBudgetFunder[];
   basis: string;
 }
+
+/* ── Embeddings ──────────────────────────────────────────────────────────────
+   `POST /api/embed` on the same deployment: a batch of short strings in,
+   vectors out. It lives here rather than in horus.ts because it shares this
+   file's plumbing — base URL, tenant key, the Vercel protection bypass — and
+   shares none of horus.ts's, which is built around generation: tiers, token
+   ceilings, system prompts and a mandatory meter.
+
+   Used to rank things by meaning rather than by shared words. Exact matching
+   cannot tell that "Enrolled Nurse" and "Patient Care Assistant" describe the
+   same job market, and no synonym list ever closes over job titles or the ways
+   an advert can phrase a skill.
+
+   Horus meters these against the tenant on its own side (UsageMeter.EMBEDDINGS),
+   so this deliberately does not touch CareerCraft's token ledger. That ledger
+   exists to enforce plan quotas on generation, which is where the money is; an
+   embedding call is a fraction of a cent and must never be the reason a search
+   is refused.
+
+   Not batched in chunks on purpose: one request covers the whole page, because
+   this runs inside a user's search and sequential sub-batches would add their
+   latencies together. Horus caps the batch at 100 inputs and truncates each to
+   ~2,000 characters.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** Horus's own ceiling; sending more is a 400. */
+export const HORUS_EMBED_MAX_INPUTS = 100;
+
+export interface HorusEmbedOptions {
+  /**
+   * `small` (default) is text-embedding-3-small on its own deployment. `large`
+   * is the model the knowledge index is built on — only use it if comparing
+   * against vectors from that index.
+   */
+  model?: "small" | "large";
+  /**
+   * Matryoshka truncation. At native width one profile plus fifty jobs is
+   * megabytes of JSON; 512 cuts that by roughly two thirds and barely moves
+   * the ordering. Omit to get the model's full width.
+   */
+  dimensions?: number;
+  /** Abort budget for the whole call. Horus itself gives up at 8s. */
+  timeoutMs?: number;
+}
+
+export interface HorusEmbedResult {
+  /** One vector per input, in input order. */
+  vectors: number[][];
+  /** Deployment that produced them — vectors from different models are not comparable. */
+  model: string;
+  dimensions: number;
+  tokens: number;
+}
+
+export async function horusEmbed(
+  input: string[],
+  options: HorusEmbedOptions = {},
+): Promise<HorusEmbedResult> {
+  if (input.length === 0) {
+    throw new ProviderError("horusEmbed: at least one input required", "horus");
+  }
+  if (input.length > HORUS_EMBED_MAX_INPUTS) {
+    throw new ProviderError(
+      `horusEmbed: at most ${HORUS_EMBED_MAX_INPUTS} inputs, got ${input.length}`,
+      "horus",
+    );
+  }
+
+  /* Caller-side deadline. Every caller falls back to ranking without
+     similarity, so a fast failure is worth more than a slow success — a search
+     page that hangs is worse than one ranked slightly less well. */
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}/api/embed`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        input,
+        model: options.model ?? "small",
+        ...(options.dimensions ? { dimensions: options.dimensions } : {}),
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    const aborted = err instanceof Error && err.name === "AbortError";
+    throw new ProviderError(
+      aborted ? "Horus embed timed out" : `Horus embed failed: ${err instanceof Error ? err.message : err}`,
+      "horus",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    throw new ProviderError(
+      `Horus embed: HTTP ${res.status} ${text.slice(0, 200)}`,
+      "horus",
+      res.status,
+    );
+  }
+
+  let body: Partial<HorusEmbedResult> | null = null;
+  try {
+    body = JSON.parse(text) as Partial<HorusEmbedResult>;
+  } catch {
+    /* A non-JSON body means we never reached the handler — a wrong base URL or
+       an auth/SSO redirect page, which is a config problem and not an outage. */
+    throw new ProviderError(
+      `Horus embed: non-JSON response (HTTP ${res.status}) ${text.slice(0, 200)}`,
+      "horus",
+      res.status,
+    );
+  }
+
+  const vectors = body?.vectors;
+  if (!Array.isArray(vectors) || vectors.length !== input.length) {
+    /* Order and count are the contract — callers index vectors positionally
+       against their own items, so a short or reordered response would silently
+       attach the wrong score to the wrong job. */
+    throw new ProviderError(
+      `Horus embed: expected ${input.length} vectors, got ${Array.isArray(vectors) ? vectors.length : "none"}`,
+      "horus",
+    );
+  }
+
+  return {
+    vectors,
+    model: body?.model ?? "unknown",
+    dimensions: body?.dimensions ?? vectors[0]?.length ?? 0,
+    tokens: body?.tokens ?? 0,
+  };
+}
+
+/**
+ * Cosine similarity, -1..1 — in practice 0..1 for text embeddings.
+ *
+ * Here rather than in a caller because every caller needs it and an
+ * accidentally different implementation would produce scores that look
+ * comparable across surfaces and are not.
+ */
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]!;
+    const y = b[i]!;
+    dot += x * y;
+    normA += x * x;
+    normB += y * y;
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
