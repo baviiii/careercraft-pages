@@ -13,13 +13,32 @@ export default function ContactUs() {
   const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
 
+  /* This used to set `submitted` and nothing else: the message was discarded
+     and the user was told "Message received — you'll hear back within one
+     working day". Someone reporting a broken export, or asking about their
+     data, got a thank-you and silence.
+
+     There is no inbox endpoint to post to yet, so the honest fix is to hand
+     the message to the user's own mail client with everything filled in. It
+     genuinely reaches support@faircopy.au, the user keeps a copy in their
+     sent items, and the reply address is real rather than typed into a box
+     that forgets it. Replace with a real POST when there is somewhere to
+     post to — the form state is already shaped for it. */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const body = `${formData.message}
+
+—
+${formData.name}
+${formData.email}`;
+    const href =
+      `mailto:support@faircopy.au` +
+      `?subject=${encodeURIComponent(formData.subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+
+    window.location.href = href;
     setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setFormData({ name: "", email: "", subject: "", message: "" });
-    }, 3000);
   };
 
   return (
@@ -57,8 +76,8 @@ export default function ContactUs() {
             <div className="col-span-12 md:col-span-5">
               <div className="cc-label text-[color:var(--cc-rust)]">§ 01 · Reach us</div>
               <h2 className="mt-4 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
-                Three ways to<br />
-                <span className="cc-italic-wonk">reach the team.</span>
+                Two ways to<br />
+                <span className="cc-italic-wonk">reach us.</span>
               </h2>
 
               <dl className="mt-12 space-y-8">
@@ -67,14 +86,6 @@ export default function ContactUs() {
                   <dd className="mt-2 cc-font-display italic text-2xl md:text-3xl">
                     <a href="mailto:support@faircopy.au" className="cc-link text-[color:var(--cc-ink)]">
                       support@faircopy.au
-                    </a>
-                  </dd>
-                </div>
-                <div className="border-t border-[color:var(--cc-hair)] pt-5">
-                  <dt className="cc-label-sm text-[color:var(--cc-ash)]">Phone</dt>
-                  <dd className="mt-2 cc-font-display italic text-2xl md:text-3xl">
-                    <a href="tel:+611300000000" className="cc-link text-[color:var(--cc-ink)]">
-                      +61 1300 000 000
                     </a>
                   </dd>
                 </div>
@@ -88,10 +99,10 @@ export default function ContactUs() {
               </dl>
 
               <div className="mt-12 border-t border-[color:var(--cc-ink)] pt-5">
-                <div className="cc-label-sm text-[color:var(--cc-ash)]">Opening hours</div>
+                <div className="cc-label-sm text-[color:var(--cc-ash)]">When you'll hear back</div>
                 <div className="mt-3 cc-font-editorial text-xl text-[color:var(--cc-ink-soft)] leading-snug">
-                  Mon &ndash; Fri · 9:00 &ndash; 17:00 AEST<br />
-                  Weekends closed · messages held
+                  Weekdays, Adelaide time.<br />
+                  Usually a day or two &mdash; it is a small team.
                 </div>
               </div>
             </div>
@@ -111,12 +122,16 @@ export default function ContactUs() {
                     className="border border-[color:var(--cc-ink)] p-10 md:p-14 text-center bg-[color:var(--cc-cream)]"
                   >
                     <CheckCircle2 className="w-10 h-10 text-[color:var(--cc-rust)] mx-auto" />
-                    <div className="mt-6 cc-label text-[color:var(--cc-rust)]">Message received</div>
+                    <div className="mt-6 cc-label text-[color:var(--cc-rust)]">Over to your email</div>
                     <h3 className="mt-4 cc-font-display text-3xl md:text-4xl text-[color:var(--cc-ink)]">
-                      Thank you — <span className="cc-italic-wonk">we'll reply soon.</span>
+                      Your mail app should be <span className="cc-italic-wonk">open.</span>
                     </h3>
                     <p className="mt-4 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">
-                      You'll typically hear back within one working day.
+                      Press send there and it reaches us. If nothing opened, write to{" "}
+                      <a href="mailto:support@faircopy.au" className="cc-link text-[color:var(--cc-ink)]">
+                        support@faircopy.au
+                      </a>{" "}
+                      directly.
                     </p>
                   </motion.div>
                 ) : (

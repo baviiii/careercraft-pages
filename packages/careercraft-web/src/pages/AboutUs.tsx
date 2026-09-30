@@ -18,7 +18,10 @@ const pillars = [
   { k: "Built in", v: "Adelaide, SA" },
   { k: "Grounded in", v: "Official gov documents" },
   { k: "Written for", v: "Australian hiring" },
-  { k: "Updated", v: "Monthly, ongoing" },
+  /* Was "Monthly, ongoing". There is no ingest function and no scheduled job
+     — the corpus is a fixed set of published papers, loaded once. A cadence
+     nobody runs is the kind of detail a reader would reasonably rely on. */
+  { k: "Sourced from", v: "Published SA papers" },
 ];
 
 export default function AboutUs() {
