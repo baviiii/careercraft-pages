@@ -10,6 +10,8 @@ export interface NewsArticle {
   category: string;
   imageUrl?: string;
   readTime?: string;
+  /** Closeness to the user's profile, 0-1, attached server-side by job-news. */
+  similarity?: number;
 }
 
 export interface TrendItem {

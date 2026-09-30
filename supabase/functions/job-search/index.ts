@@ -26,6 +26,7 @@ import { adminClient } from "../_shared/db/supabase.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
+import { attachSimilarity } from "../_shared/ai/similarity.ts";
 import { detectRemote, normalizeJobType, stripHtml } from "./normalize.ts";
 
 const RESOURCE = "job-search";
@@ -87,6 +88,12 @@ const RequestSchema = z.discriminatedUnion("action", [
     terms: z.array(z.string().max(120)).max(5).optional(),
     limit: z.number().int().min(1).max(50).optional(),
     page: z.number().int().min(1).max(20).optional(),
+    /**
+     * The caller's profile as a short sentence, for ranking by meaning. Sent
+     * by the client, which already has it loaded — see the note in job-news.
+     * Only ever an embedding input, never prompt text.
+     */
+    profileText: z.string().max(2000).optional(),
   }),
   z.object({
     action: z.literal("save_to_tracker"),
@@ -244,12 +251,24 @@ serve(handler(async (req) => {
       }
     }
 
+    const page = jobs.slice(0, perPage);
+
+    /* Rank by meaning as well as keyword. This board is keyword-matched, so
+       "ICU Nurse" misses "Critical Care Registered Nurse" — the `terms` list
+       above is the blunt fix for that, and this is the one that does not need
+       every phrasing enumerated in advance. Degrades silently; see job-news. */
+    const similarityStatus = await attachSimilarity(
+      page as unknown as Array<Record<string, unknown>>,
+      body.profileText,
+    );
+
     // `partial` tells the caller these results are thinner than they should be,
     // so a short result set reads as a degraded search rather than a quiet one.
     return json({
-      jobs: jobs.slice(0, perPage),
+      jobs: page,
       terms,
       partial: failures.length > 0,
+      similarityStatus,
     });
   }
 

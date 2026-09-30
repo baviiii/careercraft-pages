@@ -60,6 +60,9 @@ export default function JobTrackerPage() {
     // The alternate phrasings, when onboarding produced them. Falls back to the
     // single title above for anyone who onboarded before this existed.
     terms: perso.profile.searchTerms?.length ? perso.profile.searchTerms : undefined,
+    profileText: perso.hasPersonalizationData
+      ? perso.getProfileEmbeddingText() ?? undefined
+      : undefined,
     ready: !perso.loading,
   });
   const automation = useJobAutomation();
@@ -115,6 +118,7 @@ export default function JobTrackerPage() {
              two sentences still names the skills that matter. */
           description: job.description_snippet ?? undefined,
           isRemote: job.is_remote,
+          similarity: job.similarity,
         }).score,
       }))
       .sort((a, b) => b.score - a.score)

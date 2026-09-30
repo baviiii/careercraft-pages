@@ -170,6 +170,23 @@ export function industryMatches(
 const SIMILARITY_FLOOR = 0.25;
 const SIMILARITY_CEILING = 0.75;
 const SIMILARITY_MAX_POINTS = 25;
+/** Lower than jobs: an article about your field is worth less than a role in it. */
+const SIMILARITY_MAX_POINTS_ARTICLE = 18;
+
+/**
+ * Raw cosine -> points, continuously. No threshold: see the note at the job
+ * scorer's usage site. Shared by both scorers so a score means the same thing
+ * on the jobs page as it does on news — two copies of this would drift and the
+ * numbers would still look comparable.
+ */
+function similarityPoints(similarity: number | undefined, maxPoints: number): number {
+  if (typeof similarity !== 'number' || !Number.isFinite(similarity)) return 0;
+  const fraction = Math.max(
+    0,
+    Math.min(1, (similarity - SIMILARITY_FLOOR) / (SIMILARITY_CEILING - SIMILARITY_FLOOR)),
+  );
+  return fraction * maxPoints;
+}
 
 export function matchLevel(score: number): { match: number; band: MatchBand } {
   const match = score <= 0 ? 0 : Math.round(100 * (1 - Math.exp(-score / 35)));
@@ -653,18 +670,12 @@ export function usePersonalization() {
        bounds are a starting point, not a measurement: job-news logs the min,
        median and max of every batch so they can be set from real spreads
        rather than guessed at twice. */
-    if (typeof job.similarity === 'number' && Number.isFinite(job.similarity)) {
-      const fraction = Math.max(
-        0,
-        Math.min(1, (job.similarity - SIMILARITY_FLOOR) / (SIMILARITY_CEILING - SIMILARITY_FLOOR)),
-      );
-      const points = fraction * SIMILARITY_MAX_POINTS;
-      if (points > 0) {
-        score += points;
-        /* Only the top of the range earns a sentence. Below that the points
-           still count — they just do not warrant a claim to the reader. */
-        if (fraction > 0.6) reasons.push('Close to your background');
-      }
+    const simPoints = similarityPoints(job.similarity, SIMILARITY_MAX_POINTS);
+    if (simPoints > 0) {
+      score += simPoints;
+      /* Only the top of the range earns a sentence. Below that the points
+         still count — they just do not warrant a claim to the reader. */
+      if (simPoints > SIMILARITY_MAX_POINTS * 0.6) reasons.push('Close to your background');
     }
 
     return {
@@ -676,7 +687,13 @@ export function usePersonalization() {
   }, [profile]);
 
   // Rate how relevant a news/market item is to this profile (same 0–100 scale).
-  const scoreArticle = useCallback((article: { title?: string; description?: string; category?: string }) => {
+  const scoreArticle = useCallback((article: {
+    title?: string;
+    description?: string;
+    category?: string;
+    /** Closeness to the user's profile, 0-1, computed server-side. */
+    similarity?: number;
+  }) => {
     const text = `${article.title || ''} ${article.description || ''} ${article.category || ''}`.toLowerCase();
     let score = 0;
     const reasons: string[] = [];
@@ -712,6 +729,19 @@ export function usePersonalization() {
     if (profile.currentJobTitle && text.includes(profile.currentJobTitle.toLowerCase())) {
       score += 12;
       reasons.push('Your current role');
+    }
+
+    /* Same graded treatment as jobs, and for the same reason: every signal
+       above needs the article to literally contain a word from the profile, so
+       a piece about aged-care workforce shortages is invisible to a nurse whose
+       profile says "Registered Nurse". Capped lower than on jobs — an article
+       being *about* your field matters less than a job you could apply for. */
+    const articleSimPoints = similarityPoints(article.similarity, SIMILARITY_MAX_POINTS_ARTICLE);
+    if (articleSimPoints > 0) {
+      score += articleSimPoints;
+      if (articleSimPoints > SIMILARITY_MAX_POINTS_ARTICLE * 0.6) {
+        reasons.push('Close to your field');
+      }
     }
 
     return { isRelevant: score >= 18, score, ...matchLevel(score), reasons };
