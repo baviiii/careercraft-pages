@@ -322,7 +322,7 @@ serve(handler(async (req) => {
       /* Rank by meaning, not by shared words.
          Fills `similarity` on each job where it can, and leaves it undefined
          where it cannot. Never throws — see attachSimilarity. */
-      await attachSimilarity(uniqueJobs, profileText);
+      const similarityStatus = await attachSimilarity(uniqueJobs, profileText);
 
       // Sort by date (newest first)
       uniqueJobs.sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime());
@@ -339,6 +339,10 @@ serve(handler(async (req) => {
         topCompanies: [...new Set(uniqueJobs.map(j => j.company))].slice(0, 10),
         hotSkills: getTopSkills(uniqueJobs),
         sources: [...new Set(uniqueJobs.map(j => j.source))],
+        /* Visible in the network tab so "is similarity actually working?" does
+           not require log access. "ok" here is the only proof the Horus embed
+           round trip succeeded. */
+        similarityStatus,
       };
 
       console.log(`Returning ${uniqueJobs.length} unique jobs from ${stats.sources.length} sources`);
@@ -1532,15 +1536,33 @@ function jobEmbedText(job: { title?: string; description?: string }): string {
   return `${job.title ?? ""}. ${job.description ?? ""}`.trim();
 }
 
+/**
+ * Why a page came back without similarity scores.
+ *
+ * Returned rather than only logged because degrading silently makes a broken
+ * Horus connection indistinguishable from a working one: the other signals
+ * still rank the page, so the UI looks correct either way. Anyone testing this
+ * end to end needs to be able to tell, without reading function logs.
+ */
+export type SimilarityStatus =
+  /** Scores attached. */
+  | "ok"
+  /** User has not onboarded — nothing to compare against, and no cost. */
+  | "no-profile"
+  /** HORUS_BASE_URL / key absent. A config problem, not an outage. */
+  | "not-configured"
+  /** Horus refused, timed out, or is paused. Expected on free tier. */
+  | "unavailable";
+
 async function attachSimilarity(
   jobs: Array<Record<string, unknown>>,
   profileText: string | undefined,
-): Promise<void> {
+): Promise<SimilarityStatus> {
   const profile = (profileText ?? "").trim();
   /* No profile means nothing to compare against — a user who has not
      onboarded. Skipping here is what keeps them off the bill entirely. */
-  if (!profile || jobs.length === 0) return;
-  if (!horusKnowledgeConfigured()) return;
+  if (!profile || jobs.length === 0) return "no-profile";
+  if (!horusKnowledgeConfigured()) return "not-configured";
 
   try {
     /* One request for the profile and every job. Horus caps the batch, and a
@@ -1557,7 +1579,7 @@ async function attachSimilarity(
     });
 
     const profileVector = vectors[0];
-    if (!profileVector) return;
+    if (!profileVector) return "unavailable";
 
     for (let i = 0; i < ranked.length; i++) {
       const vector = vectors[i + 1];
@@ -1582,9 +1604,11 @@ async function attachSimilarity(
         );
       }
     }
+    return "ok";
   } catch (e) {
     /* Ranking without it is the fallback, and it is a good fallback. */
     console.warn("[similarity] unavailable, ranking without it:", e);
+    return "unavailable";
   }
 }
 

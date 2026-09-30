@@ -146,6 +146,12 @@ interface JobStats {
   avgSalary: string;
   topCompanies: string[];
   hotSkills: string[];
+  /**
+   * Whether meaning-based ranking actually ran. Surfaced because it degrades
+   * silently on purpose — the other signals still rank the page, so a broken
+   * Horus connection and a working one look identical from the UI.
+   */
+  similarityStatus?: 'ok' | 'no-profile' | 'not-configured' | 'unavailable';
 }
 
 interface TrendAnalysis {
@@ -541,6 +547,16 @@ export default function AustralianJobs() {
        Aggregated per search and de-duplicated, so this is a line or two per
        search rather than one per job. Delete once the synonym list has been
        checked against a real /categories response. */
+    if (import.meta.env.DEV && stats?.similarityStatus) {
+      const note = {
+        ok: 'ranking by meaning is live',
+        'no-profile': 'skipped — profile is empty, so nothing to compare',
+        'not-configured': 'skipped — HORUS_BASE_URL / key missing in Supabase secrets',
+        unavailable: 'FAILED — Horus refused, timed out, or is paused',
+      }[stats.similarityStatus];
+      console.log(`[similarity] ${stats.similarityStatus}: ${note}`);
+    }
+
     if (import.meta.env.DEV) {
       const unmatched = new Set(
         jobsWithScore
@@ -556,7 +572,7 @@ export default function AustralianJobs() {
     }
 
     return jobsWithScore.sort((a, b) => (b.match ?? 0) - (a.match ?? 0));
-  }, [jobs, hasPersonalizationData, isJobRecommended]);
+  }, [jobs, hasPersonalizationData, isJobRecommended, stats?.similarityStatus]);
 
   const matchingJobsCount = sortedJobs.filter((j) => j.fitsPreferences).length;
   const activeMeta = AU_TABS.find((t) => t.id === activeTab) ?? AU_TABS[0];
