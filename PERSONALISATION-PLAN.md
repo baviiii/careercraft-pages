@@ -69,7 +69,48 @@ cleanup job. **Verify that rate before committing.**
 
 The real cost is latency: one extra round trip per search.
 
-## 4. Phases
+## 3a. Status (2026-09-30)
+
+| Phase | State |
+|---|---|
+| 0 — measure | **done** `4ff2e21` — live, collecting |
+| 1 — Horus `/api/embed` | **done**, written in horus-platform; gate passed |
+| 2 — `horusEmbed()` + cosine | **done** `a14e32f` |
+| 3 — onboarding normalisation | **probably unnecessary** — see below |
+| 4 — job similarity | **done** `2bf6b09` + `dfc4163` |
+| 5 — retune bands | **cancelled** — measured as unnecessary |
+| 6 — news, trends, tracker | **done** `1b9f6ab` |
+
+Three findings that changed the plan as written:
+
+**Phase 3 lost its argument.** The case for it was that a résumé reading
+"Aged Care" becomes industry `'Other'` and never matches anything again. But
+`onboard-analyze`'s prompt already hands the model the exact 20 canonical
+industries and tells it to pick one, and the reveal step renders the same list
+as a dropdown. So `'Other'` means the model disobeyed, not that our list was
+too narrow — a rarer thing than claimed. Phase 0 measures exactly this; decide
+with its number.
+
+**Phase 5 turned out to be unnecessary rather than deferred.** The worry was
+that adding up to 25 points would shift every band. It does not: `matchLevel`'s
+saturating curve compresses the top, so a direct match moves 96 → 98 while a
+career changer moves 35 → 62. Only the jobs that needed help are affected,
+which is the intended behaviour, so there is nothing to retune.
+
+**Calibrating four surfaces separately is not a risk.** Both scorers share one
+`similarityPoints` helper and one window, so tuning from the logged spreads
+fixes every surface at once.
+
+### Still unverified
+
+The CareerCraft → Horus HTTP round trip has never been exercised. What is
+verified is the Horus core function (directly, by `verify-embed.ts`), the
+cosine maths, and the scoring window's shape. The request itself, the tenant
+key's scope on the new route, and the response shape are unproven until a real
+search runs — which is why `similarityStatus` rides back in the response, since
+silent degradation makes a broken connection look identical to a working one.
+
+## 4. Phases (as originally written)
 
 ### Phase 0 — Measure first (half a day)
 Do not build either embedding path before knowing whether it matters.
