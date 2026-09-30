@@ -248,6 +248,7 @@ export default function ResumeBuilderPage() {
               isGuest={isGuest}
               isDraftPersisted={isDraftPersisted}
               onSignUpToExport={() => requireAccount("export")}
+              onContinueWithDraft={(reason) => requireAccount(reason)}
             />
           )}
         </AnimatePresence>

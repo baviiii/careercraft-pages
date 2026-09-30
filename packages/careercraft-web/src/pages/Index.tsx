@@ -663,6 +663,7 @@ const Index = memo(() => {
 
   useEffect(() => {
     let cancelled = false;
+    const pending = new Set<number>();
 
     /* OAuth and email-confirmation links both come back to "/", so this page
        is where most new sessions are first seen — including the ones that
@@ -675,16 +676,31 @@ const Index = memo(() => {
       if (!cancelled) navigate(destination, { replace: true });
     };
 
+    /* Supabase holds a lock for the whole onAuthStateChange callback, and
+       for the moment getSession() is resolving. Filing the guest résumé
+       (another Supabase call) inside that moment fails: the session is not
+       ready, the insert errors, and a brand-new Google / Microsoft / email
+       confirmation lands on "couldn't file your résumé". Waiting until this
+       turn finishes lets the lock go before the save starts. */
+    const routeAfterAuthUnlock = (s: Session | null) => {
+      const timer = window.setTimeout(() => {
+        pending.delete(timer);
+        void routeSession(s);
+      }, 0);
+      pending.add(timer);
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => {
       setSession(s);
-      void routeSession(s);
+      routeAfterAuthUnlock(s);
     });
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
-      void routeSession(s);
+      routeAfterAuthUnlock(s);
     });
     return () => {
       cancelled = true;
+      pending.forEach((timer) => window.clearTimeout(timer));
       subscription.unsubscribe();
     };
   }, [navigate]);

@@ -10,7 +10,7 @@ import {
   ResponsiveContainer, Cell,
 } from "recharts";
 import {
-  ArrowRight, DollarSign, Briefcase, Brain, Sparkles,
+  ArrowRight, DollarSign, Briefcase, Brain,
   TrendingUp, Zap, Link2, Loader2, Building2,
   GraduationCap, Leaf, Cpu, Heart, Wrench, Globe,
   FileText, ChevronRight,
@@ -223,13 +223,14 @@ export function CrossTabConnections() {
               <Link2 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-base text-white">Cross-Sector Intelligence</h3>
-              <p className="text-[11px] text-white/40">Click a sector — see real funding, careers & skills from SA government documents</p>
+              <h3 className="font-semibold text-base text-white">How sectors connect</h3>
+              <p className="text-[11px] text-white/40">Pick a sector to see its funding, the roles it names, and the skills behind them</p>
             </div>
           </div>
-          <Badge className="gap-1 bg-purple-500/20 text-purple-300 border-purple-400/30 text-[10px]">
-            <Sparkles className="w-3 h-3" />Live
-          </Badge>
+          {/* A badge reading "Live" sat here, hardcoded, with a sparkle. It
+              was live in the sense that a click fetches — which is true of
+              every control on the page — and it survived the months this
+              panel had nothing to show. The last of these. */}
         </div>
       </div>
 
@@ -286,7 +287,8 @@ export function CrossTabConnections() {
                     <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center bg-gradient-to-br", selectedSector.gradient)}>
                       <selectedSector.icon className="w-3.5 h-3.5 text-white" />
                     </div>
-                    <h4 className="font-semibold text-white text-sm">{selectedSector.label} Intelligence Flow</h4>
+                    {/* "Intelligence Flow" named nothing the panel shows. */}
+                    <h4 className="font-semibold text-white text-sm">{selectedSector.label}: funding, roles and skills</h4>
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedSector(null); setIntel(null); }}
                       className="ml-auto text-[11px] text-white/40 hover:text-white h-6 px-2">
                       Close

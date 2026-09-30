@@ -60,6 +60,23 @@ async function isAdmin(userId: string): Promise<boolean> {
  */
 let inFlight: Promise<string> | null = null;
 
+/*
+ * inFlight only covers callers that overlap. Auth does not: getSession()
+ * awaits the claim, and the SIGNED_IN listener calls again on a setTimeout,
+ * after the first promise has already settled and cleared the latch.
+ *
+ * That second call is fatal. takeGuestReturnTo() already consumed the
+ * path, and a successful claim already deleted the local draft — so the
+ * late caller finds nothing, returns /dashboard, and navigates last.
+ * The résumé was either filed and then abandoned, or left behind under an
+ * error toast on a page they never see.
+ *
+ * Remember the answer for a few seconds so every caller in one sign-in
+ * observes the same destination.
+ */
+const RESOLVE_REUSE_MS = 10_000;
+let resolved: { userId: string; destination: string; at: number } | null = null;
+
 /**
  * Claim any guest draft, then decide where to send the newly-signed-in user.
  *
@@ -67,6 +84,14 @@ let inFlight: Promise<string> | null = null;
  * leaving someone on a spinner is worse than landing them on the dashboard.
  */
 export function resolvePostAuthDestination(userId: string): Promise<string> {
+  if (
+    resolved &&
+    resolved.userId === userId &&
+    Date.now() - resolved.at < RESOLVE_REUSE_MS
+  ) {
+    return Promise.resolve(resolved.destination);
+  }
+
   if (!inFlight) {
     inFlight = runResolve(userId)
       /* "Never throws" has to be true by construction, not by inspection.
@@ -74,9 +99,15 @@ export function resolvePostAuthDestination(userId: string): Promise<string> {
          here means no navigate call happens at all — the person finishes
          signing in and then just sits on the auth page, which reads as a
          broken login. A wrong-but-sane destination beats no destination. */
+      .then((destination) => {
+        resolved = { userId, destination, at: Date.now() };
+        return destination;
+      })
       .catch((error) => {
         console.error("[postAuth] Destination resolution failed:", error);
-        return DEFAULT_DESTINATION;
+        const destination = DEFAULT_DESTINATION;
+        resolved = { userId, destination, at: Date.now() };
+        return destination;
       })
       .finally(() => {
         inFlight = null;
@@ -107,9 +138,12 @@ async function runResolve(userId: string): Promise<string> {
   /* An explicit return beats the admin landing. Someone who clicked
      "create an account to download" wants their résumé, not the admin panel,
      and the draft has already been consumed by the claim above — sending
-     them elsewhere would strand it. */
+     them elsewhere would strand it.
+
+     continue-* tools land off /builder. The handoff toast is only read in the
+     builder, so writing a note here would leave a stale message for a later
+     visit. The draft is already claimed (or kept locally on failure). */
   if (pending.path !== "/builder") {
-    setHandoffNote(claimed ? "claimed" : "claim-failed", pending.intent);
     return pending.path;
   }
 

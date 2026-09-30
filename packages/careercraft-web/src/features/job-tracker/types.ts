@@ -41,22 +41,24 @@ export interface JobCatalogJob {
   currency: string | null;
   job_type: string | null;
   is_remote: boolean;
+  /** The board's classification, e.g. "Healthcare & Nursing Jobs". */
+  category: string | null;
+  /** True when the board predicted the salary instead of the employer stating it. */
+  salary_is_predicted: boolean;
+  /** Closeness to the user's profile, 0-1, attached server-side by job-search. */
+  similarity?: number;
   description_snippet: string | null;
-  full_description: string | null;
+  /* Was `full_description`. Adzuna never sent a full description — see the
+     note in supabase/functions/job-search/index.ts. */
   posted_at: string | null;
 }
 
-export interface JobFitScore {
-  id: string;
-  application_id: string;
-  score: number;
-  strengths: string[];
-  gaps: string[];
-  next_actions: string[];
-  suggested_bullet_rewrites: string[];
-  model: string | null;
-  created_at: string;
-}
+/* `JobFitScore` described rows written by the deleted job-fit-score function.
+   Its `model` column was always null, which is the shape of the whole thing:
+   there was no model. The `job_fit_scores` table still exists and still holds
+   whatever was written before this change — dropping it needs a migration and
+   a decision about those rows, so it is deliberately left alone. Nothing reads
+   it now; the ATS check goes through /analysis. */
 
 export interface ApplicationEvent {
   id: string;

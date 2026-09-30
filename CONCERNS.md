@@ -50,9 +50,12 @@ in the repo.
 - `set-supabase-secrets.ps1` (lines ~32-34) and `set-supabase-secrets.sh`
   (~29-31) still push `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` and `_KEY` to
   Supabase.
-- `supabase/RAG-ENV-SETUP.md:112` still claims *"the `parse-resume` function
-  uses Azure Document Intelligence + GPT-4o-mini"*. Wrong.
 - `.env.example:20` is the only one that's correct — says REMOVED.
+
+**Half resolved 2026-09-27:** `supabase/RAG-ENV-SETUP.md` claimed at line 112
+that `parse-resume` used Azure Document Intelligence. That file is deleted —
+along with the rest of the Azure-Functions-RAG docs, which described a
+retrieval path the code no longer has. Only the two secrets scripts are left.
 
 **Why it matters:** setting up a fresh environment from these scripts/docs
 provisions and wires a service nothing uses. Relevant now that Azure has been
@@ -61,8 +64,8 @@ recommissioned a different way — the stale docs describe the old shape.
 **Not urgent because:** setting an unused secret costs nothing and breaks
 nothing.
 
-**Decide later:** strip DI from the two secrets scripts and correct
-`RAG-ENV-SETUP.md`. Unrelated: `DocumentIntelligenceVisualizer` in
+**Decide later:** strip DI from the two secrets scripts. Unrelated:
+`DocumentIntelligenceVisualizer` in
 `CareerExplorer.tsx` / `TryUs.tsx` is a Horus-era React component, same words,
 nothing to do with Azure DI — leave it alone.
 
@@ -81,6 +84,12 @@ The real check is `npx tsc --noEmit -p tsconfig.app.json`, which currently
 reports **14 errors** (all pre-existing, spread across `useEnterpriseRAG`,
 `usePersonalization`, `usePlansAdmin`, `pdfExport`, `resumeParser`,
 `UserManagement`, `Settings`, `NextGenInsights`).
+
+**Confirmed again 2026-09-27**, and it bites: `npm run typecheck` passed clean
+immediately after a dead-code sweep that had deleted a component still imported
+by `DocumentIntelligenceVisualizer`. `npx vite build` caught it in 2.5 seconds
+with an `UNRESOLVED_IMPORT`. Until the script is fixed, **`vite build` is the
+gate** — never trust `typecheck` to tell you a deletion was safe.
 
 **Why it matters:** this is how a real bug survived — `creative.tsx` passed
 `maxLines` as a prop instead of a style, react-pdf silently ignored it, and
@@ -122,3 +131,60 @@ baseline the 14 errors first, or CI starts failing every deploy immediately.
   harness first — not a quick win. Untested: `optionalUser`, guest/auth
   branching, rate-limit keys, and the references/awards/volunteer/publications
   mapper.
+
+---
+
+## 5. The only in-repo chat guardrails were dead code
+
+**Found:** 2026-09-27, during the dead-code sweep.
+
+`src/lib/careerGuardrails.ts` held `CAREER_SYSTEM_DISCLAIMER` and
+`CAREER_SAFETY_RULES` — explicit refusals for medical, legal and financial
+advice, plus "do not invent SA Government programs". Nothing imported it, and
+that text existed nowhere else in the repo. So those rules were not being
+applied anywhere. Deleted with the rest of the dead code.
+
+Live prompts come from the database via `promptLoader.ts`, falling back to
+`FALLBACK_CAREER_PROMPT` in that same file. The fallback covers tone, sourcing
+and structure — it does **not** carry any refusal rules.
+
+**Why it matters:** the chat surface will answer a medical or legal question if
+the DB prompt does not tell it not to, and the repo no longer contains the text
+that says it shouldn't.
+
+**Not urgent because:** the DB prompt may well carry equivalent rules — it is
+admin-editable and has been edited. This is unverified, not known-broken.
+
+**Decide later:** read the live `career` prompt row in Supabase. If it has no
+refusal section, paste one in — it is a text edit in `/admin`, not a deploy.
+The deleted wording is recoverable from git history if you want it verbatim.
+
+---
+
+## 6. `strictNullChecks` is off, so optional fields are unenforced
+
+**Found:** 2026-09-27, while making `SkillDemand.demand` optional.
+
+`packages/careercraft-web/tsconfig.json` sets `strictNullChecks: false` (also
+`noImplicitAny: false`, `noUnusedLocals: false`, `noUnusedParameters: false`).
+
+Marking a field optional therefore changes **nothing** the compiler checks.
+`skill.growth.toFixed(1)` on `growth?: number` compiles clean and throws at
+runtime. Three such sites existed in the intelligence panels and had to be
+found by grep; one of them — `ExecutiveSummary`'s `topCareer?.growth.toFixed(1)`
+— optional-chained the object but not the field, and had been printing
+`NaN% projected growth` in production for as long as any career lacked a figure.
+
+Combined with #3 (the typecheck script compiles zero files), the
+practical position is that **nothing** checks nullability in this codebase.
+
+**Why it matters:** the honest-data work depends on absent figures being
+absent. Every `?` added to a type is a promise the compiler is not keeping, so
+each one needs a manual sweep of its readers.
+
+**Not urgent because:** turning `strictNullChecks` on now would surface a large
+backlog at once, and the 14 errors in #3 are not even being read yet.
+
+**Decide later:** fix #3 first so the gate runs at all. Then enable
+`strictNullChecks` and work the list down, or enable it for `src/contexts` and
+`src/components/intelligence` only, where the honest-data invariants live.

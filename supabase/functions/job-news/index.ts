@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
 import { horusGenerateObject } from "../_shared/ai/horus.ts";
+import { attachSimilarity } from "../_shared/ai/similarity.ts";
 import { AppError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota } from "../_shared/ai/meter.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
@@ -42,6 +43,17 @@ const RequestSchema = z.object({
   startDate: z.string().max(40).optional(),
   endDate: z.string().max(40).optional(),
   pageNumber: z.number().int().min(0).max(1000).optional(),
+  /**
+   * The signed-in user's profile as a short sentence, assembled by the client
+   * from data it already holds — target and current job title, industry,
+   * skills. Sent rather than read from the database so the assembly lives in
+   * one place and nothing has to be invalidated when a profile changes.
+   *
+   * Used only as an embedding input for ranking, never as prompt text, so
+   * there is no injection surface. Absent for users who have not onboarded,
+   * which skips the embedding call entirely.
+   */
+  profileText: z.string().max(2000).optional(),
 }).passthrough();
 
 const corsHeaders = {
@@ -123,7 +135,7 @@ serve(handler(async (req) => {
     if (!parsedBody.success) {
       throw new ValidationError("Invalid request body", parsedBody.error.flatten());
     }
-    const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber } = parsedBody.data;
+    const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber, profileText } = parsedBody.data;
     const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
     const ADZUNA_APP_KEY = Deno.env.get("ADZUNA_APP_KEY");
     const JSEARCH_API_KEY = Deno.env.get("JSEARCH_API_KEY");
@@ -137,6 +149,8 @@ serve(handler(async (req) => {
       console.log(`API Keys available - JSearch: ${!!JSEARCH_API_KEY}, Adzuna: ${!!ADZUNA_APP_ID && !!ADZUNA_APP_KEY}`);
       
       const jobs: any[] = [];
+      /* One lookup for the whole request, not one per job. */
+      const skillVocabulary = await loadSkillVocabulary();
       const pageNum = page || 1;
       const searchQuery = query || "";
       const auLocation = location || "australia";
@@ -176,7 +190,7 @@ serve(handler(async (req) => {
                 source: "JSearch",
                 logo: job.employer_logo,
                 isRemote: job.job_is_remote || false,
-                skills: extractSkillsFromText(job.job_description || ""),
+                skills: extractSkillsFromText(job.job_description || "", skillVocabulary),
                 category: categorizeJob("", job.job_title),
               }));
             })
@@ -207,8 +221,12 @@ serve(handler(async (req) => {
                 location: job.location?.display_name || "Australia",
                 salaryMin: job.salary_min,
                 salaryMax: job.salary_max,
+                /* Adzuna predicts a range when the advert does not quote
+                   one and flags it as "1". Unflagged, a guess reads as the
+                   employer's figure — see the note in job-search. */
+                salaryIsPredicted: String(job.salary_is_predicted ?? "") === "1",
                 salary: job.salary_min && job.salary_max 
-                  ? `$${Math.round(job.salary_min/1000)}k - $${Math.round(job.salary_max/1000)}k`
+                  ? `$${Math.round(job.salary_min/1000)}k - $${Math.round(job.salary_max/1000)}k${String(job.salary_is_predicted ?? "") === "1" ? " (est.)" : ""}`
                   : null,
                 type: job.contract_time === "full_time" ? "Full-time" : 
                       job.contract_time === "part_time" ? "Part-time" : 
@@ -219,7 +237,7 @@ serve(handler(async (req) => {
                 source: "SEEK/Adzuna",
                 isRemote: (job.title || "").toLowerCase().includes("remote") ||
                           (job.description || "").toLowerCase().includes("work from home"),
-                skills: extractSkillsFromText(job.description || ""),
+                skills: extractSkillsFromText(job.description || "", skillVocabulary),
                 category: categorizeJob(job.category?.label, job.title),
               }));
             })
@@ -296,6 +314,11 @@ serve(handler(async (req) => {
         return true;
       });
 
+      /* Rank by meaning, not by shared words.
+         Fills `similarity` on each job where it can, and leaves it undefined
+         where it cannot. Never throws — see attachSimilarity. */
+      const similarityStatus = await attachSimilarity(uniqueJobs, profileText);
+
       // Sort by date (newest first)
       uniqueJobs.sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime());
 
@@ -311,6 +334,10 @@ serve(handler(async (req) => {
         topCompanies: [...new Set(uniqueJobs.map(j => j.company))].slice(0, 10),
         hotSkills: getTopSkills(uniqueJobs),
         sources: [...new Set(uniqueJobs.map(j => j.source))],
+        /* Visible in the network tab so "is similarity actually working?" does
+           not require log access. "ok" here is the only proof the Horus embed
+           round trip succeeded. */
+        similarityStatus,
       };
 
       console.log(`Returning ${uniqueJobs.length} unique jobs from ${stats.sources.length} sources`);
@@ -594,9 +621,11 @@ serve(handler(async (req) => {
               imageUrl: article.image_url,
               readTime: article.read_time || "3 min read",
             }));
-            return new Response(JSON.stringify({ articles, fromCache: true }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
+            const cachedSimilarityStatus = await attachSimilarity(articles, profileText);
+            return new Response(
+              JSON.stringify({ articles, fromCache: true, similarityStatus: cachedSimilarityStatus }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
           }
           
           return new Response(JSON.stringify({ 
@@ -665,9 +694,11 @@ serve(handler(async (req) => {
               imageUrl: article.image_url,
               readTime: article.read_time || "3 min read",
             }));
-            return new Response(JSON.stringify({ articles, fromCache: true }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
+            const cachedSimilarityStatus = await attachSimilarity(articles, profileText);
+            return new Response(
+              JSON.stringify({ articles, fromCache: true, similarityStatus: cachedSimilarityStatus }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
           }
           throw new Error(apiData?.message || "API unreachable");
         }
@@ -731,12 +762,18 @@ serve(handler(async (req) => {
           readTime: `${Math.max(2, Math.ceil((article.description?.length || 200) / 500))} min read`,
         }));
 
+        /* Same treatment as jobs: an article about aged-care workforce shortages
+           is invisible to a nurse whose profile says "Registered Nurse",
+           because every other signal needs a literal word match. */
+        const articleSimilarityStatus = await attachSimilarity(articles, profileText);
+
         return new Response(JSON.stringify({ 
           articles,
           totalResults: filteredNews.length,
           currentPage: page,
           hasMore: filteredNews.length > pageSize,
           fromCache: false,
+          similarityStatus: articleSimilarityStatus,
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -759,6 +796,7 @@ serve(handler(async (req) => {
       console.log(`Fetching ${action} - pulling from ALL job APIs. Industry: ${industry || 'All'}, Level: ${experienceLevel || 'All'}`);
       
       const allJobs: any[] = [];
+      const skillVocabulary = await loadSkillVocabulary();
       const fetchPromises = [];
       
       // Construct query based on industry to get relevant base data
@@ -974,7 +1012,7 @@ serve(handler(async (req) => {
           const t = tag.toLowerCase().trim();
           if (t.length > 1) skillCounts[t] = (skillCounts[t] || 0) + 1;
         });
-        const skills = extractSkillsFromText(job.description || "");
+        const skills = extractSkillsFromText(job.description || "", skillVocabulary);
         skills.forEach(s => {
           skillCounts[s.toLowerCase()] = (skillCounts[s.toLowerCase()] || 0) + 1;
         });
@@ -1418,17 +1456,64 @@ function extractSkills(tags: string[]): string[] {
 }
 
 // Helper: Extract skills from job description text
-function extractSkillsFromText(text: string): string[] {
-  const skillKeywords = [
-    "react", "typescript", "javascript", "python", "java", "node.js", "nodejs",
-    "aws", "azure", "gcp", "docker", "kubernetes", "sql", "postgresql", "mongodb",
-    "graphql", "rest", "api", "git", "ci/cd", "agile", "scrum", "linux",
-    "html", "css", "vue", "angular", "next.js", "express", "django", "flask",
-    "machine learning", "ai", "data science", "tensorflow", "pytorch"
-  ];
-  
-  const textLower = text.toLowerCase();
-  return skillKeywords.filter(skill => textLower.includes(skill)).slice(0, 6);
+/*
+ * Skills named in a job advert, read against the canonical `skill_tags` table.
+ *
+ * This was a hardcoded array of 38 software-engineering terms — react,
+ * typescript, aws, docker, kubernetes, tensorflow — with nothing for nursing,
+ * teaching, trades, aged care, hospitality or retail. It returned [] on every
+ * job outside software, in a product whose positioning is the Australian market
+ * and non-IT careers.
+ *
+ * `skill_tags` is the right source because it GROWS. Onboarding upserts every
+ * skill it extracts from a real résumé into it (see applySkills in
+ * onboarding-api.ts), so the vocabulary widens with the actual user base
+ * instead of with whatever a developer remembered to type. Its original seed is
+ * still IT-and-interview shaped, so early on this reads similar to the old
+ * list — the difference is that it improves on its own from here, and nobody
+ * has to maintain a list of every skill in every profession.
+ *
+ * Loaded once per request and passed down, not queried per job.
+ */
+async function loadSkillVocabulary(): Promise<string[]> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from("skill_tags")
+      .select("name")
+      .limit(2000);
+    if (error) throw error;
+    return (data || [])
+      .map((r: { name: string }) => r.name)
+      .filter((n): n is string => !!n && n.trim().length > 0);
+  } catch (e) {
+    /* Skills are decoration on a job card. If this lookup fails the listings
+       must still render, so fail to an empty vocabulary rather than an error. */
+    console.error("[job-news] skill vocabulary lookup failed:", e);
+    return [];
+  }
+}
+
+/**
+ * Word-boundary match, not substring: the boundary classes exclude +, # and &
+ * so "C++" and "C#" match as themselves, a bare "C" does not match inside
+ * them, and "R" matches "Excel, R and SQL" but not "our R&D team".
+ * Mirrors the matcher in usePersonalization.isJobRecommended.
+ */
+function extractSkillsFromText(text: string, vocabulary: string[]): string[] {
+  if (!text || vocabulary.length === 0) return [];
+  const haystack = text.toLowerCase();
+  const found: string[] = [];
+  for (const name of vocabulary) {
+    const n = name.trim().toLowerCase();
+    if (!n) continue;
+    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(^|[^a-z0-9+#&])${escaped}([^a-z0-9+#&]|$)`, "i").test(haystack)) {
+      found.push(name);
+      if (found.length >= 6) break;
+    }
+  }
+  return found;
 }
 
 // Helper: Get top skills from job listings

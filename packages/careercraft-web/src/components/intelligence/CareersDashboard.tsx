@@ -24,7 +24,6 @@ import {
   Download,
   Eye,
   Loader2,
-  Sparkles,
   Zap,
   Target,
   MessageSquare,
@@ -210,6 +209,27 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     setCurrentPage(1);
   }, [effectiveSearch, filterSector, filterDemand, sortField, sortDirection]);
 
+  /* Three helpers so the story cards cannot quietly turn an absent figure
+     into a measured zero. Growth is stated for only some occupations — the
+     documents routinely name a role as in demand without quantifying it — so
+     `reduce((s, c) => s + (c.growth || 0), 0) / all.length` averaged real
+     percentages across roles that had none and printed the diluted result as
+     "+0.4%". Same for summed job counts. */
+  const statedGrowth = (list: typeof careerOpportunities) =>
+    list.filter(c => c.growth !== undefined);
+
+  const avgStatedGrowth = (list: typeof careerOpportunities): string => {
+    const withFigures = statedGrowth(list);
+    if (withFigures.length === 0) return "—";
+    const avg = withFigures.reduce((s, c) => s + (c.growth ?? 0), 0) / withFigures.length;
+    return `+${avg.toFixed(1)}%`;
+  };
+
+  const sumStatedJobs = (list: typeof careerOpportunities): string => {
+    const total = list.reduce((s, c) => s + (c.jobs ?? 0), 0);
+    return total > 0 ? total.toLocaleString() : "—";
+  };
+
   // Career Opportunity Stories - MUST be before conditional return
   const careerStories = useMemo(() => {
     const topGrowthSector = sectorGrowth[0];
@@ -225,13 +245,61 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
     return [
       {
         id: "high-demand-boom",
-        title: `💼 ${topGrowthSector?.sector || "Healthcare"}: The High-Demand Career Wave`,
-        narrative: `With ${topGrowthSector?.jobs?.toLocaleString() || "12,000+"} open positions and ${(topGrowthSector?.growth ?? 42).toFixed(1)}% growth, this sector is creating unprecedented opportunity. Entry requirements are dropping while salaries climb.`,
+        /* Every figure in this block used to be invented when the data was
+           missing, and two were invented unconditionally.
+
+           "12,000+ open positions" was the fallback for an absent job count.
+           "42.0% growth" was the fallback for an absent growth rate — a
+           precise-looking decimal, from nothing. "Healthcare" was the
+           fallback sector, so a reader with no data was told about a
+           healthcare boom in a state whose figures had not loaded. Worst:
+           "Avg Timeline 6-12 months" and "Success Rate 87%" were not
+           fallbacks at all, they were constants — no field anywhere feeds
+           them, the corpus contains no such measure, and 87% was presented
+           beside real dollar amounts as though it shared their provenance.
+
+           Now it states what is in the documents and nothing else. */
+        title: topGrowthSector?.sector
+          ? `${topGrowthSector.sector}: the roles named most`
+          : "Roles named in the workforce plans",
+        narrative: (() => {
+          if (!topGrowthSector) {
+            return "No sector figures have loaded, so there is nothing to compare yet.";
+          }
+          const parts = [
+            `${topGrowthSector.sector} carries more of the named occupations than any other sector in these documents`,
+          ];
+          if (topGrowthSector.jobs > 0) {
+            parts.push(`${topGrowthSector.jobs.toLocaleString()} openings are stated`);
+          } else {
+            parts.push("the documents name the roles without stating headcounts");
+          }
+          if (topGrowthSector.growth > 0) {
+            parts.push(`average stated growth is ${topGrowthSector.growth.toFixed(1)}%`);
+          }
+          return `${parts.join("; ")}.`;
+        })(),
         metrics: [
-          { label: "Open Positions", value: `${topGrowthSector?.jobs?.toLocaleString() || "12,000+"}`, icon: Briefcase },
-          { label: "Growth Rate", value: `+${(topGrowthSector?.growth ?? 42).toFixed(1)}%`, icon: TrendingUp },
-          { label: "Avg Timeline", value: "6-12 months", icon: Clock },
-          { label: "Success Rate", value: "87%", icon: Target },
+          {
+            label: "Openings stated",
+            value: topGrowthSector?.jobs ? topGrowthSector.jobs.toLocaleString() : "—",
+            icon: Briefcase,
+          },
+          {
+            label: "Stated growth",
+            value: topGrowthSector?.growth ? `+${topGrowthSector.growth.toFixed(1)}%` : "—",
+            icon: TrendingUp,
+          },
+          {
+            label: "Roles named",
+            value: String(careerOpportunities.filter(c => c.sector === topGrowthSector?.sector).length),
+            icon: Target,
+          },
+          {
+            label: "Sectors hiring",
+            value: String(new Set(careerOpportunities.map(c => c.sector)).size),
+            icon: Clock,
+          },
         ],
         conversationStarters: [
           `Show me the fastest path to a ${topGrowthSector?.sector || "healthcare"} career`,
@@ -249,8 +317,8 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
         metrics: [
           { label: "Top Salary", value: highestPayingCareers[0]?.salary || "Competitive", icon: DollarSign },
           { label: "High-Pay Roles", value: `${highestPayingCareers.length}`, icon: Users },
-          { label: "Avg Growth", value: `+${highestPayingCareers.length > 0 ? (highestPayingCareers.reduce((s, c) => s + (c.growth || 0), 0) / highestPayingCareers.length).toFixed(1) : "0"}%`, icon: TrendingUp },
-          { label: "Total Positions", value: highestPayingCareers.reduce((s, c) => s + (c.jobs || 0), 0).toLocaleString(), icon: Briefcase },
+          { label: "Avg stated growth", value: avgStatedGrowth(highestPayingCareers), icon: TrendingUp },
+          { label: "Openings stated", value: sumStatedJobs(highestPayingCareers), icon: Briefcase },
         ],
         conversationStarters: [
           "Which high-paying careers have the lowest competition?",
@@ -262,14 +330,18 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       {
         id: "career-switcher",
         title: "🔄 Career Transition Opportunities",
+        /* "High-growth roles" counted `(c.growth || 0) > 10`, which reads a
+           missing figure as 0 and therefore excludes every role the documents
+           describe as in demand without a percentage — most of them. The
+           demand label is the signal that actually exists. */
         narrative: careerOpportunities.length > 2
-          ? `With ${careerOpportunities.filter(c => (c.growth || 0) > 10).length} high-growth roles and ${new Set(careerOpportunities.map(c => c.sector)).size} sectors hiring, career transitions are well-supported by government-funded retraining programs.`
+          ? `${careerOpportunities.filter(c => c.demand === "high" || c.trending).length} of these roles are described as in strong demand, across ${new Set(careerOpportunities.map(c => c.sector)).size} sectors.`
           : `Career transition pathways are available across growing sectors with government support.`,
         metrics: [
-          { label: "Growing Roles", value: `${careerOpportunities.filter(c => (c.growth || 0) > 10).length}`, icon: TrendingUp },
-          { label: "Sectors Hiring", value: `${new Set(careerOpportunities.map(c => c.sector)).size}`, icon: Clock },
-          { label: "Total Openings", value: careerOpportunities.reduce((s, c) => s + (c.jobs || 0), 0).toLocaleString(), icon: Target },
-          { label: "Avg Growth", value: `+${careerOpportunities.length > 0 ? (careerOpportunities.reduce((s, c) => s + (c.growth || 0), 0) / careerOpportunities.length).toFixed(1) : "0"}%`, icon: Award },
+          { label: "In strong demand", value: `${careerOpportunities.filter(c => c.demand === "high" || c.trending).length}`, icon: TrendingUp },
+          { label: "Sectors hiring", value: `${new Set(careerOpportunities.map(c => c.sector)).size}`, icon: Clock },
+          { label: "Openings stated", value: sumStatedJobs(careerOpportunities), icon: Target },
+          { label: "Avg stated growth", value: avgStatedGrowth(careerOpportunities), icon: Award },
         ],
         conversationStarters: [
           "Show me career switch paths from my current industry",
@@ -317,19 +389,31 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           </div>
           <div>
             <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 bg-clip-text text-transparent">
-              Career Opportunities
+              Who's hiring
             </h2>
+            {/* The job count is conditional now. `totalJobs ?? 0` printed
+                "0 jobs" next to a real list of occupations, because the
+                corpus routinely names a role as in demand without stating a
+                headcount — the normal case, not the exception. Zero read as
+                "nobody is hiring for any of these", which is the opposite of
+                what the documents say. */}
             <p className="text-sm text-slate-300 flex items-center gap-2">
-              <span className="font-semibold text-pink-400">{filteredCareers.length}</span> careers •
-              <span className="font-semibold text-rose-400">{(totalJobs ?? 0).toLocaleString()}</span> jobs
+              <span className="font-semibold text-pink-400">{filteredCareers.length}</span>
+              {filteredCareers.length === 1 ? "role" : "roles"}
+              {(totalJobs ?? 0) > 0 ? (
+                <>
+                  • <span className="font-semibold text-rose-400">{totalJobs!.toLocaleString()}</span> openings
+                </>
+              ) : (
+                <span className="text-slate-400">· no headcounts stated</span>
+              )}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-gradient-to-r from-pink-500/20 to-rose-500/20 text-pink-400 border-pink-400/30 gap-1 px-3 py-1.5 backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="font-semibold">AI-Powered</span>
-          </Badge>
+          {/* A sparkle badge reading "AI-Powered" sat beside Export. It
+              labelled the panel with its own genre and carried no figure.
+              Same badge removed from the funding and skills headers. */}
           <Button variant="outline" size="sm" className="gap-2 border-pink-400/30 hover:bg-pink-500/10 hover:border-pink-400/50">
             <Download className="w-4 h-4" />Export
           </Button>
@@ -349,15 +433,17 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
                 <Lightbulb className="w-5 h-5 text-white" />
               </div>
               <div>
+                {/* "Career Intelligence · Real-time AI Analysis" described
+                    the machinery and claimed a liveness the source does not
+                    have. Workforce plans are published documents. */}
                 <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-pink-400 to-rose-400 bg-clip-text text-transparent">
-                  Career Intelligence
+                  What the workforce plans say
                 </h3>
-                <p className="text-xs text-pink-200 font-medium">Real-time AI Analysis</p>
+                <p className="text-xs text-pink-200 font-medium">
+                  Read from South Australia's published reporting
+                </p>
               </div>
-              <Badge className="bg-gradient-to-r from-pink-500/30 to-rose-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
-                <Sparkles className="w-3 h-3 mr-1" />
-                AI-Powered
-              </Badge>
+              {/* "AI-Powered" badge removed — see FundingDashboard. */}
             </div>
           <div className="flex items-center gap-2">
             {careerStories.map((_, idx) => (
@@ -445,7 +531,7 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
       <div className="rounded-2xl bg-gradient-to-br from-pink-500/15 via-purple-500/10 to-pink-500/15 backdrop-blur-xl border border-pink-400/30 shadow-2xl shadow-pink-500/20 p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="font-display text-2xl font-bold text-white drop-shadow-lg">Sector Growth Rates</h3>
+            <h3 className="font-display text-2xl font-bold text-white drop-shadow-lg">Which sectors are growing</h3>
             <p className="text-sm text-pink-200/80">Click to filter careers by sector</p>
           </div>
           <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40 backdrop-blur-sm">
@@ -523,14 +609,17 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
             <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
               <Users className="w-6 h-6 text-white" />
             </div>
-            <div className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
-              <span className="text-xs font-bold text-blue-600">LIVE</span>
-            </div>
+            {/* A bold "LIVE" pill sat here, over a figure that is zero
+                whenever the corpus names roles without stating headcounts —
+                which is most of the time. A liveness stamp on an absent
+                number is the exact pattern this pass is removing. */}
           </div>
           <p className="text-4xl font-bold bg-gradient-to-br from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
-            {(totalJobs ?? 0).toLocaleString()}
+            {(totalJobs ?? 0) > 0 ? totalJobs!.toLocaleString() : "—"}
           </p>
-          <p className="text-sm font-semibold text-slate-200">Total Opportunities</p>
+          <p className="text-sm font-semibold text-slate-200">
+            {(totalJobs ?? 0) > 0 ? "Openings stated" : "No headcounts stated"}
+          </p>
           <p className="text-xs text-slate-400 mt-1">Active job postings across all sectors</p>
         </motion.div>
 
@@ -585,9 +674,9 @@ export function CareersDashboard({ searchQuery = "" }: CareersDashboardProps) {
           <div className="flex items-center gap-3">
             <Briefcase className="w-5 h-5 text-pink-300" />
             <h3 className="font-display text-lg font-semibold text-white drop-shadow-lg">
-              Career Opportunities
+              Roles the documents name
               <span className="ml-2 text-sm font-normal text-pink-200">
-                ({filteredCareers.length} total)
+                ({filteredCareers.length})
               </span>
             </h3>
           </div>

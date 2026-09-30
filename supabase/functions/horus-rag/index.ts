@@ -187,7 +187,24 @@ const RequestSchema = z.object({
     tags: z.array(z.string().max(120)).max(50).optional(),
   }).optional(),
   options: z.object({
-    topK: z.number().int().min(1).max(50).optional(),
+    /*
+     * Clamped, not rejected.
+     *
+     * This was `.max(50)`, which failed the entire request when a caller
+     * asked for more. Every consumer downstream already clamps — runSearch
+     * pins maxSources to 50, runCareersSearch pins limit to 20 — so the
+     * strict bound bought no safety and cost two whole tabs: the
+     * Intelligence page requested topK 120 for funding and 60 for careers
+     * and got a 400 on every single load, for months, while the tabs that
+     * happened to ask for 40 worked fine. The failure surfaced to the user
+     * as empty panels rather than an error, which is why it survived.
+     *
+     * An over-large topK is a caller being optimistic, not hostile. Give
+     * them the maximum and carry on. The upper bound here only exists to
+     * reject obvious nonsense before it reaches the clamps.
+     */
+    topK: z.number().int().min(1).max(10_000).optional()
+      .transform((v) => (v === undefined ? undefined : Math.min(v, 50))),
     systemPrompt: z.string().max(8_000).optional(),
   }).optional(),
   budget: z.object({

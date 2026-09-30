@@ -266,4 +266,37 @@ export type AccountGateReason =
   | "export"
   | "ai-read-file"
   | "ai-smart-import"
-  | "ai-rewrite";
+  | "ai-rewrite"
+  /** Guest picked ATS from the preview “also with this draft” list. */
+  | "continue-ats"
+  /** Guest picked browse jobs. */
+  | "continue-jobs"
+  /** Guest picked market news. */
+  | "continue-news"
+  /** Guest picked career chat. */
+  | "continue-chat";
+
+/** Paths a guest return may legally point at after signup. */
+export const GUEST_RETURN_ALLOWLIST = [
+  "/builder",
+  "/analysis",
+  "/au-jobs",
+  "/job-market-news",
+  "/career-coach",
+] as const;
+
+export type GuestReturnPath = (typeof GUEST_RETURN_ALLOWLIST)[number];
+
+/** Where each continue-* gate lands after claim. */
+export const CONTINUE_RETURN_PATH: Record<
+  Extract<
+    AccountGateReason,
+    "continue-ats" | "continue-jobs" | "continue-news" | "continue-chat"
+  >,
+  GuestReturnPath
+> = {
+  "continue-ats": "/analysis",
+  "continue-jobs": "/au-jobs",
+  "continue-news": "/job-market-news",
+  "continue-chat": "/career-coach",
+};

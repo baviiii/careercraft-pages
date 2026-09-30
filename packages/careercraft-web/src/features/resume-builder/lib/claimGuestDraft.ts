@@ -120,27 +120,22 @@ async function runClaim(userId: string): Promise<ClaimResult> {
       ? `${draft.resumeData.contact.name.trim()} — Résumé`
       : "Untitled Résumé";
 
-    /* Supabase's generated types don't cover the resumes table, so the insert
-       needs a cast — same approach as useResumePersistence.saveResume.
-
-       Call it INLINE. Assigning `.insert` to a variable first detaches it
-       from its query builder, so `this` is undefined when it runs and the
-       method throws "Cannot read properties of undefined (reading 'url')"
-       before any request leaves the browser. That is what the earlier
-       version did, which meant this function could only ever land in its
-       catch: every guest draft was reported unclaimed and no résumé was
-       ever filed. Parenthesised member access keeps the binding. */
-    const { data, error } = await (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      supabase.from("resumes").insert as any
-    )({
-      user_id: userId,
-      name,
-      content: JSON.stringify(contentWithMetadata),
-      file_type: "builder",
-      template_id: draft.selectedTemplate,
-    })
-      .select()
+    /* Keep `.insert` on the query builder. Pulling the method off and
+       calling it — `(supabase.from("resumes").insert as any)(...)` — drops
+       `this`, and Postgrest throws "Cannot read properties of undefined
+       (reading 'url')" before any request is sent. Every guest claim then
+       landed in the catch below: the draft was reported unclaimed, and the
+       signup toast said the résumé was lost. */
+    const { data, error } = await supabase
+      .from("resumes")
+      .insert({
+        user_id: userId,
+        name,
+        content: JSON.stringify(contentWithMetadata),
+        file_type: "builder",
+        template_id: draft.selectedTemplate,
+      })
+      .select("id")
       .single();
 
     if (error) throw error;
@@ -148,8 +143,7 @@ async function runClaim(userId: string): Promise<ClaimResult> {
     // Only destroy the local copy once it is safely on the server.
     clearGuestDraft();
 
-    const inserted = data as { id?: string } | null;
-    return { claimed: true, resumeId: inserted?.id };
+    return { claimed: true, resumeId: data.id };
   } catch (error) {
     console.error("[claimGuestDraft] Could not file the guest draft:", error);
     // Draft intentionally left in localStorage so the work survives.

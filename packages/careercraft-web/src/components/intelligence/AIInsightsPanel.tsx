@@ -46,6 +46,7 @@ import {
 import { useIntelligence } from "@/contexts/IntelligenceContext";
 import { useImpactQueries } from "@/hooks/useImpactQueries";
 import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
+import { IntelligenceState } from "./IntelligenceState";
 
 interface AIInsightsPanelProps {
   tab: IntelligenceTab;
@@ -109,39 +110,35 @@ function parseCareerData(text: string): ParsedCareer[] {
 const tabConfig = {
   overview: {
     icon: Brain,
-    title: "STRATEGIC INTELLIGENCE",
+    title: "What's changing",
     gradient: "from-pink-500 to-rose-600",
     accentColor: "pink",
     bgGradient: "from-pink-500/10 via-purple-500/5 to-pink-500/10",
-    description: "Whole-of-government patterns and cross-sector trends",
-    classification: "STRATEGIC",
+    description: "Where funding, workforce and skills line up — or don't",
   },
   funding: {
     icon: BarChart3,
-    title: "FISCAL INTELLIGENCE",
+    title: "Where the money goes",
     gradient: "from-pink-500 to-rose-600",
     accentColor: "pink",
     bgGradient: "from-pink-500/10 via-purple-500/5 to-pink-500/10",
-    description: "Budget allocations, funding changes, and investment signals",
-    classification: "FISCAL",
+    description: "What South Australia has committed to, and to which sectors",
   },
   careers: {
     icon: TrendingUp,
-    title: "WORKFORCE INTELLIGENCE",
+    title: "Who's hiring",
     gradient: "from-pink-500 to-rose-600",
     accentColor: "pink",
     bgGradient: "from-pink-500/10 via-purple-500/5 to-pink-500/10",
-    description: "Job growth, workforce demand, and career opportunities",
-    classification: "LABOUR",
+    description: "Occupations the state says it needs, and where they sit",
   },
   skills: {
     icon: Lightbulb,
-    title: "CAPABILITY FORESIGHT",
+    title: "What to learn",
     gradient: "from-pink-500 to-rose-600",
     accentColor: "pink",
     bgGradient: "from-pink-500/10 via-purple-500/5 to-pink-500/10",
-    description: "Emerging skills, training needs, and capability gaps",
-    classification: "SKILLS",
+    description: "Skills in demand, and the training routes into them",
   },
 };
 
@@ -205,7 +202,9 @@ export function AIInsightsPanel({
     const fallbacks: InsightOutput[] = [];
 
     if (tab === "funding" && fundingAllocations.length > 0) {
-      const top = fundingAllocations[0];
+      /* Sorted locally: "leads budget priority" must be true regardless of
+         the order the array happened to arrive in. */
+      const top = [...fundingAllocations].sort((a, b) => b.amount - a.amount)[0];
       fallbacks.push({
         title: `${top.sector} Leads Budget Priority`,
         explanation: `${top.sector} receives the largest allocation with $${(top.amount / 1000).toFixed(1)}B across ${top.programs} programs, signaling strong government commitment to this sector.`,
@@ -237,7 +236,14 @@ export function AIInsightsPanel({
       if (emerging.length > 0) {
         fallbacks.push({
           title: `${emerging.length} Emerging Skills Signal Future Demand`,
-          explanation: `Skills like ${emerging[0].name} are increasingly prioritized through funding and policy alignment, with ${emerging[0].growth.toFixed(1)}% demand growth.`,
+          /* `emerging[0].growth.toFixed(1)` threw once growth became
+             optional, and before that it printed a hash of the skill's name
+             as a demand-growth rate. The sentence stands without it. */
+          explanation: `Skills like ${emerging[0].name} are increasingly prioritized through funding and policy alignment${
+            emerging[0].growth !== undefined
+              ? `, with ${emerging[0].growth.toFixed(1)}% demand growth`
+              : ""
+          }.`,
           whyItMatters: "Early investment in these capabilities provides competitive advantage in evolving job markets.",
           evidenceSignal: `Cross-referencing funding allocations and workforce data reveals consistent skill prioritization.`,
           trendDirection: "up",
@@ -470,18 +476,14 @@ export function AIInsightsPanel({
               <Icon className="w-6 h-6 text-white" />
             </motion.div>
             <div>
+              {/* A monospace badge reading STRATEGIC / FISCAL / LABOUR /
+                  SKILLS sat beside every panel title. It mimicked a security
+                  classification marking on public budget documents, and
+                  restated the panel's own heading. Removed. */}
               <div className="flex items-center gap-3 flex-wrap">
                 <h3 className="font-semibold text-lg text-white drop-shadow-lg tracking-tight leading-tight">
                   {title || config.title}
                 </h3>
-                <Badge
-                  className={cn(
-                    "text-[10px] font-mono tracking-widest px-2 py-0.5 backdrop-blur-sm",
-                    "bg-pink-500/20 text-pink-200 border-pink-400/40"
-                  )}
-                >
-                  {config.classification}
-                </Badge>
               </div>
               <div className="flex items-center gap-2 mt-1.5 text-xs text-pink-200/80">
                 <FileText className="w-3 h-3 flex-shrink-0" />
@@ -914,29 +916,27 @@ export function AIInsightsPanel({
                   );
                 })
               ) : (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center py-12"
-                >
-                  <div className={cn(
-                    "w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-5",
-                    `bg-gradient-to-br ${config.gradient}`,
-                    "opacity-20"
-                  )}>
-                    <Icon className="w-10 h-10 text-foreground" />
-                  </div>
-                  <p className="text-sm font-medium text-slate-400">
-                    No intelligence insights available
-                  </p>
-                  <p className="text-xs text-slate-400/70 mt-2 max-w-sm mx-auto">
-                    Analysis is in progress or no relevant patterns were detected for this context.
-                  </p>
-                  <Button variant="outline" size="sm" onClick={handleRefresh} className="mt-4">
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Run Analysis
-                  </Button>
-                </motion.div>
+                /* Was "Analysis is in progress or no relevant patterns were
+                   detected" — a hedge covering both possibilities at once,
+                   so it was never wrong and never told the reader anything.
+                   Say which one it is. */
+                /* The early return above covers first load, so reaching here
+                   means the fetch finished and brought nothing. The only
+                   live state left is a manual retry. */
+                <IntelligenceState
+                  bare
+                  kind={isRefreshing ? "loading" : "offline"}
+                  icon={Icon}
+                  title={isRefreshing ? "Reading the archive." : "Nothing came back."}
+                  detail={
+                    isRefreshing
+                      ? "Working through the South Australian corpus for this view."
+                      : "No documents reached this panel, so there was nothing to analyse. The archive connection is the usual cause."
+                  }
+                  action={
+                    isRefreshing ? undefined : { label: "Try again", onClick: handleRefresh }
+                  }
+                />
               )}
             </AnimatePresence>
           </div>

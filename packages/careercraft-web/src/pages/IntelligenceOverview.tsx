@@ -1,18 +1,21 @@
 /**
  * IntelligenceOverview - Main intelligence dashboard page
  * 
- * Features:
- * - Centralized IntelligenceContext for cost-efficient data fetching
- * - AI-powered insights with cross-tab connections
- * - Stunning hero section with real-time metrics
- * - Tab-based navigation with lazy loading
+ * - IntelligenceContext owns the fetching; four standing queries, one per
+ *   tab, each taking 20-50 seconds and each painting the moment it lands.
+ * - A stored snapshot fills the page before any request returns, labelled
+ *   with its age, and is discarded if the corpus size has changed.
+ * - Tabs are questions, not categories. The ids still key the fetches.
+ *
+ * Nothing on this page is real-time — the docblock used to claim it was. The
+ * source is South Australia's published budget papers, workforce plans and
+ * skills reporting.
  */
 
 import { useState, useEffect as ReactUseEffect, useRef, useMemo } from "react";
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  CareerPulse,
   SectorHeatmap,
   InvestmentHighlights,
   BreakingNews,
@@ -31,6 +34,7 @@ import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceCo
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { useAgenticRAG } from "@/hooks/useAgenticRAG";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
+import { describeAge } from "@/lib/intelligence/snapshotCache";
 import {
   Briefcase,
   Brain,
@@ -114,6 +118,11 @@ function IntelligenceDashboardContent() {
     refreshAll,
     globalLoading,
     metrics,
+    snapshotAge,
+    totalBudget,
+    fundingAllocations,
+    careerOpportunities,
+    skillsDemand,
     crossTabInsights,
   } = useIntelligence();
 
@@ -411,38 +420,92 @@ function IntelligenceDashboardContent() {
   );
 
   /* Tab items for AstralTabs */
+  /* Labels are questions, not filing-cabinet categories.
+     "Overview / Careers / Skills / Funding" told the reader how the data is
+     stored; it never told them what they could find out. The ids stay —
+     they key the fetches and the prompts — only the wording changes. */
   const tabItems: AstralTabItem[] = [
-    { id: "overview", label: "Overview", icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
-    { id: "careers",  label: "Careers",  icon: <Briefcase      className="w-3.5 h-3.5" /> },
-    { id: "skills",   label: "Skills",   icon: <Brain          className="w-3.5 h-3.5" /> },
-    { id: "funding",  label: "Funding",  icon: <DollarSign     className="w-3.5 h-3.5" /> },
+    { id: "overview", label: "What's changing", icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
+    { id: "careers",  label: "Who's hiring",    icon: <Briefcase      className="w-3.5 h-3.5" /> },
+    { id: "skills",   label: "What to learn",   icon: <Brain          className="w-3.5 h-3.5" /> },
+    { id: "funding",  label: "Where money goes", icon: <DollarSign    className="w-3.5 h-3.5" /> },
   ];
 
-  /* Orbital nodes for the masthead hero — derived from live metrics. */
+  /* One definition of "connected", used by the masthead and the shell
+     subtitle so they can never disagree. Documents are the only honest
+     proof: the page can render, poll and animate perfectly while the corpus
+     is unreachable, and for months it did exactly that. */
+  const isConnected = (metrics?.totalDocuments ?? 0) > 0;
+
+  /* Masthead figures.
+     These used to describe the CORPUS — Documents, Chunks, Categories, Hot
+     category. "Chunks 2,416" is a retrieval implementation detail; it tells
+     a job seeker nothing and told them so in the most prominent position on
+     the page. They now describe the FINDINGS: money, roles, skills, and the
+     sector leading the spend. */
   const orbitalNodes: OrbitalNode[] = useMemo(() => {
-    const docs = metrics?.totalDocuments ?? 0;
-    const chunks = metrics?.totalChunks ?? 0;
-    const cats = metrics?.categories?.length ?? 0;
-    const sectors = metrics?.topSectors?.length ?? 0;
     const topSector = metrics?.topSectors?.[0];
-    const hottestCat = metrics?.categories?.[0];
+    const budgetB = totalBudget > 0 ? `$${(totalBudget / 1000).toFixed(1)}B` : "—";
 
     return [
-      { label: "Documents",    value: docs.toLocaleString(),        ring: 0, angle: 20,  color: "rgba(124,92,255,1)"  },
-      { label: "Chunks",       value: chunks.toLocaleString(),      ring: 1, angle: 85,  color: "rgba(34,211,238,1)"  },
-      { label: "Categories",   value: String(cats),                 ring: 0, angle: 160, color: "rgba(244,114,182,1)" },
-      { label: "Sectors",      value: String(sectors),              ring: 2, angle: 220, color: "rgba(94,234,212,1)"  },
-      { label: "Top sector",   value: topSector?.name ?? "—",       ring: 1, angle: 305, color: "rgba(252,211,77,1)"  },
-      { label: "Hot category", value: hottestCat?.name ?? "—",      ring: 2, angle: 40,  color: "rgba(167,139,250,1)" },
+      { label: "Committed",   value: budgetB,                                   ring: 0, angle: 20,  color: "rgba(124,92,255,1)"  },
+      { label: "Biggest spend", value: topSector?.name ?? "—",                  ring: 1, angle: 85,  color: "rgba(252,211,77,1)"  },
+      { label: "Sectors",     value: String(metrics?.topSectors?.length ?? 0),  ring: 0, angle: 160, color: "rgba(244,114,182,1)" },
+      { label: "Roles named", value: String(careerOpportunities.length),        ring: 2, angle: 220, color: "rgba(94,234,212,1)"  },
+      { label: "Skills in demand", value: String(skillsDemand.length),          ring: 1, angle: 305, color: "rgba(34,211,238,1)"  },
+      { label: "Sources",     value: String(metrics?.totalDocuments ?? 0),      ring: 2, angle: 40,  color: "rgba(167,139,250,1)" },
     ];
-  }, [metrics]);
+  }, [metrics, totalBudget, careerOpportunities.length, skillsDemand.length]);
+
+  /* The one sentence the page leads with.
+     There was no entry point before: the reader arrived to four tabs and a
+     wall of panels with nothing telling them what the page had actually
+     found. This states the strongest thing known, in plain words, and only
+     when it is genuinely known — no data means no claim. */
+  const leadFinding = useMemo(() => {
+    const topSector = metrics?.topSectors?.[0];
+    if (!topSector || totalBudget <= 0) return null;
+
+    const roles = careerOpportunities.length;
+    const skills = skillsDemand.length;
+    const share = Math.round(
+      (fundingAllocations.find(f => f.sector === topSector.name)?.amount ?? 0) /
+        Math.max(totalBudget, 1) * 100,
+    );
+
+    const parts: string[] = [
+      `${topSector.name} takes the largest share of South Australia's committed spending`,
+    ];
+    if (share > 0) parts.push(`about ${share}% of $${(totalBudget / 1000).toFixed(1)}B`);
+
+    const tail: string[] = [];
+    if (roles > 0) tail.push(`${roles} occupation${roles === 1 ? "" : "s"}`);
+    if (skills > 0) tail.push(`${skills} skill${skills === 1 ? "" : "s"}`);
+
+    return {
+      headline: `${parts.join(" — ")}.`,
+      support: tail.length
+        ? `The same documents name ${tail.join(" and ")} the state expects to need.`
+        : null,
+    };
+  }, [metrics, totalBudget, fundingAllocations, careerOpportunities.length, skillsDemand.length]);
 
   return (
     <AstralShell
       className="ds-shell"
       title={<span className="as-gradient-text">Intelligence</span>}
-      subtitle={`${(metrics?.totalDocuments ?? 0).toLocaleString()} docs · ${formatTimeAgo(lastRefresh)}`}
+      /* Three distinct states, and the reader must be able to tell them
+         apart. Showing hours-old figures under a "just now" timestamp would
+         undo the entire point of caching them. */
+      subtitle={
+        snapshotAge
+          ? `Readings from ${describeAge(snapshotAge)} · refreshing…`
+          : isConnected
+            ? `${(metrics?.totalDocuments ?? 0).toLocaleString()} docs · ${formatTimeAgo(lastRefresh)}`
+            : "Archive not connected"
+      }
       actions={headerActions}
+      liveBadge={isConnected}
       backTo="/dashboard"
     >
       <motion.div
@@ -454,18 +517,57 @@ function IntelligenceDashboardContent() {
         {/* Observatory masthead */}
         <motion.div variants={item}>
           <AstralMasthead
-            kicker="§ Observatory · Live telemetry"
+            /* Was "§ Observatory · Live telemetry" over "A sky of evidence,
+               charted in real time." Neither survived contact with a page
+               reading zero: nothing was live, nothing was being charted, and
+               "a sky of evidence" describes nothing a reader can check. The
+               kicker now reflects the actual connection state. */
+            /* "§ Observatory" framed the page as a surveillance console.
+               The reader is a job seeker, not an analyst — the kicker now
+               names the source they are reading from. */
+            kicker={
+              isConnected
+                ? `§ South Australian public record · ${(metrics?.totalDocuments ?? 0).toLocaleString()} documents`
+                : "§ South Australian public record · not connected"
+            }
             title={
               <>
-                A sky of evidence,
+                Where the work
                 <br />
-                <span className="as-italic">charted in real time.</span>
+                <span className="as-italic">is going next.</span>
               </>
             }
-            subtitle="Cross-referencing policy, funding, careers and skills across the South Australian archive."
+            subtitle="South Australia publishes its budget, workforce plans and skills reporting. This reads them together, so you can see which sectors are being funded and which roles that creates."
             nodes={orbitalNodes}
           />
         </motion.div>
+
+        {/* The lead finding — the page's entry point.
+            Rendered only when there is something real to say. A placeholder
+            here would be the exact failure the honesty pass removed. */}
+        {leadFinding && (
+          <motion.div variants={item}>
+            <div className="as-panel px-6 py-7 md:px-10 md:py-9">
+              <div className="flex items-center gap-3">
+                <span className="as-label-sm whitespace-nowrap" style={{ color: "var(--as-aurora-2)" }}>
+                  § The short version
+                </span>
+                <span className="h-px flex-1" style={{ background: "var(--as-hair-strong)" }} />
+              </div>
+              <p
+                className="as-display mt-5 text-2xl leading-[1.25] tracking-[-0.02em] md:text-[32px] md:leading-[1.2]"
+                style={{ color: "var(--as-ion)" }}
+              >
+                {leadFinding.headline}
+              </p>
+              {leadFinding.support && (
+                <p className="mt-3 max-w-2xl text-[15px] leading-relaxed" style={{ color: "var(--as-mist)" }}>
+                  {leadFinding.support}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         {/* Constellation tabs */}
         <motion.div variants={item} className="flex justify-center">
@@ -494,7 +596,7 @@ function IntelligenceDashboardContent() {
                   <LiveDiscoveryFeed />
                   <AIInsightsPanel
                     tab="overview"
-                    title="Strategic Intelligence"
+                    title="What's changing"
                     maxInsights={4}
                   />
                 </div>

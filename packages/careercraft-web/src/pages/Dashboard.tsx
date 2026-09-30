@@ -379,6 +379,11 @@ export default function Dashboard() {
   const toolGrid = useMemo(
     () => [
       { icon: Upload, title: "My Résumés", path: "/my-resumes", tone: "cobalt" as Tone, meta: stats.totalResumes ? `${stats.totalResumes}` : undefined },
+      /* ATS analysis belongs in this row, which renders regardless of profile
+         state. It was only in `featuredMoves`, and only in the branch for a
+         profile that is NOT personalized — so finishing onboarding removed the
+         one link to it. See the note in CraftSidebar. */
+      { icon: BarChart3, title: "ATS Check", path: "/analysis", tone: "sage" as Tone },
       { icon: Sparkles, title: "Bullet Rewrite", path: "/rewrite", tone: "cobalt" as Tone },
       { icon: Mail, title: "Cover Letters", path: "/cover-letter", tone: "wheat" as Tone, meta: stats.totalCoverLetters ? `${stats.totalCoverLetters}` : undefined },
       { icon: Newspaper, title: "Market News", path: "/job-market-news", tone: "sage" as Tone },

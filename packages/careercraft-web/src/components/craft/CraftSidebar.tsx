@@ -6,11 +6,13 @@
 import { memo, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
+  BarChart3,
   Brain,
   Briefcase,
   FileText,
   Home,
   LogOut,
+  PenLine,
   MessageSquareText,
   Newspaper,
   Plus,
@@ -29,9 +31,27 @@ export interface CraftSidebarLink {
   group?: "home" | "craft" | "market" | "account";
 }
 
+/*
+ * Two core tools were missing from this list and had no other permanent way in.
+ *
+ * `/analysis` (the ATS check) appeared in exactly one place: the dashboard's
+ * `featuredMoves`, and only in the branch that runs when a profile is NOT
+ * personalized. Completing onboarding therefore *removed* the only link to it,
+ * so for any established user the feature was unreachable except by typing the
+ * URL. It reads as the feature having been deleted, which is what happened
+ * from the user's side.
+ *
+ * `/builder` had the same shape — present in both dashboard branches, but
+ * nowhere permanent. "My Résumés" is a library, not a way to start one.
+ *
+ * A tool that a finished profile hides is worse than one never shipped: the
+ * user saw it once. Both live here now, where they cannot be hidden by state.
+ */
 export const CRAFT_SIDEBAR_LINKS: CraftSidebarLink[] = [
   { icon: Home, label: "Home", path: "/dashboard", group: "home" },
+  { icon: PenLine, label: "Résumé Builder", path: "/builder", group: "craft" },
   { icon: FileText, label: "My Résumés", path: "/my-resumes", group: "craft" },
+  { icon: BarChart3, label: "ATS Check", path: "/analysis", group: "craft" },
   { icon: Briefcase, label: "Job Tracker", path: "/tracker", group: "craft" },
   { icon: MessageSquareText, label: "Interview Prep", path: "/interview-prep", group: "craft" },
   { icon: Brain, label: "Career Coach", path: "/career-coach", group: "craft" },

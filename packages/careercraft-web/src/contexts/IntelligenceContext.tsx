@@ -12,6 +12,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
 import { SEMANTIC_QUERIES, parseInsightResponse, getTabPrompt } from "@/lib/intelligencePrompts";
+import { clearSnapshot, loadSnapshot, saveSnapshot } from "@/lib/intelligence/snapshotCache";
 
 // ============================================================================
 // Cache for alerts and chart chunks
@@ -59,17 +60,14 @@ class SimpleCache {
 const alertsCache = new SimpleCache();
 const chartCache = new SimpleCache();
 
-// Deterministic pseudo-random based on string hash (avoids Math.random() causing numbers to change every render)
-function deterministicValue(seed: string, min: number, max: number): number {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    const ch = seed.charCodeAt(i);
-    hash = ((hash << 5) - hash) + ch;
-    hash |= 0;
-  }
-  const normalized = (Math.abs(hash) % 1000) / 1000; // 0..0.999
-  return min + normalized * (max - min);
-}
+/* `deterministicValue(seed, min, max)` lived here: a string hash normalised
+   into a range. Its comment said it existed so numbers would not change every
+   render — which is the tell. Stability is what a measurement has, so a figure
+   that never moved read as measured. It fed career growth rates, skill demand
+   scores, skill growth rates, category trends and job counts. None of those
+   exist in the corpus.
+
+   No callers left. Absent figures are absent now. */
 
 // ============================================================================
 // Types
@@ -124,13 +122,24 @@ export interface CareerOpportunity {
 
 export interface SkillDemand {
   name: string;
-  demand: number;
-  growth: number;
+  /**
+   * Demand score, 0-100, ONLY when a document states one.
+   *
+   * Was required, and was filled by hashing the skill's name into 70-95
+   * whenever a document merely mentioned the skill. The UI rendered that as
+   * "~84%" with an "est." badge — but a hash of a string is not an estimate
+   * of anything, and "approximately 84%" is a claim either way. Undefined
+   * now means undefined, and the UI says so.
+   */
+  demand?: number;
+  /** Demand growth, same rule: a stated figure or nothing. */
+  growth?: number;
   sector: string;
   category: "technical" | "soft" | "emerging";
   trainingAvailable: boolean;
   relatedCareers?: string[];
-  estimated?: boolean; // true when demand/growth are derived, not from document data
+  /** True when the figures came from a document rather than being absent. */
+  estimated?: boolean;
 }
 
 export interface TrainingProgram {
@@ -191,6 +200,17 @@ interface IntelligenceState {
   globalLoading: boolean;
   activeTab: IntelligenceTab;
   searchQuery: string;
+
+  /**
+   * When the currently-displayed figures were captured, if they came from a
+   * stored snapshot rather than this session's fetch.
+   *
+   * Null once live data replaces them. The UI uses this to say "showing
+   * readings from 2 hours ago, refreshing…" instead of presenting stale
+   * numbers as current — the whole point of caching them is undone if the
+   * reader cannot tell which they are looking at.
+   */
+  snapshotAge: number | null;
 }
 
 interface IntelligenceContextType extends IntelligenceState {
@@ -224,6 +244,19 @@ interface IntelligenceContextType extends IntelligenceState {
 const IntelligenceContext = createContext<IntelligenceContextType | null>(null);
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * The largest topK horus-rag will accept.
+ *
+ * Two ceilings sit behind this and they agree: the request schema validates
+ * `topK` with `.max(50)` and rejects anything above it outright, and
+ * `runSearch` then clamps `maxSources` to 50 because Horus caps there. So 50
+ * is not a tuning knob — it is the most the corpus can return, and asking
+ * for more fails the whole request rather than returning fewer results.
+ *
+ * Keep this in step with `supabase/functions/horus-rag/index.ts`.
+ */
+const HORUS_MAX_TOP_K = 50;
 
 /** Remove sectors that share the same amount as a preferred sector (common RAG misattribution, e.g. Defence $2.4B also shown as Technology $2.4B). */
 function removeSameAmountDuplicates(allocations: FundingAllocation[]): FundingAllocation[] {
@@ -283,6 +316,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     globalLoading: true,
     activeTab: "overview",
     searchQuery: "",
+    snapshotAge: null,
   });
 
   const fetchInProgress = useRef<Set<IntelligenceTab>>(new Set());
@@ -1119,22 +1153,32 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
                 const combinedText = content + ' ' + blockText;
 
                 // Check for high-demand indicators
+                /* The document says "Registered Nurses are in high demand".
+                   That supports the DEMAND LABEL and nothing more.
+
+                   This used to also set `career.growth` from
+                   deterministicValue(occupation + '-high', 15, 25) — a hash
+                   of the occupation name scaled into a plausible range. It
+                   was stable across reloads, which is precisely what made it
+                   convincing: the same role showed +21.3% every visit, so it
+                   behaved exactly like a measurement. No document states it.
+
+                   `growth` stays undefined. Every consumer already handles
+                   that — the dashboards filter on `growth !== undefined` —
+                   and a role named as in demand with no percentage beside it
+                   is what the source actually says. */
                 if (combinedText.includes('high demand') ||
                     combinedText.includes('high growth') ||
                     combinedText.includes('critical shortage') ||
                     combinedText.includes('strong demand')) {
-                  // Estimate high growth (15-25%) — deterministic based on occupation name
-                  career.growth = deterministicValue(occupation + '-high', 15, 25);
                   career.demand = "high";
                   career.trending = true;
-                  console.log(`[extractCareerOpportunities] ℹ Inferred HIGH growth for ${occupation} from demand indicators`);
+                  console.log(`[extractCareerOpportunities] ℹ ${occupation}: high demand stated, no growth figure`);
                 } else if (combinedText.includes('growing') ||
                            combinedText.includes('increasing') ||
                            combinedText.includes('expanding')) {
-                  // Estimate medium growth (5-15%) — deterministic
-                  career.growth = deterministicValue(occupation + '-med', 5, 15);
                   career.demand = "medium";
-                  console.log(`[extractCareerOpportunities] ℹ Inferred MEDIUM growth for ${occupation} from growth indicators`);
+                  console.log(`[extractCareerOpportunities] ℹ ${occupation}: growth language, no figure stated`);
                 }
               }
 
@@ -2077,12 +2121,14 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: Math.floor(deterministicValue(skill + '-tech-d', 70, 95)),
-              growth: deterministicValue(skill + '-tech-g', 8, 20),
+              /* A document mentioning this skill is evidence the skill
+                 matters here. It is not evidence of a demand score or a
+                 growth rate, and both used to be hashed from the skill's
+                 own name. Left absent. */
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "technical",
               trainingAvailable: true,
-              estimated: true,
+              estimated: false,
             });
           }
         }
@@ -2092,12 +2138,14 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: Math.floor(deterministicValue(skill + '-soft-d', 60, 90)),
-              growth: deterministicValue(skill + '-soft-g', 5, 15),
+              /* A document mentioning this skill is evidence the skill
+                 matters here. It is not evidence of a demand score or a
+                 growth rate, and both used to be hashed from the skill's
+                 own name. Left absent. */
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "soft",
               trainingAvailable: true,
-              estimated: true,
+              estimated: false,
             });
           }
         }
@@ -2107,12 +2155,14 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           if (contentLower.includes(skill.toLowerCase()) && !skillsMap.has(skill)) {
             skillsMap.set(skill, {
               name: skill,
-              demand: Math.floor(deterministicValue(skill + '-emrg-d', 75, 95)),
-              growth: deterministicValue(skill + '-emrg-g', 15, 35),
+              /* A document mentioning this skill is evidence the skill
+                 matters here. It is not evidence of a demand score or a
+                 growth rate, and both used to be hashed from the skill's
+                 own name. Left absent. */
               sector: normalizeSector(source.sector || metadata?.sector),
               category: "emerging",
               trainingAvailable: true,
-              estimated: true,
+              estimated: false,
             });
           }
         }
@@ -2172,12 +2222,15 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
             skillsMap.set(skill, {
               name: skill,
-              demand: !isNaN(number) && number <= 100 ? number : Math.floor(deterministicValue(skill + '-ans-d', 70, 95)),
-              growth: !isNaN(number) && number > 100 ? number / 10 : deterministicValue(skill + '-ans-g', 8, 23),
+              /* A number parsed out of the answer text is real. The
+                 fallbacks were not: both branches ended in a hash of the
+                 skill name. No number means no number. */
+              demand: !isNaN(number) && number <= 100 ? number : undefined,
+              growth: !isNaN(number) && number > 100 ? number / 10 : undefined,
               sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
               category,
               trainingAvailable: true,
-              estimated: isNaN(number) || number > 100,
+              estimated: !isNaN(number),
             });
           }
         }
@@ -2199,18 +2252,29 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
         skillsMap.set(skill, {
           name: skill,
-          demand: Math.floor(deterministicValue(skill + '-fb-d', 70, 95)),
-          growth: deterministicValue(skill + '-fb-g', 8, 23),
+          /* Matched because the answer names this skill near the word
+             "demand" or "critical". That is a real signal and the reason to
+             list it. It is not a score — both fields were hashes of the
+             skill's own name. */
           sector: normalizeSector(answerText.match(new RegExp(`${skill}[\\s\\S]{0,200}(health|education|technology|construction|energy)`, "i"))?.[1] || "General"),
           category,
           trainingAvailable: true,
-          estimated: true,
+          estimated: false,
         });
       }
     }
 
+    /* `b.demand - a.demand` yields NaN once demand is optional, and a NaN
+       comparator leaves the array in whatever order it was built. Skills with
+       a stated figure sort first and highest; the rest follow alphabetically
+       so the list is stable and scannable. */
     return Array.from(skillsMap.values())
-      .sort((a, b) => b.demand - a.demand)
+      .sort((a, b) => {
+        if (a.demand !== undefined && b.demand !== undefined) return b.demand - a.demand;
+        if (a.demand !== undefined) return -1;
+        if (b.demand !== undefined) return 1;
+        return a.name.localeCompare(b.name);
+      })
       .slice(0, 15);
   }, [normalizeSector]);
 
@@ -2372,8 +2436,19 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       const result = await semanticSearch(
         queryConfig.primary,
         queryConfig.filters || {},
-        { 
-          topK: tab === "careers" ? 60 : tab === "funding" ? 120 : 40, // funding: more chunks, no category filter — get full budget tables from all doc types
+        {
+          /* Capped at HORUS_MAX_TOP_K. funding asked for 120 and careers for
+             60, and both were silently broken: horus-rag validates topK with
+             `z.number().max(50)` and rejects anything larger, so those two
+             tabs 400'd on every load while overview and skills (40) went
+             through. That is why Fiscal Allocation and Workforce Signals sat
+             as empty skeletons and Sectors read 0.
+
+             Raising the ceiling would not have helped — runSearch clamps
+             maxSources to 50 regardless, because Horus itself caps there. 50
+             IS the full budget table; 120 was asking for something that has
+             never existed. */
+          topK: tab === "careers" || tab === "funding" ? HORUS_MAX_TOP_K : 40,
           systemPrompt: tabPrompt, // Pass tab-specific intelligence analyst prompt
         }
       );
@@ -2820,7 +2895,41 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
     const initialize = async () => {
       console.log("[IntelligenceContext] Starting initialization...");
-      
+
+      /* Paint last visit's answers before doing any network work.
+
+         Everything below takes 20–50 seconds per tab. Without this the user
+         stares at skeletons for the better part of a minute on every single
+         visit, including a reload. The snapshot is replaced the moment fresh
+         data lands; until then the page is usable and the freshness line
+         says how old what they are reading is.
+
+         Document count is unknown at this point, so the snapshot is
+         accepted on age alone here. Once metadata arrives below, a snapshot
+         captured against a different corpus size is discarded. */
+      const snapshot = loadSnapshot();
+      if (snapshot) {
+        console.log("[IntelligenceContext] Restoring snapshot from", new Date(snapshot.savedAt));
+        setState(prev => ({
+          ...prev,
+          metrics: (snapshot.metrics as IntelligenceMetrics | null) ?? prev.metrics,
+          fundingAllocations: snapshot.fundingAllocations as FundingAllocation[],
+          careerOpportunities: snapshot.careerOpportunities as CareerOpportunity[],
+          skillsDemand: snapshot.skillsDemand as SkillDemand[],
+          trainingPrograms: snapshot.trainingPrograms as TrainingProgram[],
+          crossTabInsights: snapshot.crossTabInsights as CrossTabInsight[],
+          overview: { ...prev.overview, insights: (snapshot.insights.overview ?? []) as InsightOutput[] },
+          funding: { ...prev.funding, insights: (snapshot.insights.funding ?? []) as InsightOutput[] },
+          careers: { ...prev.careers, insights: (snapshot.insights.careers ?? []) as InsightOutput[] },
+          skills: { ...prev.skills, insights: (snapshot.insights.skills ?? []) as InsightOutput[] },
+          snapshotAge: snapshot.savedAt,
+          /* Content is on screen, so the page is no longer blank-loading.
+             Per-tab flags still report the refresh in flight. */
+          globalLoading: false,
+          isInitialized: true,
+        }));
+      }
+
       try {
         // Fetch metrics and overview in parallel
         console.log("[IntelligenceContext] Fetching bulk data...");
@@ -2834,45 +2943,140 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
           const stats = bulkData.stats as any;
           const categories = bulkData.categories as any;
 
+          /* Shapes here come from useRAGMetadata, NOT raw from Horus —
+             getStats already renames documents/chunks to
+             totalDocuments/totalChunks, and getCategories already renames
+             category/documents to name-ish/count. Read those normalised
+             names, not the wire format.
+
+             What was genuinely broken is `categories.sectors`: getCategories
+             hard-codes it to [] because the corpus has no sector facet (it
+             was an old-index concept). So this always mapped an empty array
+             and the Sectors tile read 0 and Top sector "—" while 84
+             documents sat indexed. Sectors now come from funding
+             allocations, where they are actually stated — see the
+             topSectors memo below.
+
+             The synthesized figures are gone too. `trend`, `growth` and
+             `jobs` were deterministicValue() output: a hash of the category
+             name scaled into a plausible-looking range, stable across
+             reloads, which is exactly what made them read as measurements. */
           setState(prev => ({
             ...prev,
             metrics: {
-              totalDocuments: stats?.totalDocuments || categories?.categories?.reduce((sum: number, c: any) => sum + c.count, 0) || 0,
+              totalDocuments:
+                stats?.totalDocuments ||
+                (categories?.categories ?? []).reduce(
+                  (sum: number, c: any) => sum + (c.count ?? 0),
+                  0,
+                ),
               totalChunks: stats?.totalChunks || 0,
               lastUpdated: new Date(),
               categories: (categories?.categories || []).map((c: any) => ({
                 name: c.category,
-                count: c.count,
-                trend: Math.floor(deterministicValue(c.category + '-trend', 2, 12)),
+                count: c.count ?? 0,
+                /* No trend data exists in this endpoint. 0 means "unknown",
+                   and the UI must not render it as a movement. */
+                trend: 0,
               })),
-              topSectors: (categories?.sectors || []).slice(0, 5).map((s: any, idx: number) => ({
-                name: s.value,
-                growth: Math.floor(deterministicValue(s.value + '-growth', 3, 18)),
-                jobs: s.count * Math.floor(deterministicValue(s.value + '-jobm', 30, 80)),
-              })),
+              /* Left empty on purpose; the topSectors memo fills it from
+                 funding once that tab resolves. */
+              topSectors: [],
             },
             // Keep globalLoading true until tab data is fetched
           }));
+
+          /* Now that the corpus size is known, a snapshot captured against a
+             different one describes documents that are no longer the set
+             being reported. Drop those figures rather than leave them on
+             screen under a freshness line that implies they still apply. */
+          const liveDocCount =
+            (stats?.totalDocuments as number | undefined) ??
+            (categories?.categories ?? []).reduce(
+              (sum: number, c: any) => sum + (c.count ?? 0),
+              0,
+            );
+          if (snapshot && snapshot.documentCount !== liveDocCount) {
+            console.log(
+              `[IntelligenceContext] Snapshot was for ${snapshot.documentCount} docs, corpus now ${liveDocCount} — discarding`,
+            );
+            clearSnapshot();
+            setState(prev => ({
+              ...prev,
+              fundingAllocations: [],
+              careerOpportunities: [],
+              skillsDemand: [],
+              trainingPrograms: [],
+              crossTabInsights: [],
+              snapshotAge: null,
+            }));
+          }
         } else {
           console.warn("[IntelligenceContext] No bulk data returned, continuing with initialization");
         }
 
-        // Fetch all tab data in parallel for overview cards
-        // Keep globalLoading true while fetching
+        /* Progressive, not all-or-nothing.
+
+           This used to `await Promise.all([...])` and only then drop
+           globalLoading. The four requests take wildly different times —
+           funding regularly lands 30 seconds before careers — so every panel
+           on the page waited for the slowest one, and the user stared at
+           skeletons with data already in memory.
+
+           Now each tab paints the moment it resolves. globalLoading means
+           "nothing has arrived yet" and clears on the FIRST settle; after
+           that, per-tab loading flags (already maintained by fetchTabData)
+           carry the remaining waits. allSettled so one failure cannot strand
+           the others — that is how funding and careers took the whole page
+           down with them when they were 400ing. */
         console.log("[IntelligenceContext] Fetching all tab data...");
-        await Promise.all([
-          fetchTabData("overview"),
-          fetchTabData("funding"),
-          fetchTabData("careers"),
-          fetchTabData("skills"),
-        ]);
-        
-        // Only set globalLoading to false AFTER all tab data is fetched
+
+        let firstSettled = false;
+        const clearGlobalLoadingOnce = () => {
+          if (firstSettled) return;
+          firstSettled = true;
+          setState(prev => ({ ...prev, isInitialized: true, globalLoading: false }));
+        };
+
+        const tabs: IntelligenceTab[] = ["overview", "funding", "careers", "skills"];
+        await Promise.allSettled(
+          tabs.map(tab =>
+            fetchTabData(tab).finally(clearGlobalLoadingOnce),
+          ),
+        );
+
+        /* Belt and braces: if every request rejected before resolving,
+           firstSettled is still true via finally, but assert the terminal
+           state so the UI can never hang on a skeleton. Also clears
+           snapshotAge — what is on screen is now this session's data. */
         setState(prev => ({
           ...prev,
           isInitialized: true,
           globalLoading: false,
+          snapshotAge: null,
         }));
+
+        /* Persist for the next visit. Written once, after everything has
+           settled, so a snapshot is always internally consistent — never
+           this hour's funding beside last hour's careers. */
+        const s = stateRef.current;
+        if (s.metrics && s.metrics.totalDocuments > 0) {
+          saveSnapshot({
+            documentCount: s.metrics.totalDocuments,
+            metrics: s.metrics,
+            fundingAllocations: s.fundingAllocations,
+            careerOpportunities: s.careerOpportunities,
+            skillsDemand: s.skillsDemand,
+            trainingPrograms: s.trainingPrograms,
+            crossTabInsights: s.crossTabInsights,
+            insights: {
+              overview: s.overview.insights,
+              funding: s.funding.insights,
+              careers: s.careers.insights,
+              skills: s.skills.insights,
+            },
+          });
+        }
         console.log("[IntelligenceContext] Initialization complete");
       } catch (err) {
         console.error("[IntelligenceContext] Initialization error:", err);
@@ -2980,6 +3184,35 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     return sorted[0]?.sector || "Technology";
   }, [state.fundingAllocations]);
 
+  /**
+   * Sectors, from the only place the corpus actually states them.
+   *
+   * The metadata endpoint has no sector data — the previous code read a
+   * `categories.sectors` key that does not exist and then invented growth
+   * and job figures to fill the gap. Funding allocations are real: sector
+   * names and dollar amounts parsed out of the budget papers, each carrying
+   * its own confidence.
+   *
+   * `jobs` is deliberately absent rather than estimated. Nothing in the
+   * funding data says how many jobs a sector holds, and a made-up headcount
+   * next to a real dollar figure is worse than no headcount at all.
+   */
+  const topSectors = useMemo(
+    () =>
+      [...state.fundingAllocations]
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 5)
+        .map((f) => ({ name: f.sector, growth: f.change ?? 0, jobs: 0 })),
+    [state.fundingAllocations],
+  );
+
+  /* Metrics with the derived sectors folded back in, so consumers keep
+     reading a single `metrics` object. */
+  const metrics = useMemo(
+    () => (state.metrics ? { ...state.metrics, topSectors } : state.metrics),
+    [state.metrics, topSectors],
+  );
+
   const emergingTrends = useMemo(() => {
     const trends: string[] = [];
     
@@ -3018,6 +3251,9 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
 
   const value: IntelligenceContextType = {
     ...state,
+    /* After the spread: overrides state.metrics with the version carrying
+       sectors derived from funding. Order matters here. */
+    metrics,
     setActiveTab,
     setSearchQuery,
     refreshTab,

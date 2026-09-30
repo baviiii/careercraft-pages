@@ -151,8 +151,13 @@ export function BreakingNews() {
             <Newspaper className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Intelligence Updates</h2>
-            <p className="text-sm text-pink-200/80">Latest insights from {metrics?.totalDocuments || 0} documents</p>
+            {/* "Intelligence Updates" suggested a feed of new material. The
+                corpus is a fixed set of published documents; what updates is
+                the reading, not the record. */}
+            <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">What stands out</h2>
+            <p className="text-sm text-pink-200/80">
+              Drawn from {metrics?.totalDocuments || 0} documents in the public record
+            </p>
           </div>
         </div>
         <Badge className="gap-1 bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-pink-200 border-pink-400/40 backdrop-blur-sm">

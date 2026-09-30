@@ -53,10 +53,10 @@ const AstralRail = memo(function AstralRail({ onSignOut }: { onSignOut: () => vo
     <aside
       className="fixed left-4 top-1/2 -translate-y-1/2 z-40 hidden lg:flex flex-col items-center gap-2 px-2 py-4 rounded-3xl"
       style={{
-        background: "rgba(10, 14, 32, 0.55)",
+        background: "var(--cc-cream)",
         backdropFilter: "blur(20px) saturate(140%)",
         border: "1px solid var(--as-hair-strong)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 60px -20px rgba(0,0,0,0.6)",
+        boxShadow: "0 18px 40px -28px rgba(20,22,26,0.35)",
       }}
     >
       {/* Logo mark */}
@@ -65,8 +65,8 @@ const AstralRail = memo(function AstralRail({ onSignOut }: { onSignOut: () => vo
         title="Back to dashboard"
         className="relative w-11 h-11 rounded-2xl flex items-center justify-center group"
         style={{
-          background: "linear-gradient(135deg, rgba(124,92,255,0.35), rgba(34,211,238,0.25))",
-          border: "1px solid rgba(124,92,255,0.45)",
+          background: "var(--cc-rust)",
+          border: "1px solid var(--cc-rust-deep)",
         }}
       >
         <Sparkles className="w-5 h-5 text-white" />
@@ -126,12 +126,12 @@ const RailButton = memo(function RailButton({
       aria-label={label}
       className="group/rail relative w-11 h-11 rounded-xl flex items-center justify-center transition-colors"
       style={{
-        background: active ? "rgba(124,92,255,0.18)" : "transparent",
-        border: active ? "1px solid rgba(124,92,255,0.35)" : "1px solid transparent",
-        color: active ? "#fff" : "var(--as-mist)",
+        background: active ? "var(--cc-rust-soft)" : "transparent",
+        border: active ? "1px solid var(--cc-hair-strong)" : "1px solid transparent",
+        color: active ? "var(--cc-rust)" : "var(--as-mist)",
       }}
     >
-      <span className="transition-colors group-hover/rail:text-white">{children}</span>
+      <span className="transition-colors">{children}</span>
 
       {active && (
         <span
@@ -146,10 +146,10 @@ const RailButton = memo(function RailButton({
         role="tooltip"
         className="pointer-events-none absolute left-full ml-3 whitespace-nowrap px-2.5 py-1 rounded-md opacity-0 -translate-x-2 group-hover/rail:opacity-100 group-hover/rail:translate-x-0 transition-all duration-200 as-label-sm text-[10px] z-50"
         style={{
-          background: "rgba(10,14,32,0.95)",
-          border: "1px solid var(--as-hair-strong)",
-          color: "var(--as-ion)",
-          boxShadow: "0 8px 24px -10px rgba(0,0,0,0.7)",
+          background: "var(--cc-ink)",
+          border: "1px solid var(--cc-ink)",
+          color: "var(--cc-cream)",
+          boxShadow: "0 8px 20px -12px rgba(20,22,26,0.5)",
         }}
       >
         {label}
@@ -173,30 +173,27 @@ const AstralTopbar = memo(function AstralTopbar({
   subtitle,
   actions,
   backTo = "/dashboard",
-  liveBadge = true,
+  /* Was `true`. Nothing ever passed it, so the badge was effectively a
+     decoration that always claimed a live feed. Fail quiet instead. */
+  liveBadge = false,
 }: AstralTopbarProps) {
   const navigate = useNavigate();
-  const [clock, setClock] = useState<string>("");
 
-  useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      const utc = d.toUTCString().split(" ")[4]; // HH:MM:SS
-      setClock(utc + " UTC");
-    };
-    tick();
-    const i = window.setInterval(tick, 1000);
-    return () => window.clearInterval(i);
-  }, []);
+  /* A live UTC clock used to tick here, once a second, forever. It told the
+     reader nothing — the corpus is a set of published documents, not a feed,
+     and no figure on this page is timestamped to the second. It existed to
+     make the surface feel like a mission console. Removed with the rest of
+     the set dressing; the "updated N ago" line under the title is the only
+     time signal that means anything. */
 
   return (
     <header
       className="fixed top-4 left-4 right-4 lg:left-24 lg:right-6 z-40 rounded-2xl"
       style={{
-        background: "rgba(10, 14, 32, 0.6)",
+        background: "var(--cc-cream)",
         backdropFilter: "blur(22px) saturate(140%)",
         border: "1px solid var(--as-hair-strong)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 50px -20px rgba(0,0,0,0.6)",
+        boxShadow: "0 18px 40px -28px rgba(20,22,26,0.35)",
       }}
     >
       <div className="flex items-center gap-4 px-5 py-3">
@@ -211,8 +208,13 @@ const AstralTopbar = memo(function AstralTopbar({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
+            {/* "Signal active" was hardcoded and `liveBadge` defaulted to
+                true with no caller ever setting it, so a pulsing "Live" ran
+                permanently — including through the months the archive was
+                unreachable and every figure on the page read zero. Both now
+                follow the real connection state. */}
             <div className="as-label-sm" style={{ color: "var(--as-aurora-2)" }}>
-              § Observatory · Signal active
+              § Observatory · {liveBadge ? "Signal active" : "No signal"}
             </div>
             {liveBadge && (
               <div className="inline-flex items-center gap-2">
@@ -235,13 +237,7 @@ const AstralTopbar = memo(function AstralTopbar({
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
-          <div className="as-label-sm as-mono tracking-[0.28em] text-[color:var(--as-mist)]">
-            {clock}
-          </div>
-          <div className="as-vrule h-6" />
-          {actions}
-        </div>
+        <div className="hidden md:flex items-center gap-3">{actions}</div>
 
         {/* Mobile actions — compact */}
         <div className="md:hidden flex items-center gap-2">{actions}</div>
@@ -264,6 +260,15 @@ interface AstralShellProps {
   subtitle?: ReactNode;
   actions?: ReactNode;
   backTo?: string;
+  /**
+   * Whether the data feed behind this page is genuinely live.
+   *
+   * Drives the "Signal active / Live" badge in the topbar and the receiving
+   * indicator in the corner. Defaults to false: a page that has not told us
+   * it has data must not claim a live feed, which is precisely how the
+   * Observatory spent months pulsing "Receiving" over a corpus of zero.
+   */
+  liveBadge?: boolean;
   /** Optional extra class on the content <main>. */
   className?: string;
 }
@@ -274,6 +279,7 @@ export const AstralShell = memo(function AstralShell({
   subtitle,
   actions,
   backTo,
+  liveBadge = false,
   className = "",
 }: AstralShellProps) {
   const navigate = useNavigate();
@@ -343,7 +349,7 @@ export const AstralShell = memo(function AstralShell({
 
       {/* Chrome */}
       <AstralRail onSignOut={signOut} />
-      <AstralTopbar title={title} subtitle={subtitle} actions={actions} backTo={backTo} />
+      <AstralTopbar title={title} subtitle={subtitle} actions={actions} backTo={backTo} liveBadge={liveBadge} />
 
       {/* Content */}
       <main
@@ -352,21 +358,11 @@ export const AstralShell = memo(function AstralShell({
         <div className="max-w-[1440px] mx-auto">{children}</div>
       </main>
 
-      {/* Corner status telemetry */}
-      <div
-        className="hidden lg:flex fixed bottom-4 right-6 z-30 items-center gap-3 px-3 py-2 rounded-full"
-        style={{
-          background: "rgba(10, 14, 32, 0.55)",
-          border: "1px solid var(--as-hair-strong)",
-          backdropFilter: "blur(14px)",
-        }}
-      >
-        <Radio className="w-3.5 h-3.5" style={{ color: "var(--as-signal)" }} />
-        <span className="as-label-sm" style={{ color: "var(--as-mist)" }}>
-          Receiving · SA Gov archive
-        </span>
-        <span className="as-pulse" aria-hidden="true" />
-      </div>
+      {/* A floating "Receiving · SA Gov archive" pill with a radio icon and a
+          pulse used to sit in the bottom-right corner on every view. It
+          duplicated the connection state already shown in the topbar, in a
+          more emphatic way, while covering page content at that corner.
+          Deleted — the topbar is the one place that reports connection. */}
     </div>
   );
 });

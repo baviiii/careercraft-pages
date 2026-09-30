@@ -20,6 +20,12 @@ interface DiscoveryPersonalization {
    * Care Registered Nurse". Searched together and merged.
    */
   terms?: string[];
+  /**
+   * The profile as a short sentence, for ranking by meaning. `terms` above is
+   * the blunt fix for keyword matching — enumerate every phrasing you can think
+   * of — and this is the one that does not need them enumerated in advance.
+   */
+  profileText?: string;
   /** False while the profile is still loading — hold off the first fetch. */
   ready?: boolean;
 }
@@ -64,6 +70,7 @@ export function useJobDiscovery(
             location,
             terms: opts?.terms ?? personalized?.terms,
             limit: 40,
+            profileText: personalized?.profileText,
           },
         });
         if (error) throw error;

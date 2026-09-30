@@ -125,8 +125,14 @@ interface Job {
   salary?: string;
   salaryMin?: number;
   salaryMax?: number;
+  /** True when the board predicted the salary rather than the employer stating it. */
+  salaryIsPredicted?: boolean;
   type: string;
   description: string;
+  /** The board's classification, used for the industry signal in the match score. */
+  category?: string;
+  /** Closeness to the user's profile, 0-1, computed server-side. */
+  similarity?: number;
   url: string;
   postedAt: string;
   source: string;
@@ -140,6 +146,12 @@ interface JobStats {
   avgSalary: string;
   topCompanies: string[];
   hotSkills: string[];
+  /**
+   * Whether meaning-based ranking actually ran. Surfaced because it degrades
+   * silently on purpose — the other signals still rank the page, so a broken
+   * Horus connection and a working one look identical from the UI.
+   */
+  similarityStatus?: 'ok' | 'no-profile' | 'not-configured' | 'unavailable';
 }
 
 interface TrendAnalysis {
@@ -188,6 +200,7 @@ export default function AustralianJobs() {
     getPersonalizedJobQuery,
     getPersonalizedJobFilters,
     isJobRecommended,
+    getProfileEmbeddingText,
   } = usePersonalization();
 
   const { checkLimit: checkSearchLimit } = useRateLimit({
@@ -350,6 +363,9 @@ export default function AustralianJobs() {
             experienceLevel: selectedLevel,
             industry: sanitizedIndustry,
             page: currentPage,
+            /* Lets the function rank by meaning. Omitted for anyone who has
+               not onboarded, which skips the embedding call server-side. */
+            profileText: getProfileEmbeddingText() ?? undefined,
           },
         });
 
@@ -393,6 +409,7 @@ export default function AustralianJobs() {
       page,
       toast,
       checkSearchLimit,
+      getProfileEmbeddingText,
     ],
   );
 
@@ -497,10 +514,17 @@ export default function AustralianJobs() {
         salary: job.salary,
         salaryMin: job.salaryMin,
         salaryMax: job.salaryMax,
+        salaryIsPredicted: job.salaryIsPredicted,
         location: job.location,
         type: job.type,
-        skills: job.skills,
+        category: job.category,
+        /* Skills are read out of this now, against the user's own skill list.
+           `skills` is no longer passed: the server fills it from a hardcoded
+           list of 38 software terms, so it was empty for every nurse, tradie
+           and teacher — and that was the score's biggest signal. */
+        description: job.description,
         isRemote: job.isRemote,
+        similarity: job.similarity,
       });
       return {
         ...job,
@@ -511,8 +535,44 @@ export default function AustralianJobs() {
         reasons: result.reasons,
       };
     });
+
+    /* Phase 0 measurement — see PERSONALISATION-PLAN.md.
+       `industryMatches` maps the board's category onto our 20 industries using
+       word overlap plus a short synonym list, and that list was written against
+       the Adzuna labels I EXPECTED, not ones I had seen: their /categories
+       endpoint needs a key I do not have. So the 14/14 it scores is against
+       predicted labels, not real ones.
+
+       Rather than guess again, report the categories that matched nothing.
+       Aggregated per search and de-duplicated, so this is a line or two per
+       search rather than one per job. Delete once the synonym list has been
+       checked against a real /categories response. */
+    if (import.meta.env.DEV && stats?.similarityStatus) {
+      const note = {
+        ok: 'ranking by meaning is live',
+        'no-profile': 'skipped — profile is empty, so nothing to compare',
+        'not-configured': 'skipped — HORUS_BASE_URL / key missing in Supabase secrets',
+        unavailable: 'FAILED — Horus refused, timed out, or is paused',
+      }[stats.similarityStatus];
+      console.log(`[similarity] ${stats.similarityStatus}: ${note}`);
+    }
+
+    if (import.meta.env.DEV) {
+      const unmatched = new Set(
+        jobsWithScore
+          .filter((j) => !j.reasons?.includes('Industry match') && j.category)
+          .map((j) => j.category as string),
+      );
+      if (unmatched.size > 0) {
+        console.warn(
+          '[match] categories that matched no industry:',
+          [...unmatched].sort(),
+        );
+      }
+    }
+
     return jobsWithScore.sort((a, b) => (b.match ?? 0) - (a.match ?? 0));
-  }, [jobs, hasPersonalizationData, isJobRecommended]);
+  }, [jobs, hasPersonalizationData, isJobRecommended, stats?.similarityStatus]);
 
   const matchingJobsCount = sortedJobs.filter((j) => j.fitsPreferences).length;
   const activeMeta = AU_TABS.find((t) => t.id === activeTab) ?? AU_TABS[0];

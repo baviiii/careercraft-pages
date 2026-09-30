@@ -26,6 +26,7 @@ import { adminClient } from "../_shared/db/supabase.ts";
 import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
+import { attachSimilarity } from "../_shared/ai/similarity.ts";
 import { detectRemote, normalizeJobType, stripHtml } from "./normalize.ts";
 
 const RESOURCE = "job-search";
@@ -44,8 +45,35 @@ const JobSchema = z.object({
   currency: z.string().max(10).nullable().optional(),
   job_type: z.string().max(60).nullable().optional(),
   is_remote: z.boolean().optional(),
-  description_snippet: z.string().max(4000).nullable().optional(),
-  full_description: z.string().max(40_000).nullable().optional(),
+  /*
+   * Both of these were being thrown away.
+   *
+   * `category` is the board's own classification ("Healthcare & Nursing
+   * Jobs"). The match scorer was testing the user's industry against the job
+   * TITLE, which almost never contains it, so that signal was nearly dead.
+   *
+   * `salary_is_predicted` matters more: Adzuna predicts a range for adverts
+   * that do not quote one. Dropping the flag meant a prediction was stored and
+   * displayed as though the employer had stated it, and scored against the
+   * user's real salary floor.
+   */
+  category: z.string().max(200).nullable().optional(),
+  salary_is_predicted: z.boolean().optional(),
+  /*
+   * One field, because there is only ever one string.
+   *
+   * This used to be `description_snippet` plus a `full_description` capped at
+   * 40,000 characters, and `toJob` filled them from the same value. Adzuna's
+   * search API does not return the advert body — their docs say, twice,
+   * "we currently only provide a snipped of the job description in the
+   * response", and the full text is only behind `redirect_url`, which points
+   * back through Adzuna rather than at the employer.
+   *
+   * So `full_description` was never full: both fields held the same ~200
+   * characters. Naming it that way is how it ended up being written into
+   * `job_applications.job_description` and treated as analysable input.
+   */
+  description_snippet: z.string().max(4_000).nullable().optional(),
   posted_at: z.string().max(60).nullable().optional(),
 });
 
@@ -60,6 +88,12 @@ const RequestSchema = z.discriminatedUnion("action", [
     terms: z.array(z.string().max(120)).max(5).optional(),
     limit: z.number().int().min(1).max(50).optional(),
     page: z.number().int().min(1).max(20).optional(),
+    /**
+     * The caller's profile as a short sentence, for ranking by meaning. Sent
+     * by the client, which already has it loaded — see the note in job-news.
+     * Only ever an embedding input, never prompt text.
+     */
+    profileText: z.string().max(2000).optional(),
   }),
   z.object({
     action: z.literal("save_to_tracker"),
@@ -90,7 +124,8 @@ async function toJob(raw: Record<string, unknown>): Promise<Job> {
   const title = (raw.title as string) || "Untitled role";
   const company = (raw.company as { display_name?: string })?.display_name || "Unknown company";
   const location = (raw.location as { display_name?: string })?.display_name || null;
-  const full = stripHtml((raw.description as string) || "");
+  /* Adzuna truncates this; see the schema note above. Named for what it is. */
+  const snippet = stripHtml((raw.description as string) || "");
 
   return {
     id: await sha256(`${canonicalUrl || ""}|${title}|${company}`.toLowerCase()),
@@ -104,9 +139,11 @@ async function toJob(raw: Record<string, unknown>): Promise<Job> {
     salary_max: Number.isFinite(raw.salary_max) ? (raw.salary_max as number) : null,
     currency: "AUD",
     job_type: normalizeJobType(raw.contract_time as string),
-    is_remote: detectRemote(title, full),
-    description_snippet: full.slice(0, 300) || null,
-    full_description: full || null,
+    category: (raw.category as { label?: string })?.label || null,
+    /* Adzuna sends this as the string "0" or "1", not a boolean. */
+    salary_is_predicted: String(raw.salary_is_predicted ?? "") === "1",
+    is_remote: detectRemote(title, snippet),
+    description_snippet: snippet || null,
     posted_at: (raw.created as string) || null,
   };
 }
@@ -214,12 +251,24 @@ serve(handler(async (req) => {
       }
     }
 
+    const page = jobs.slice(0, perPage);
+
+    /* Rank by meaning as well as keyword. This board is keyword-matched, so
+       "ICU Nurse" misses "Critical Care Registered Nurse" — the `terms` list
+       above is the blunt fix for that, and this is the one that does not need
+       every phrasing enumerated in advance. Degrades silently; see job-news. */
+    const similarityStatus = await attachSimilarity(
+      page as unknown as Array<Record<string, unknown>>,
+      body.profileText,
+    );
+
     // `partial` tells the caller these results are thinner than they should be,
     // so a short result set reads as a degraded search rather than a quiet one.
     return json({
-      jobs: jobs.slice(0, perPage),
+      jobs: page,
       terms,
       partial: failures.length > 0,
+      similarityStatus,
     });
   }
 
@@ -246,12 +295,20 @@ serve(handler(async (req) => {
       status: "applied",
       job_url: job.canonical_url ?? null,
       location: job.location ?? null,
+      /* Say when the range is Adzuna's prediction rather than the employer's
+         figure. This is saved onto the application and read back weeks later,
+         by which point nobody remembers which ads quoted pay — so an
+         unmarked estimate becomes a remembered fact. */
       salary_range:
         job.salary_min && job.salary_max
-          ? `$${Math.round(job.salary_min / 1000)}k - $${Math.round(job.salary_max / 1000)}k`
+          ? `$${Math.round(job.salary_min / 1000)}k - $${Math.round(job.salary_max / 1000)}k${
+              job.salary_is_predicted ? " (est.)" : ""
+            }`
           : null,
       job_type: job.job_type ?? null,
-      job_description: job.full_description ?? null,
+      /* The extract, all we have. JobDetailPanel checks its length and tells
+         the user to paste the real ad before running an ATS check. */
+      job_description: job.description_snippet ?? null,
       notes: body.notes ?? null,
     })
     .select("id")

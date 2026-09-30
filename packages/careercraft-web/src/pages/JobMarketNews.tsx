@@ -82,6 +82,7 @@ export default function JobMarketNews() {
     loading: profileLoading,
     hasPersonalizationData,
     getNewsFilters,
+    getProfileEmbeddingText,
     scoreArticle,
     scoreSkill,
     scoreIndustry,
@@ -95,7 +96,12 @@ export default function JobMarketNews() {
   const rateArticle = useCallback(
     (a: NewsArticle) => {
       if (!personalizeOn) return null;
-      const r = scoreArticle({ title: a.title, description: a.description, category: a.category });
+      const r = scoreArticle({
+        title: a.title,
+        description: a.description,
+        category: a.category,
+        similarity: a.similarity,
+      });
       return r.match > 0 ? { match: r.match, band: r.band, reasons: r.reasons } : null;
     },
     [personalizeOn, scoreArticle],
@@ -222,6 +228,9 @@ export default function JobMarketNews() {
             startDate: newsStartDate || undefined,
             endDate: newsEndDate || undefined,
             pageNumber: page,
+            /* Lets the function rank articles by meaning. Omitted for anyone
+               who has not onboarded, which skips the embedding server-side. */
+            profileText: getProfileEmbeddingText() ?? undefined,
           },
         });
 

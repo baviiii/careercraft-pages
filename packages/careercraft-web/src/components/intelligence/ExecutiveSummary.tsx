@@ -45,10 +45,16 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
         const highDemandCareers = careerOpportunities.filter(c => c.demand === "high");
         return {
           headline: `${careerOpportunities.length} Career Opportunities Identified with ${highDemandCareers.length} High-Demand Roles`,
+          /* `topCareer?.growth.toFixed(1)` optional-chained the career but
+             not the growth, so it threw whenever a role had no stated figure
+             — and printed "NaN% projected growth" before that. "Projected"
+             was wrong regardless: nothing in the corpus projects anything. */
           keyPoints: [
-            `${topCareer?.occupation || "Top role"} shows ${topCareer?.growth.toFixed(1)}% projected growth`,
-            `${careerOpportunities.filter(c => c.trending).length} trending occupations with accelerating demand`,
-            `Skills alignment critical for ${highDemandCareers.length} high-growth positions`,
+            topCareer?.growth !== undefined
+              ? `${topCareer.occupation} carries the highest stated growth at ${topCareer.growth.toFixed(1)}%`
+              : `${topCareer?.occupation ?? "No role"} leads the list, with no growth figure stated`,
+            `${careerOpportunities.filter(c => c.trending).length} occupations named as in strong demand`,
+            `${highDemandCareers.length} roles marked high demand`,
           ],
           urgency: highDemandCareers.length > 8 ? "important" : "informational",
           actionable: `Align training programs with high-growth occupations to capture emerging opportunities.`,
@@ -56,13 +62,25 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
 
       case "skills":
         const emergingSkills = skillsDemand.filter(s => s.category === "emerging");
-        const highDemandSkills = skillsDemand.filter(s => s.demand > 80);
+        /* `s.demand > 80` is undefined > 80 for skills with no stated
+           figure — false, so they silently vanished from the count rather
+           than being reported as unknown. The line said "N skills exceed the
+           80% demand threshold" where N was really "N skills the hash
+           happened to score above 80". Count what is stated, and say how
+           many are named without a figure. */
+        const skillsWithFigures = skillsDemand.filter(s => s.demand !== undefined);
+        const highDemandSkills = skillsWithFigures.filter(s => s.demand! > 80);
+        const namedOnly = skillsDemand.length - skillsWithFigures.length;
         return {
-          headline: `${skillsDemand.length} Critical Skills Identified with ${emergingSkills.length} Emerging Capabilities`,
+          headline: `${skillsDemand.length} skills named across the workforce documents`,
           keyPoints: [
-            `${emergingSkills.length} emerging skills (AI, green tech, digital) show sustained demand growth`,
-            `${highDemandSkills.length} skills exceed 80% demand threshold across sectors`,
-            `${skillsDemand.filter(s => s.trainingAvailable).length} skills have training programs available`,
+            `${emergingSkills.length} sit in emerging areas — AI, green tech, digital`,
+            skillsWithFigures.length > 0
+              ? `${highDemandSkills.length} of the ${skillsWithFigures.length} with a stated demand figure score above 80`
+              : `No demand figures are stated; the documents name the skills without scoring them`,
+            namedOnly > 0
+              ? `${namedOnly} named without a figure · ${skillsDemand.filter(s => s.trainingAvailable).length} have a training pathway`
+              : `${skillsDemand.filter(s => s.trainingAvailable).length} have a training pathway`,
           ],
           urgency: emergingSkills.length > 5 ? "important" : "informational",
           actionable: `Prioritize emerging skill development to maintain competitive workforce capability.`,

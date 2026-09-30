@@ -22,7 +22,6 @@ import {
   Clock,
   AlertCircle,
   Loader2,
-  Sparkles,
   Target,
   Briefcase,
   MessageSquare,
@@ -332,20 +331,23 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
             <div className="absolute inset-0 bg-white/20 rounded-2xl blur-sm"></div>
           </div>
           <div>
+            {/* "Funding & Budgets" named two nouns from the filing system.
+                The tab it sits under already asks the question; the heading
+                should answer it in the same voice. */}
             <h2 className="font-display text-3xl font-bold bg-gradient-to-r from-fuchsia-500 via-pink-500 to-fuchsia-600 bg-clip-text text-transparent">
-              Funding & Budgets
+              Where the money goes
             </h2>
             <p className="text-sm text-slate-400 flex items-center gap-2">
-              <span className="font-semibold text-fuchsia-400">{filteredPrograms.length}</span> programs •
-              <span className="font-semibold text-pink-400">${(totalBudget / 1000).toFixed(1)}B</span> total
+              <span className="font-semibold text-pink-400">${(totalBudget / 1000).toFixed(1)}B</span> committed across
+              <span className="font-semibold text-fuchsia-400">{filteredPrograms.length}</span>
+              {filteredPrograms.length === 1 ? "program" : "programs"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-gradient-to-r from-fuchsia-500/20 to-pink-500/20 text-fuchsia-300 border-fuchsia-400/30 gap-1 px-3 py-1.5 backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="font-semibold">Budget Intelligence</span>
-          </Badge>
+          {/* A sparkle badge reading "Budget Intelligence" sat here — the
+              panel's own genre, printed next to the heading that already
+              says what it is. */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -372,15 +374,23 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                 <Lightbulb className="w-5 h-5 text-white" />
               </div>
               <div>
+                {/* Was "Investment Intelligence" over "Real-time budget
+                    analysis". Neither was true and neither was useful. These
+                    are budget papers — published documents, tabled once and
+                    then static for a year — so nothing here is real-time, and
+                    calling it that is the same false-liveness the clock and
+                    the pulsing pill were. */}
                 <h3 className="font-display text-2xl font-bold bg-gradient-to-r from-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
-                  Investment Intelligence
+                  What the budget papers say
                 </h3>
-                <p className="text-xs text-slate-300 font-medium">Real-time budget analysis</p>
+                <p className="text-xs text-slate-300 font-medium">
+                  Read from South Australia's published papers
+                </p>
               </div>
-              <Badge className="bg-gradient-to-r from-fuchsia-500/30 to-pink-500/30 text-pink-200 border-pink-400/30 text-xs font-semibold backdrop-blur-sm">
-                <Sparkles className="w-3 h-3 mr-1" />
-                AI-Powered
-              </Badge>
+              {/* An "AI-Powered" badge sat here. It advertises how the text
+                  was produced, which is the reader's least interesting
+                  question — and on a page where AI writes the narrative, a
+                  badge saying so on one panel implies the others are not. */}
             </div>
           <div className="flex items-center gap-2">
             {fundingStories.map((_, idx) => (
@@ -586,7 +596,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
 
       {/* Budget Allocations */}
       <div className="rounded-2xl border border-fuchsia-500/20 bg-gradient-to-br from-slate-900/70 via-purple-950/30 to-slate-900/70 p-6">
-        <h3 className="font-display text-lg font-semibold text-white mb-4">Budget Allocations by Sector</h3>
+        <h3 className="font-display text-lg font-semibold text-white mb-4">Which sectors got what</h3>
         <div className="space-y-3">
           {fundingAllocations.slice(0, 6).map((alloc, index) => {
             const percentage = totalBudget > 0 ? (alloc.amount / totalBudget) * 100 : 0;
