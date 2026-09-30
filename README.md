@@ -4,7 +4,8 @@ A résumé workshop for the Australian job market. Build the file, check it agai
 job ad, track applications, and read what the market is actually doing.
 
 Deployed to Vercel on push to `main`. Live docs worth reading before you change
-anything: [LAUNCH-TODO.md](LAUNCH-TODO.md) (what's left before launch),
+anything: [ARCHITECTURE.md](ARCHITECTURE.md) (what is where),
+[LAUNCH-TODO.md](LAUNCH-TODO.md) (what's left before launch),
 [CONCERNS.md](CONCERNS.md) (known issues parked on purpose),
 [MONETIZATION-PLAN.md](MONETIZATION-PLAN.md) (plans, limits, the token ledger).
 
