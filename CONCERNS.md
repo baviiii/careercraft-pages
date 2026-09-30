@@ -188,3 +188,58 @@ backlog at once, and the 14 errors in #3 are not even being read yet.
 **Decide later:** fix #3 first so the gate runs at all. Then enable
 `strictNullChecks` and work the list down, or enable it for `src/contexts` and
 `src/components/intelligence` only, where the honest-data invariants live.
+
+---
+
+## 7. The 20-industry list still flattens the profile
+
+**Found:** 2026-09-30, while adding meaning-based ranking.
+
+`INDUSTRIES` in `useUserProfile.ts:727` is 20 fixed values, and
+`normalizeIndustry` forces the AI's inference onto one of them at onboarding.
+A résumé reading "aged care nursing" is stored as `Healthcare`; the original
+wording is gone before anything downstream sees it.
+
+**Measured impact — small, and smallest where it matters:**
+
+| Case | With the signal | Without | Cost |
+|---|---|---|---|
+| Strong match (all signals) | 98 strong | 97 strong | **1 pt** |
+| Good match | 93 strong | 91 strong | **2 pts** |
+| Career changer | 71 good | 62 good | 9 pts |
+| **Partial match** | **79 strong** | **72 good** | **7 pts — band flips** |
+
+`matchLevel`'s saturating curve is why. Ten raw points are worth 1–2 match
+points on a job that already fits and 8–25 on one that barely does — so the
+signal matters *least* at the top of the list, which is the part users read.
+
+It is also additive-only: a miss costs 10 points and can never award them
+wrongly or hide a job. And the embedding barely depends on it — industry is one
+word out of roughly twenty-five in the profile text, while the job titles and
+skills that actually identify someone go through as free text.
+
+**Why it matters anyway:** the one case that moves is a *partial* match flipping
+good → strong, which is the middle of the range where people make judgement
+calls. And the profile feeds jobs, news, trends and résumé advice alike, so the
+flattening is inherited everywhere rather than being local to one screen.
+
+**Not urgent because:** it is a 1–2 point effect on the results anyone actually
+looks at, similarity now covers the thin-signal cases that used to depend on it,
+and `industryMatches` scores 14/14 against the category labels it was tested on.
+
+**Decide later — cheapest fix first, and it is nearly free.** `persona.vertical`
+already holds the unflattened sector ("Public Health", "Aged Care", "FinTech"):
+extracted by `onboard-analyze`, kept by `normalize.ts:267`, persisted inside
+`ai_persona` (`onboarding-api.ts:179`), and already read at
+`usePersonalization.ts:417` for the accent theme. Nothing else uses it. Adding
+it to `getProfileEmbeddingText` is about two lines and recovers the lost nuance
+with no migration, no new AI call and no list to maintain.
+
+Only if that proves insufficient: let `industry` be free text, or widen the
+list. Both are larger than the problem currently justifies.
+
+**Related:** `AustralianJobs.tsx:89` declares its own second `INDUSTRIES` list —
+10 values, different from the canonical 20 — which can drift from it. Also
+`industryMatches`'s synonym list was written against Adzuna category labels that
+were *predicted, not observed*; their `/categories` endpoint needs a key. The
+jobs page logs unmatched categories in dev so the real ones surface.
