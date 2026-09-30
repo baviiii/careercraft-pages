@@ -145,7 +145,9 @@ const INDUSTRY_SYNONYMS: Record<string, string[]> = {
   'government': ['public sector', 'defence'],
 };
 
-export function industryMatches(
+/* Not exported: the only caller is the job scorer below. Exporting it would
+   invite a second call site that skips the score's weighting and reasons. */
+function industryMatches(
   industry: string,
   category?: string,
   title?: string,
