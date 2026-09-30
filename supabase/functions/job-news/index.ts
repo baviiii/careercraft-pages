@@ -3,6 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
 import { horusGenerateObject } from "../_shared/ai/horus.ts";
+import {
+  cosineSimilarity,
+  horusEmbed,
+  horusKnowledgeConfigured,
+  HORUS_EMBED_MAX_INPUTS,
+} from "../_shared/ai/horus-knowledge.ts";
 import { AppError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota } from "../_shared/ai/meter.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
@@ -42,6 +48,17 @@ const RequestSchema = z.object({
   startDate: z.string().max(40).optional(),
   endDate: z.string().max(40).optional(),
   pageNumber: z.number().int().min(0).max(1000).optional(),
+  /**
+   * The signed-in user's profile as a short sentence, assembled by the client
+   * from data it already holds — target and current job title, industry,
+   * skills. Sent rather than read from the database so the assembly lives in
+   * one place and nothing has to be invalidated when a profile changes.
+   *
+   * Used only as an embedding input for ranking, never as prompt text, so
+   * there is no injection surface. Absent for users who have not onboarded,
+   * which skips the embedding call entirely.
+   */
+  profileText: z.string().max(2000).optional(),
 }).passthrough();
 
 const corsHeaders = {
@@ -123,7 +140,7 @@ serve(handler(async (req) => {
     if (!parsedBody.success) {
       throw new ValidationError("Invalid request body", parsedBody.error.flatten());
     }
-    const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber } = parsedBody.data;
+    const { action, query, country, industry, category, page, location, jobType, experienceLevel, timeFilter, startDate, endDate, pageNumber, profileText } = parsedBody.data;
     const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
     const ADZUNA_APP_KEY = Deno.env.get("ADZUNA_APP_KEY");
     const JSEARCH_API_KEY = Deno.env.get("JSEARCH_API_KEY");
@@ -301,6 +318,11 @@ serve(handler(async (req) => {
         seen.add(key);
         return true;
       });
+
+      /* Rank by meaning, not by shared words.
+         Fills `similarity` on each job where it can, and leaves it undefined
+         where it cannot. Never throws — see attachSimilarity. */
+      await attachSimilarity(uniqueJobs, profileText);
 
       // Sort by date (newest first)
       uniqueJobs.sort((a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime());
@@ -1483,6 +1505,87 @@ function extractSkillsFromText(text: string, vocabulary: string[]): string[] {
     }
   }
   return found;
+}
+
+/* ── Similarity ranking ──────────────────────────────────────────────────────
+   Scores each job against the user's profile by meaning rather than by shared
+   words, so "Enrolled Nurse" can rank near "Patient Care Assistant" — a pair
+   that has no word in common and is obviously the same job market to a person.
+
+   Everything here is a suggestion, not a gate. The number attached is a
+   continuous 0-1, the caller folds it in as one weighted signal among several,
+   and a job that scores poorly is ranked lower, never hidden. There is
+   deliberately no threshold at which a job is "not a match": a cut-off would
+   mean one arbitrary constant decides what a career change is allowed to look
+   like, and the whole reason for doing this was that a fixed list cannot know
+   that in advance.
+
+   Failure is silent by design. Similarity improves an ordering that already
+   works without it — the caller still has target role, location, salary,
+   remote, skills and industry — so a Horus outage costs ranking quality and
+   never a broken page. The Horus project is free-tier and pauses when idle,
+   so this is a real path, not a theoretical one.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** What gets embedded for a job: the title carries most of the signal. */
+function jobEmbedText(job: { title?: string; description?: string }): string {
+  return `${job.title ?? ""}. ${job.description ?? ""}`.trim();
+}
+
+async function attachSimilarity(
+  jobs: Array<Record<string, unknown>>,
+  profileText: string | undefined,
+): Promise<void> {
+  const profile = (profileText ?? "").trim();
+  /* No profile means nothing to compare against — a user who has not
+     onboarded. Skipping here is what keeps them off the bill entirely. */
+  if (!profile || jobs.length === 0) return;
+  if (!horusKnowledgeConfigured()) return;
+
+  try {
+    /* One request for the profile and every job. Horus caps the batch, and a
+       page beyond that cap simply goes unranked rather than being split into
+       sequential calls whose latencies would add up inside a user's search. */
+    const ranked = jobs.slice(0, HORUS_EMBED_MAX_INPUTS - 1);
+    const texts = [profile, ...ranked.map((j) => jobEmbedText(j as { title?: string; description?: string }))];
+
+    const { vectors } = await horusEmbed(texts, {
+      model: "small",
+      /* Native width is 1536; one profile plus fifty jobs at that width is
+         megabytes of JSON for an ordering that does not need the precision. */
+      dimensions: 512,
+    });
+
+    const profileVector = vectors[0];
+    if (!profileVector) return;
+
+    for (let i = 0; i < ranked.length; i++) {
+      const vector = vectors[i + 1];
+      if (!vector) continue;
+      ranked[i].similarity = cosineSimilarity(profileVector, vector);
+    }
+
+    if (ranked.length > 0) {
+      const scores = ranked
+        .map((j) => j.similarity as number | undefined)
+        .filter((s): s is number => typeof s === "number")
+        .sort((a, b) => a - b);
+      if (scores.length > 0) {
+        /* The spread, not the average — it is what says whether this signal is
+           separating anything. A run where every job scores 0.61 is a signal
+           doing no work, and that is invisible from any single number. It is
+           also what the caller's scaling window has to be calibrated against. */
+        console.log(
+          `[similarity] ${scores.length} jobs, min=${scores[0]!.toFixed(3)} ` +
+            `median=${scores[Math.floor(scores.length / 2)]!.toFixed(3)} ` +
+            `max=${scores[scores.length - 1]!.toFixed(3)}`,
+        );
+      }
+    }
+  } catch (e) {
+    /* Ranking without it is the fallback, and it is a good fallback. */
+    console.warn("[similarity] unavailable, ranking without it:", e);
+  }
 }
 
 // Helper: Get top skills from job listings

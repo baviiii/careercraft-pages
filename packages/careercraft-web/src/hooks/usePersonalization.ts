@@ -164,6 +164,13 @@ export function industryMatches(
   return wanted.some((w) => haystack.includes(w));
 }
 
+/* The window raw cosine is mapped through, and the most it can contribute.
+   Deliberately not a pass/fail threshold — see the note at the usage site.
+   Calibrate against the [similarity] spreads logged by job-news. */
+const SIMILARITY_FLOOR = 0.25;
+const SIMILARITY_CEILING = 0.75;
+const SIMILARITY_MAX_POINTS = 25;
+
 export function matchLevel(score: number): { match: number; band: MatchBand } {
   const match = score <= 0 ? 0 : Math.round(100 * (1 - Math.exp(-score / 35)));
   const band: MatchBand =
@@ -417,6 +424,49 @@ export function usePersonalization() {
     return 'developer';
   }, [profile]);
 
+  /**
+   * The profile as one short sentence, for embedding — never for a prompt.
+   *
+   * Written in the user's own words rather than as enum values, because the
+   * point of comparing meaning is that it does not need a controlled
+   * vocabulary. "Enrolled Nurse, aged care, wound care" carries far more than
+   * the canonical "Healthcare" it would be filed under, and an embedding can
+   * use all of it.
+   *
+   * Assembled here, on the client, because the client already has the profile
+   * loaded: no database read per search, one place that decides what the
+   * profile "is", and nothing stored anywhere that could go stale when someone
+   * edits it. Returns null when there is nothing worth comparing, which is
+   * what keeps un-onboarded users off the bill entirely.
+   */
+  const getProfileEmbeddingText = useCallback((): string | null => {
+    const parts: string[] = [];
+
+    if (profile.targetJobTitles.length > 0) {
+      parts.push(profile.targetJobTitles.slice(0, 3).join(', '));
+    }
+    if (profile.currentJobTitle) {
+      parts.push(`Currently ${profile.currentJobTitle}`);
+    }
+    if (profile.industry && profile.industry !== 'Other') {
+      /* 'Other' is the normalisation fallback, not a sector — it describes our
+         list failing rather than anything about this person. */
+      parts.push(profile.industry);
+    }
+    if (profile.skills.length > 0) {
+      /* Primary skills first; the tail of a long skill list is mostly noise
+         and would dilute the vector. */
+      const ordered = [...profile.skills].sort(
+        (a, b) => Number(b.isPrimary) - Number(a.isPrimary),
+      );
+      parts.push(`Skills: ${ordered.slice(0, 12).map((s) => s.name).join(', ')}`);
+    }
+
+    if (parts.length === 0) return null;
+    /* Matches the server's cap, so nothing is silently truncated mid-word. */
+    return parts.join('. ').slice(0, 2000);
+  }, [profile]);
+
   // Get personalized job filters — values shaped for the AU Jobs selects:
   // city values are lowercase ("adelaide"), level is entry/mid/senior/executive.
   const getPersonalizedJobFilters = useCallback(() => {
@@ -458,6 +508,12 @@ export function usePersonalization() {
     /** Job title + advert text. Skills are read out of this. */
     description?: string;
     isRemote?: boolean;
+    /**
+     * Cosine similarity between this job and the user's profile, 0-1, computed
+     * server-side. Undefined whenever it could not be: no profile, Horus
+     * unavailable, or a page longer than one embedding batch.
+     */
+    similarity?: number;
   }) => {
     let score = 0;
     const reasons: string[] = [];
@@ -573,6 +629,41 @@ export function usePersonalization() {
       if (industryMatches(profile.industry, job.category, job.title)) {
         score += 10;
         reasons.push('Industry match');
+      }
+    }
+
+    /* ── Closeness to the user's background ───────────────────────────────
+       Every other signal above is a yes/no: the title contains the target
+       role or it does not, the city matches or it does not. That is why a
+       career changer scores badly — nothing they are moving *towards* is in
+       their profile yet, and nothing in the list can see that an enrolled
+       nurse and a patient care assistant do similar work.
+
+       This one is continuous on purpose, and there is no threshold anywhere
+       in it. A cut-off would put one arbitrary constant in charge of what
+       counts as a related job, which is the fixed-list problem wearing a
+       different hat — the entire reason for measuring meaning was that no
+       constant knows in advance what a career change looks like. A job that
+       scores poorly simply contributes less. Nothing is ever excluded.
+
+       The window maps raw cosine onto that contribution. Embeddings of short
+       job text do not use the full 0-1 range — unrelated pairs sit well above
+       zero and near-identical ones well below one — so the raw number would
+       hand almost everything a middling score and separate nothing. These
+       bounds are a starting point, not a measurement: job-news logs the min,
+       median and max of every batch so they can be set from real spreads
+       rather than guessed at twice. */
+    if (typeof job.similarity === 'number' && Number.isFinite(job.similarity)) {
+      const fraction = Math.max(
+        0,
+        Math.min(1, (job.similarity - SIMILARITY_FLOOR) / (SIMILARITY_CEILING - SIMILARITY_FLOOR)),
+      );
+      const points = fraction * SIMILARITY_MAX_POINTS;
+      if (points > 0) {
+        score += points;
+        /* Only the top of the range earns a sentence. Below that the points
+           still count — they just do not warrant a claim to the reader. */
+        if (fraction > 0.6) reasons.push('Close to your background');
       }
     }
 
@@ -766,6 +857,7 @@ export function usePersonalization() {
     
     // Job personalization
     getPersonalizedJobQuery,
+    getProfileEmbeddingText,
     getPersonalizedJobFilters,
     isJobRecommended,
     

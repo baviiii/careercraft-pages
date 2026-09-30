@@ -131,6 +131,8 @@ interface Job {
   description: string;
   /** The board's classification, used for the industry signal in the match score. */
   category?: string;
+  /** Closeness to the user's profile, 0-1, computed server-side. */
+  similarity?: number;
   url: string;
   postedAt: string;
   source: string;
@@ -192,6 +194,7 @@ export default function AustralianJobs() {
     getPersonalizedJobQuery,
     getPersonalizedJobFilters,
     isJobRecommended,
+    getProfileEmbeddingText,
   } = usePersonalization();
 
   const { checkLimit: checkSearchLimit } = useRateLimit({
@@ -354,6 +357,9 @@ export default function AustralianJobs() {
             experienceLevel: selectedLevel,
             industry: sanitizedIndustry,
             page: currentPage,
+            /* Lets the function rank by meaning. Omitted for anyone who has
+               not onboarded, which skips the embedding call server-side. */
+            profileText: getProfileEmbeddingText() ?? undefined,
           },
         });
 
@@ -397,6 +403,7 @@ export default function AustralianJobs() {
       page,
       toast,
       checkSearchLimit,
+      getProfileEmbeddingText,
     ],
   );
 
@@ -511,6 +518,7 @@ export default function AustralianJobs() {
            and teacher — and that was the score's biggest signal. */
         description: job.description,
         isRemote: job.isRemote,
+        similarity: job.similarity,
       });
       return {
         ...job,
