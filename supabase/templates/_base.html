@@ -1,0 +1,84 @@
+<!--
+  Faircopy email — the shared skeleton every template below copies.
+
+  This file is a REFERENCE, not an include. Supabase takes one self-contained
+  HTML string per template, so each file repeats this structure rather than
+  importing it. Change something here and change it in all five.
+
+  Why it looks like 2005 HTML:
+    - Tables, not flex or grid. Outlook renders with Word's engine and
+      supports neither.
+    - Inline styles on every element. Gmail strips <style> blocks in some
+      clients, so anything that matters cannot live in a stylesheet.
+    - 600px maximum. Wider is cut off in several desktop clients.
+    - No web fonts. They fail silently in Outlook and Gmail, so the stack
+      falls back to what is installed. Faircopy's Bricolage Grotesque is not
+      available here; Georgia carries the editorial feel instead.
+    - No background images, no SVG, no JavaScript.
+
+  Palette, matched to design-system.css:
+    cream #F7F7F4 · cream-2 #EFEFEA · ink #14161A · ink-soft #40454E
+    ash #737882 · rust #2A52CC · rust-deep #1E3D9E · signal #3F7A5C
+
+  Supabase variables available in these templates:
+    {{ .ConfirmationURL }}  the action link, already signed
+    {{ .Token }}            6-digit OTP, when you want a code instead
+    {{ .TokenHash }}        for building your own URL
+    {{ .SiteURL }}          site_url from auth config
+    {{ .Email }}            the recipient
+    {{ .NewEmail }}         email-change only: the address being moved to
+    {{ .RedirectTo }}       where the user lands after the action
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Faircopy</title>
+  </head>
+  <body style="margin:0; padding:0; background:#EFEFEA;">
+    <!-- Preheader: the grey line a client shows next to the subject. Hidden
+         in the body itself. Without one, clients pull the first visible text,
+         which is usually the word "Faircopy" repeated. -->
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
+      PREHEADER TEXT GOES HERE
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EFEFEA;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+                 style="width:600px; max-width:100%; background:#F7F7F4; border:1px solid rgba(20,22,26,0.12);">
+
+            <!-- Masthead -->
+            <tr>
+              <td style="padding:28px 32px 20px; border-bottom:1px solid rgba(20,22,26,0.12);">
+                <span style="font-family:Georgia,'Times New Roman',serif; font-size:19px; letter-spacing:-0.01em; color:#14161A;">
+                  Faircopy
+                </span>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:32px;">
+                <!-- CONTENT -->
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:20px 32px 28px; border-top:1px solid rgba(20,22,26,0.12);">
+                <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#737882;">
+                  Faircopy · Adelaide, South Australia<br />
+                  <a href="mailto:support@faircopy.au" style="color:#737882;">support@faircopy.au</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -158,20 +158,34 @@ export default function UserManagement() {
       return;
     }
 
+    /* This used to `await new Promise(r => setTimeout(r, 1000))` and then say
+       "Email sent to {address}". Nothing was sent. An admin replying to a
+       support request, or telling someone their account had been restored,
+       got a green toast and the user got silence — and unlike the public
+       contact form, the person misled here is the one who would otherwise
+       follow up.
+
+       There is no send endpoint yet, so it hands off to the admin's own mail
+       client with the address, subject and body filled in. It genuinely
+       sends, from a real person, and the reply lands somewhere a human
+       reads. Swap in a POST when there is one; the state is already shaped
+       for it. */
     setIsSendingEmail(true);
     try {
-      // In a production app, you would call an API endpoint to send the email
-      // For now, we'll simulate it
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const href =
+        `mailto:${encodeURIComponent(emailRecipient.email)}` +
+        `?subject=${encodeURIComponent(emailSubject)}` +
+        `&body=${encodeURIComponent(emailMessage)}`;
+      window.location.href = href;
 
-      toast.success(`Email sent to ${emailRecipient.email}`);
+      toast.success(`Opening your mail app to ${emailRecipient.email}`);
       setEmailDialogOpen(false);
       setEmailRecipient(null);
       setEmailSubject('');
       setEmailMessage('');
     } catch (error) {
-      console.error('Error sending email:', error);
-      toast.error('Failed to send email');
+      console.error('Error opening mail client:', error);
+      toast.error('Could not open your mail app');
     } finally {
       setIsSendingEmail(false);
     }

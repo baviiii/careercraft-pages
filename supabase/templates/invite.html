@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>You have been invited to Faircopy</title>
+  </head>
+  <body style="margin:0; padding:0; background:#EFEFEA;">
+    <!-- Preheader: the grey line shown beside the subject in most clients.
+         Without one they pull the first visible text, which here would be the
+         word "Faircopy" on its own. -->
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">An invitation to join Faircopy.</div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EFEFEA;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+                 style="width:600px; max-width:100%; background:#F7F7F4; border:1px solid rgba(20,22,26,0.12);">
+            <tr>
+              <td style="padding:28px 32px 20px; border-bottom:1px solid rgba(20,22,26,0.12);">
+                <span style="font-family:Georgia,'Times New Roman',serif; font-size:19px; letter-spacing:-0.01em; color:#14161A;">Faircopy</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <h1 style="margin:0 0 16px; font-family:Georgia,'Times New Roman',serif; font-size:26px; line-height:1.25; font-weight:normal; color:#14161A;">You&rsquo;ve been invited</h1>
+                <p style="margin:0 0 16px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.65; color:#40454E;">Someone invited <strong style="color:#14161A;">{{ .Email }}</strong> to Faircopy &mdash; a r&eacute;sum&eacute; workshop built for the Australian job market. Accept to set a password and get started.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 22px;">
+                  <tr>
+                    <td style="background:#2A52CC;">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block; padding:13px 26px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; color:#F7F7F4; text-decoration:none;">Accept the invitation</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#737882;">If the button does nothing, paste this into your browser:<br /><a href="{{ .ConfirmationURL }}" style="color:#2A52CC; word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+                <div style="height:1px; background:rgba(20,22,26,0.12); margin:26px 0;"></div>
+                <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:13px; line-height:1.6; color:#737882;">Not expecting this? Ignore it &mdash; no account is created unless you accept.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 28px; border-top:1px solid rgba(20,22,26,0.12);">
+                <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#737882;">
+                  Faircopy &middot; Adelaide, South Australia<br />
+                  <a href="mailto:support@faircopy.au" style="color:#737882;">support@faircopy.au</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

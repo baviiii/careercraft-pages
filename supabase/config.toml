@@ -75,6 +75,33 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
 
+# Subjects and bodies for the mail Supabase sends. Like the rest of this file
+# these apply to `supabase start` only — production templates are pasted into
+# the dashboard, which is why supabase/templates/README.md exists.
+#
+# Keeping them here anyway is the point: local mail then looks like production
+# mail, so a broken link or a mangled variable shows up at Inbucket
+# (http://127.0.0.1:54324) instead of in someone's inbox.
+[auth.email.template.confirmation]
+subject = "Confirm your email"
+content_path = "./supabase/templates/confirm-signup.html"
+
+[auth.email.template.recovery]
+subject = "Set a new password"
+content_path = "./supabase/templates/reset-password.html"
+
+[auth.email.template.magic_link]
+subject = "Your sign-in link"
+content_path = "./supabase/templates/magic-link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email address"
+content_path = "./supabase/templates/change-email.html"
+
+[auth.email.template.invite]
+subject = "You've been invited to Faircopy"
+content_path = "./supabase/templates/invite.html"
+
 [edge_runtime]
 enabled = true
 inspector_port = 8083
