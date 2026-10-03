@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useActiveRole } from "@/hooks/useActiveRole";
 import { careerCoach, type FieldPreview } from "@/lib/careerCoach";
 import { CAREER_LEVEL_OPTIONS, levelLabel } from "@/lib/careerFields";
-import { preloadOccupations, suggestTitles } from "@/lib/occupations";
+import { occupationsAttribution, preloadOccupations, suggestTitles } from "@/lib/occupations";
 
 const SOURCE_NOTE: Record<string, string> = {
   "getting-started": "From your getting-started answers",
@@ -166,6 +166,9 @@ function RoleEditor({ onDone }: { onDone?: () => void }) {
           <CommandEmpty>Type any job title.</CommandEmpty>
         </CommandList>
       </Command>
+      {title && others.length > 0 && occupationsAttribution() && (
+        <p className="-mt-2 text-[0.7rem] text-[color:var(--cc-ash)]">Job titles: {occupationsAttribution()}</p>
+      )}
 
       {title.length >= 3 && (loading || preview) && (
         <div className="rounded-[0.85rem] border border-[color:var(--cc-hair)] p-3 text-sm" aria-live="polite">
