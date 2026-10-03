@@ -12,7 +12,7 @@
  * skills reporting.
  */
 
-import { useState, useEffect as ReactUseEffect, useRef, useMemo } from "react";
+import { useState, useEffect as ReactUseEffect, useRef, useMemo, useCallback } from "react";
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -32,7 +32,6 @@ import {
 
 import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceContext";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
-import { useAgenticRAG } from "@/hooks/useAgenticRAG";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
 import { describeAge } from "@/lib/intelligence/snapshotCache";
 import {
@@ -107,6 +106,34 @@ function extractCategoryFromTitle(title: string): string {
 }
 
 /**
+ * A semanticSearch source → the shape the chart visualizer reads.
+ * horus-rag already rescales `score` to a 1–99 relevance percentage.
+ */
+function toChartSource(s: {
+  documentId?: string;
+  title?: string;
+  score?: number;
+  category?: string;
+  content?: string;
+  pageNumber?: number;
+}) {
+  return {
+    id: s.documentId || s.title,
+    documentId: s.documentId || s.title,
+    title: s.title || 'Document',
+    score: (s.score || 70) / 100,
+    category: s.category || extractCategoryFromTitle(s.title),
+    sector: extractSectorFromContent(s.content || s.title),
+    pageNumber: s.pageNumber,
+    content: s.content || '',
+    hasChart: false,
+    chartType: undefined as string | undefined,
+    chartData: undefined,
+    visualDescription: undefined as string | undefined,
+  };
+}
+
+/**
  * Inner dashboard component that uses the intelligence context
  */
 function IntelligenceDashboardContent() {
@@ -127,10 +154,24 @@ function IntelligenceDashboardContent() {
   } = useIntelligence();
 
   const { semanticSearch } = useRAGMetadata();
-  const { sendMessage: sendOverviewMsg, messages: agenticMessages, isStreaming } = useAgenticRAG('overview');
-  const { sendMessage: sendCareersMsg, messages: careersAgenticMsgs } = useAgenticRAG('careers');
-  const { sendMessage: sendSkillsMsg, messages: skillsAgenticMsgs } = useAgenticRAG('skills');
-  const { sendMessage: sendFundingMsg, messages: fundingAgenticMsgs } = useAgenticRAG('funding');
+  /*
+   * Passages for the charts, one standing question per tab. These used to go
+   * through useAgenticRAG, a chat hook, only to read `.sources` off its last
+   * message; the same rag.query call is made directly now.
+   */
+  const [enrichSources, setEnrichSources] = useState<Record<string, any[]>>({});
+  const fetchEnrichment = useCallback(
+    async (key: string, question: string) => {
+      try {
+        const result = await semanticSearch(question, {}, { topK: 24 });
+        setEnrichSources((prev) => ({ ...prev, [key]: result?.sources ?? [] }));
+        console.log(`[IntelligenceOverview] ✅ ${key} enrichment completed`);
+      } catch (err) {
+        console.warn(`[IntelligenceOverview] ⚠️ ${key} enrichment failed (non-fatal):`, err);
+      }
+    },
+    [semanticSearch],
+  );
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chartSources, setChartSources] = useState<any[]>([]);
@@ -151,115 +192,53 @@ function IntelligenceDashboardContent() {
     }
   }, [searchQuery, setSearchQuery]);
 
-  // Fire agentic RAG once to enrich overview with graph data, intersections, and contradictions
+  // Fetch the overview's chart passages once.
   ReactUseEffect(() => {
     if (agenticFetchDone.current || !searchQuery || !searchQuery.trim()) return;
     agenticFetchDone.current = true;
+    void fetchEnrichment(
+      'overview',
+      `Analyze the South Australian government budget: key funding allocations, career opportunities, skills demand, and any contradictions or notable trends across sectors.`,
+    );
+  }, [searchQuery, fetchEnrichment]);
 
-    console.log('[IntelligenceOverview] 🚀 Firing agentic RAG for overview enrichment...');
-    sendOverviewMsg(
-      `Analyze the South Australian government budget: key funding allocations, career opportunities, skills demand, and any contradictions or notable trends across sectors.`
-    ).then(() => {
-      console.log('[IntelligenceOverview] ✅ Agentic enrichment completed');
-    }).catch((err: Error) => {
-      console.warn('[IntelligenceOverview] ⚠️ Agentic enrichment failed (non-fatal):', err.message);
-    });
-  }, [searchQuery, sendOverviewMsg]);
-
-  // Fire per-tab agentic queries when user switches tabs (lazy, one-time per tab)
+  // Fetch each tab's chart passages when it is first opened (lazy, one-time per tab)
   ReactUseEffect(() => {
     if (activeTab === 'overview' || tabAgenticDone.current.has(activeTab)) return;
     tabAgenticDone.current.add(activeTab);
 
-    const tabQueries: Record<string, { msg: string; send: typeof sendCareersMsg }> = {
-      careers: {
-        msg: 'Analyze career opportunities in South Australia: top growing occupations, salary trends, sector demand, workforce gaps, and which government-funded programs are creating the most jobs.',
-        send: sendCareersMsg,
-      },
-      skills: {
-        msg: 'Analyze skills demand in South Australia: most in-demand technical skills, emerging skills, training gaps, and how government investment is driving skill requirements across sectors.',
-        send: sendSkillsMsg,
-      },
-      funding: {
-        msg: 'Analyze government budget allocations in South Australia: largest sector investments, fastest growing budgets, program funding breakdown, and any contradictions between stated priorities and actual funding.',
-        send: sendFundingMsg,
-      },
+    const tabQueries: Record<string, string> = {
+      careers: 'Analyze career opportunities in South Australia: top growing occupations, salary trends, sector demand, workforce gaps, and which government-funded programs are creating the most jobs.',
+      skills: 'Analyze skills demand in South Australia: most in-demand technical skills, emerging skills, training gaps, and how government investment is driving skill requirements across sectors.',
+      funding: 'Analyze government budget allocations in South Australia: largest sector investments, fastest growing budgets, program funding breakdown, and any contradictions between stated priorities and actual funding.',
     };
 
-    const q = tabQueries[activeTab];
-    if (q) {
-      console.log(`[IntelligenceOverview] 🚀 Firing agentic RAG for ${activeTab} tab...`);
-      q.send(q.msg).then(() => {
-        console.log(`[IntelligenceOverview] ✅ ${activeTab} agentic enrichment completed`);
-      }).catch((err: Error) => {
-        console.warn(`[IntelligenceOverview] ⚠️ ${activeTab} agentic enrichment failed:`, err.message);
-      });
-    }
-  }, [activeTab, sendCareersMsg, sendSkillsMsg, sendFundingMsg]);
+    const question = tabQueries[activeTab];
+    if (question) void fetchEnrichment(activeTab, question);
+  }, [activeTab, fetchEnrichment]);
 
-  // When agentic RAG returns messages with sources/contradictions, merge into chart data
+  // Merge the overview's passages into the chart data
   ReactUseEffect(() => {
-    const lastAssistant = [...agenticMessages].reverse().find(m => m.role === 'assistant' && !m.isLoading);
-    if (!lastAssistant) return;
+    const fetched = enrichSources.overview || [];
+    if (fetched.length === 0) return;
 
-    const agenticSources = lastAssistant.sources || [];
+    const existingIds = new Set(chartSources.map(s => s.id));
+    const newSources = fetched
+      .map(toChartSource)
+      .filter(s => !existingIds.has(s.documentId));
 
-    if (agenticSources.length > 0) {
-      const existingIds = new Set(chartSources.map(s => s.id));
-      const newSources = agenticSources
-        .filter(s => !existingIds.has(s.documentId))
-        .map(s => ({
-          id: s.documentId || s.title,
-          documentId: s.documentId || s.title,
-          title: s.title || 'Agentic Discovery',
-          score: (s.relevance || 70) / 100,
-          category: s.category || extractCategoryFromTitle(s.title),
-          sector: extractSectorFromContent(s.snippet || s.title),
-          pageNumber: s.pageNumber,
-          content: s.snippet || '',
-          hasChart: false,
-          chartType: undefined as string | undefined,
-          chartData: undefined,
-          visualDescription: undefined as string | undefined,
-        }));
-
-      if (newSources.length > 0) {
-        const merged = [...chartSources, ...newSources];
-        setChartSources(merged);
-        const vizData = transformSearchResultsToVisualizationData(merged, searchQuery || '');
-        setChartVisualizationData(vizData);
-      }
+    if (newSources.length > 0) {
+      const merged = [...chartSources, ...newSources];
+      setChartSources(merged);
+      const vizData = transformSearchResultsToVisualizationData(merged, searchQuery || '');
+      setChartVisualizationData(vizData);
     }
+  }, [enrichSources.overview]);
 
-  }, [agenticMessages]);
-
-  // Extract per-tab agentic data into viz sources
+  // Per-tab passages into viz sources
   ReactUseEffect(() => {
-    const tabMsgMap: Record<string, typeof careersAgenticMsgs> = {
-      careers: careersAgenticMsgs,
-      skills: skillsAgenticMsgs,
-      funding: fundingAgenticMsgs,
-    };
-
-    for (const [tab, msgs] of Object.entries(tabMsgMap)) {
-      const last = [...msgs].reverse().find(m => m.role === 'assistant' && !m.isLoading);
-      if (!last) continue;
-
-      const sources = (last.sources || []).map(s => ({
-        id: s.documentId || s.title,
-        documentId: s.documentId || s.title,
-        title: s.title || 'Document',
-        score: (s.relevance || 70) / 100,
-        category: s.category || extractCategoryFromTitle(s.title),
-        sector: extractSectorFromContent(s.snippet || s.title),
-        pageNumber: s.pageNumber,
-        content: s.snippet || '',
-        hasChart: false,
-        chartType: undefined as string | undefined,
-        chartData: undefined,
-        visualDescription: undefined as string | undefined,
-      }));
-
+    for (const tab of ['careers', 'skills', 'funding']) {
+      const sources = (enrichSources[tab] || []).map(toChartSource);
       if (sources.length > 0 && !tabSources[tab]?.length) {
         setTabSources(prev => ({ ...prev, [tab]: sources }));
         setTabVizData(prev => ({
@@ -267,9 +246,8 @@ function IntelligenceDashboardContent() {
           [tab]: transformSearchResultsToVisualizationData(sources, tab),
         }));
       }
-
     }
-  }, [careersAgenticMsgs, skillsAgenticMsgs, fundingAgenticMsgs]);
+  }, [enrichSources]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

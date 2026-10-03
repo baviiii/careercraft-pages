@@ -28,8 +28,12 @@
 //
 // The two keys are deliberately separable. The inference key needs
 // `intelligence:infer` and nothing else; this module needs the read scopes and
-// nothing else. Keeping them apart means widening one never widens the other,
-// and a key minted for retrieval can never spend tokens.
+// nothing else. Keeping them apart means widening one never widens the other.
+//
+// "Read" does not mean free. Horus gates rag.query and /api/sdk/chat on
+// `rag:read`, and both generate an answer — so this key does spend model
+// tokens, through those two doors and no others. coach-chat and horus-rag's
+// search op are where that spend comes from.
 
 import { ConfigError, ProviderError, RateLimitError } from "./errors.ts";
 import { optEnv, reqEnv } from "../env.ts";
@@ -58,7 +62,8 @@ export function horusKnowledgeConfigured(): boolean {
   );
 }
 
-function baseUrl(): string {
+/** Exported for coach-chat, which calls a non-tRPC Horus route. */
+export function baseUrl(): string {
   return reqEnv("HORUS_BASE_URL").replace(/\/+$/, "");
 }
 
@@ -67,7 +72,8 @@ function apiKey(): string {
   return optEnv("HORUS_KNOWLEDGE_API_KEY") ?? reqEnv("HORUS_API_KEY");
 }
 
-function authHeaders(): HeadersInit {
+/** Exported for coach-chat; carries the Vercel bypass header when set. */
+export function authHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${apiKey()}`,
     "Content-Type": "application/json",

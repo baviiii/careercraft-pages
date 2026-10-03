@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { IntelligenceProvider, useIntelligence } from "@/contexts/IntelligenceContext";
 import { useJobCounts } from "@/hooks/useJobCounts";
-import { useAgenticRAG, type GraphConnection } from "@/hooks/useAgenticRAG";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { DocumentIntelligenceVisualizer, AIInsightsPanel } from "@/components/intelligence";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
@@ -78,14 +77,12 @@ function MarketTrendsContent() {
   // ========================================================================
   // AGENTIC RAG - Graph connections, intersection reasoning, contradictions
   // ========================================================================
-  const { sendMessage: sendMarketMsg, messages: agenticMessages, isStreaming } = useAgenticRAG('market');
   const { semanticSearch } = useRAGMetadata();
   const agenticFetchDone = useRef(false);
   
   // State for agentic data
   const [chartSources, setChartSources] = useState<any[]>([]);
   const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
-  const [graphConnections, setGraphConnections] = useState<GraphConnection[]>([]);
   const [loadingCharts, setLoadingCharts] = useState(false);
 
   // Fire agentic RAG query on mount to enrich market trends with graph data
@@ -110,9 +107,7 @@ function MarketTrendsContent() {
           const vizData = transformSearchResultsToVisualizationData(searchResult.sources);
           setChartVisualizationData(vizData);
         }
-        
-        // Also send agentic query for deeper insights
-        await sendMarketMsg("What are the key market trends, emerging industries, and workforce shifts in South Australia? Include any contradictions or gaps in the data.");
+
       } catch (error) {
         console.error("[MarketTrends] Agentic fetch error:", error);
       } finally {
@@ -121,17 +116,7 @@ function MarketTrendsContent() {
     };
     
     fetchAgenticData();
-  }, [dataLoading, semanticSearch, sendMarketMsg]);
-
-  // Extract contradictions and connections from agentic messages
-  useEffect(() => {
-    const lastMsg = agenticMessages[agenticMessages.length - 1];
-    if (lastMsg?.role === "assistant" && !lastMsg.isLoading) {
-      if (lastMsg.graphConnections && lastMsg.graphConnections.length > 0) {
-        setGraphConnections(lastMsg.graphConnections);
-      }
-    }
-  }, [agenticMessages]);
+  }, [dataLoading, semanticSearch]);
 
   // Contradictions and cross-document connections came from the
   // `intersection-reasoning` Azure Function, which has been decommissioned.

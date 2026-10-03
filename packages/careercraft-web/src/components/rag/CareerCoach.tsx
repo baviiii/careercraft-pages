@@ -9,18 +9,16 @@ import { supabase } from "@/integrations/supabase/client";
  *
  * VISUAL SYSTEM: cream paper, ink, rust. Same Craft language as the rest of
  * the logged-in app. Thinking is a galley-proof ledger, not a spinner.
- * Small talk never hits retrieval — see src/lib/conversationRouter.ts.
+ *
+ * ENGINE: the Horus agent, through the coach-chat edge function
+ * (hooks/useCoachChat). The agent picks its own tools; the ledger records the
+ * steps it actually took, and the answer streams in as it is written.
  */
-import { useEnterpriseRAG } from "@/hooks/useEnterpriseRAG";
-import { useAgenticRAG } from "@/hooks/useAgenticRAG";
-import type { ThinkingStep } from "@/lib/conversationRouter";
-import {
-  ProactiveInsightCard,
-  EmbeddedChart,
-} from "./ChatEnhancements";
+import { useCoachChat, type ThinkingStep } from "@/hooks/useCoachChat";
 import { exportConversationToPDF } from "@/lib/pdfExport";
 import {
   Send,
+  Square,
   Sparkles,
   FileText,
   ExternalLink,
@@ -28,7 +26,6 @@ import {
   ThumbsDown,
   Copy,
   Check,
-  Loader2,
   MessageSquare,
   RefreshCw,
   ChevronRight,
@@ -64,8 +61,6 @@ interface PromptOption {
   is_active: boolean;
   is_default: boolean;
 }
-
-type RAGMode = "hybrid" | "agentic" | "neo4j";
 
 /** Console accents — house tones, not neon. Drives `data-accent`. */
 type Accent = "cobalt" | "sage" | "wheat" | "rose";
@@ -292,19 +287,14 @@ function getPersona(focusArea: string): Persona {
   return PERSONAS.basic;
 }
 
-const RAG_MODE_LABEL: Record<RAGMode, string> = {
-  hybrid: "Hybrid",
-  agentic: "Agentic",
-  neo4j: "Neo4j",
-};
-
 // ============================================================================
 // REASONING LEDGER — the flight recorder.
 //
-// While a query runs, this is the loading state: each pipeline phase appears
-// the moment it starts and is stamped with its elapsed time when it lands.
-// After the answer arrives it collapses to a one-line receipt ("Reasoned in
-// 3.2s · 4 steps") that expands on demand — the thinking stays auditable
+// While a query runs, this is the loading state: each step the agent takes
+// (a search, a graph lookup, writing) appears the moment it starts, with the
+// agent's own query underneath, and is stamped with its time when it lands.
+// After the answer arrives it collapses to a one-line receipt ("Thought for
+// 12.4s · 4 steps") that expands on demand — the thinking stays auditable
 // without crowding the answer.
 // ============================================================================
 
@@ -326,24 +316,35 @@ function useNow(active: boolean, intervalMs = 100): number {
 }
 
 /**
- * What to tell someone who has been watching one step for a while. The search
- * step is a single server call with no progress events, so this speaks to the
- * wait itself rather than inventing sub-phases we cannot see.
+ * What to tell someone who has been watching one step for a while. Steps are
+ * real tool calls and normally land in a few seconds, so a long one is worth
+ * a word. Writing needs none — the answer is visibly arriving.
  */
-function waitNote(elapsedMs: number): string | null {
+function waitNote(step: ThinkingStep, elapsedMs: number): string | null {
+  if (step.id === "write") return null;
   if (elapsedMs >= 45_000) return "Slower than usual — still waiting on the server.";
-  if (elapsedMs >= 8_000) return "Still going. A cited answer usually takes 10–30s.";
+  if (elapsedMs >= 10_000) return "Taking longer than usual.";
   return null;
 }
 
-function ThinkingLedger({ steps, live }: { steps: ThinkingStep[]; live?: boolean }) {
+function ThinkingLedger({
+  steps,
+  live,
+  elapsedMs,
+}: {
+  steps: ThinkingStep[];
+  live?: boolean;
+  /** Wall-clock time for the whole answer. Steps can run in parallel, so
+   *  their durations do not add up to it. */
+  elapsedMs?: number;
+}) {
   const [open, setOpen] = useState(false);
   const expanded = live || open;
   const now = useNow(!!live);
 
   if (!steps || steps.length === 0) return null;
 
-  const totalMs = steps.reduce((sum, s) => sum + (s.ms || 0), 0);
+  const totalMs = elapsedMs ?? steps.reduce((sum, s) => sum + (s.ms || 0), 0);
   const failed = steps.some((s) => s.status === "failed");
   const state = live ? "live" : failed ? "failed" : "done";
   const firstStart = steps.reduce<number | undefined>(
@@ -393,7 +394,7 @@ function ThinkingLedger({ steps, live }: { steps: ThinkingStep[]; live?: boolean
               {steps.map((step) => {
                 const running = live && step.status === "active";
                 const stepElapsed = running && step.startedAt != null ? Math.max(0, now - step.startedAt) : undefined;
-                const note = stepElapsed != null ? waitNote(stepElapsed) : null;
+                const note = stepElapsed != null ? waitNote(step, stepElapsed) : null;
                 return (
                   <li key={step.id} className="con-ledger__step" data-status={step.status}>
                     <span className="con-ledger__node" aria-hidden />
@@ -437,7 +438,6 @@ export default function CareerCoach() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<"chat" | "insights">("chat");
   const [focusArea, setFocusArea] = useState<string>("careers");
-  const [ragMode, setRagMode] = useState<RAGMode>("agentic");
   const [promptOptions, setPromptOptions] = useState<PromptOption[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -488,38 +488,30 @@ export default function CareerCoach() {
     loadPrompts();
   }, []);
 
-  // SEPARATION OF CONCERNS: Switch between Hybrid RAG, Agentic RAG (Cosmos), and Neo4j RAG
-  const hybridRAG = useEnterpriseRAG(focusArea);
-  const agenticRAG = useAgenticRAG(focusArea);
-  const neo4jRAG = useAgenticRAG(focusArea, { graphBackend: 'neo4j' }); // Neo4j backend
-
-  // Select active RAG system based on mode
-  const getActiveRAG = () => {
-    switch (ragMode) {
-      case 'neo4j': return neo4jRAG;
-      case 'agentic': return agenticRAG;
-      default: return hybridRAG;
-    }
-  };
-
-  const {
-    messages,
-    sendMessage,
-    rateMessage,
-    clearChat,
-    context,
-    analytics,
-    isStreaming,
-  } = getActiveRAG();
-
   // Active persona based on focus area — fuzzy maps any DB value to best persona
   const persona = useMemo(() => getPersona(focusArea), [focusArea]);
   const PersonaIcon = persona.icon;
 
+  // One engine: the Horus agent. The focus area picks the admin-edited persona
+  // server-side; the persona's display name rides along for the agent's voice.
+  const {
+    messages,
+    send: sendMessage,
+    stop,
+    rateMessage,
+    clearChat,
+    isStreaming,
+  } = useCoachChat(focusArea, persona.name);
+
+  // The default lens arrives with the prompt table. Sending before it lands
+  // used to lose the message: the lens switch that followed wiped the thread.
+  const ready = !loadingPrompts;
+
   /** The persona list backing the lens selector — DB prompts, else the built-ins. */
   const lensOptions = useMemo(() => {
     if (promptOptions.length > 1) {
-      return promptOptions.map((p) => ({ value: p.focus_area, label: p.name, key: p.id }));
+      // DB names are slugs ("career_coach"); show the persona's own name.
+      return promptOptions.map((p) => ({ value: p.focus_area, label: getPersona(p.focus_area).name, key: p.id }));
     }
     return ['careers', 'analyst', 'funding', 'skills', 'policies', 'entrepreneurship'].map((key) => ({
       value: key,
@@ -556,7 +548,7 @@ export default function CareerCoach() {
     };
   }, [isExpanded]);
 
-  // Only wipe the thread when the user actually changes lens or engine —
+  // Only wipe the thread when the user actually changes lens —
   // not on the initial prompt-table load, which used to eat deep-linked questions.
   useEffect(() => {
     if (prevFocus.current !== focusArea) {
@@ -565,15 +557,6 @@ export default function CareerCoach() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusArea]);
-
-  const prevMode = useRef(ragMode);
-  useEffect(() => {
-    if (prevMode.current !== ragMode) {
-      prevMode.current = ragMode;
-      if (messages.length > 0) clearChat();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ragMode]);
 
   // Deep links from other dashboards: /career-coach?q=… or location.state.initialQuestion
   useEffect(() => {
@@ -599,11 +582,11 @@ export default function CareerCoach() {
 
   const handleSubmit = useCallback((e?: React.FormEvent) => {
     e?.preventDefault();
-    if (input.trim() && !isStreaming) {
+    if (input.trim() && !isStreaming && ready) {
       sendMessage(input.trim());
       setInput("");
     }
-  }, [input, isStreaming, sendMessage]);
+  }, [input, isStreaming, ready, sendMessage]);
 
   const copyToClipboard = useCallback(async (text: string, id: string) => {
     await navigator.clipboard.writeText(text);
@@ -620,8 +603,10 @@ export default function CareerCoach() {
   }, [messages]);
 
   const formatMessage = useCallback((content: string) => {
+    // Citations: the agent writes [n]; older persona prompts still ask for
+    // [Source n]. Both render as the same mark.
     const renderInline = (text: string, lineIndex: number) =>
-      text.split(/(\*\*.*?\*\*|\[Source \d+\])/g).map((part, partIndex) => {
+      text.split(/(\*\*.*?\*\*|\[(?:Source )?\d+\])/g).map((part, partIndex) => {
         if (/^\*\*.*\*\*$/.test(part)) {
           return (
             <strong key={`${lineIndex}-${partIndex}`} className="font-semibold text-[color:var(--con-ink)]">
@@ -629,7 +614,7 @@ export default function CareerCoach() {
             </strong>
           );
         }
-        if (/^\[Source \d+\]$/.test(part)) {
+        if (/^\[(?:Source )?\d+\]$/.test(part)) {
           return (
             <span
               key={`${lineIndex}-${partIndex}`}
@@ -643,9 +628,19 @@ export default function CareerCoach() {
       });
 
     return content.split("\n").map((line, lineIndex) => {
-      const isBullet = line.startsWith("- ") || line.startsWith("• ");
-      const numbered = line.match(/^(\d+)\.\s(.*)$/);
-      const body = isBullet ? line.slice(2) : numbered ? numbered[2] : line;
+      // The agent writes markdown: headings, and "-", "*" or "•" bullets.
+      const heading = line.match(/^#{1,4}\s+(.*)$/);
+      if (heading) {
+        return (
+          <div key={lineIndex} className="mt-2 min-h-[1.75em] font-semibold text-[color:var(--con-ink)]">
+            {renderInline(heading[1].replace(/^\*\*(.*)\*\*$/, "$1"), lineIndex)}
+          </div>
+        );
+      }
+      const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+      const isBullet = Boolean(bullet);
+      const numbered = line.match(/^\s*(\d+)\.\s(.*)$/);
+      const body = bullet ? bullet[1] : numbered ? numbered[2] : line;
 
       return (
         <div
@@ -785,7 +780,13 @@ export default function CareerCoach() {
           {[
             { label: "Messages", value: messageCount },
             { label: "Sources cited", value: messages.reduce((sum, m) => sum + (m.sources?.length || 0), 0) },
-            { label: "Avg response", value: `${Math.round(analytics.avgResponseTime)}ms` },
+            {
+              label: "Avg response",
+              value: (() => {
+                const times = messages.map((m) => m.responseTime).filter((t): t is number => t != null);
+                return times.length ? formatMs(Math.round(times.reduce((a, b) => a + b, 0) / times.length)) : "—";
+              })(),
+            },
             { label: "Tokens used", value: messages.reduce((sum, m) => sum + (m.tokens || 0), 0).toLocaleString() },
           ].map((stat) => (
             <div key={stat.label} className="con-panel p-4">
@@ -866,20 +867,20 @@ export default function CareerCoach() {
       <section>
         <h3 className="con-mono mb-3 text-[color:var(--con-ink-3)]">Key findings</h3>
         <div className="space-y-2">
-          {messages.filter(m => m.role === "assistant" && !m.isLoading && m.content.length > 50).slice(-5).map((m, i) => {
+          {messages.filter(m => m.role === "assistant" && !m.isLoading && !m.failed && m.content.length > 50).slice(-5).map((m, i) => {
             const firstSentence = m.content.replace(/\*\*/g, "").split(/[.!?]\s/)[0];
             return (
               <div key={i} className="con-panel border-l-2 border-l-[color:var(--con-accent)] p-3">
                 <p className="line-clamp-2 text-[13px] leading-relaxed text-[color:var(--con-ink-2)]">{firstSentence}.</p>
-                {m.confidence && (
+                {m.sources && m.sources.length > 0 && (
                   <span className="con-mono mt-2 inline-block text-[color:var(--con-ink-3)]">
-                    {m.confidence} confidence
+                    {m.sources.length} source{m.sources.length === 1 ? "" : "s"} cited
                   </span>
                 )}
               </div>
             );
           })}
-          {messages.filter(m => m.role === "assistant" && !m.isLoading && m.content.length > 50).length === 0 && (
+          {messages.filter(m => m.role === "assistant" && !m.isLoading && !m.failed && m.content.length > 50).length === 0 && (
             <p className="text-[13px] text-[color:var(--con-ink-3)]">No findings yet. Start a conversation to see insights.</p>
           )}
         </div>
@@ -918,6 +919,7 @@ export default function CareerCoach() {
               key={q.text}
               type="button"
               onClick={() => sendMessage(q.text)}
+              disabled={!ready}
               className="con-rise con-prompt group"
               style={{ animationDelay: `${240 + i * 70}ms` }}
             >
@@ -935,6 +937,7 @@ export default function CareerCoach() {
                 key={q.text}
                 type="button"
                 onClick={() => sendMessage(q.text)}
+              disabled={!ready}
                 className="con-rise rounded-full border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-3.5 py-2 text-[12.5px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
                 style={{ animationDelay: `${540 + i * 60}ms` }}
               >
@@ -971,236 +974,177 @@ export default function CareerCoach() {
                   <PersonaIcon className="h-3.5 w-3.5 text-[color:var(--con-accent)]" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  {message.isLoading ? (
-                    (message as any).thinking?.length > 0 ? (
-                      <div role="status" aria-live="polite" aria-label={`${persona.name} is working on an answer`}>
-                        <ThinkingLedger steps={(message as any).thinking} live />
-                        {/* Where the answer will land — shaped like prose, not a spinner. */}
+                  {message.isLoading && !message.thinking?.length && !message.content ? (
+                    // Between send and the agent's first step.
+                    <div className="py-2" role="status" aria-live="polite">
+                      <div className="con-sweep w-40" />
+                      <div className="con-mono mt-2.5 flex items-center gap-2 text-[color:var(--con-ink-3)]">
+                        <Brain className="h-3 w-3" />
+                        Reading your question
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {message.thinking && message.thinking.length > 0 && (
+                        <div
+                          {...(message.isLoading && {
+                            role: "status",
+                            "aria-live": "polite" as const,
+                            "aria-label": `${persona.name} is working on an answer`,
+                          })}
+                        >
+                          <ThinkingLedger
+                            steps={message.thinking}
+                            live={message.isLoading}
+                            elapsedMs={message.isLoading ? undefined : message.responseTime}
+                          />
+                        </div>
+                      )}
+
+                      {message.content ? (
+                        <div
+                          className={cn(
+                            "max-w-none text-[14.5px] leading-[1.75] text-[color:var(--con-ink-2)]",
+                            message.failed && "text-[color:var(--con-ink-3)]",
+                          )}
+                        >
+                          {formatMessage(message.content)}
+                        </div>
+                      ) : message.isLoading ? (
+                        /* Where the answer will land — shaped like prose, not a spinner. */
                         <div className="con-draft" aria-hidden>
                           <span style={{ width: "92%" }} />
                           <span style={{ width: "86%" }} />
                           <span style={{ width: "58%" }} />
                         </div>
-                      </div>
-                    ) : (
-                      <div className="py-2">
-                        <div className="con-sweep w-40" />
-                        <div className="con-mono mt-2.5 flex items-center gap-2 text-[color:var(--con-ink-3)]">
-                          <Brain className="h-3 w-3" />
-                          Reading your question
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <>
-                      {(message as any).thinking?.length > 0
-                        && (message as any).thinking[0]?.id !== "route"
-                        && !message.isStreaming && (
-                        <ThinkingLedger steps={(message as any).thinking} />
-                      )}
+                      ) : null}
 
-                      <div className="max-w-none text-[14.5px] leading-[1.75] text-[color:var(--con-ink-2)]">
-                        {formatMessage(message.content)}
-                      </div>
+                      {!message.isLoading && (
+                        <>
+                          {/* Answer receipt — what was cited and how long it took, nothing inferred */}
+                          <div className="con-mono mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[color:var(--con-ink-3)]">
+                            {message.failed ? (
+                              <span className="inline-flex items-center gap-1.5 text-[color:var(--con-rose)]">
+                                <AlertCircle className="h-3 w-3" />
+                                Not answered
+                              </span>
+                            ) : message.sources && message.sources.length > 0 ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3 w-3 text-[color:var(--con-sage)]" />
+                                {message.sources.length} source{message.sources.length === 1 ? "" : "s"} cited
+                              </span>
+                            ) : (
+                              <span>No sources cited</span>
+                            )}
+                            {message.responseTime ? <span>· {formatMs(message.responseTime)}</span> : null}
+                          </div>
 
-                      {/* Answer receipt — honest grounding meta, no theatre */}
-                      {!message.isStreaming && (message.sources?.length || message.responseTime || (message as any).grounded === false) && (
-                        <div className="con-mono mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[color:var(--con-ink-3)]">
-                          {(message as any).grounded === false ? (
-                            <span className="inline-flex items-center gap-1.5 text-[color:var(--con-wheat)]">
-                              <AlertCircle className="h-3 w-3" />
-                              Not grounded in the corpus
-                            </span>
-                          ) : message.sources && message.sources.length > 0 ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <CheckCircle2 className="h-3 w-3 text-[color:var(--con-sage)]" />
-                              Grounded · {message.sources.length} source{message.sources.length === 1 ? "" : "s"}
-                              {message.confidence ? ` · ${message.confidence} confidence` : ""}
-                            </span>
-                          ) : null}
-                          {message.responseTime ? <span>· {formatMs(message.responseTime)}</span> : null}
-                        </div>
-                      )}
-
-                      {/* Source chips */}
-                      {message.sources && message.sources.length > 0 && (message as any).grounded === false && (
-                        <p className="con-mono mt-3 text-[color:var(--con-ink-3)]">
-                          Closest documents — not used in this answer
-                        </p>
-                      )}
-                      {message.sources && message.sources.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {message.sources.slice(0, 4).map((source, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setShowSources(showSources === message.id ? null : message.id)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-2.5 py-1.5 text-[11.5px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
-                            >
-                              <FileText className="h-3 w-3 text-[color:var(--con-accent)]" />
-                              <span className="max-w-[160px] truncate">{source.title}</span>
-                              {source.pageNumber && (
-                                <span className="cc-font-mono text-[10px] text-[color:var(--con-ink-3)]">p.{source.pageNumber}</span>
+                          {/* Source chips, numbered as the answer cites them */}
+                          {message.sources && message.sources.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {message.sources.slice(0, 4).map((source) => (
+                                <button
+                                  key={source.n}
+                                  type="button"
+                                  onClick={() => setShowSources(showSources === message.id ? null : message.id)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-2.5 py-1.5 text-[11.5px] text-[color:var(--con-ink-2)] transition-colors hover:border-[color:var(--con-accent-line)] hover:text-[color:var(--con-ink)]"
+                                >
+                                  <span className="cc-font-mono text-[10px] text-[color:var(--con-accent)]">{source.n}</span>
+                                  <span className="max-w-[160px] truncate">{source.title}</span>
+                                  {source.pageNumber != null && (
+                                    <span className="cc-font-mono text-[10px] text-[color:var(--con-ink-3)]">p.{source.pageNumber}</span>
+                                  )}
+                                </button>
+                              ))}
+                              {message.sources.length > 4 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSources(showSources === message.id ? null : message.id)}
+                                  className="con-mono rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-2.5 py-1.5 text-[color:var(--con-ink-2)] transition-colors hover:text-[color:var(--con-ink)]"
+                                >
+                                  +{message.sources.length - 4} more
+                                </button>
                               )}
-                            </button>
-                          ))}
-                          {message.sources.length > 4 && (
-                            <button
-                              type="button"
-                              onClick={() => setShowSources(showSources === message.id ? null : message.id)}
-                              className="con-mono rounded-lg border border-[color:var(--con-line)] bg-[color:var(--con-panel)] px-2.5 py-1.5 text-[color:var(--con-ink-2)] transition-colors hover:text-[color:var(--con-ink)]"
-                            >
-                              +{message.sources.length - 4} more
-                            </button>
+                            </div>
                           )}
-                        </div>
-                      )}
 
-                      {/* Expanded sources */}
-                      <AnimatePresence>
-                        {showSources === message.id && message.sources && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="mt-3 space-y-2 overflow-hidden"
-                          >
-                            {message.sources.map((source, idx) => {
-                              const relevance = source.relevance
-                                ? (source.relevance <= 1 ? Math.round(source.relevance * 100) : Math.round(source.relevance))
-                                : 0;
-                              return (
-                                <div key={idx} className="con-panel flex items-start gap-3 p-3">
-                                  <FileText className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--con-accent)]" />
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="truncate text-[13px] font-medium text-[color:var(--con-ink)]">{source.title}</p>
-                                      {source.pageNumber && (
-                                        <span className="con-mono shrink-0 rounded bg-[color:var(--con-raised)] px-1.5 py-0.5 text-[color:var(--con-ink-3)]">
-                                          p.{source.pageNumber}
-                                        </span>
-                                      )}
-                                      {relevance > 0 && (
-                                        <span className="con-mono shrink-0 text-[color:var(--con-accent)]">{relevance}%</span>
-                                      )}
-                                      {source.url && (
-                                        <a
-                                          href={source.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="ml-auto shrink-0 text-[color:var(--con-ink-3)] transition-colors hover:text-[color:var(--con-accent)]"
-                                          title="Open source"
-                                        >
-                                          <ExternalLink className="h-3.5 w-3.5" />
-                                        </a>
+                          {/* Expanded sources */}
+                          <AnimatePresence>
+                            {showSources === message.id && message.sources && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="mt-3 space-y-2 overflow-hidden"
+                              >
+                                {message.sources.map((source) => (
+                                  <div key={source.n} className="con-panel flex items-start gap-3 p-3">
+                                    <span className="cc-font-mono mt-0.5 w-4 shrink-0 text-right text-[11px] text-[color:var(--con-accent)]">
+                                      {source.n}
+                                    </span>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <p className="truncate text-[13px] font-medium text-[color:var(--con-ink)]">{source.title}</p>
+                                        {source.pageNumber != null && (
+                                          <span className="con-mono shrink-0 rounded bg-[color:var(--con-raised)] px-1.5 py-0.5 text-[color:var(--con-ink-3)]">
+                                            p.{source.pageNumber}
+                                          </span>
+                                        )}
+                                        {source.url && (
+                                          <a
+                                            href={source.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="ml-auto shrink-0 text-[color:var(--con-ink-3)] transition-colors hover:text-[color:var(--con-accent)]"
+                                            title="Open source"
+                                          >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                          </a>
+                                        )}
+                                      </div>
+                                      {source.snippet && (
+                                        <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-relaxed text-[color:var(--con-ink-3)]">
+                                          {source.snippet}
+                                        </p>
                                       )}
                                     </div>
-                                    {source.snippet && (
-                                      <p className="mt-1.5 line-clamp-2 text-[12.5px] leading-relaxed text-[color:var(--con-ink-3)]">
-                                        {source.snippet}
-                                      </p>
-                                    )}
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
 
-                      {/* Corroboration — documents confirmed by independent retrieval steps */}
-                      {(ragMode === "agentic" || ragMode === "neo4j") && (message as any).graphConnections?.length > 0 && (
-                        <div className="con-panel mt-3 p-3">
-                          <div className="con-mono mb-2.5 flex items-center gap-2 text-[color:var(--con-ink-3)]">
-                            <Zap className="h-3.5 w-3.5 text-[color:var(--con-accent)]" />
-                            Corroboration
-                          </div>
-                          <div className="space-y-1.5">
-                            {(message as any).graphConnections.slice(0, 3).map((conn: any, idx: number) => (
-                              <div key={idx} className="flex items-center gap-2.5 text-[12.5px] text-[color:var(--con-ink-2)]">
-                                {conn.source === conn.target ? (
-                                  <>
-                                    <FileText className="h-3.5 w-3.5 shrink-0 text-[color:var(--con-accent)]" />
-                                    <span className="min-w-0 flex-1 truncate">{conn.source}</span>
-                                    <span className="con-mono shrink-0 text-[color:var(--con-ink-3)]">
-                                      {conn.description || "multiple steps"}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="truncate">{conn.source}</span>
-                                    <span className="shrink-0 text-[color:var(--con-accent)]">→</span>
-                                    <span className="truncate">{conn.target}</span>
-                                    <span className="con-mono ml-auto shrink-0 text-[color:var(--con-ink-3)]">{conn.type}</span>
-                                  </>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                          {/* Actions — visible on hover/focus, never fully hidden from keyboards */}
+                          {!message.failed && (
+                            <div className="mt-2.5 flex items-center gap-1 opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100">
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(message.content, message.id)}
+                                className={cn("con-btn p-1.5", copiedId === message.id && "text-[color:var(--con-sage)]")}
+                                title="Copy answer"
+                              >
+                                {copiedId === message.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => rateMessage(message.id, "helpful")}
+                                className={cn("con-btn p-1.5", message.rating === "helpful" && "text-[color:var(--con-sage)]")}
+                                title="Helpful"
+                              >
+                                <ThumbsUp className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => rateMessage(message.id, "not-helpful")}
+                                className={cn("con-btn p-1.5", message.rating === "not-helpful" && "text-[color:var(--con-rose)]")}
+                                title="Not helpful"
+                              >
+                                <ThumbsDown className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </>
                       )}
-
-                      {/* Contradictions */}
-                      {ragMode === "agentic" && (message as any).contradictions?.length > 0 && (
-                        <div className="mt-3 rounded-[0.85rem] border border-[color:var(--con-rose)]/35 bg-[color:var(--con-rose)]/10 p-3">
-                          <div className="con-mono mb-2.5 flex items-center gap-2 text-[color:var(--con-rose)]">
-                            <AlertCircle className="h-3.5 w-3.5" />
-                            Contradictions
-                          </div>
-                          <div className="space-y-2">
-                            {(message as any).contradictions.map((contra: any, idx: number) => (
-                              <div key={idx} className="flex items-start gap-2 text-[12.5px] text-[color:var(--con-ink-2)]">
-                                <span className="con-mono shrink-0 rounded bg-[color:var(--con-rose)]/20 px-1.5 py-0.5 text-[color:var(--con-rose)]">
-                                  {contra.severity}
-                                </span>
-                                <span>{contra.description}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {message.visualData && <EmbeddedChart visualData={message.visualData} />}
-
-                      {message.proactiveInsight && (
-                        <ProactiveInsightCard
-                          insight={message.proactiveInsight}
-                          onClickAction={() => {
-                            if (message.proactiveInsight?.relatedQuery) {
-                              setInput(message.proactiveInsight.relatedQuery);
-                              sendMessage(message.proactiveInsight.relatedQuery);
-                            }
-                          }}
-                        />
-                      )}
-
-                      {/* Actions — visible on hover/focus, never fully hidden from keyboards */}
-                      <div className="mt-2.5 flex items-center gap-1 opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100">
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(message.content, message.id)}
-                          className={cn("con-btn p-1.5", copiedId === message.id && "text-[color:var(--con-sage)]")}
-                          title="Copy answer"
-                        >
-                          {copiedId === message.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => rateMessage(message.id, "helpful")}
-                          className={cn("con-btn p-1.5", message.rating === "helpful" && "text-[color:var(--con-sage)]")}
-                          title="Helpful"
-                        >
-                          <ThumbsUp className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => rateMessage(message.id, "not-helpful")}
-                          className={cn("con-btn p-1.5", message.rating === "not-helpful" && "text-[color:var(--con-rose)]")}
-                          title="Not helpful"
-                        >
-                          <ThumbsDown className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
                     </>
                   )}
                 </div>
@@ -1211,10 +1155,7 @@ export default function CareerCoach() {
       </AnimatePresence>
 
       {(() => {
-        const last = [...messages].reverse().find((m) => m.role === "assistant" && !m.isLoading);
-        const chips = (last?.followUpQuestions && last.followUpQuestions.length > 0)
-          ? last.followUpQuestions
-          : smartFollowUps;
+        const chips = smartFollowUps;
         if (!chips.length || isStreaming) return null;
         return (
           <motion.div
@@ -1264,36 +1205,22 @@ export default function CareerCoach() {
             disabled={isStreaming}
             aria-label="Message"
           />
-          <Select value={ragMode} onValueChange={(v: RAGMode) => setRagMode(v)} disabled={isStreaming}>
-            <SelectTrigger
-              aria-label="Retrieval engine"
-              className="con-mono mb-1 h-8 w-auto shrink-0 gap-1.5 rounded-lg border-transparent bg-transparent px-2 text-[color:var(--con-ink-3)] hover:text-[color:var(--con-ink-2)] focus:ring-1 focus:ring-[color:var(--con-accent)] focus:ring-offset-0"
+          {isStreaming ? (
+            // While the agent works, the send button stops it.
+            <button type="button" onClick={stop} className="con-send con-send--armed mb-0.5" title="Stop">
+              <Square className="h-3.5 w-3.5 fill-current" />
+              <span className="sr-only">Stop</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim() || !ready}
+              className={cn("con-send mb-0.5", input.trim() && ready && "con-send--armed")}
+              title="Send"
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-[color:var(--con-line)] bg-[color:var(--con-panel)] text-[color:var(--con-ink)]">
-              {(Object.keys(RAG_MODE_LABEL) as RAGMode[]).map((m) => (
-                <SelectItem
-                  key={m}
-                  value={m}
-                  className="text-[13px] text-[color:var(--con-ink-2)] focus:bg-[color:var(--con-accent-soft)] focus:text-[color:var(--con-ink)]"
-                >
-                  {RAG_MODE_LABEL[m]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <button
-            type="submit"
-            disabled={!input.trim() || isStreaming}
-            className={cn(
-              "con-send mb-0.5",
-              input.trim() && !isStreaming && "con-send--armed",
-            )}
-            title="Send"
-          >
-            {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </button>
+              <Send className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </form>
       <div className="mt-2.5 flex items-start justify-between gap-4 px-1">

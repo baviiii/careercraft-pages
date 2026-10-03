@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJobCounts } from "@/hooks/useJobCounts";
 import { CareerDetailModal } from "@/components/careers/CareerDetailModal";
-import { useAgenticRAG, type GraphConnection } from "@/hooks/useAgenticRAG";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { DocumentIntelligenceVisualizer, AIInsightsPanel } from "@/components/intelligence";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
@@ -738,16 +737,14 @@ function CareerExplorerContent() {
   } = useIntelligence();
 
   // ========================================================================
-  // AGENTIC RAG - Graph connections, intersection reasoning, contradictions
+  // CHART SOURCES — career documents for the visualizer
   // ========================================================================
-  const { sendMessage: sendCareersMsg, messages: agenticMessages, isStreaming } = useAgenticRAG('careers');
   const { semanticSearch } = useRAGMetadata();
   const agenticFetchDone = useRef(false);
   
   // State for agentic data
   const [chartSources, setChartSources] = useState<any[]>([]);
   const [chartVisualizationData, setChartVisualizationData] = useState<any>(null);
-  const [graphConnections, setGraphConnections] = useState<GraphConnection[]>([]);
   const [loadingCharts, setLoadingCharts] = useState(false);
 
   // Fire agentic RAG query on mount to enrich career explorer with graph data
@@ -772,9 +769,7 @@ function CareerExplorerContent() {
           const vizData = transformSearchResultsToVisualizationData(searchResult.sources);
           setChartVisualizationData(vizData);
         }
-        
-        // Also send agentic query for deeper insights
-        await sendCareersMsg("What are the top career opportunities, emerging occupations, and skill requirements in South Australia? Include any contradictions or gaps in the employment data.");
+
       } catch (error) {
         console.error("[CareerExplorer] Agentic fetch error:", error);
       } finally {
@@ -783,17 +778,7 @@ function CareerExplorerContent() {
     };
     
     fetchAgenticData();
-  }, [globalLoading, semanticSearch, sendCareersMsg]);
-
-  // Extract contradictions and connections from agentic messages
-  useEffect(() => {
-    const lastMsg = agenticMessages[agenticMessages.length - 1];
-    if (lastMsg?.role === "assistant" && !lastMsg.isLoading) {
-      if (lastMsg.graphConnections && lastMsg.graphConnections.length > 0) {
-        setGraphConnections(lastMsg.graphConnections);
-      }
-    }
-  }, [agenticMessages]);
+  }, [globalLoading, semanticSearch]);
 
   // Contradictions and cross-document connections came from the
   // `intersection-reasoning` Azure Function, which has been decommissioned.

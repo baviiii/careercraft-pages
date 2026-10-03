@@ -5,7 +5,7 @@
  * Now features full 4-tab Intelligence Dashboard to showcase platform power.
  */
 
-import { useState, useEffect as ReactUseEffect, useRef } from "react";
+import { useState, useEffect as ReactUseEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { 
@@ -41,7 +41,6 @@ import {
 import CareerCoach from "@/components/rag/CareerCoach";
 import { SAMarketIntelligence } from "@/components/interview/SAMarketIntelligence";
 import { SAFundingIntelligence } from "@/components/interview/SAFundingIntelligence";
-import { useAgenticRAG } from "@/hooks/useAgenticRAG";
 import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import { transformSearchResultsToVisualizationData } from "@/lib/intelligence/visualizationData";
 import { getTabPrompt, type IntelligenceTab } from "@/lib/intelligencePrompts";
@@ -76,14 +75,33 @@ function GuestIntelligenceDashboard() {
   // Careers showcase sector picker
   const [careersSector, setCareersSector] = useState("Healthcare / Nursing");
   
-  // Agentic RAG hooks for each focus area — pass HORUS tab prompts so final answers are structured/parseable for dashboard metrics
-  const { sendMessage: sendOverviewMsg, messages: overviewMsgs } = useAgenticRAG('overview', { finalSystemPrompt: getTabPrompt('overview') });
-  const { sendMessage: sendCareersMsg, messages: careersMsgs } = useAgenticRAG('careers', { finalSystemPrompt: getTabPrompt('careers') });
-  const { sendMessage: sendSkillsMsg, messages: skillsMsgs } = useAgenticRAG('skills', { finalSystemPrompt: getTabPrompt('skills') });
-  const { sendMessage: sendFundingMsg, messages: fundingMsgs } = useAgenticRAG('funding', { finalSystemPrompt: getTabPrompt('funding') });
-  
   // RAG metadata for semantic search
   const { semanticSearch } = useRAGMetadata();
+
+  /*
+   * One standing question per tab, answered with that tab's prompt so the
+   * answer text parses into the dashboard cards. These went through
+   * useAgenticRAG, a chat hook, only to read the last message's content and
+   * sources; the same rag.query call is made directly now.
+   */
+  const [tabResults, setTabResults] = useState<Record<string, { answer: string; sources: any[] }>>({});
+  const fetchTab = useCallback(
+    async (tab: IntelligenceTab, question: string) => {
+      try {
+        const result = await semanticSearch(question, {}, { topK: 24, systemPrompt: getTabPrompt(tab) });
+        setTabResults((prev) => ({
+          ...prev,
+          [tab]: { answer: result?.answer ?? '', sources: result?.sources ?? [] },
+        }));
+        console.log(`[TryUs] ✅ ${tab} enrichment completed`);
+      } catch (err) {
+        console.warn(`[TryUs] ⚠️ ${tab} enrichment failed (non-fatal):`, err);
+      } finally {
+        setTabAgenticFired((prev) => ({ ...prev, [tab]: true }));
+      }
+    },
+    [semanticSearch],
+  );
   
   // Chart/visualization state
   const [chartSources, setChartSources] = useState<any[]>([]);
@@ -114,79 +132,48 @@ function GuestIntelligenceDashboard() {
     }
   }, [searchQuery, setSearchQuery]);
 
-  // Fire agentic RAG once for overview enrichment
+  // Fetch the overview once
   ReactUseEffect(() => {
     if (agenticFetchDone.current || !searchQuery || !searchQuery.trim()) return;
     agenticFetchDone.current = true;
+    void fetchTab(
+      'overview',
+      `Analyze the South Australian government budget: key funding allocations, career opportunities, skills demand, and any contradictions or notable trends across sectors.`,
+    );
+  }, [searchQuery, fetchTab]);
 
-    console.log('[TryUs] 🚀 Firing agentic RAG for overview enrichment...');
-    sendOverviewMsg(
-      `Analyze the South Australian government budget: key funding allocations, career opportunities, skills demand, and any contradictions or notable trends across sectors.`
-    ).then(() => {
-      console.log('[TryUs] ✅ Overview agentic enrichment completed');
-      setTabAgenticFired(prev => ({ ...prev, overview: true }));
-    }).catch((err: Error) => {
-      console.warn('[TryUs] ⚠️ Overview agentic enrichment failed (non-fatal):', err.message);
-      setTabAgenticFired(prev => ({ ...prev, overview: true }));
-    });
-  }, [searchQuery, sendOverviewMsg]);
-
-  // Fire per-tab agentic queries when user switches tabs
+  // Fetch each tab when it is first opened
   ReactUseEffect(() => {
     if (intelligenceTab === 'overview' || tabAgenticDone.current.has(intelligenceTab)) return;
     tabAgenticDone.current.add(intelligenceTab);
 
-    const tabQueries: Record<string, { msg: string; send: typeof sendCareersMsg }> = {
-      careers: {
-        msg: 'Analyze career opportunities in South Australia: top growing occupations, salary trends, sector demand, workforce gaps, and which government-funded programs are creating the most jobs.',
-        send: sendCareersMsg,
-      },
-      skills: {
-        msg: 'Analyze skills demand in South Australia: most in-demand technical skills, emerging skills, training gaps, and how government investment is driving skill requirements across sectors.',
-        send: sendSkillsMsg,
-      },
-      funding: {
-        msg: 'Analyze government budget allocations in South Australia: largest sector investments, fastest growing budgets, program funding breakdown, and any contradictions between stated priorities and actual funding.',
-        send: sendFundingMsg,
-      },
+    const tabQueries: Record<string, string> = {
+      careers: 'Analyze career opportunities in South Australia: top growing occupations, salary trends, sector demand, workforce gaps, and which government-funded programs are creating the most jobs.',
+      skills: 'Analyze skills demand in South Australia: most in-demand technical skills, emerging skills, training gaps, and how government investment is driving skill requirements across sectors.',
+      funding: 'Analyze government budget allocations in South Australia: largest sector investments, fastest growing budgets, program funding breakdown, and any contradictions between stated priorities and actual funding.',
     };
 
-    const q = tabQueries[intelligenceTab];
-    if (q) {
-      console.log(`[TryUs] 🚀 Firing agentic RAG for ${intelligenceTab} tab...`);
-      q.send(q.msg).then(() => {
-        console.log(`[TryUs] ✅ ${intelligenceTab} agentic enrichment completed`);
-        setTabAgenticFired(prev => ({ ...prev, [intelligenceTab]: true }));
-      }).catch((err: Error) => {
-        console.warn(`[TryUs] ⚠️ ${intelligenceTab} agentic enrichment failed:`, err.message);
-        setTabAgenticFired(prev => ({ ...prev, [intelligenceTab]: true }));
-      });
-    }
-  }, [intelligenceTab, sendCareersMsg, sendSkillsMsg, sendFundingMsg]);
+    const question = tabQueries[intelligenceTab];
+    if (question) void fetchTab(intelligenceTab, question);
+  }, [intelligenceTab, fetchTab]);
 
   // Extract sources and contradictions from agentic messages (tabs + overview fallback)
   // Also ingest agentic result into IntelligenceContext so dashboard cards show agentic+graph data
   ReactUseEffect(() => {
-    const msgSets: [any[], string][] = [
-      [overviewMsgs, 'overview'],
-      [careersMsgs, 'careers'],
-      [skillsMsgs, 'skills'],
-      [fundingMsgs, 'funding'],
-    ];
-
-    for (const [msgs, tab] of msgSets) {
-      const last = [...msgs].reverse().find((m: any) => m.role === 'assistant' && !m.isLoading);
+    for (const tab of ['overview', 'careers', 'skills', 'funding']) {
+      const last = tabResults[tab];
       if (!last) continue;
 
       const sources = (last.sources || []).map((s: any) => ({
         id: s.documentId || s.title,
         documentId: s.documentId || s.title,
         title: s.title || 'Document',
-        score: (s.relevance || 70) / 100,
+        // horus-rag already rescales `score` to a 1–99 relevance percentage.
+        score: (s.score || 70) / 100,
         category: s.category || 'Other',
         sector: s.sector || 'General',
         pageNumber: s.pageNumber || s.metadata?.pageNumber || undefined,
-        content: s.snippet || '',
+        content: s.content || '',
         // Preserve chart metadata so PDF Charts tab populates
         hasChart: s.hasChart || false,
         chartType: s.chartType,
@@ -209,7 +196,7 @@ function GuestIntelligenceDashboard() {
       // The ingestAgenticResult merge logic handles inflation prevention:
       //   - Same confidence: keeps existing value (no inflation)
       //   - Higher confidence: upgrades (table data replacing text data)
-      const answer = typeof last.content === 'string' ? last.content : '';
+      const answer = typeof last.answer === 'string' ? last.answer : '';
       const rawSources = last.sources || [];
       const contentKey = `${tab}:${answer.substring(0, 200)}:${rawSources.length}`;
       if ((answer || rawSources.length > 0) && !ingestedMsgs.current.has(contentKey)) {
@@ -217,7 +204,7 @@ function GuestIntelligenceDashboard() {
         ingestAgenticResult(tab as IntelligenceTab, { answer, sources: rawSources });
       }
     }
-  }, [overviewMsgs, careersMsgs, skillsMsgs, fundingMsgs, ingestAgenticResult]);
+  }, [tabResults, ingestAgenticResult]);
 
   // Fetch chart chunks when search query changes
   ReactUseEffect(() => {

@@ -142,6 +142,11 @@ verify_jwt = true
 [functions.horus-rag]
 verify_jwt = true
 
+# The Career Coach chat: relays the Horus agent's SSE stream for a signed-in
+# user. The gateway check stays on; the browser sends its session token.
+[functions.coach-chat]
+verify_jwt = true
+
 [functions.job-email-events]
 verify_jwt = true
 
