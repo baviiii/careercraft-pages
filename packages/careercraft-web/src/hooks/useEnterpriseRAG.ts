@@ -437,10 +437,10 @@ export function useEnterpriseRAG(focusArea: string = 'careers') {
     }
 
     // Live thinking trace, rendered on the in-flight message.
-    const trace: ThinkingStep[] = [
-      { id: "search", label: "Searching the corpus", detail: "hybrid retrieval · cited synthesis", status: "active" },
-    ];
     const tSearch = Date.now();
+    const trace: ThinkingStep[] = [
+      { id: "search", label: "Searching the documents & writing the answer", detail: "hybrid retrieval · cited synthesis", status: "active", startedAt: tSearch },
+    ];
 
     // Loading message
     const loadingMessage: ChatMessage = {

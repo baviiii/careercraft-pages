@@ -1711,6 +1711,49 @@
   color: var(--con-ink-3);
   overflow-wrap: anywhere;
 }
+/* Live clock in the head — the one number that proves it isn't frozen. */
+.con-ledger__clock { color: var(--con-accent); }
+/* The running step's label carries a slow shimmer, so motion sits on the
+   words you're reading rather than only on a 7px dot. */
+.con-ledger__label--live {
+  background: linear-gradient(90deg, var(--con-ink) 0%, var(--con-ink) 40%, var(--con-accent) 50%, var(--con-ink) 60%, var(--con-ink) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  animation: con-label-sheen 2.2s linear infinite;
+}
+@keyframes con-label-sheen {
+  from { background-position: 100% 0; }
+  to   { background-position: -150% 0; }
+}
+.con-ledger__note {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--con-ink-2);
+}
+
+/* Answer placeholder under the live ledger — three prose-shaped bars. */
+.con-draft {
+  display: grid;
+  gap: 9px;
+  padding: 2px 2px 4px;
+}
+.con-draft span {
+  display: block;
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--con-line) 0%, var(--con-raised) 40%, var(--con-line) 80%);
+  background-size: 220% 100%;
+  animation: con-draft-sheen 1.8s ease-in-out infinite;
+}
+.con-draft span:nth-child(2) { animation-delay: .15s; }
+.con-draft span:nth-child(3) { animation-delay: .3s; }
+@keyframes con-draft-sheen {
+  from { background-position: 100% 0; }
+  to   { background-position: -120% 0; }
+}
 
 /* ── Welcome index — starter questions as a numbered ledger ───────────── */
 .con-prompt {
@@ -1801,7 +1844,10 @@
   .con-sweep::after,
   .con-ledger__pulse,
   .con-ledger__node,
+  .con-ledger__label--live,
+  .con-draft span,
   .con-rise { animation: none !important; }
+  .con-ledger__label--live { color: var(--con-ink) !important; background: none; }
   .con-btn,
   .con-prompt,
   .con-composer,

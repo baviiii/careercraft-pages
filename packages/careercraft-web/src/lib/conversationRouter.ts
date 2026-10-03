@@ -32,6 +32,12 @@ export interface ThinkingStep {
   status: ThinkingStatus;
   /** Elapsed milliseconds, filled in when the step completes. */
   ms?: number;
+  /**
+   * Epoch ms the step began. Lets the UI tick a live clock on the active
+   * step — the search step is one opaque 15–30s server call, and without a
+   * moving number it reads as frozen.
+   */
+  startedAt?: number;
 }
 
 // ─── Routing ────────────────────────────────────────────────────────────────

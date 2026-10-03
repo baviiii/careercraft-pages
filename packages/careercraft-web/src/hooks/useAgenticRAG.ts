@@ -596,9 +596,10 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
       setMessages(prev => prev.map(m => (m.id === loadingMessage.id ? { ...m, thinking: snapshot } : m)));
     };
     const beginStep = (id: string, label: string, detail?: string): number => {
-      trace.push({ id, label, detail, status: "active" });
+      const startedAt = Date.now();
+      trace.push({ id, label, detail, status: "active", startedAt });
       syncTrace();
-      return Date.now();
+      return startedAt;
     };
     const endStep = (id: string, startedAt: number, detail?: string, status: ThinkingStatus = "done") => {
       const step = trace.find(s => s.id === id);
@@ -673,7 +674,10 @@ export function useAgenticRAG(focusArea: string = 'careers', options: AgenticRAG
         : agenticSystemPrompt;
 
       // Phase 3: the single generative retrieval — hybrid search + synthesis.
-      const tSearch = beginStep("search", "Searching the corpus", "hybrid retrieval · cited synthesis");
+      // One server call does both halves — retrieval, then the model writing
+      // the cited answer — so the label names both. The writing is most of
+      // the wait.
+      const tSearch = beginStep("search", "Searching the documents & writing the answer", "hybrid retrieval · cited synthesis");
       const finalResult = await semanticSearch(
         content,
         {},

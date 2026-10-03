@@ -313,15 +313,44 @@ function formatMs(ms?: number): string {
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 }
 
+/** Re-renders on an interval while `active`, so live clocks keep moving. */
+function useNow(active: boolean, intervalMs = 100): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(id);
+  }, [active, intervalMs]);
+  return now;
+}
+
+/**
+ * What to tell someone who has been watching one step for a while. The search
+ * step is a single server call with no progress events, so this speaks to the
+ * wait itself rather than inventing sub-phases we cannot see.
+ */
+function waitNote(elapsedMs: number): string | null {
+  if (elapsedMs >= 45_000) return "Slower than usual — still waiting on the server.";
+  if (elapsedMs >= 8_000) return "Still going. A cited answer usually takes 10–30s.";
+  return null;
+}
+
 function ThinkingLedger({ steps, live }: { steps: ThinkingStep[]; live?: boolean }) {
   const [open, setOpen] = useState(false);
   const expanded = live || open;
+  const now = useNow(!!live);
 
   if (!steps || steps.length === 0) return null;
 
   const totalMs = steps.reduce((sum, s) => sum + (s.ms || 0), 0);
   const failed = steps.some((s) => s.status === "failed");
   const state = live ? "live" : failed ? "failed" : "done";
+  const firstStart = steps.reduce<number | undefined>(
+    (min, s) => (s.startedAt != null && (min == null || s.startedAt < min) ? s.startedAt : min),
+    undefined,
+  );
+  const liveElapsed = live && firstStart != null ? Math.max(0, now - firstStart) : undefined;
 
   return (
     <div className={cn("con-ledger", live && "con-ledger--live")}>
@@ -336,6 +365,11 @@ function ThinkingLedger({ steps, live }: { steps: ThinkingStep[]; live?: boolean
         <span className="con-mono">
           {live ? "Working" : `Thought for ${formatMs(totalMs) || "<1s"}`}
         </span>
+        {liveElapsed != null && (
+          <span className="con-mono cc-tabular con-ledger__clock" aria-hidden>
+            {(liveElapsed / 1000).toFixed(1)}s
+          </span>
+        )}
         <span className="con-mono con-ledger__count">
           {steps.length} step{steps.length === 1 ? "" : "s"}
         </span>
@@ -356,20 +390,37 @@ function ThinkingLedger({ steps, live }: { steps: ThinkingStep[]; live?: boolean
             className="overflow-hidden"
           >
             <ol className="con-ledger__list">
-              {steps.map((step) => (
-                <li key={step.id} className="con-ledger__step" data-status={step.status}>
-                  <span className="con-ledger__node" aria-hidden />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="con-ledger__label">{step.label}</span>
-                      <span className="con-mono con-ledger__ms">
-                        {step.status === "active" ? "· · ·" : formatMs(step.ms)}
-                      </span>
+              {steps.map((step) => {
+                const running = live && step.status === "active";
+                const stepElapsed = running && step.startedAt != null ? Math.max(0, now - step.startedAt) : undefined;
+                const note = stepElapsed != null ? waitNote(stepElapsed) : null;
+                return (
+                  <li key={step.id} className="con-ledger__step" data-status={step.status}>
+                    <span className="con-ledger__node" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className={cn("con-ledger__label", running && "con-ledger__label--live")}>{step.label}</span>
+                        <span className="con-mono cc-tabular con-ledger__ms">
+                          {stepElapsed != null
+                            ? `${(stepElapsed / 1000).toFixed(1)}s`
+                            : step.status === "active" ? "· · ·" : formatMs(step.ms)}
+                        </span>
+                      </div>
+                      {step.detail && <p className="con-ledger__detail">{step.detail}</p>}
+                      {note && (
+                        <motion.p
+                          key={note}
+                          initial={{ opacity: 0, y: 2 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="con-ledger__note"
+                        >
+                          {note}
+                        </motion.p>
+                      )}
                     </div>
-                    {step.detail && <p className="con-ledger__detail">{step.detail}</p>}
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
             {live && <div className="con-sweep mx-3 mb-3" />}
           </motion.div>
@@ -922,7 +973,15 @@ export default function CareerCoach() {
                 <div className="min-w-0 flex-1">
                   {message.isLoading ? (
                     (message as any).thinking?.length > 0 ? (
-                      <ThinkingLedger steps={(message as any).thinking} live />
+                      <div role="status" aria-live="polite" aria-label={`${persona.name} is working on an answer`}>
+                        <ThinkingLedger steps={(message as any).thinking} live />
+                        {/* Where the answer will land — shaped like prose, not a spinner. */}
+                        <div className="con-draft" aria-hidden>
+                          <span style={{ width: "92%" }} />
+                          <span style={{ width: "86%" }} />
+                          <span style={{ width: "58%" }} />
+                        </div>
+                      </div>
                     ) : (
                       <div className="py-2">
                         <div className="con-sweep w-40" />
