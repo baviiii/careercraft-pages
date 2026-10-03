@@ -3,7 +3,7 @@
  * Home (hero + start) · History · Resources. Career lives at /career-coach.
  * Live session: /interview-prep/room
  */
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -18,12 +18,9 @@ import {
 } from "lucide-react";
 import CraftAppLayout from "@/components/craft/CraftAppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { usePersonalization } from "@/hooks/usePersonalization";
-import {
-  mapIndustryToCareerField,
-  normalizeCareerField,
-  isCareerField,
-} from "@/lib/careerFields";
+import { useActiveRole } from "@/hooks/useActiveRole";
+import ActiveRoleProvider from "@/components/career-dev/ActiveRoleProvider";
+import TargetRoleChip from "@/components/career-dev/TargetRoleChip";
 import InterviewHome from "@/components/interview/InterviewDashboard";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { ResourcesPanel } from "./components/ResourcesPanel";
@@ -82,21 +79,21 @@ function resolveTab(param: string | null): HubTab {
 }
 
 export default function InterviewHubPage() {
+  return (
+    <ActiveRoleProvider>
+      <InterviewHub />
+    </ActiveRoleProvider>
+  );
+}
+
+function InterviewHub() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = resolveTab(searchParams.get("tab"));
   const sessionId = searchParams.get("session");
-  const { profile, hasPersonalizationData } = usePersonalization();
-
-  const resourceField = useMemo(() => {
-    if (!hasPersonalizationData) return undefined;
-    if (profile.industry) {
-      const mapped = normalizeCareerField(mapIndustryToCareerField(profile.industry));
-      if (isCareerField(mapped)) return mapped;
-    }
-    return profile.targetJobTitles?.[0] || undefined;
-  }, [hasPersonalizationData, profile.industry, profile.targetJobTitles]);
-
-  const seniority = hasPersonalizationData ? profile.careerLevel || undefined : undefined;
+  // One role for every tab: the profile's (from getting-started), or a just-this-once pick.
+  const { role, level } = useActiveRole();
+  const field = role ?? undefined;
+  const seniority = level ?? undefined;
 
   // Normalize legacy tab params in the URL.
   useEffect(() => {
@@ -164,7 +161,11 @@ export default function InterviewHubPage() {
         </div>
       </motion.section>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as HubTab)} className="mt-8 pb-16">
+      <div className="mt-8">
+        <TargetRoleChip />
+      </div>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as HubTab)} className="mt-6 pb-16">
         <TabsList className="cc-tabs sticky top-2 z-20 h-auto justify-start p-[0.35rem]">
           {TABS.map(({ id, label, icon: Icon }) => (
             <TabsTrigger
@@ -180,7 +181,7 @@ export default function InterviewHubPage() {
 
         <TabsContent value="home" className="cc-tabs-panel mt-6 space-y-8 focus-visible:ring-0">
           <div id="interview-setup">
-            <SetupPanel />
+            <SetupPanel role={field} level={seniority} />
           </div>
           <InterviewHome
             onOpenHistory={(id) => {
@@ -200,7 +201,7 @@ export default function InterviewHubPage() {
         </TabsContent>
 
         <TabsContent value="resources" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <ResourcesPanel field={resourceField} />
+          <ResourcesPanel field={field} />
         </TabsContent>
 
         <TabsContent value="profile" className="cc-tabs-panel mt-6 focus-visible:ring-0">
@@ -208,15 +209,15 @@ export default function InterviewHubPage() {
         </TabsContent>
 
         <TabsContent value="guidance" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <CareerGuidancePanel field={resourceField} seniority={seniority} />
+          <CareerGuidancePanel field={field} seniority={seniority} />
         </TabsContent>
 
         <TabsContent value="certifications" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <CertificationsPanel field={resourceField} />
+          <CertificationsPanel field={field} />
         </TabsContent>
 
         <TabsContent value="study" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <StudyPanel field={resourceField} />
+          <StudyPanel field={field} />
         </TabsContent>
       </Tabs>
     </CraftAppLayout>

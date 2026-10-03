@@ -440,7 +440,9 @@ export function usePersonalization() {
     const primarySkill = profile.skills.find(s => s.isPrimary) ?? profile.skills[0];
     if (primarySkill) return primarySkill.name;
     if (profile.industry) return profile.industry;
-    return 'developer';
+    // Nothing known: search broadly rather than guess a job. This used to return
+    // 'developer', so everyone without a profile was shown developer roles.
+    return undefined;
   }, [profile]);
 
   /**
@@ -819,19 +821,6 @@ export function usePersonalization() {
     };
   }, [profile]);
 
-  // Get interview prep defaults
-  const getInterviewDefaults = useCallback(() => {
-    return {
-      field: profile.interviewPreferences.defaultField || profile.industry?.toLowerCase() || 'general',
-      difficulty: profile.interviewPreferences.defaultDifficulty,
-      questionTypes: profile.interviewPreferences.questionTypes,
-      focusAreas: profile.interviewPreferences.focusAreas.length > 0 
-        ? profile.interviewPreferences.focusAreas 
-        : profile.skills.filter(s => s.isPrimary).map(s => s.name),
-      sessionDuration: profile.interviewPreferences.sessionDuration,
-    };
-  }, [profile]);
-
   // Get news preferences for filtering
   const getNewsFilters = useCallback(() => {
     return {
@@ -895,9 +884,6 @@ export function usePersonalization() {
     
     // Resume auto-fill
     getResumeAutoFillData,
-    
-    // Interview prep
-    getInterviewDefaults,
     
     // News
     getNewsFilters,

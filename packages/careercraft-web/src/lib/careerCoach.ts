@@ -40,6 +40,21 @@ export interface CareerGoal {
   interviewTypes?: string[] | null;
 }
 
+/** What a typed job really is, for confirming a role before it's saved. */
+export interface FieldPreview {
+  input: string;
+  /** False when the input isn't a recognisable job — nothing below is invented then. */
+  known: boolean;
+  /** The standard title employers advertise ("sparky" → "Electrician"). */
+  canonicalTitle: string;
+  interviewStyle: string | null;
+  keySkills: string[];
+  /** Required ones first. Model knowledge — confirm with the issuing body. */
+  credentials: Array<{ name: string; required: boolean; note: string; source: string }>;
+  /** What each stored career level is called in this job, e.g. { entry: "Apprentice" }. */
+  levels: Partial<Record<string, string>>;
+}
+
 export interface CareerProfile {
   userId: string;
   goal: CareerGoal | null;
@@ -322,8 +337,16 @@ export const careerCoach = {
     seniority?: string;
     jobRoleType?: string;
     interviewTypes?: string[];
-  }): Promise<{ goal: CareerGoal; persisted: { preferences: boolean; targetRole: boolean | null } }> {
+  }): Promise<{
+    goal: CareerGoal;
+    persisted: { preferences: boolean; targetRole: boolean | null; profile?: boolean };
+  }> {
     return post("/api/career/goal", input);
+  },
+
+  /** What a typed job really is ("sparky" → Electrician), for confirming a role before saving it. */
+  async previewField(field: string): Promise<FieldPreview> {
+    return post("/api/career/field-preview", { field });
   },
 
   /** Analyze the held certification portfolio vs the target role. */

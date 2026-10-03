@@ -4,7 +4,7 @@
  * points), get a ranked next-certification plan (budget/time aware, sourced),
  * and log newly-earned certs (which credit their skills in the matrix).
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,6 @@ import {
   type CertificationPlan,
   type Proof,
 } from "@/lib/careerCoach";
-import { CAREER_FIELDS, normalizeCareerField } from "@/lib/careerFields";
 import { CertStatusBadge, CoachNotConnected, SectionHeader } from "./shared";
 
 function ProofChip({ proof }: { proof: Proof | null }) {
@@ -68,13 +67,10 @@ const VALUE_STYLES: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
+/** `field` is the role from the page's "Going for" card; the coach also falls back to the saved goal. */
 export default function CertificationsPanel({ field }: { field?: string }) {
   const { toast } = useToast();
-  const [targetField, setTargetField] = useState(() => normalizeCareerField(field));
-
-  useEffect(() => {
-    if (field) setTargetField(normalizeCareerField(field));
-  }, [field]);
+  const targetField = field ?? "";
 
   const [facts, setFacts] = useState<CertificationFacts | null>(null);
   const [analysis, setAnalysis] = useState<CertificationAnalysis | null>(null);
@@ -216,12 +212,15 @@ export default function CertificationsPanel({ field }: { field?: string }) {
       {/* Controls */}
       <Card className="p-6">
         <div className="flex flex-col md:flex-row md:items-end gap-4">
-          <div className="space-y-2 flex-1">
-            <label className="text-sm font-medium">Target field</label>
-            <Select value={targetField} onValueChange={setTargetField}>
-              <SelectTrigger><SelectValue placeholder="Choose a field (uses your goal if blank)" /></SelectTrigger>
-              <SelectContent>{CAREER_FIELDS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="flex-1">
+            <p className="text-sm font-medium">
+              {targetField ? `Certifications and licences for ${targetField}` : "Certifications and licences"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {targetField
+                ? "Change the job at the top of the page."
+                : "Tell us the job you're going for at the top of the page for advice aimed at it."}
+            </p>
           </div>
           <Button onClick={analyze} disabled={analyzing} variant="outline" className="md:mb-0">
             {analyzing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analyzing...</> : <><ShieldCheck className="w-4 h-4 mr-2" />Analyze my portfolio</>}

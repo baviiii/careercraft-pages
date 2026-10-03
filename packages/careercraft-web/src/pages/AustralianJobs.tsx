@@ -266,7 +266,8 @@ export default function AustralianJobs() {
       loadUserPreferences(session.user.id);
       loadSavedJobs(session.user.id);
 
-      const searchTerm = hasPersonalizationData ? getPersonalizedJobQuery() : "developer";
+      // No profile yet → a broad search, not a guess that everyone is a developer.
+      const searchTerm = (hasPersonalizationData && getPersonalizedJobQuery()) || "";
 
       setLoading(true);
       try {

@@ -3,12 +3,11 @@
  * a full strategist read (position, strengths to sell, gaps, trajectory options,
  * narrative, next actions) and build a week-addressed roadmap to the target.
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -42,23 +41,16 @@ import {
 } from "@/lib/careerCoach";
 import { CoachNotConnected, SectionHeader, SeverityBadge } from "./shared";
 
-import {
-  CAREER_FIELDS,
-  CAREER_SENIORITY,
-  normalizeCareerField,
-} from "@/lib/careerFields";
-
-export default function CareerGuidancePanel({ field, seniority }: { field?: string; seniority?: string }) {
+/**
+ * `field` is the role from the page's "Going for" card. Setting the goal used to
+ * happen here too, through a fixed list of fields; it now happens once, in that
+ * card, which saves to the profile the coach reads.
+ */
+export default function CareerGuidancePanel({ field }: { field?: string; seniority?: string }) {
   const { toast } = useToast();
 
-  const [targetField, setTargetField] = useState(() => normalizeCareerField(field));
-  const [targetRole, setTargetRole] = useState("");
-  const [level, setLevel] = useState(seniority ?? "");
   const [question, setQuestion] = useState("");
   const [horizonMonths, setHorizonMonths] = useState("6");
-
-  const [savingGoal, setSavingGoal] = useState(false);
-  const [goalSaved, setGoalSaved] = useState(false);
 
   const [guidance, setGuidance] = useState<CareerGuidance | null>(null);
   const [loadingGuidance, setLoadingGuidance] = useState(false);
@@ -68,37 +60,9 @@ export default function CareerGuidancePanel({ field, seniority }: { field?: stri
   const [horizonWeeks, setHorizonWeeks] = useState("12");
   const [hoursPerWeek, setHoursPerWeek] = useState("6");
 
-  useEffect(() => {
-    if (field) setTargetField(normalizeCareerField(field));
-  }, [field]);
-  useEffect(() => {
-    if (seniority) setLevel(seniority);
-  }, [seniority]);
-
   const notAvailable = (e: unknown) => {
     const message = e instanceof CoachUnavailableError ? e.message : "Career coach is not available at the moment.";
     toast({ title: "Not available", description: message, variant: "destructive" });
-  };
-
-  const saveGoal = async () => {
-    if (!targetField) {
-      toast({ title: "Pick a target field", variant: "destructive" });
-      return;
-    }
-    setSavingGoal(true);
-    try {
-      await careerCoach.setGoal({
-        targetField,
-        targetRole: targetRole || undefined,
-        seniority: level || undefined,
-      });
-      setGoalSaved(true);
-      toast({ title: "Goal saved", description: "Every plan, question and recommendation now aims at this." });
-    } catch (e) {
-      notAvailable(e);
-    } finally {
-      setSavingGoal(false);
-    }
   };
 
   const getGuidance = async () => {
@@ -106,8 +70,8 @@ export default function CareerGuidancePanel({ field, seniority }: { field?: stri
     try {
       const r = await careerCoach.getGuidance({
         question: question || undefined,
-        targetRole: targetRole || undefined,
-        targetField: targetField || undefined,
+        targetRole: field || undefined,
+        targetField: field || undefined,
         horizonMonths: Number(horizonMonths) || 6,
       });
       setGuidance(r.guidance);
@@ -120,15 +84,19 @@ export default function CareerGuidancePanel({ field, seniority }: { field?: stri
   };
 
   const buildRoadmap = async () => {
-    if (!targetRole && !targetField) {
-      toast({ title: "Set a target role or field first", variant: "destructive" });
+    if (!field) {
+      toast({
+        title: "Tell us the job you're going for",
+        description: "Use the card at the top of the page. Any job works.",
+        variant: "destructive",
+      });
       return;
     }
     setLoadingRoadmap(true);
     try {
       const r = await careerCoach.buildRoadmap({
-        targetRole: targetRole || targetField,
-        targetField: targetField || undefined,
+        targetRole: field,
+        targetField: field,
         horizonWeeks: Number(horizonWeeks) || 12,
         hoursPerWeek: Number(hoursPerWeek) || 6,
       });
@@ -144,34 +112,19 @@ export default function CareerGuidancePanel({ field, seniority }: { field?: stri
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <CoachNotConnected />
-      <SectionHeader icon={Compass} title="Career Coach" subtitle="Set your target, then get a specialist's read and a plan to get there." />
+      <SectionHeader icon={Compass} title="Career Coach" subtitle="A specialist's read on where you are, and a plan to get to the job you're going for." />
 
-      {/* Goal + question setup */}
+      {/* Question setup — the target is the page's "Going for" role */}
       <Card className="p-6">
-        <h3 className="font-semibold mb-4 flex items-center gap-2">
+        <h3 className="font-semibold flex items-center gap-2">
           <Flag className="w-5 h-5 text-primary" />
-          Your target
+          {field ? `Guidance for ${field}` : "Your target"}
         </h3>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Target field</label>
-            <Select value={targetField} onValueChange={(v) => { setTargetField(v); setGoalSaved(false); }}>
-              <SelectTrigger><SelectValue placeholder="Choose a field" /></SelectTrigger>
-              <SelectContent>{CAREER_FIELDS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Target role <Badge variant="outline" className="text-[10px]">optional</Badge></label>
-            <Input value={targetRole} onChange={(e) => { setTargetRole(e.target.value); setGoalSaved(false); }} placeholder="e.g. Senior Backend Engineer" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Seniority</label>
-            <Select value={level} onValueChange={(v) => { setLevel(v); setGoalSaved(false); }}>
-              <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
-              <SelectContent>{CAREER_SENIORITY.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-        </div>
+        {!field && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tell us the job you're going for at the top of the page first. Any job works.
+          </p>
+        )}
 
         <div className="space-y-2 mt-4">
           <label className="text-sm font-medium flex items-center gap-2">
@@ -186,10 +139,6 @@ export default function CareerGuidancePanel({ field, seniority }: { field?: stri
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <Button variant="outline" onClick={saveGoal} disabled={savingGoal || !targetField}>
-            {savingGoal ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : goalSaved ? <CheckCircle2 className="w-4 h-4 mr-2 text-green-500" /> : <Flag className="w-4 h-4 mr-2" />}
-            {goalSaved ? "Goal saved" : "Save goal"}
-          </Button>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Horizon</span>
             <Select value={horizonMonths} onValueChange={setHorizonMonths}>
