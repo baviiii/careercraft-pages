@@ -21,20 +21,28 @@ const SOURCE_NOTE: Record<string, string> = {
   persona: "From your profile",
 };
 
-// The same text always gets the same answer, and the coach may be slow to wake,
-// so keep answers for the visit. Failures aren't kept, so they're retried.
+// The same text gets the same answer, and the coach may be slow to wake, so
+// answers are kept for the visit — except "not a job", which is kept only as
+// long as the coach keeps it (10 minutes), so one wrong answer doesn't stick.
+// Failures aren't kept at all, so they're retried.
+const NOT_A_JOB_TTL_MS = 10 * 60 * 1000;
 const previewCache = new Map<string, Promise<FieldPreview | null>>();
 
 function previewFor(text: string): Promise<FieldPreview | null> {
   const key = text.toLowerCase();
-  let pending = previewCache.get(key);
-  if (!pending) {
-    pending = careerCoach.previewField(text).catch(() => {
+  const hit = previewCache.get(key);
+  if (hit) return hit;
+  const pending = careerCoach.previewField(text).then(
+    (preview) => {
+      if (!preview.known) setTimeout(() => previewCache.delete(key), NOT_A_JOB_TTL_MS);
+      return preview;
+    },
+    () => {
       previewCache.delete(key);
       return null;
-    });
-    previewCache.set(key, pending);
-  }
+    },
+  );
+  previewCache.set(key, pending);
   return pending;
 }
 

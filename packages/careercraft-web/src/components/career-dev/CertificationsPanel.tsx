@@ -4,7 +4,7 @@
  * points), get a ranked next-certification plan (budget/time aware, sourced),
  * and log newly-earned certs (which credit their skills in the matrix).
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,8 +67,11 @@ const VALUE_STYLES: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
-/** `field` is the role from the page's "Going for" card; the coach also falls back to the saved goal. */
-export default function CertificationsPanel({ field }: { field?: string }) {
+/**
+ * `field` / `level` are the role and level from the page's "Going for" card —
+ * the saved ones, or a just-this-once pick — so recommendations fit both.
+ */
+export default function CertificationsPanel({ field, level }: { field?: string; level?: string }) {
   const { toast } = useToast();
   const targetField = field ?? "";
 
@@ -81,14 +84,6 @@ export default function CertificationsPanel({ field }: { field?: string }) {
   const [recommending, setRecommending] = useState(false);
   const [budget, setBudget] = useState("");
   const [hours, setHours] = useState("5");
-
-  // An analysis and a plan are for one job; a new role clears them.
-  useEffect(() => {
-    setFacts(null);
-    setAnalysis(null);
-    setPlan(null);
-    setPlanProof(null);
-  }, [field]);
 
   // Log form
   const [showLog, setShowLog] = useState(false);
@@ -121,6 +116,7 @@ export default function CertificationsPanel({ field }: { field?: string }) {
     try {
       const r = await careerCoach.recommendCertifications({
         targetField: targetField || undefined,
+        seniority: level || undefined,
         budgetUsd: budget ? Number(budget) : undefined,
         hoursPerWeek: Number(hours) || 5,
         count: 3,

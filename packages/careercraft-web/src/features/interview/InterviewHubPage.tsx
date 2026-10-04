@@ -94,6 +94,10 @@ function InterviewHub() {
   const { role, level } = useActiveRole();
   const field = role ?? undefined;
   const seniority = level ?? undefined;
+  // Every tab's results belong to one job (and level). Keying the panels on it
+  // rebuilds them when it changes, so neither old results nor a request still
+  // in flight for the old job can land under the new one.
+  const roleKey = `${field ?? ""}|${seniority ?? ""}`;
 
   // Normalize legacy tab params in the URL.
   useEffect(() => {
@@ -181,7 +185,7 @@ function InterviewHub() {
 
         <TabsContent value="home" className="cc-tabs-panel mt-6 space-y-8 focus-visible:ring-0">
           <div id="interview-setup">
-            <SetupPanel role={field} level={seniority} />
+            <SetupPanel key={roleKey} role={field} level={seniority} />
           </div>
           <InterviewHome
             onOpenHistory={(id) => {
@@ -201,7 +205,7 @@ function InterviewHub() {
         </TabsContent>
 
         <TabsContent value="resources" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <ResourcesPanel field={field} />
+          <ResourcesPanel key={roleKey} field={field} />
         </TabsContent>
 
         <TabsContent value="profile" className="cc-tabs-panel mt-6 focus-visible:ring-0">
@@ -209,15 +213,15 @@ function InterviewHub() {
         </TabsContent>
 
         <TabsContent value="guidance" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <CareerGuidancePanel field={field} />
+          <CareerGuidancePanel key={roleKey} field={field} />
         </TabsContent>
 
         <TabsContent value="certifications" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <CertificationsPanel field={field} />
+          <CertificationsPanel key={roleKey} field={field} level={seniority} />
         </TabsContent>
 
         <TabsContent value="study" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <StudyPanel field={field} />
+          <StudyPanel key={roleKey} field={field} />
         </TabsContent>
       </Tabs>
     </CraftAppLayout>

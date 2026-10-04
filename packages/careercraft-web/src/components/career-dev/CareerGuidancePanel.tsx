@@ -1,9 +1,10 @@
 /**
- * CareerGuidancePanel — set the goal that anchors all personalization, then get
- * a full strategist read (position, strengths to sell, gaps, trajectory options,
- * narrative, next actions) and build a week-addressed roadmap to the target.
+ * CareerGuidancePanel — a full strategist read (position, strengths to sell,
+ * gaps, trajectory options, narrative, next actions) and a week-addressed
+ * roadmap, for the job in the page's "Going for" card, which is where the goal
+ * itself is set.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,13 +60,6 @@ export default function CareerGuidancePanel({ field }: { field?: string }) {
   const [loadingRoadmap, setLoadingRoadmap] = useState(false);
   const [horizonWeeks, setHorizonWeeks] = useState("12");
   const [hoursPerWeek, setHoursPerWeek] = useState("6");
-
-  // Guidance and a roadmap are for one job; a new role clears them rather than
-  // showing the old job's advice under the new job's heading.
-  useEffect(() => {
-    setGuidance(null);
-    setRoadmap(null);
-  }, [field]);
 
   const notAvailable = (e: unknown) => {
     const message = e instanceof CoachUnavailableError ? e.message : "Career coach is not available at the moment.";

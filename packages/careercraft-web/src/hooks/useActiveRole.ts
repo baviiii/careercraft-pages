@@ -2,7 +2,9 @@
  * The role Interview Prep is working with right now: the saved one from the
  * profile, unless the learner chose a different role "just this once" — to
  * practise for a backup job without changing what the rest of the app uses.
- * The override lives only in memory, so it ends when they leave the page.
+ * The override lasts for the browser tab and belongs to the signed-in user
+ * (ActiveRoleProvider): it survives the trip into the interview room, ends when
+ * the tab closes, and is never shown to someone else who signs in.
  */
 import { createContext, useContext } from "react";
 import type { SavedRole } from "./useTargetRole";

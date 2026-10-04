@@ -139,7 +139,7 @@ export function useTargetRole() {
   const loading = userId === undefined || (Boolean(userId) && query.isLoading);
 
   return useMemo(
-    () => ({ ...saved, loading, signedIn: Boolean(userId), saveRole, saving: isPending }),
+    () => ({ ...saved, loading, userId: userId ?? null, signedIn: Boolean(userId), saveRole, saving: isPending }),
     [saved, loading, userId, saveRole, isPending],
   );
 }

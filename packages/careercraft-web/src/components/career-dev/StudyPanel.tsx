@@ -3,7 +3,7 @@
  * spaced-repetition drill loop (scheduler picks what's due → attempt → self-score
  * → matrix updates), and get layered concept explanations on demand.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -100,17 +100,6 @@ export default function StudyPanel({ field }: { field?: string }) {
   const [level, setLevel] = useState<"eli5" | "working" | "interview">("working");
   const [explanation, setExplanation] = useState<ConceptExplanation | null>(null);
   const [explaining, setExplaining] = useState(false);
-
-  // Plans, drills and explanations are for one job; a new role clears them.
-  useEffect(() => {
-    setPlan(null);
-    setPathway(null);
-    setDegraded(null);
-    setDrill(null);
-    setScheduling(null);
-    setLastResult(null);
-    setExplanation(null);
-  }, [field]);
 
   const notAvailable = (e: unknown) => {
     const message = e instanceof CoachUnavailableError ? e.message : "Career coach is not available at the moment.";
