@@ -3,7 +3,7 @@
 // Actions:
 //   generate         → produce a new system prompt from focus area + description
 //   improve          → take a current prompt and return an improved version with notes
-//   generate_guided  → produce a prompt from full wizard data (audience, tone, citations, …)
+//   generate_guided  → produce a persona from full wizard data (audience, tone, focus, …)
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { z } from "npm:zod@3";
@@ -31,8 +31,6 @@ const WizardDataSchema = z.object({
   mustAvoid: z.array(z.string()).default([]),
   customMustInclude: z.string().default(""),
   customMustAvoid: z.string().default(""),
-  citationStyle: z.enum(["strict", "moderate", "flexible"]),
-  accuracyLevel: z.enum(["high", "very_high", "absolute"]),
   sourcePreferences: z.array(z.string()).default([]),
   specialInstructions: z.string().default(""),
   exampleQuestions: z.string().default(""),
@@ -131,24 +129,45 @@ serve(handler(async (req) => {
 
 // ----- Prompt builders -----
 
-function generatePrompts(body: Extract<GenRequest, { action: "generate" }>) {
-  const system = `You are an expert at writing AI system prompts for RAG (Retrieval-Augmented Generation) systems.
+/*
+ * What a persona is for, now that the Career Coach runs on the Horus agent.
+ *
+ * The agent owns the rules that make an answer trustworthy — search before
+ * answering, cite every claim as [n], say so when the documents don't cover
+ * something — and it prepends "You are <persona name>." itself. A persona that
+ * restates those rules in its own words ("[Source X]", "only use the provided
+ * documents") hands the model a second rulebook that disagrees with the first.
+ * So generated personas set voice, audience, focus and answer shape, and
+ * nothing else.
+ */
+const PERSONA_CONTRACT = `The persona you write is added to an assistant that already has fixed rules for searching documents, citing sources and handling gaps. Those rules are not yours to restate.
 
-Your prompts must:
-1. Clearly define the AI's role and expertise
-2. Include strict citation requirements ([Source X] format)
-3. Set appropriate tone and conversation style
-4. Emphasise accuracy and fact-checking
-5. Include structure guidelines for responses
-6. Be optimised for the specific focus area
+The persona MUST cover:
+- Who the assistant is helping, and what they are usually trying to decide
+- Voice: tone, plainness, how to treat jargon
+- The shape of a good answer: what comes first, what is a list, how it ends
+- Topics to focus on
+
+The persona MUST NOT contain:
+- Any citation format or instruction (bracketed source markers, "cite your sources", page or table references)
+- Any rule about using only the documents, accuracy, or what to do when information is missing
+- Output formats such as JSON
+- An opening "You are …" line — the assistant's name is added for you
+
+Write in second person ("You help…"). Plain sentences and short lists; no capitalised headings, no filler.`;
+
+function generatePrompts(body: Extract<GenRequest, { action: "generate" }>) {
+  const system = `You write personas for a document-grounded career and government-information assistant.
+
+${PERSONA_CONTRACT}
 
 Focus areas:
-- careers: Career guidance, job advice, training programs
-- policies: Policy analysis, strategic direction, regulations
-- funding: Budget analysis, financial intelligence, allocations
-- general: General purpose, multi-domain assistance
+- careers: career guidance, training pathways, applications
+- policies: what government policy does and who it affects
+- entrepreneurship: starting and growing a small business
+- funding: where budget money goes
 
-Return ONLY the system prompt text, no explanations or markdown formatting.`;
+Return ONLY the persona text, no explanations or markdown formatting.`;
 
   const user = [
     `Generate a professional system prompt for a RAG-based AI assistant focused on: ${body.focus_area}`,
@@ -156,22 +175,20 @@ Return ONLY the system prompt text, no explanations or markdown formatting.`;
     body.requirements?.length
       ? `\nAdditional requirements:\n${body.requirements.map((r) => `- ${r}`).join("\n")}`
       : "",
-    "\nCreate a comprehensive, professional prompt that will guide the AI to provide accurate, helpful responses with proper source citations.",
+    "\nWrite the persona: audience, voice, focus and answer shape only.",
   ].join("");
 
   return { system, user };
 }
 
 function improvePrompts(body: Extract<GenRequest, { action: "improve" }>) {
-  const system = `You are an expert at improving AI system prompts for RAG systems.
+  const system = `You improve personas for a document-grounded career and government-information assistant.
 
-Analyse the provided prompt and suggest improvements while maintaining its core purpose. Focus on:
-- Clarity and specificity
-- Citation requirements
-- Tone and style
-- Accuracy guidelines
-- Response structure
-- Best practices for RAG systems`;
+${PERSONA_CONTRACT}
+
+If the current persona contains citation formats, grounding or accuracy rules, or an output format, remove them — that is part of improving it. Then make the audience, voice and answer shape clearer and more specific.
+
+Return ONLY the improved persona text.`;
 
   const user = [
     `Improve this system prompt for focus area: ${body.focus_area}`,
@@ -180,7 +197,7 @@ Analyse the provided prompt and suggest improvements while maintaining its core 
     body.requirements?.length
       ? `\nAdditional requirements:\n${body.requirements.map((r) => `- ${r}`).join("\n")}`
       : "",
-    "\nProvide an improved version that's clearer, more effective, and follows RAG best practices.",
+    "\nReturn the improved persona.",
   ].join("");
 
   return { system, user };
@@ -193,18 +210,6 @@ const expertiseMap: Record<z.infer<typeof WizardDataSchema>["audienceExpertise"]
   mixed: "vary in expertise level, so adapt explanations accordingly",
 };
 
-const citationMap: Record<z.infer<typeof WizardDataSchema>["citationStyle"], string> = {
-  strict: "EVERY factual claim must have a [Source X] citation. No exceptions.",
-  moderate: "Key facts and statistics need citations, but general context can flow naturally.",
-  flexible: "Major claims should be cited, but maintain conversational flow.",
-};
-
-const accuracyMap: Record<z.infer<typeof WizardDataSchema>["accuracyLevel"], string> = {
-  absolute: 'Only state facts that can be directly cited from sources. Say "I don\'t have information on that" if uncertain. Never infer or assume.',
-  very_high: "Strong preference for cited facts. Can make reasonable inferences but must indicate when doing so.",
-  high: "Prioritise accuracy but allow helpful context and general knowledge to supplement sources.",
-};
-
 const responseLengthMap: Record<z.infer<typeof WizardDataSchema>["responseLength"], string> = {
   concise: "Keep responses brief and to-the-point. Focus on key information.",
   detailed: "Provide comprehensive explanations with full context and background.",
@@ -212,21 +217,13 @@ const responseLengthMap: Record<z.infer<typeof WizardDataSchema>["responseLength
 };
 
 function guidedPrompts(w: z.infer<typeof WizardDataSchema>) {
-  const system = `You are a world-class expert at writing AI system prompts for RAG (Retrieval-Augmented Generation) systems.
+  const system = `You turn structured requirements into a persona for a document-grounded career and government-information assistant.
 
-Your task is to transform the user's structured requirements into a powerful, professional system prompt that will guide an AI assistant to provide excellent responses using retrieved documents.
+${PERSONA_CONTRACT}
 
-CRITICAL REQUIREMENTS FOR THE GENERATED PROMPT:
-1. It MUST include strict citation requirements using [Source X] format
-2. It MUST define clear accuracy and fact-checking guidelines
-3. It MUST be optimised for RAG — meaning it should instruct the AI to base ALL responses on the provided context/documents
-4. It MUST include response structure guidelines
-5. It should be comprehensive yet concise — no fluff, every sentence should serve a purpose
-6. It should be written in second person ("You are...", "You should...")
+OUTPUT: Return ONLY the persona text. No explanations, no markdown, no prefix like "Here is your prompt:".`;
 
-OUTPUT: Return ONLY the system prompt text. No explanations, no markdown formatting, no prefixes like "Here is your prompt:". Just the raw prompt text ready to be used.`;
-
-  const user = `Generate a professional RAG system prompt based on these detailed requirements:
+  const user = `Write the persona from these requirements:
 
 === BASIC INFORMATION ===
 Focus Area: ${w.focusArea}
@@ -249,10 +246,6 @@ ${w.sourcePreferences.length > 0 ? `Preferred Sources: ${w.sourcePreferences.joi
 ${w.customMustInclude ? `Must Include: ${w.customMustInclude}` : ""}
 ${w.customMustAvoid ? `Must Avoid: ${w.customMustAvoid}` : ""}
 
-=== ACCURACY & CITATIONS (CRITICAL FOR RAG) ===
-Citation Style: ${citationMap[w.citationStyle]}
-Accuracy Level: ${accuracyMap[w.accuracyLevel]}
-
 === SPECIAL INSTRUCTIONS ===
 ${w.specialInstructions || "None provided"}
 
@@ -262,7 +255,7 @@ ${w.exampleQuestions || "None provided"}
 === DESIRED OUTCOMES ===
 ${w.desiredOutcomes || "Help users get accurate, actionable information"}
 
-Generate a comprehensive, production-ready system prompt that incorporates ALL of these requirements.`;
+Cover the audience, voice, focus and answer shape these describe. Leave out anything about citations, sources or accuracy — the assistant already handles those.`;
 
   return { system, user };
 }

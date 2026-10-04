@@ -19,7 +19,6 @@ import {
   Users,
   MessageCircle,
   FileText,
-  Shield,
   Lightbulb,
   Wand2
 } from 'lucide-react';
@@ -60,12 +59,11 @@ interface WizardData {
   customMustInclude: string;
   customMustAvoid: string;
   
-  // Step 5: Accuracy & Citations
-  citationStyle: 'strict' | 'moderate' | 'flexible';
-  accuracyLevel: 'high' | 'very_high' | 'absolute';
   sourcePreferences: string[];
   
-  // Step 6: Special Instructions
+  // Step 5: Special Instructions
+  // (Citation style and accuracy are not persona settings: the Horus agent
+  // applies its own grounding and citation rules to every answer.)
   specialInstructions: string;
   exampleQuestions: string;
   desiredOutcomes: string;
@@ -82,8 +80,7 @@ const STEPS = [
   { id: 2, title: 'Audience', icon: Users, description: 'Who will use this?' },
   { id: 3, title: 'Style', icon: MessageCircle, description: 'Conversation tone' },
   { id: 4, title: 'Content', icon: FileText, description: 'What to cover' },
-  { id: 5, title: 'Accuracy', icon: Shield, description: 'Citation rules' },
-  { id: 6, title: 'Special', icon: Lightbulb, description: 'Extra instructions' },
+  { id: 5, title: 'Special', icon: Lightbulb, description: 'Extra instructions' },
 ];
 
 const PREDEFINED_FOCUS_AREAS = [
@@ -142,8 +139,6 @@ const initialData: WizardData = {
   mustAvoid: [],
   customMustInclude: '',
   customMustAvoid: '',
-  citationStyle: 'strict',
-  accuracyLevel: 'very_high',
   sourcePreferences: [],
   specialInstructions: '',
   exampleQuestions: '',
@@ -189,8 +184,6 @@ export default function GuidedPromptBuilder({
       case 4:
         return data.topicFocus.trim().length > 0;
       case 5:
-        return true;
-      case 6:
         return true;
       default:
         return false;
@@ -509,106 +502,6 @@ export default function GuidedPromptBuilder({
       case 5:
         return (
           <div className="space-y-6">
-            <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900">
-              <CardContent className="pt-4">
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  <strong>Why this matters:</strong> Our RAG system retrieves real documents to answer questions. 
-                  Citation settings determine how strictly the AI must reference these sources, ensuring accurate, 
-                  trustworthy responses.
-                </p>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Citation Strictness</Label>
-              <RadioGroup
-                value={data.citationStyle}
-                onValueChange={(v) => updateData({ citationStyle: v as any })}
-                className="space-y-3"
-              >
-                {[
-                  { 
-                    value: 'strict', 
-                    label: 'Strict', 
-                    desc: 'Every claim must have a [Source X] citation. Best for official/legal contexts.',
-                    color: 'text-green-600'
-                  },
-                  { 
-                    value: 'moderate', 
-                    label: 'Moderate', 
-                    desc: 'Key facts need citations, general knowledge can be unstated.',
-                    color: 'text-yellow-600'
-                  },
-                  { 
-                    value: 'flexible', 
-                    label: 'Flexible', 
-                    desc: 'Citations for major claims only. More conversational flow.',
-                    color: 'text-orange-600'
-                  },
-                ].map((option) => (
-                  <div 
-                    key={option.value} 
-                    className={cn(
-                      "flex items-start space-x-3 p-3 rounded-lg border",
-                      data.citationStyle === option.value ? "border-primary bg-primary/5" : "border-border"
-                    )}
-                  >
-                    <RadioGroupItem value={option.value} id={`citation-${option.value}`} className="mt-1" />
-                    <Label htmlFor={`citation-${option.value}`} className="cursor-pointer flex-1">
-                      <span className={cn("font-medium", option.color)}>{option.label}</span>
-                      <p className="text-muted-foreground text-sm mt-1">{option.desc}</p>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-base font-medium">Accuracy Level</Label>
-              <RadioGroup
-                value={data.accuracyLevel}
-                onValueChange={(v) => updateData({ accuracyLevel: v as any })}
-                className="space-y-3"
-              >
-                {[
-                  { 
-                    value: 'absolute', 
-                    label: 'Absolute', 
-                    desc: 'Only state facts that can be directly cited. Say "I don\'t know" if uncertain.',
-                  },
-                  { 
-                    value: 'very_high', 
-                    label: 'Very High', 
-                    desc: 'Strong preference for cited facts, but can make reasonable inferences.',
-                  },
-                  { 
-                    value: 'high', 
-                    label: 'High', 
-                    desc: 'Accurate but allows helpful context and general knowledge.',
-                  },
-                ].map((option) => (
-                  <div 
-                    key={option.value} 
-                    className={cn(
-                      "flex items-start space-x-3 p-3 rounded-lg border",
-                      data.accuracyLevel === option.value ? "border-primary bg-primary/5" : "border-border"
-                    )}
-                  >
-                    <RadioGroupItem value={option.value} id={`accuracy-${option.value}`} className="mt-1" />
-                    <Label htmlFor={`accuracy-${option.value}`} className="cursor-pointer flex-1">
-                      <span className="font-medium">{option.label}</span>
-                      <p className="text-muted-foreground text-sm mt-1">{option.desc}</p>
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </div>
-          </div>
-        );
-
-      case 6:
-        return (
-          <div className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="special-instructions" className="text-base font-medium">
                 Special Instructions
@@ -824,8 +717,8 @@ export default function GuidedPromptBuilder({
             <Sparkles className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
             <span>
               <strong>AI-Powered Generation Required:</strong> After completing all steps, 
-              our AI will transform your inputs into a powerful prompt optimized for our RAG system, 
-              ensuring accurate citations, proper source handling, and excellent response quality.
+              our AI turns your inputs into a persona — the coach's audience, voice and answer shape. 
+              Sourcing and citations are handled by the coach itself, for every persona.
             </span>
           </p>
         </CardContent>

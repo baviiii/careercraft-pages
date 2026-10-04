@@ -84,7 +84,7 @@ function GuestIntelligenceDashboard() {
    * useAgenticRAG, a chat hook, only to read the last message's content and
    * sources; the same rag.query call is made directly now.
    */
-  const [tabResults, setTabResults] = useState<Record<string, { answer: string; sources: any[] }>>({});
+  const [tabResults, setTabResults] = useState<Record<string, { answer: string; sources: unknown[] }>>({});
   const fetchTab = useCallback(
     async (tab: IntelligenceTab, question: string) => {
       try {

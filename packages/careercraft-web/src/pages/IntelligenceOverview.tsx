@@ -159,7 +159,7 @@ function IntelligenceDashboardContent() {
    * through useAgenticRAG, a chat hook, only to read `.sources` off its last
    * message; the same rag.query call is made directly now.
    */
-  const [enrichSources, setEnrichSources] = useState<Record<string, any[]>>({});
+  const [enrichSources, setEnrichSources] = useState<Record<string, Parameters<typeof toChartSource>[0][]>>({});
   const fetchEnrichment = useCallback(
     async (key: string, question: string) => {
       try {
