@@ -352,7 +352,10 @@ export default function AustralianJobs() {
 
       try {
         const currentPage = reset ? 1 : page;
-        const sanitizedQuery = sanitize(searchQuery || "developer", { maxLength: 200 });
+        // An empty search box means "what the first page searched": the profile's
+        // role, or a broad search with no profile — never a guessed "developer".
+        const fallbackQuery = (hasPersonalizationData && getPersonalizedJobQuery()) || "";
+        const sanitizedQuery = sanitize(searchQuery || fallbackQuery, { maxLength: 200 });
         const sanitizedIndustry = sanitize(selectedIndustry, { maxLength: 100 });
 
         const { data, error } = await supabase.functions.invoke("job-news", {
@@ -403,6 +406,8 @@ export default function AustralianJobs() {
     },
     [
       searchQuery,
+      hasPersonalizationData,
+      getPersonalizedJobQuery,
       selectedCity,
       selectedType,
       selectedLevel,

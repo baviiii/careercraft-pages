@@ -231,7 +231,7 @@ const cleanStr = (v: string | null | undefined): string | null => {
   return s.length ? s : null;
 };
 
-function cleanList(values: Array<string | null | undefined>, cap: number): string[] {
+export function cleanList(values: Array<string | null | undefined>, cap: number): string[] {
   const out: string[] = [];
   for (const v of values ?? []) {
     const s = (v ?? '').toString().trim();

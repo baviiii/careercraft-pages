@@ -330,20 +330,6 @@ export const careerCoach = {
     return post("/api/career/guidance", input);
   },
 
-  /** Persist the career goal that all other tools condition on. */
-  async setGoal(input: {
-    targetField: string;
-    targetRole?: string;
-    seniority?: string;
-    jobRoleType?: string;
-    interviewTypes?: string[];
-  }): Promise<{
-    goal: CareerGoal;
-    persisted: { preferences: boolean; targetRole: boolean | null; profile?: boolean };
-  }> {
-    return post("/api/career/goal", input);
-  },
-
   /** What a typed job really is ("sparky" → Electrician), for confirming a role before saving it. */
   async previewField(field: string): Promise<FieldPreview> {
     return post("/api/career/field-preview", { field });

@@ -4,7 +4,7 @@
  * points), get a ranked next-certification plan (budget/time aware, sourced),
  * and log newly-earned certs (which credit their skills in the matrix).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,14 @@ export default function CertificationsPanel({ field }: { field?: string }) {
   const [recommending, setRecommending] = useState(false);
   const [budget, setBudget] = useState("");
   const [hours, setHours] = useState("5");
+
+  // An analysis and a plan are for one job; a new role clears them.
+  useEffect(() => {
+    setFacts(null);
+    setAnalysis(null);
+    setPlan(null);
+    setPlanProof(null);
+  }, [field]);
 
   // Log form
   const [showLog, setShowLog] = useState(false);

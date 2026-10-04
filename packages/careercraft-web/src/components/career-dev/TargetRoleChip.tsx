@@ -38,7 +38,13 @@ function previewFor(text: string): Promise<FieldPreview | null> {
   return pending;
 }
 
-/** What the coach makes of a typed job, fetched once typing pauses. */
+/**
+ * What the coach makes of a typed job, fetched once typing really pauses — each
+ * preview is a model call, so not on every brief stop. Two characters is
+ * enough: "RN" and "GP" are jobs.
+ */
+const PREVIEW_PAUSE_MS = 1000;
+const PREVIEW_MIN_CHARS = 2;
 function usePreview(text: string | null) {
   const [state, setState] = useState<{ text: string; preview: FieldPreview | null; loading: boolean }>({
     text: "",
@@ -48,7 +54,7 @@ function usePreview(text: string | null) {
 
   useEffect(() => {
     const t = (text ?? "").trim();
-    if (t.length < 3) {
+    if (t.length < PREVIEW_MIN_CHARS) {
       setState({ text: t, preview: null, loading: false });
       return;
     }
@@ -58,7 +64,7 @@ function usePreview(text: string | null) {
       previewFor(t).then((preview) => {
         if (live) setState({ text: t, preview, loading: false });
       });
-    }, 600);
+    }, PREVIEW_PAUSE_MS);
     return () => {
       live = false;
       clearTimeout(timer);
@@ -170,7 +176,7 @@ function RoleEditor({ onDone }: { onDone?: () => void }) {
         <p className="-mt-2 text-[0.7rem] text-[color:var(--cc-ash)]">Job titles: {occupationsAttribution()}</p>
       )}
 
-      {title.length >= 3 && (loading || preview) && (
+      {title.length >= PREVIEW_MIN_CHARS && (loading || preview) && (
         <div className="rounded-[0.85rem] border border-[color:var(--cc-hair)] p-3 text-sm" aria-live="polite">
           {known ? (
             <>

@@ -3,7 +3,7 @@
  * a full strategist read (position, strengths to sell, gaps, trajectory options,
  * narrative, next actions) and build a week-addressed roadmap to the target.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ import { CoachNotConnected, SectionHeader, SeverityBadge } from "./shared";
  * happen here too, through a fixed list of fields; it now happens once, in that
  * card, which saves to the profile the coach reads.
  */
-export default function CareerGuidancePanel({ field }: { field?: string; seniority?: string }) {
+export default function CareerGuidancePanel({ field }: { field?: string }) {
   const { toast } = useToast();
 
   const [question, setQuestion] = useState("");
@@ -59,6 +59,13 @@ export default function CareerGuidancePanel({ field }: { field?: string; seniori
   const [loadingRoadmap, setLoadingRoadmap] = useState(false);
   const [horizonWeeks, setHorizonWeeks] = useState("12");
   const [hoursPerWeek, setHoursPerWeek] = useState("6");
+
+  // Guidance and a roadmap are for one job; a new role clears them rather than
+  // showing the old job's advice under the new job's heading.
+  useEffect(() => {
+    setGuidance(null);
+    setRoadmap(null);
+  }, [field]);
 
   const notAvailable = (e: unknown) => {
     const message = e instanceof CoachUnavailableError ? e.message : "Career coach is not available at the moment.";

@@ -1,7 +1,7 @@
 /**
  * Practice setup — situation-first, dual start (drill / full mock).
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -137,6 +137,10 @@ export function SetupPanel({ role, level }: { role?: string; level?: string }) {
   const [plan, setPlan] = useState<InterviewPlan | null>(null);
   const [buildingPlan, setBuildingPlan] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+
+  // A plan belongs to the job it was built for: when the role changes, it goes,
+  // so "practise this round" can't mix one job's rounds with another's field.
+  useEffect(() => setPlan(null), [field]);
 
   const pickSituation = (id: SituationId) => {
     const s = SITUATIONS.find((x) => x.id === id)!;

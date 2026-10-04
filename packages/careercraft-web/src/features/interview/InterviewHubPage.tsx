@@ -209,7 +209,7 @@ function InterviewHub() {
         </TabsContent>
 
         <TabsContent value="guidance" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <CareerGuidancePanel field={field} seniority={seniority} />
+          <CareerGuidancePanel field={field} />
         </TabsContent>
 
         <TabsContent value="certifications" className="cc-tabs-panel mt-6 focus-visible:ring-0">

@@ -2,19 +2,18 @@
  * The role someone is going for — one answer for the whole app.
  *
  * It lives on their profile: getting-started writes it, Settings edits it, and
- * the interview coach reads it from there too. Interview Prep and the career
- * tabs used to ask again through a fixed list of 18 mostly-tech fields, so an
- * electrician who'd already said "Electrician" couldn't find their own job.
+ * the interview coach reads it from there too, in the same order as here
+ * (interview-coach-mcp `resolveGoal`). Interview Prep and the career tabs used
+ * to ask again through a fixed list of 18 mostly-tech fields, so an electrician
+ * who'd already said "Electrician" couldn't find their own job.
  *
  * Read through React Query so every tab shares one copy: saving a new role on
  * one tab updates all of them, without a reload.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-
-/** Same cap getting-started uses for target job titles. */
-const MAX_TARGET_TITLES = 6;
+import { cleanList } from "@/features/onboarding/lib/normalize";
 
 export type RoleSource = "getting-started" | "current-job" | "persona" | "none";
 
@@ -29,25 +28,16 @@ export interface SavedRole {
 
 const NO_ROLE: SavedRole = { role: null, level: null, source: "none", ownRoles: [] };
 
-const clean = (v: unknown): string => (typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "");
+/** Trimmed and de-duplicated ignoring case, order kept, nothing dropped. */
+const uniqueRoles = (values: unknown[]): string[] =>
+  cleanList(values.map((v) => (typeof v === "string" ? v.replace(/\s+/g, " ") : null)), Infinity);
 
-/** Trimmed, de-duplicated ignoring case, order kept. */
-export function uniqueRoles(values: unknown[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const v of values) {
-    const s = clean(v);
-    if (s && !seen.has(s.toLowerCase())) {
-      seen.add(s.toLowerCase());
-      out.push(s);
-    }
-  }
-  return out;
-}
-
-/** The new role first, the rest after it, within the cap. */
-export function withRoleFirst(existing: string[] | null | undefined, role: string): string[] {
-  return uniqueRoles([role, ...(existing ?? [])]).slice(0, MAX_TARGET_TITLES);
+/**
+ * The new role first and every existing title after it. Nothing is dropped:
+ * Settings lets people keep any number of titles, and they drive job search.
+ */
+export function withRoleFirst(existing: unknown, role: string): string[] {
+  return uniqueRoles([role, ...(Array.isArray(existing) ? existing : [])]);
 }
 
 /** Keyed into the cache, so switching accounts never shows the previous person's role. */
@@ -68,11 +58,11 @@ function useSessionUserId(): string | null | undefined {
 }
 
 interface RoleRow {
-  target_job_titles: string[] | null;
-  current_job_title: string | null;
-  career_level: string | null;
+  target_job_titles: unknown;
+  current_job_title: unknown;
+  career_level: unknown;
   // Not in the generated types yet (added by 20260903000000_retire_jobs_catalog).
-  search_terms: string[] | null;
+  search_terms: unknown;
   ai_persona: { function?: unknown } | null;
 }
 
@@ -84,12 +74,13 @@ async function fetchSavedRole(userId: string): Promise<SavedRole> {
     .maybeSingle();
   if (error) throw error;
   const row = data as unknown as RoleRow | null;
+  const list = (v: unknown) => (Array.isArray(v) ? v : []);
 
-  const titles = uniqueRoles(row?.target_job_titles ?? []);
-  const current = clean(row?.current_job_title);
-  const persona = clean(row?.ai_persona?.function);
-  const [role, source]: [string | null, RoleSource] = titles[0]
-    ? [titles[0], "getting-started"]
+  const [title] = uniqueRoles(list(row?.target_job_titles));
+  const [current] = uniqueRoles([row?.current_job_title]);
+  const [persona] = uniqueRoles([row?.ai_persona?.function]);
+  const [role, source]: [string | null, RoleSource] = title
+    ? [title, "getting-started"]
     : current
       ? [current, "current-job"]
       : persona
@@ -98,9 +89,9 @@ async function fetchSavedRole(userId: string): Promise<SavedRole> {
 
   return {
     role,
-    level: clean(row?.career_level) || null,
+    level: uniqueRoles([row?.career_level])[0] ?? null,
     source,
-    ownRoles: uniqueRoles([...titles, ...(row?.search_terms ?? []), current]),
+    ownRoles: uniqueRoles([...list(row?.target_job_titles), ...list(row?.search_terms), row?.current_job_title]),
   };
 }
 
@@ -115,11 +106,18 @@ export function useTargetRole() {
     staleTime: 60_000,
   });
 
-  const save = useMutation({
+  const { mutateAsync, isPending } = useMutation({
     mutationFn: async ({ role, level }: { role: string; level?: string | null }) => {
       if (!userId) throw new Error("Sign in to save your role.");
-      // Read the current titles at save time, so a Settings edit in another tab isn't lost.
-      const { data } = await supabase.from("profiles").select("target_job_titles").eq("id", userId).maybeSingle();
+      // Read the current titles at save time, so a Settings edit in another tab
+      // isn't lost — and never write a list that couldn't be read, or a network
+      // blip would replace every saved title with this one.
+      const { data, error: readError } = await supabase
+        .from("profiles")
+        .select("target_job_titles")
+        .eq("id", userId)
+        .maybeSingle();
+      if (readError) throw readError;
       const updates: { target_job_titles: string[]; career_level?: string | null } = {
         target_job_titles: withRoleFirst(data?.target_job_titles, role),
       };
@@ -130,11 +128,18 @@ export function useTargetRole() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["target-role"] }),
   });
 
-  return {
-    ...(query.data ?? NO_ROLE),
-    loading: userId === undefined || (Boolean(userId) && query.isLoading),
-    signedIn: Boolean(userId),
-    saveRole: (role: string, level?: string | null) => save.mutateAsync({ role, level }),
-    saving: save.isPending,
-  };
+  const saveRole = useCallback(
+    async (role: string, level?: string | null) => {
+      await mutateAsync({ role, level });
+    },
+    [mutateAsync],
+  );
+
+  const saved = query.data ?? NO_ROLE;
+  const loading = userId === undefined || (Boolean(userId) && query.isLoading);
+
+  return useMemo(
+    () => ({ ...saved, loading, signedIn: Boolean(userId), saveRole, saving: isPending }),
+    [saved, loading, userId, saveRole, isPending],
+  );
 }
