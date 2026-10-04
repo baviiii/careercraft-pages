@@ -61,7 +61,6 @@ interface RoleRow {
   target_job_titles: unknown;
   current_job_title: unknown;
   career_level: unknown;
-  // Not in the generated types yet (added by 20260903000000_retire_jobs_catalog).
   search_terms: unknown;
   ai_persona: { function?: unknown } | null;
 }

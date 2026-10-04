@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -80,290 +80,6 @@ export type Database = {
           created_at?: string | null
           email?: string
           id?: string
-        }
-        Relationships: []
-      }
-      // ── Plans & metering ─────────────────────────────────────────────────
-      // Hand-added rather than regenerated: this file is already missing 13
-      // existing tables, and `supabase gen types` would pull all of them in at
-      // once and surface unrelated type errors across the app. Keeping the
-      // drift is the smaller problem today; regenerate deliberately, later.
-      plans: {
-        Row: {
-          created_at: string
-          currency: string
-          daily_token_ceiling: number | null
-          description: string | null
-          external_price_id: string | null
-          is_active: boolean
-          is_default: boolean
-          key: string
-          marketing_features: Json
-          marketing_limitations: Json
-          max_model_tier: string
-          max_tokens_per_call: number
-          name: string
-          price_cents_monthly: number
-          price_cents_yearly: number
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          currency?: string
-          daily_token_ceiling?: number | null
-          description?: string | null
-          external_price_id?: string | null
-          is_active?: boolean
-          is_default?: boolean
-          key: string
-          marketing_features?: Json
-          marketing_limitations?: Json
-          max_model_tier?: string
-          max_tokens_per_call?: number
-          name: string
-          price_cents_monthly?: number
-          price_cents_yearly?: number
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          currency?: string
-          daily_token_ceiling?: number | null
-          description?: string | null
-          external_price_id?: string | null
-          is_active?: boolean
-          is_default?: boolean
-          key?: string
-          marketing_features?: Json
-          marketing_limitations?: Json
-          max_model_tier?: string
-          max_tokens_per_call?: number
-          name?: string
-          price_cents_monthly?: number
-          price_cents_yearly?: number
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      plan_limits: {
-        Row: {
-          created_at: string
-          hourly_limit: number | null
-          is_enabled: boolean
-          label: string
-          max_model_tier: string | null
-          max_tokens_per_call: number | null
-          monthly_limit: number | null
-          plan_key: string
-          resource: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          hourly_limit?: number | null
-          is_enabled?: boolean
-          label: string
-          max_model_tier?: string | null
-          max_tokens_per_call?: number | null
-          monthly_limit?: number | null
-          plan_key: string
-          resource: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          hourly_limit?: number | null
-          is_enabled?: boolean
-          label?: string
-          max_model_tier?: string | null
-          max_tokens_per_call?: number | null
-          monthly_limit?: number | null
-          plan_key?: string
-          resource?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      user_subscriptions: {
-        Row: {
-          cancel_at_period_end: boolean
-          created_at: string
-          current_period_end: string | null
-          current_period_start: string | null
-          daily_token_ceiling_override: number | null
-          grant_note: string | null
-          granted_by: string | null
-          last_provider_event_id: string | null
-          metadata: Json
-          plan_key: string
-          provider: string | null
-          provider_customer_id: string | null
-          provider_price_id: string | null
-          provider_status: string | null
-          provider_subscription_id: string | null
-          source: string
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          cancel_at_period_end?: boolean
-          created_at?: string
-          current_period_end?: string | null
-          current_period_start?: string | null
-          daily_token_ceiling_override?: number | null
-          grant_note?: string | null
-          granted_by?: string | null
-          last_provider_event_id?: string | null
-          metadata?: Json
-          plan_key: string
-          provider?: string | null
-          provider_customer_id?: string | null
-          provider_price_id?: string | null
-          provider_status?: string | null
-          provider_subscription_id?: string | null
-          source?: string
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          cancel_at_period_end?: boolean
-          created_at?: string
-          current_period_end?: string | null
-          current_period_start?: string | null
-          daily_token_ceiling_override?: number | null
-          grant_note?: string | null
-          granted_by?: string | null
-          last_provider_event_id?: string | null
-          metadata?: Json
-          plan_key?: string
-          provider?: string | null
-          provider_customer_id?: string | null
-          provider_price_id?: string | null
-          provider_status?: string | null
-          provider_subscription_id?: string | null
-          source?: string
-          status?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_subscription_events: {
-        Row: {
-          actor_id: string | null
-          created_at: string
-          from_plan_key: string | null
-          from_status: string | null
-          id: string
-          note: string | null
-          payload: Json | null
-          provider_event_id: string | null
-          source: string
-          to_plan_key: string
-          to_status: string
-          user_id: string
-        }
-        Insert: {
-          actor_id?: string | null
-          created_at?: string
-          from_plan_key?: string | null
-          from_status?: string | null
-          id?: string
-          note?: string | null
-          payload?: Json | null
-          provider_event_id?: string | null
-          source: string
-          to_plan_key: string
-          to_status: string
-          user_id: string
-        }
-        Update: {
-          actor_id?: string | null
-          created_at?: string
-          from_plan_key?: string | null
-          from_status?: string | null
-          id?: string
-          note?: string | null
-          payload?: Json | null
-          provider_event_id?: string | null
-          source?: string
-          to_plan_key?: string
-          to_status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      plan_upgrade_requests: {
-        Row: {
-          created_at: string
-          from_plan_key: string | null
-          id: string
-          note: string | null
-          reason: string | null
-          resource: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          from_plan_key?: string | null
-          id?: string
-          note?: string | null
-          reason?: string | null
-          resource?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          from_plan_key?: string | null
-          id?: string
-          note?: string | null
-          reason?: string | null
-          resource?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      user_limit_overrides: {
-        Row: {
-          created_at: string
-          expires_at: string | null
-          granted_by: string | null
-          hourly_limit: number | null
-          is_enabled: boolean | null
-          monthly_limit: number | null
-          reason: string | null
-          resource: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          expires_at?: string | null
-          granted_by?: string | null
-          hourly_limit?: number | null
-          is_enabled?: boolean | null
-          monthly_limit?: number | null
-          reason?: string | null
-          resource: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string | null
-          granted_by?: string | null
-          hourly_limit?: number | null
-          is_enabled?: boolean | null
-          monthly_limit?: number | null
-          reason?: string | null
-          resource?: string
-          updated_at?: string
-          user_id?: string
         }
         Relationships: []
       }
@@ -442,6 +158,56 @@ export type Database = {
             columns: ["skill_id"]
             isOneToOne: false
             referencedRelation: "skill_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      application_events: {
+        Row: {
+          application_id: string
+          auto_applied: boolean
+          confidence: number | null
+          created_at: string
+          event_type: string
+          id: string
+          occurred_at: string
+          payload: Json
+          source: string
+          summary: string
+          user_id: string
+        }
+        Insert: {
+          application_id: string
+          auto_applied?: boolean
+          confidence?: number | null
+          created_at?: string
+          event_type: string
+          id?: string
+          occurred_at?: string
+          payload?: Json
+          source?: string
+          summary: string
+          user_id: string
+        }
+        Update: {
+          application_id?: string
+          auto_applied?: boolean
+          confidence?: number | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          payload?: Json
+          source?: string
+          summary?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "job_applications"
             referencedColumns: ["id"]
           },
         ]
@@ -591,6 +357,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      edge_anonymous_rate_limits: {
+        Row: {
+          principal_hash: string
+          request_count: number
+          resource: string
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          principal_hash: string
+          request_count?: number
+          resource: string
+          updated_at?: string
+          window_start: string
+        }
+        Update: {
+          principal_hash?: string
+          request_count?: number
+          resource?: string
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      edge_function_rate_limits: {
+        Row: {
+          request_count: number
+          resource: string
+          updated_at: string
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          request_count?: number
+          resource: string
+          updated_at?: string
+          user_id: string
+          window_start: string
+        }
+        Update: {
+          request_count?: number
+          resource?: string
+          updated_at?: string
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
       }
       interview_answers: {
         Row: {
@@ -876,11 +690,13 @@ export type Database = {
           company: string
           cover_letter_id: string | null
           created_at: string
+          fit_score_latest: number | null
           id: string
           job_description: string | null
           job_title: string
           job_type: string | null
           job_url: string | null
+          last_status_change_at: string
           location: string | null
           notes: string | null
           reminder_date: string | null
@@ -895,11 +711,13 @@ export type Database = {
           company: string
           cover_letter_id?: string | null
           created_at?: string
+          fit_score_latest?: number | null
           id?: string
           job_description?: string | null
           job_title: string
           job_type?: string | null
           job_url?: string | null
+          last_status_change_at?: string
           location?: string | null
           notes?: string | null
           reminder_date?: string | null
@@ -914,11 +732,13 @@ export type Database = {
           company?: string
           cover_letter_id?: string | null
           created_at?: string
+          fit_score_latest?: number | null
           id?: string
           job_description?: string | null
           job_title?: string
           job_type?: string | null
           job_url?: string | null
+          last_status_change_at?: string
           location?: string | null
           notes?: string | null
           reminder_date?: string | null
@@ -944,6 +764,126 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      job_automation_settings: {
+        Row: {
+          auto_apply_non_destructive: boolean
+          confidence_threshold: number
+          created_at: string
+          email_sync_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_apply_non_destructive?: boolean
+          confidence_threshold?: number
+          created_at?: string
+          email_sync_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_apply_non_destructive?: boolean
+          confidence_threshold?: number
+          created_at?: string
+          email_sync_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      job_fit_scores: {
+        Row: {
+          application_id: string | null
+          created_at: string
+          gaps: Json
+          id: string
+          model: string | null
+          next_actions: Json
+          raw_output: Json
+          resume_id: string | null
+          score: number
+          scoring_version: string
+          strengths: Json
+          suggested_bullet_rewrites: Json
+          user_id: string
+        }
+        Insert: {
+          application_id?: string | null
+          created_at?: string
+          gaps?: Json
+          id?: string
+          model?: string | null
+          next_actions?: Json
+          raw_output?: Json
+          resume_id?: string | null
+          score: number
+          scoring_version?: string
+          strengths?: Json
+          suggested_bullet_rewrites?: Json
+          user_id: string
+        }
+        Update: {
+          application_id?: string | null
+          created_at?: string
+          gaps?: Json
+          id?: string
+          model?: string | null
+          next_actions?: Json
+          raw_output?: Json
+          resume_id?: string | null
+          score?: number
+          scoring_version?: string
+          strengths?: Json
+          suggested_bullet_rewrites?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_fit_scores_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "job_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_fit_scores_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_tracker_telemetry: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          id: string
+          metadata: Json
+          metric_type: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          metadata?: Json
+          metric_type: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          id?: string
+          metadata?: Json
+          metric_type?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       learning_resources: {
         Row: {
@@ -1137,108 +1077,6 @@ export type Database = {
         }
         Relationships: []
       }
-      profiles: {
-        Row: {
-          ai_persona: Json | null
-          avatar_url: string | null
-          bio: string | null
-          career_level: string | null
-          created_at: string
-          current_company: string | null
-          current_job_title: string | null
-          cv_standards: Json | null
-          desired_salary_currency: string | null
-          desired_salary_max: number | null
-          desired_salary_min: number | null
-          employment_status: string | null
-          full_name: string | null
-          headline: string | null
-          id: string
-          industry: string | null
-          job_change_timeline: string | null
-          location_city: string | null
-          location_country: string | null
-          onboarding_completed_at: string | null
-          onboarding_source: string | null
-          onboarding_started_at: string | null
-          phone: string | null
-          preferred_locations: string[] | null
-          profile_completed_at: string | null
-          target_companies: string[] | null
-          target_job_titles: string[] | null
-          timezone: string | null
-          updated_at: string
-          work_arrangement: string[] | null
-          years_of_experience: string | null
-        }
-        Insert: {
-          ai_persona?: Json | null
-          avatar_url?: string | null
-          bio?: string | null
-          career_level?: string | null
-          created_at?: string
-          current_company?: string | null
-          current_job_title?: string | null
-          cv_standards?: Json | null
-          desired_salary_currency?: string | null
-          desired_salary_max?: number | null
-          desired_salary_min?: number | null
-          employment_status?: string | null
-          full_name?: string | null
-          headline?: string | null
-          id: string
-          industry?: string | null
-          job_change_timeline?: string | null
-          location_city?: string | null
-          location_country?: string | null
-          onboarding_completed_at?: string | null
-          onboarding_source?: string | null
-          onboarding_started_at?: string | null
-          phone?: string | null
-          preferred_locations?: string[] | null
-          profile_completed_at?: string | null
-          target_companies?: string[] | null
-          target_job_titles?: string[] | null
-          timezone?: string | null
-          updated_at?: string
-          work_arrangement?: string[] | null
-          years_of_experience?: string | null
-        }
-        Update: {
-          ai_persona?: Json | null
-          avatar_url?: string | null
-          bio?: string | null
-          career_level?: string | null
-          created_at?: string
-          current_company?: string | null
-          current_job_title?: string | null
-          cv_standards?: Json | null
-          desired_salary_currency?: string | null
-          desired_salary_max?: number | null
-          desired_salary_min?: number | null
-          employment_status?: string | null
-          full_name?: string | null
-          headline?: string | null
-          id?: string
-          industry?: string | null
-          job_change_timeline?: string | null
-          location_city?: string | null
-          location_country?: string | null
-          onboarding_completed_at?: string | null
-          onboarding_source?: string | null
-          onboarding_started_at?: string | null
-          phone?: string | null
-          preferred_locations?: string[] | null
-          profile_completed_at?: string | null
-          target_companies?: string[] | null
-          target_job_titles?: string[] | null
-          timezone?: string | null
-          updated_at?: string
-          work_arrangement?: string[] | null
-          years_of_experience?: string | null
-        }
-        Relationships: []
-      }
       onboarding_runs: {
         Row: {
           ai_analysis: Json | null
@@ -1284,6 +1122,256 @@ export type Database = {
           resume_path?: string | null
           status?: string
           user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_limits: {
+        Row: {
+          created_at: string
+          hourly_limit: number | null
+          is_enabled: boolean
+          label: string
+          max_model_tier: string | null
+          max_tokens_per_call: number | null
+          monthly_limit: number | null
+          plan_key: string
+          resource: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hourly_limit?: number | null
+          is_enabled?: boolean
+          label: string
+          max_model_tier?: string | null
+          max_tokens_per_call?: number | null
+          monthly_limit?: number | null
+          plan_key: string
+          resource: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hourly_limit?: number | null
+          is_enabled?: boolean
+          label?: string
+          max_model_tier?: string | null
+          max_tokens_per_call?: number | null
+          monthly_limit?: number | null
+          plan_key?: string
+          resource?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_limits_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      plan_upgrade_requests: {
+        Row: {
+          created_at: string
+          from_plan_key: string | null
+          id: string
+          note: string | null
+          reason: string | null
+          resource: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_plan_key?: string | null
+          id?: string
+          note?: string | null
+          reason?: string | null
+          resource?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          from_plan_key?: string | null
+          id?: string
+          note?: string | null
+          reason?: string | null
+          resource?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      plans: {
+        Row: {
+          created_at: string
+          currency: string
+          daily_token_ceiling: number | null
+          description: string | null
+          external_price_id: string | null
+          is_active: boolean
+          is_default: boolean
+          key: string
+          marketing_features: Json
+          marketing_limitations: Json
+          max_model_tier: string
+          max_tokens_per_call: number
+          name: string
+          price_cents_monthly: number
+          price_cents_yearly: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          daily_token_ceiling?: number | null
+          description?: string | null
+          external_price_id?: string | null
+          is_active?: boolean
+          is_default?: boolean
+          key: string
+          marketing_features?: Json
+          marketing_limitations?: Json
+          max_model_tier?: string
+          max_tokens_per_call?: number
+          name: string
+          price_cents_monthly?: number
+          price_cents_yearly?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          daily_token_ceiling?: number | null
+          description?: string | null
+          external_price_id?: string | null
+          is_active?: boolean
+          is_default?: boolean
+          key?: string
+          marketing_features?: Json
+          marketing_limitations?: Json
+          max_model_tier?: string
+          max_tokens_per_call?: number
+          name?: string
+          price_cents_monthly?: number
+          price_cents_yearly?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          ai_persona: Json | null
+          avatar_url: string | null
+          bio: string | null
+          career_level: string | null
+          created_at: string
+          current_company: string | null
+          current_job_title: string | null
+          cv_standards: Json | null
+          desired_salary_currency: string | null
+          desired_salary_max: number | null
+          desired_salary_min: number | null
+          employment_status: string | null
+          full_name: string | null
+          headline: string | null
+          id: string
+          industry: string | null
+          job_change_timeline: string | null
+          location_city: string | null
+          location_country: string | null
+          onboarding_completed_at: string | null
+          onboarding_source: string | null
+          onboarding_started_at: string | null
+          phone: string | null
+          preferred_locations: string[] | null
+          profile_completed_at: string | null
+          search_terms: string[] | null
+          target_companies: string[] | null
+          target_job_titles: string[] | null
+          timezone: string | null
+          updated_at: string
+          work_arrangement: string[] | null
+          years_of_experience: string | null
+        }
+        Insert: {
+          ai_persona?: Json | null
+          avatar_url?: string | null
+          bio?: string | null
+          career_level?: string | null
+          created_at?: string
+          current_company?: string | null
+          current_job_title?: string | null
+          cv_standards?: Json | null
+          desired_salary_currency?: string | null
+          desired_salary_max?: number | null
+          desired_salary_min?: number | null
+          employment_status?: string | null
+          full_name?: string | null
+          headline?: string | null
+          id: string
+          industry?: string | null
+          job_change_timeline?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          onboarding_completed_at?: string | null
+          onboarding_source?: string | null
+          onboarding_started_at?: string | null
+          phone?: string | null
+          preferred_locations?: string[] | null
+          profile_completed_at?: string | null
+          search_terms?: string[] | null
+          target_companies?: string[] | null
+          target_job_titles?: string[] | null
+          timezone?: string | null
+          updated_at?: string
+          work_arrangement?: string[] | null
+          years_of_experience?: string | null
+        }
+        Update: {
+          ai_persona?: Json | null
+          avatar_url?: string | null
+          bio?: string | null
+          career_level?: string | null
+          created_at?: string
+          current_company?: string | null
+          current_job_title?: string | null
+          cv_standards?: Json | null
+          desired_salary_currency?: string | null
+          desired_salary_max?: number | null
+          desired_salary_min?: number | null
+          employment_status?: string | null
+          full_name?: string | null
+          headline?: string | null
+          id?: string
+          industry?: string | null
+          job_change_timeline?: string | null
+          location_city?: string | null
+          location_country?: string | null
+          onboarding_completed_at?: string | null
+          onboarding_source?: string | null
+          onboarding_started_at?: string | null
+          phone?: string | null
+          preferred_locations?: string[] | null
+          profile_completed_at?: string | null
+          search_terms?: string[] | null
+          target_companies?: string[] | null
+          target_job_titles?: string[] | null
+          timezone?: string | null
+          updated_at?: string
+          work_arrangement?: string[] | null
+          years_of_experience?: string | null
         }
         Relationships: []
       }
@@ -1574,6 +1662,63 @@ export type Database = {
         }
         Relationships: []
       }
+      token_usage_ledger: {
+        Row: {
+          attempt: number
+          completion_tokens: number
+          created_at: string
+          duration_ms: number | null
+          error_code: string | null
+          id: number
+          metadata: Json
+          model: string | null
+          model_tier: string | null
+          prompt_tokens: number
+          provider: string
+          request_id: string | null
+          resource: string
+          task: string | null
+          total_tokens: number
+          user_id: string | null
+        }
+        Insert: {
+          attempt?: number
+          completion_tokens?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          id?: number
+          metadata?: Json
+          model?: string | null
+          model_tier?: string | null
+          prompt_tokens?: number
+          provider?: string
+          request_id?: string | null
+          resource: string
+          task?: string | null
+          total_tokens?: number
+          user_id?: string | null
+        }
+        Update: {
+          attempt?: number
+          completion_tokens?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_code?: string | null
+          id?: number
+          metadata?: Json
+          model?: string | null
+          model_tier?: string | null
+          prompt_tokens?: number
+          provider?: string
+          request_id?: string | null
+          resource?: string
+          task?: string | null
+          total_tokens?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_certifications: {
         Row: {
           created_at: string | null
@@ -1620,6 +1765,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_limit_overrides: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          granted_by: string | null
+          hourly_limit: number | null
+          is_enabled: boolean | null
+          monthly_limit: number | null
+          reason: string | null
+          resource: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          hourly_limit?: number | null
+          is_enabled?: boolean | null
+          monthly_limit?: number | null
+          reason?: string | null
+          resource: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          granted_by?: string | null
+          hourly_limit?: number | null
+          is_enabled?: boolean | null
+          monthly_limit?: number | null
+          reason?: string | null
+          resource?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_milestones: {
         Row: {
@@ -1948,6 +2132,125 @@ export type Database = {
           },
         ]
       }
+      user_subscription_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          from_plan_key: string | null
+          from_status: string | null
+          id: string
+          note: string | null
+          payload: Json | null
+          provider_event_id: string | null
+          source: string
+          to_plan_key: string
+          to_status: string
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          from_plan_key?: string | null
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          payload?: Json | null
+          provider_event_id?: string | null
+          source: string
+          to_plan_key: string
+          to_status: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          from_plan_key?: string | null
+          from_status?: string | null
+          id?: string
+          note?: string | null
+          payload?: Json | null
+          provider_event_id?: string | null
+          source?: string
+          to_plan_key?: string
+          to_status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          daily_token_ceiling_override: number | null
+          grant_note: string | null
+          granted_by: string | null
+          last_provider_event_id: string | null
+          metadata: Json
+          plan_key: string
+          provider: string | null
+          provider_customer_id: string | null
+          provider_price_id: string | null
+          provider_status: string | null
+          provider_subscription_id: string | null
+          source: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          daily_token_ceiling_override?: number | null
+          grant_note?: string | null
+          granted_by?: string | null
+          last_provider_event_id?: string | null
+          metadata?: Json
+          plan_key: string
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_price_id?: string | null
+          provider_status?: string | null
+          provider_subscription_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          daily_token_ceiling_override?: number | null
+          grant_note?: string | null
+          granted_by?: string | null
+          last_provider_event_id?: string | null
+          metadata?: Json
+          plan_key?: string
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_price_id?: string | null
+          provider_status?: string | null
+          provider_subscription_id?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       weekly_insights: {
         Row: {
           avg_score: number | null
@@ -2018,6 +2321,28 @@ export type Database = {
         Returns: number
       }
       clean_old_news_articles: { Args: never; Returns: undefined }
+      consume_anonymous_edge_quota: {
+        Args: {
+          p_limit: number
+          p_principal_hash: string
+          p_resource: string
+          p_window_minutes: number
+        }
+        Returns: number
+      }
+      consume_edge_function_quota: {
+        Args: {
+          p_limit: number
+          p_resource: string
+          p_user_id: string
+          p_window_minutes: number
+        }
+        Returns: number
+      }
+      consume_plan_quota: {
+        Args: { p_dry_run?: boolean; p_resource: string; p_user_id: string }
+        Returns: Json
+      }
       get_chat_prompt: {
         Args: { _focus_area?: string }
         Returns: {
@@ -2026,6 +2351,7 @@ export type Database = {
           system_prompt: string
         }[]
       }
+      get_plan_usage: { Args: { p_user_id: string }; Returns: Json }
       get_user_profile_complete: { Args: { p_user_id: string }; Returns: Json }
       has_role: {
         Args: {
@@ -2034,9 +2360,8 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_whitelisted_admin: { Args: { _user_id: string }; Returns: boolean }
       is_admin: { Args: { p_user_id: string }; Returns: boolean }
-      get_plan_usage: { Args: { p_user_id: string }; Returns: Json }
+      is_whitelisted_admin: { Args: { _user_id: string }; Returns: boolean }
       log_activity: {
         Args: {
           _action: string
@@ -2048,7 +2373,28 @@ export type Database = {
         }
         Returns: string
       }
+      onboarding_runs_in_last_24h: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       promote_to_admin: { Args: { _email: string }; Returns: boolean }
+      refund_plan_quota: {
+        Args: { p_resource: string; p_user_id: string }
+        Returns: undefined
+      }
+      resolve_plan_limits: {
+        Args: { p_resource: string; p_user_id: string }
+        Returns: {
+          daily_token_ceiling: number
+          hourly_limit: number
+          is_enabled: boolean
+          max_model_tier: string
+          max_tokens_per_call: number
+          monthly_limit: number
+          plan_key: string
+        }[]
+      }
+      tokens_used_today: { Args: { p_user_id: string }; Returns: number }
     }
     Enums: {
       app_role: "admin" | "user"
@@ -2067,12 +2413,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2096,11 +2442,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2121,11 +2467,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2146,11 +2492,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2163,11 +2509,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
