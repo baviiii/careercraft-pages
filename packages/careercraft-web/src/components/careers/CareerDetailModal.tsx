@@ -13,7 +13,7 @@ interface CareerDetailModalProps {
 }
 
 export function CareerDetailModal({ career, isOpen, onClose }: CareerDetailModalProps) {
-  const { chatQuery } = useRAGMetadata();
+  const { semanticSearch } = useRAGMetadata();
   const [insights, setInsights] = useState<string>("");
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [sources, setSources] = useState<any[]>([]);
@@ -43,8 +43,9 @@ export function CareerDetailModal({ career, isOpen, onClose }: CareerDetailModal
 
       console.log(`[CareerDetailModal] Querying insights for ${career.occupation}:`, query);
       
-      // Use chatQuery directly (same backend as CareerCoach, but isolated state)
-      chatQuery(query, null)
+      // One grounded rag.query answer for this career — not a conversation, so
+      // it does not go through the coach's agent.
+      semanticSearch(query, {}, { topK: 20 })
         .then((result) => {
           // Check if request was aborted
           if (abortControllerRef.current?.signal.aborted) {
@@ -54,8 +55,8 @@ export function CareerDetailModal({ career, isOpen, onClose }: CareerDetailModal
 
           console.log(`[CareerDetailModal] Received response:`, result);
           
-          if (result?.response) {
-            setInsights(result.response);
+          if (result?.answer) {
+            setInsights(result.answer);
           } else {
             console.warn(`[CareerDetailModal] No response in result:`, result);
             setInsights("No insights available. The system could not find relevant information about this career in the knowledge base.");
@@ -68,9 +69,10 @@ export function CareerDetailModal({ career, isOpen, onClose }: CareerDetailModal
               title: s.title || 'Unknown Document',
               documentId: s.documentId || '',
               pageNumber: s.pageNumber,
-              content: s.snippet || '',
+              content: s.content || '',
               url: s.url,
-              score: s.relevance,
+              // horus-rag already rescales to a 1–99 relevance percentage.
+              score: s.score,
             })));
           } else {
             console.warn(`[CareerDetailModal] No sources in result:`, result);
@@ -105,7 +107,7 @@ export function CareerDetailModal({ career, isOpen, onClose }: CareerDetailModal
         abortControllerRef.current.abort();
       }
     };
-  }, [isOpen, career, chatQuery]);
+  }, [isOpen, career, semanticSearch]);
 
   if (!career) return null;
 

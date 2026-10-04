@@ -21,8 +21,9 @@
 // Horus returns its own response shapes. The React app expects the shapes the
 // old Azure Functions returned (`{ answer, sources: [{ id, content, title,
 // documentId, pageNumber, url, score, category }] }`). Translating here — in
-// one file, on the server — means `useRAGMetadata`, `useEnterpriseRAG`,
-// `useAgenticRAG` and every component below them keep working untouched.
+// one file, on the server — means `useRAGMetadata` and every component below
+// it keep working untouched. (The Career Coach chat no longer comes through
+// here: it talks to the Horus agent via the coach-chat function.)
 // Putting the adapter in the frontend instead would smear it across a dozen
 // call sites and make the next backend change a rewrite.
 
@@ -119,7 +120,6 @@ type Op =
   | "pathway"
   | "skill-gap"
   | "traverse"
-  | "entity-lookup"
   | "metadata"
   | "budget-periods"
   | "budget-allocations"
@@ -166,7 +166,6 @@ const RequestSchema = z.object({
     "pathway",
     "skill-gap",
     "traverse",
-    "entity-lookup",
     "metadata",
     "budget-periods",
     "budget-allocations",
@@ -279,71 +278,6 @@ async function runCareersSearch(body: RequestBody): Promise<LegacySearchResult> 
   };
 }
 
-/**
- * Entity lookup for the agentic planner. The old `graph-query` action:'search'
- * returned bare `{ name, type }` rows; the careers endpoints return a whole
- * profile, so flatten the profile's edges back into that row shape.
- */
-async function runEntityLookup(body: RequestBody) {
-  const name = (body.entity ?? body.query ?? body.name ?? "").trim();
-  if (name.length < 2) return { data: [] };
-
-  // An occupation is the likelier intent for a careers product, so try it
-  // first and fall back to sector rather than asking the caller to know which.
-  const occupation = await horusQuery<HorusOccupationProfile>(
-    "careers.occupation",
-    { name },
-  ).catch((err) => {
-    if (err instanceof HorusNotFound) return null;
-    throw err;
-  });
-
-  if (occupation) {
-    return {
-      data: [
-        {
-          name: occupation.occupation.name,
-          type: "occupation",
-          matchedBy: occupation.occupation.matchedBy,
-          coverage: occupation.coverage,
-          description:
-            occupation.skills
-              .slice(0, 5)
-              .map((s) => s.name)
-              .join(", ") || undefined,
-        },
-        ...occupation.skills.map((s) => ({ ...s, relation: "requires" })),
-        ...occupation.qualifications.map((q) => ({ ...q, relation: "leads_to" })),
-        ...occupation.employedBy.map((e) => ({ ...e, relation: "employs" })),
-      ],
-      documents: occupation.documents,
-    };
-  }
-
-  const sector = await horusQuery<HorusSectorProfile>("careers.sector", { name }).catch(
-    (err) => {
-      if (err instanceof HorusNotFound) return null;
-      throw err;
-    },
-  );
-  if (!sector) return { data: [] };
-
-  return {
-    data: [
-      {
-        name: sector.sector.name,
-        type: "sector",
-        matchedBy: sector.sector.matchedBy,
-        coverage: sector.coverage,
-      },
-      ...sector.occupations.map((o) => ({ ...o, relation: "employs" })),
-      ...sector.programs.map((p) => ({ ...p, relation: "supports" })),
-      ...sector.funding.map((f) => ({ ...f, relation: "funds" })),
-    ],
-    documents: sector.documents,
-  };
-}
-
 /** Graph neighbourhood — the replacement for action:'traverse'. */
 async function runTraverse(body: RequestBody) {
   const entity = (body.entity ?? body.query ?? "").trim();
@@ -368,7 +302,7 @@ async function runTraverse(body: RequestBody) {
       docCount: n.docCount ?? 0,
     })),
     // Edges carry the evidence sentences, which is what makes a graph answer
-    // auditable rather than a claim. The planner injects these as context.
+    // auditable rather than a claim.
     //
     // Horus returns endpoints as entity ids; resolve them to names here so the
     // consumer never has to hold the node table to read a relationship.
@@ -461,9 +395,6 @@ Deno.serve(
             });
             return json(result);
           }
-
-          case "entity-lookup":
-            return json(await runEntityLookup(body));
 
           case "traverse":
             return json(await runTraverse(body));

@@ -96,10 +96,10 @@ Pages are lazy-loaded, so they look unreferenced to a naive grep. They are not.
 | `pdfExport.ts` + `pdf/` (11) | react-pdf rendering. **Must mirror the HTML templates** |
 | `security/` (11) | Sanitisers, rate limiting, audit log |
 | `intelligence/` (2) | Snapshot cache, visualisation shaping |
-| `promptLoader.ts` | Loads AI prompts from the DB, falls back to a hardcoded one |
 | `personaTheme.ts` | Accent colour from the AI persona |
 | `postAuthDestination.ts` | Where a user lands after login, incl. guest-draft claim |
-| `quota.ts`, `conversationRouter.ts`, `careerFields.ts` | Limits, chat routing, field taxonomy |
+| `coachChat.ts` | The Career Coach's stream client — parses the agent's SSE frames |
+| `quota.ts`, `careerFields.ts` | Limits, field taxonomy |
 
 ### `hooks/` — the important ones
 
@@ -107,8 +107,8 @@ Pages are lazy-loaded, so they look unreferenced to a naive grep. They are not.
 |---|---|
 | `usePersonalization.ts` | **The match score lives here.** 8 signals, the similarity window, article scoring |
 | `useUserProfile.ts` | Profile CRUD and the canonical enums (`INDUSTRIES`, `CAREER_LEVELS`) |
-| `useRAGMetadata.ts` | All retrieval. **Horus only** — the Azure fallback was removed on purpose |
-| `useAgenticRAG.ts`, `useEnterpriseRAG.ts` | Chat retrieval modes |
+| `useRAGMetadata.ts` | One-shot retrieval (`semanticSearch`) for /intelligence and its siblings. **Horus only** — the Azure fallback was removed on purpose |
+| `useCoachChat.ts` | The Career Coach conversation: drives the Horus agent, turns its tool calls into the thinking ledger |
 | `useImpactQueries.ts` | Knowledge-graph impacts |
 
 ### `contexts/`
@@ -129,7 +129,8 @@ Every server-side call. None of them hold a model key except `parse-resume`.
 | `job-news` | 1,534 | AU jobs, news, market trends. Adzuna + JSearch | yes (trends) |
 | `ats-analyze` | 1,269 | The ATS check | **yes** |
 | `track-session` | 586 | Login/session telemetry, geo | — |
-| `horus-rag` | 526 | Retrieval for /intelligence and chat | **yes** |
+| `horus-rag` | ~470 | One-shot retrieval and graph/budget reads for /intelligence | **yes** |
+| `coach-chat` | ~230 | Career Coach: relays the Horus agent's stream (`/api/sdk/chat`), persona from `chat_prompts`, records spend | **yes** |
 | `parse-resume` | 438 | Résumé → structured data. **Only direct Azure call** | **yes** |
 | `onboard-analyze` | 386 | Résumé → profile, persona, targets, skills | **yes** |
 | `job-search` | 359 | Tracker's discovery feed. Adzuna, nothing stored | — |
@@ -156,7 +157,16 @@ browser  →  supabase edge function  →  Horus gateway (horus.bavi.au)  →  A
 ```
 
 **Everything** goes through Horus: parsing, onboarding, ATS, rewrites, cover
-letters, chat, the /intelligence corpus, and embeddings. There is no second
+letters, chat, the /intelligence corpus, and embeddings.
+
+Two doors for questions over the corpus, used for different things:
+
+- **Career Coach chat** → `coach-chat` → Horus agent (`/api/sdk/chat`). The
+  model picks its own tools (document search, graph lookup), keeps the
+  conversation, and streams tokens and tool steps. Persona comes from
+  `chat_prompts`, read server-side.
+- **One-shot questions** (/intelligence tabs, the career popup, /try cards) →
+  `horus-rag` op `search` → Horus `rag.query`: one search, one cited answer. There is no second
 retrieval path — the old Azure AI Search estate was removed deliberately, so
 an outage shows up as an outage instead of quietly answering from a stale
 index.

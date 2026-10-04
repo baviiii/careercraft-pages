@@ -140,7 +140,6 @@ type Op =
   | "pathway"
   | "skill-gap"
   | "traverse"
-  | "entity-lookup"
   | "metadata"
   | "budget-periods"
   | "budget-allocations"
@@ -198,11 +197,6 @@ export async function horusSemanticSearch(
     console.error("[horusSemanticSearch]", error);
     return { success: false, error };
   }
-}
-
-/** Entity resolution + its edges, flattened. Replaces graph-query action:'search'. */
-export function horusEntityLookup(entity: string): Promise<HorusGraphResult> {
-  return callHorus<HorusGraphResult>("entity-lookup", { entity });
 }
 
 /** Graph neighbourhood. Replaces graph-query action:'traverse'. */

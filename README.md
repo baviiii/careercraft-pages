@@ -30,7 +30,8 @@ npm run typecheck    # per-package tsc --noEmit
 
 Everything — résumé parsing, ATS scoring, rewrites, cover letters, the chat and the
 Intelligence corpus — goes through the **Horus** gateway (`horus.bavi.au`) via the
-`horus-rag` and `infer` edge functions. There is no second retrieval path: the old
+`coach-chat` (the Career Coach, on the Horus agent), `horus-rag` and `infer` edge
+functions. There is no second retrieval path: the old
 Azure AI Search / Azure Functions estate has been removed, on purpose, so an outage
 shows up as an outage instead of silently answering from a stale corpus.
 

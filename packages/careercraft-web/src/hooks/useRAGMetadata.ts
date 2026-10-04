@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { horusMetadata, horusSearch, isHorusRagEnabled } from "@/lib/horusKnowledge";
-import { getChatPrompt } from "@/lib/promptLoader";
 
 const queryCache = new Map<string, {
   data: unknown;
@@ -440,81 +439,6 @@ export function useRAGMetadata() {
     // stays stable too — but declare them rather than relying on that.
   }, [getStats, getCategories, getDocuments]);
 
-  // Chat-specific wrapper around semanticSearch
-  // Uses conversational system prompt instead of analytical HORUS prompts
-  const chatQuery = useCallback(async (
-    message: string,
-    sessionId?: string | null,
-    focusArea: string = 'careers'
-  ): Promise<{
-    response: string;
-    sources: Array<{
-      title: string;
-      documentId: string;
-      pageNumber?: number;
-      url?: string;
-      snippet: string;
-      relevance?: number;
-      category?: string;
-    }>;
-    sessionId: string;
-    tokens?: number;
-  } | null> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Load prompt from database (admin-configurable)
-      // Falls back to hardcoded prompt if database unavailable
-      const systemPrompt = await getChatPrompt(focusArea);
-      console.log(`[chatQuery] 📝 Using prompt for "${focusArea}" (first 100 chars):`, systemPrompt.substring(0, 100));
-
-      // Use semantic search with chat-optimized settings
-      const result = await semanticSearch(
-        message,
-        {
-          // Prioritize career-relevant content
-          category: undefined, // No filter - search all categories
-        },
-        {
-          topK: 20, // More sources for better chat context
-          timeAwareRanking: true,
-          systemPrompt: systemPrompt
-
-        }
-      );
-
-      if (!result) {
-        throw new Error("No response from semantic search");
-      }
-
-      // Format sources for chat UI
-      const formattedSources = result.sources.slice(0, 10).map(source => ({
-        title: source.title || source.documentId,
-        documentId: source.documentId,
-        pageNumber: source.pageNumber,
-        url: source.url,
-        snippet: source.content?.substring(0, 200) || "",
-        relevance: source.score ? Math.round(source.score * 100) : undefined,
-        category: source.category,
-      }));
-
-      return {
-        response: result.answer,
-        sources: formattedSources,
-        sessionId: sessionId || crypto.randomUUID(),
-        tokens: undefined, // Could track if needed
-      };
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to process chat query";
-      setError(errorMessage);
-      console.error("Chat query error:", errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [semanticSearch]);
-
   return {
     loading,
     error,
@@ -524,6 +448,5 @@ export function useRAGMetadata() {
     searchDocuments,
     semanticSearch,
     getBulk,
-    chatQuery, // NEW: Chat-optimized query method
   };
 }
