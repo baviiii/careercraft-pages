@@ -80,6 +80,18 @@ function toolLabel(name: string): string {
 
 const WRITE_STEP = "write";
 
+/**
+ * The citations an answer refers to, in the order they are numbered.
+ * Handles "[3]", "[3][5]" and "[3, 5]".
+ */
+function citedOnly(answer: string, citations: CoachSource[]): CoachSource[] {
+  const cited = new Set<number>();
+  for (const group of answer.matchAll(/\[(\d+(?:\s*,\s*\d+)*)\]/g)) {
+    for (const n of group[1].split(",")) cited.add(Number(n.trim()));
+  }
+  return citations.filter((c) => cited.has(c.n));
+}
+
 export function useCoachChat(focusArea: string, personaName?: string) {
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -207,6 +219,9 @@ export function useCoachChat(focusArea: string, personaName?: string) {
 
         for (const step of trace) if (step.status === "active") close(step);
         const empty = answer.trim().length === 0;
+        // Horus returns every passage the agent read; keep the ones the
+        // answer actually cites, so "N sources cited" means what it says.
+        sources = citedOnly(answer, sources);
         patch(assistantId, (m) => ({
           ...m,
           isLoading: false,
