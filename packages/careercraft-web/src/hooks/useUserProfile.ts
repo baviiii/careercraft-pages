@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { bandToLevel, ensureSkillTags, skillNameKey } from '@/lib/skills';
 
 // AI-derived persona from the onboarding analysis
 export interface AIPersona {
@@ -236,19 +237,6 @@ export function useUserProfile() {
   const [completeness, setCompleteness] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const resolveSkillIdByName = useCallback(async (name: string): Promise<string | null> => {
-    const trimmed = name.trim();
-    if (!trimmed) return null;
-    const { data, error } = await supabase
-      .from('skill_tags')
-      .select('id')
-      .ilike('name', trimmed)
-      .limit(1)
-      .maybeSingle();
-    if (error) throw error;
-    return data?.id ?? null;
-  }, []);
-
   // Fetch complete profile
   const fetchProfile = useCallback(async () => {
     try {
@@ -447,13 +435,17 @@ export function useUserProfile() {
       const incomingSkillName = typeof (skill as any).skill_name === 'string'
         ? (skill as any).skill_name
         : '';
+      // Any skill name works: ensure_skill_tags adds it to the shared dictionary
+      // if it's new. This used to reject anything not already listed.
       const resolvedSkillId = incomingSkillId
-        || (incomingSkillName ? await resolveSkillIdByName(incomingSkillName) : null);
+        || (incomingSkillName
+          ? (await ensureSkillTags([incomingSkillName], [skill.category])).get(skillNameKey(incomingSkillName))
+          : undefined);
 
       if (!resolvedSkillId) {
         toast({
-          title: 'Unknown skill',
-          description: 'Please select a skill from the existing list.',
+          title: 'Enter a skill name',
+          description: 'Skill names can be up to 60 characters.',
           variant: 'destructive',
         });
         return null;
@@ -465,7 +457,9 @@ export function useUserProfile() {
           user_id: userId,
           skill_id: resolvedSkillId,
           proficiency: skill.proficiency,
-          proficiency_level: skill.proficiency_level,
+          // The coach reads the number; left at its default 0, a self-reported
+          // "advanced" skill read as the weakest possible.
+          proficiency_level: skill.proficiency_level ?? bandToLevel(skill.proficiency),
           category: skill.category,
           years_experience: skill.years_experience,
           is_primary: skill.is_primary,
@@ -510,19 +504,24 @@ export function useUserProfile() {
       }
       return null;
     }
-  }, [userId, toast, resolveSkillIdByName]);
+  }, [userId, toast]);
 
   // Update skill
   const updateSkill = useCallback(async (skillId: string, updates: Partial<UserSkill>) => {
     try {
+      // A level the learner sets themselves replaces the number the coach reads.
+      const withLevel =
+        updates.proficiency !== undefined && updates.proficiency_level === undefined
+          ? { ...updates, proficiency_level: bandToLevel(updates.proficiency) }
+          : updates;
       const { error } = await supabase
         .from('user_skills')
-        .update(updates)
+        .update(withLevel)
         .eq('id', skillId);
 
       if (error) throw error;
 
-      setSkills(prev => prev.map(s => s.id === skillId ? { ...s, ...updates } : s));
+      setSkills(prev => prev.map(s => s.id === skillId ? { ...s, ...withLevel } : s));
       
       return true;
     } catch (error) {

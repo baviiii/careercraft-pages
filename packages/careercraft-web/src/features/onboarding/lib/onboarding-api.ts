@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
+import { bandToLevel, ensureSkillTags, skillNameKey } from '@/lib/skills';
 import {
   describeNormalizationLoss,
   normalizeAnalysis,
@@ -329,47 +330,29 @@ async function applySkills(userId: string, analysis: OnboardingAnalysis): Promis
   );
   if (!uniqueNames.length) return;
 
-  const { data: existingTags, error: tagError } = await supabase
-    .from('skill_tags')
-    .select('id,name')
-    .in('name', uniqueNames);
-  if (tagError) throw tagError;
+  // One call resolves every name and adds the new ones. Users can't write
+  // skill_tags directly, so the old direct upsert failed on any unfamiliar
+  // skill — and took the whole skills save down with it.
+  const categoryByName = new Map(
+    analysis.skills.slice(0, 20).map((s) => [skillNameKey(s.name), normalizeSkillCategory(s.category)]),
+  );
+  const idByName = await ensureSkillTags(
+    uniqueNames,
+    uniqueNames.map((n) => categoryByName.get(skillNameKey(n)) ?? null),
+  );
 
-  const existingByLower = new Map((existingTags || []).map((t) => [t.name.toLowerCase(), t]));
-  const missingNames = uniqueNames.filter((n) => !existingByLower.has(n.toLowerCase()));
-
-  if (missingNames.length) {
-    const categoryByName = new Map(
-      analysis.skills
-        .slice(0, 20)
-        .map((s) => [s.name.trim().toLowerCase(), normalizeSkillCategory(s.category)]),
-    );
-    const rows = missingNames.map((name) => ({
-      name,
-      category: categoryByName.get(name.toLowerCase()) || 'domain',
-    }));
-    const { error: insertTagError } = await supabase
-      .from('skill_tags')
-      .upsert(rows, { onConflict: 'name' });
-    if (insertTagError) throw insertTagError;
-  }
-
-  const { data: allTags, error: allTagsError } = await supabase
-    .from('skill_tags')
-    .select('id,name')
-    .in('name', uniqueNames);
-  if (allTagsError) throw allTagsError;
-
-  const idByName = new Map((allTags || []).map((t) => [t.name.toLowerCase(), t.id]));
   const skillRows = analysis.skills
     .slice(0, 20)
     .map((s, index) => {
-      const skillId = idByName.get(s.name.trim().toLowerCase());
+      const skillId = idByName.get(skillNameKey(s.name));
       if (!skillId) return null;
+      const proficiency = normalizeProficiency(s.proficiency);
       return {
         user_id: userId,
         skill_id: skillId,
-        proficiency: normalizeProficiency(s.proficiency),
+        proficiency,
+        // The coach reads the number; without it every skill read as 0/100.
+        proficiency_level: bandToLevel(proficiency),
         category: normalizeSkillCategory(s.category),
         years_experience: s.years_experience,
         // The model orders skills by relevance — surface the top ones as
