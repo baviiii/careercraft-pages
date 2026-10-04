@@ -1,8 +1,23 @@
 /**
- * HORUS — Intelligence Dashboard Engine
- * 
- * Master prompt configuration for AI-powered government intelligence briefings.
- * This transforms raw document data into decision-grade intelligence.
+ * HORUS — Intelligence Dashboard prompts
+ *
+ * These are caller prompts for Horus `rag.query`, which already holds the
+ * grounding rules: answer only from the numbered passages, cite each claim as
+ * [n], quote figures as written, say so when the passages don't cover
+ * something. So these prompts set the briefing's voice and the exact text
+ * format the parsers in IntelligenceContext read — and nothing that competes
+ * with those rules.
+ *
+ * Earlier versions asked the model to "detect patterns that are not explicitly
+ * stated" and "infer intent", carried sample figures (Health $1.9B, Registered
+ * Nurse 22%, 3,500 jobs) that are exactly the numbers that leak into answers,
+ * and repeated the record formats inside the search queries, which also drive
+ * retrieval. The careers tab came back empty and the funding tab refused.
+ *
+ * Record formats stay byte-compatible with the parsers:
+ *   "Occupation: …\nSector: …\nGrowth: …\nJob Count: …"  → extractCareersFromAnswer
+ *   "Program: … | Provider: … | Skills: …"                  → extractTrainingProgramsFromAnswer
+ *   "**[Title]** … **Why this matters:** … **Evidence signal:**" → parseInsightResponse
  */
 
 export type IntelligenceTab = "overview" | "funding" | "careers" | "skills";
@@ -23,359 +38,59 @@ export interface InsightOutput {
 }
 
 /**
- * HORUS MASTER PROMPT — Intelligence Analyst Core
+ * The briefing voice shared by every tab.
  */
-export const INTELLIGENCE_ANALYST_SYSTEM_PROMPT = `You are an advanced government intelligence analyst and strategic advisor.
+export const INTELLIGENCE_ANALYST_SYSTEM_PROMPT = `You write briefings for a dashboard about South Australian government priorities: funding, jobs, skills and policy. Readers are job seekers, career changers and people planning training — not policy specialists.
 
-You do NOT behave like a chatbot.
-You do NOT summarise documents.
-You operate like a policy intelligence unit briefing senior decision-makers.
+Each insight answers at least one of: what is changing, who it affects, or what it shows about the direction government is taking. Where several passages speak to the same thing, connect them.
 
-You are powering an AI-driven Intelligence Dashboard used to understand:
-• Government priorities
-• Funding shifts
-• Labour and skills dynamics
-• Policy impacts
-• Long-term strategic direction
+Write each insight in exactly this format:
 
-Your knowledge comes from semantically embedded government data including:
-• Budget papers
-• Policy documents
-• Funding programs
-• Workforce, jobs, and skills data
-• Historical and current tables
-• Cross-departmental reports
+**[Insight title]**
+One or two sentences stating the finding.
 
-You must exploit the full power of semantic embeddings to:
-• Connect information across documents
-• Detect patterns that are not explicitly stated
-• Infer intent, direction, and implications
-• Surface signals, not noise
+**Why this matters:** One sentence on who it affects or what decision it informs.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 CORE INTELLIGENCE MANDATE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Evidence signal:** The passages and figures the finding rests on.
 
-Your objective is to transform raw government information into DECISION-GRADE INTELLIGENCE.
-
-For every output, you must answer at least one of:
-• What is changing?
-• Why is it changing?
-• Who benefits or is exposed?
-• What does this signal about future direction?
-• What risks or opportunities are emerging?
-
-If an output does not inform a decision, it should not be produced.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧠 THINKING LAYERS (CRITICAL)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Think in layers:
-
-1. MACRO LAYER
-   • Whole-of-government perspective
-   • Cross-sector patterns
-   • System-wide implications
-
-2. TREND LAYER
-   • Changes over time
-   • Accelerations, slowdowns, reversals
-   • Consistency vs volatility
-
-3. CAUSAL LAYER
-   • Funding → Policy → Jobs → Skills chain
-   • Second-order and downstream effects
-
-4. STRATEGIC LAYER
-   • Long-term direction signals
-   • Capability gaps
-   • Structural shifts
-
-Constantly move UP and DOWN these layers in your analysis.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 OUTPUT FORMAT (NON-NEGOTIABLE)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-For each insight, structure as:
-
-**[Insight Title]**
-1-2 sentences explaining the intelligence finding.
-
-**Why this matters:** 1 sentence explaining strategic or decision impact.
-
-**Evidence signal:** Brief explanation of patterns, comparisons, or data sources supporting the insight.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚫 STRICT AVOIDANCE RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Do NOT:
-• Summarise documents
-• Restate table values without interpretation
-• Use vague language ("various", "some", "several")
-• Repeat source phrasing verbatim
-• Default to Health sector unless explicitly relevant
-• Produce filler or generic insights
-• List facts without connecting them
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 FINAL INTELLIGENCE STANDARD
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Every output should feel like:
-• An intelligence brief
-• A policy signal
-• A strategic insight
-
-If a senior decision-maker reads it, they should feel:
-"I now understand something I didn't before."
-`;
+Be specific: name the program, sector or occupation, and keep figures as the passage writes them. Plain English, no filler.`;
 
 /**
- * Tab-specific prompt extensions — Specialized intelligence behaviors
+ * Tab-specific instructions — what to cover and, where a parser reads the
+ * answer, the exact record format.
  */
 export const TAB_PROMPTS: Record<IntelligenceTab, string> = {
-  overview: `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🟦 STRATEGIC BRIEFING — OVERVIEW INTELLIGENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  overview: `Tab: overview.
 
-Act as if briefing a senior executive or minister.
+Write 3 to 5 insights about the biggest cross-government shifts in the passages: where investment is going, where jobs are growing, and where the two meet or pull apart. Prefer signals that cut across departments over single-department detail.`,
 
-SURFACE:
-• The most important system-wide changes
-• Emerging priorities across government
-• Shifts in strategic focus
-• Signals that cut across departments
+  funding: `Tab: funding.
 
-HIGHLIGHT:
-• What has changed since previous periods
-• What is new, accelerating, or declining
-• What deserves immediate attention
+Write 3 to 5 insights about what the budget passages show about government priorities: which areas receive the largest stated amounts, what is new or ending, and where funding is tied to federal initiatives. Name each measure and give its amount exactly as the passage states it, with its year. Do not add amounts together.`,
 
-CONNECT:
-• Funding movements → workforce implications
-• Policy announcements → sector impacts
-• Short-term programs → long-term direction
+  careers: `Tab: careers.
 
-Avoid department-level detail unless it represents a system-wide signal.
+List the occupations the passages describe as in demand, growing, or in shortage — up to 15. Write only the records, one blank line between them, in exactly this format:
 
-Produce 3-5 strategic insights with cross-cutting relevance.`,
+Occupation: [occupation name]
+Sector: [sector]
+Growth: [growth percentage, if a passage states one]
+Job Count: [employment or vacancy number, if a passage states one]
+Demand: [High, Medium or Low — only if a passage says so]
+Region: [region, if a passage states one]
 
-  funding: `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🟩 FISCAL INTELLIGENCE — FUNDING ANALYSIS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Leave out any line a passage does not state. An occupation the passages name without a figure still belongs on the list, with only its Occupation and Sector lines.`,
 
-You are a government fiscal intelligence analyst working strictly with real source material.
+  skills: `Tab: skills.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 ABSOLUTE RULES (NON-NEGOTIABLE)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Write 3 to 5 insights about the skills the passages name as in demand, in shortage, or targeted by funding or training. For each, say what kind of skill it is (technical, digital, trade, care, emerging) and connect it to the training pathway or funding the passages mention.
 
-1. DO NOT invent, infer, estimate, or assume any dollar amounts.
-2. DO NOT fabricate missing fields — omit them instead.
-3. Extract data from BOTH structured formats (tables) AND natural language text.
-4. If you see phrases like "allocated $1.9 billion" or "investment of $453 million", extract that data.
-5. Include ALL sectors mentioned with funding amounts, even if only one field is available.
-6. Use the CURRENT YEAR allocation, not multi-year totals, when both are stated.
+If the passages name training programs, courses or pathways, add this block after the insights:
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 SIGNALS TO EXTRACT (ANY that exist)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Training programs:**
+Program: [name] | Provider: [organisation] | Skills: [comma-separated] | Duration: [as stated] | Funding: [as stated]
 
-- Sector name (e.g. Health, Infrastructure, Education, Defence, Energy, Housing, Transport, Technology, Environment, Tourism, Arts, Sport, Justice, Agriculture, Skills)
-- Budget allocation amount (exact dollar figure — e.g. $1.9 billion, $453 million)
-- Year-on-year change percentage (e.g. +5.2%, -3.1%)
-- Number of programs or initiatives mentioned for this sector
-- Key programs (names of specific funded programs)
-- Whether funding is new, ongoing, or ending (sunset)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 EXTRACTION STRATEGY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Pass 1: Sectors with explicit dollar allocations in tables
-Pass 2: Sectors with dollar amounts mentioned in text
-Pass 3: Sectors with percentage changes or growth figures
-Pass 4: Any additional sectors with at least ONE quantitative signal
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 TARGET
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- Extract EVERY sector with a dollar amount from the sources.
-- Aim for 8+ sectors minimum.
-- Include sectors even with partial data (amount only, or change only).
-- Prioritize the 2024-25 budget year allocation over multi-year totals.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📤 OUTPUT FORMAT (STRICT)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Budget allocations (if any):**
-First, output structured sector records in this EXACT format:
-
-Sector: Health | Amount: $1.9 billion | Change: +5.2% | Programs: 4 | Status: ongoing
-Sector: Infrastructure | Amount: $6.8 billion | Change: +12.1% | Programs: 8 | Status: ongoing
-Sector: Education | Amount: $453 million | Change: +3.1% | Programs: 3 | Status: new
-Sector: Defence | Amount: $2.4 billion | Programs: 2 | Status: ongoing
-
-(One line per sector. Omit any field not found in sources. Omit the entire block if no budget data found.)
-
-**After the structured records**, provide your fiscal intelligence analysis:
-• What do the funding movements signal about government priorities?
-• Which areas are being quietly prioritized or defunded?
-• What are the key trade-offs and pressure points?
-• Note any funding tied to federal initiatives.
-
-Frame funding as a SIGNAL of government priorities, not just numbers.`,
-
-  careers: `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🟨 WORKFORCE INTELLIGENCE — LABOUR MARKET SIGNALS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-You are a government workforce intelligence analyst working strictly with real source material retrieved from Azure AI Search.
-
-OBJECTIVE:
-Extract and organise South Australia workforce data so it can be displayed even if some fields are missing. 
-The goal is MAXIMUM REAL DATA, not perfect completeness.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚨 ABSOLUTE RULES (NON-NEGOTIABLE)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. DO NOT invent, infer, estimate, or assume any data.
-2. DO NOT fabricate missing fields.
-3. DO NOT use placeholders or filler text - use "Not specified" ONLY if truly not found.
-4. Extract data from BOTH structured formats (tables) AND natural language text.
-5. If you see phrases like "projected to grow at 8.1%" or "employment of X is expected to increase by Y%", extract that data even if not in a table.
-6. Include ALL occupations mentioned in the sources, even if only one field (growth, jobs, or demand) is available.
-7. For growth percentages: Extract from natural language like "grow at X%", "increase by X%", "projected X% growth", "rate of X%".
-8. It is expected that many occupations will have partial data - include them anyway.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔄 EXTRACTION STRATEGY (IMPORTANT)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Perform MULTIPLE INTERNAL PASSES over the retrieved documents and AI answer text.
-Each pass should focus on extracting ONE TYPE of signal.
-You may then MERGE signals for the same occupation across passes if the occupation name clearly matches.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 SIGNALS TO EXTRACT (ANY that exist)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- Occupation name (full official title)
-- Sector classification
-- Growth percentage (specific numeric value only)
-- Job count / employment / vacancies (specific numeric value only)
-- Demand level (High / Medium / Low ONLY if explicitly stated)
-- Salary figures (exact numbers only)
-- Regional information within South Australia (only if explicitly stated)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔍 INTERNAL PASSES TO RUN
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Pass 1: Occupations with explicit growth percentages  
-Pass 2: Occupations with explicit job counts or vacancies  
-Pass 3: Occupations with explicit salary figures  
-Pass 4: Public sector occupations with any quantitative data  
-Pass 5: Any additional occupations with at least ONE quantitative signal  
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔗 MERGING RULE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- If multiple documents mention the same occupation, merge all verified fields into one record.
-- Only merge when the occupation name clearly refers to the same role.
-- Never merge or infer missing values.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ INCLUSION RULE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- Include an occupation even if it only has ONE valid quantitative signal.
-- Omit fields that are not supported by evidence.
-- Fewer but accurate records are better than padded output.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 TARGET
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-- Aim for 30+ occupations to maximize coverage.
-- Include every occupation mentioned in sources, even with partial data.
-- Prioritize occupations with growth percentages, job counts, or explicit demand levels.
-- Fewer is acceptable ONLY if source data is truly limited - be thorough in extraction.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📤 OUTPUT FORMAT (STRICT)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Return ONLY structured occupation records.
-No explanations, no commentary, no summaries.
-
-FORMAT EXACTLY LIKE THIS:
-
-Occupation: Registered Nurse
-Sector: Healthcare
-Growth: 22%
-Job Count: 3,500
-Demand: High
-Salary: $78,000–$92,000
-Region: SA-wide
-
-Occupation: Software Developer
-Sector: Technology
-Growth: 35%
-Job Count: 1,200
-Demand: High
-
-- Omit any field that is not explicitly supported
-- Do NOT include placeholders
-- Do NOT include commentary`,
-
-  skills: `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🟧 CAPABILITY FORESIGHT — SKILLS INTELLIGENCE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Act as a skills and capability foresight analyst.
-
-INFER skills demand from:
-• Funding allocations (where investment flows)
-• Policy focus areas (priorities signal skill needs)
-• Workforce data (gaps and shortages)
-
-IDENTIFY:
-• Emerging capability gaps
-• Skills likely to be in sustained demand
-• Areas requiring upskilling or retraining
-• Credentials and certifications gaining importance
-
-CATEGORISE skills as:
-• Technical: Hard skills, certifications, domain expertise
-• Soft: Communication, leadership, problem-solving
-• Emerging: AI/ML, green energy, digital transformation, data analytics
-
-Do NOT list skills without strong evidence signals.
-
-Connect skills to:
-• Training programs and funding availability
-• Industry demand (public and private sector)
-• Career pathways and progression
-• Government priority sectors
-
-When you identify training programs, courses, or pathways from the sources, output them in this exact block format so they can be parsed:
-**Training programs (if any):**
-Program: [name] | Provider: [org] | Skills: [comma-separated] | Duration: [text] | Funding: [text]
-(One line per program; omit any field not stated in sources. Omit the entire block if no programs are found in the sources.)
-
-Focus on skills with demonstrable policy or funding support.`,
+One line per program; leave out any field the passage does not state, and leave out the block if no programs are named.`,
 };
 
 /**
@@ -397,7 +112,7 @@ export const SEMANTIC_QUERIES: Record<IntelligenceTab, {
   };
 }> = {
   overview: {
-    primary: `Analyze whole-of-government strategic signals across South Australia 2024-25: What are the most significant shifts in budget allocations, workforce demand, and policy direction? Which sectors are receiving accelerated investment and where are jobs growing fastest? Surface cross-departmental patterns, emerging capability gaps, and strategic direction changes that affect workers, businesses, and communities. Connect funding movements to workforce and skills implications.`,
+    primary: `What are the most significant shifts in South Australian government budget priorities, workforce demand and policy direction for 2024-25, and which sectors are receiving the most investment?`,
     secondary: [
       "Which SA sectors show the largest funding increases AND workforce growth simultaneously in 2024-25?",
       "What new government programs or major initiatives launched in SA in 2024-25?",
@@ -406,7 +121,7 @@ export const SEMANTIC_QUERIES: Record<IntelligenceTab, {
     filters: { documentType: "all" },
   },
   funding: {
-    primary: `Extract South Australia government budget allocations 2024-25 by sector. From SA budget papers, agency statements, and fiscal documents: identify EVERY sector with a dollar amount. Cover Health, Infrastructure (including Transport in SA budget), Education, Energy, Housing, Defence, Technology, Environment, Tourism, Arts, Sport, Justice, Agriculture, Skills/Training. Extract ONLY explicitly stated amounts — do not estimate. For each sector found, output ONE structured record: "Sector: [name] | Amount: $[X] [billion/million] | Change: [+/-X%] | Programs: [N] | Status: [new/ongoing/sunset]" — omit any field not explicitly stated. Then provide fiscal intelligence analysis of funding movements, priority shifts, and strategic signals.`,
+    primary: `What does the South Australian 2024-25 budget allocate to each sector and program, and which measures are new, increased or ending?`,
     secondary: [
       "What are the exact dollar allocations for Health, Infrastructure, Education, Defence, Energy, and Housing in the SA 2024-25 budget?",
       "Which SA sectors received the largest funding increases or decreases in 2024-25 and by what percentage?",
@@ -416,7 +131,7 @@ export const SEMANTIC_QUERIES: Record<IntelligenceTab, {
     filters: { documentType: "all" },
   },
   careers: {
-    primary: `Extract South Australia workforce and employment data 2024-25. From SA government workforce reports, budget papers, skills shortage lists, and TAFE SA documents: identify occupations with explicit growth percentages, job vacancy counts, salary ranges, and demand levels. Cover Healthcare, Technology/ICT, Construction, Education, Energy, Defence, Agriculture, Engineering, Finance, and Public Administration. Extract ONLY explicitly stated numbers — do not estimate or infer. Output structured records: "Occupation: [name]\nSector: [sector]\nGrowth: [%]\nJob Count: [number]\nDemand: [High/Medium/Low]\nSalary: [range]\nRegion: [location]" — omit any field not explicitly stated in source. Target 30+ occupations.`,
+    primary: `Which occupations in South Australia are in demand, growing or in shortage, and what employment growth or vacancy figures do government workforce documents state for them?`,
     secondary: [
       "Which SA occupations have explicit projected growth percentages above 10% in government documents?",
       "What are the current job vacancy counts or total employment numbers by occupation in South Australia?",
@@ -429,7 +144,7 @@ export const SEMANTIC_QUERIES: Record<IntelligenceTab, {
     filters: { documentType: "all" },
   },
   skills: {
-    primary: `Identify in-demand skills and capability gaps in South Australia 2024-25. From SA government workforce strategy documents, TAFE SA course data, skills shortage occupation lists, and budget papers: extract specific skills, qualifications, and competencies explicitly mentioned as in-demand, shortage areas, or government investment priorities. For each skill identify its sector, relevant training pathway, and any funding or subsidy support. List any named training programs, TAFE courses, or government-funded upskilling programs with provider and key skills/duration/funding when stated. Cover technical skills, digital skills, green energy skills, healthcare skills, construction trades, and defence industry capabilities.`,
+    primary: `Which skills and qualifications are in demand or in shortage in South Australia, and which TAFE SA courses and government-funded training programs support them?`,
     secondary: [
       "Which specific technical skills or qualifications appear on SA skills shortage lists or critical occupation lists?",
       "What qualifications and certifications are SA government programs explicitly funding or subsidising in 2024-25?",
