@@ -58,7 +58,7 @@ export interface BudgetIntelligence {
  * handful of figures, which makes for a thin first impression. The best-covered
  * year is the one the documents actually say the most about.
  */
-function defaultPeriod(periods: HorusBudgetPeriod[]): string | null {
+export function defaultPeriod(periods: HorusBudgetPeriod[]): string | null {
   if (periods.length === 0) return null;
   return periods.reduce((best, p) => (p.measures > best.measures ? p : best)).period;
 }

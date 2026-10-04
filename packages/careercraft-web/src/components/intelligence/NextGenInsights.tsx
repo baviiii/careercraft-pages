@@ -38,6 +38,7 @@ import { useIntelligence } from "@/contexts/IntelligenceContext";
 import { useImpactQueries } from "@/hooks/useImpactQueries";
 import { detectImpactAnomalies, type Anomaly } from "@/lib/impactAnomalyDetection";
 import { IntelligenceState } from "./IntelligenceState";
+import { formatChange, formatMillions } from "@/lib/intelligence/funding";
 
 // ============================================================================
 // DATA STORY - Narrative-driven insights
@@ -82,28 +83,35 @@ export function DataStoriesPanel() {
          worse than either being absent. */
       const byAmount = [...fundingAllocations].sort((a, b) => b.amount - a.amount);
       const top = byAmount[0];
-      const totalBudget = byAmount.reduce((s, a) => s + a.amount, 0);
-      const share = totalBudget > 0 ? ((top.amount / totalBudget) * 100).toFixed(1) : "0";
+      // No total and no "share of total": entries are single budget measures,
+      // and a sum of them is a number no document states.
       const second = byAmount[1];
+      const changeLine =
+        top.change == null
+          ? ""
+          : top.change > 0
+            ? ` The papers state a ${formatChange(top.change)} change on last year.`
+            : top.change < 0
+              ? ` The papers state a ${formatChange(top.change)} change on last year.`
+              : "";
 
       generated.push({
         id: `funding-${top.sector}`,
-        title: `💰 ${top.sector}: $${(top.amount / 1000).toFixed(1)}B Budget Priority`,
-        narrative: `${top.sector} receives the largest share at ${share}% of total funding across ${top.programs} programs. ${top.change > 0 ? `With a ${top.change.toFixed(1)}% year-over-year increase, momentum is strong.` : top.change < 0 ? `However, funding decreased ${Math.abs(top.change).toFixed(1)}% from last year.` : 'Funding remains stable year-over-year.'} ${second ? `${second.sector} follows with $${(second.amount / 1000).toFixed(1)}B.` : ''}`,
-        impact: top.change > 10 ? "critical" : top.change > 0 ? "high" : "medium",
+        title: `${top.sector}: ${formatMillions(top.amount)}`,
+        narrative: `${top.sector} is the largest stated measure in the budget figures, at ${formatMillions(top.amount)}${top.period ? ` for ${top.period}` : ""}.${changeLine}${second ? ` Next is ${second.sector} at ${formatMillions(second.amount)}.` : ""}`,
+        impact: "medium",
         dataPoints: [
-          { label: "Total Allocation", value: `$${(top.amount / 1000).toFixed(1)}B`, trend: top.change > 0 ? "up" : top.change < 0 ? "down" : "stable", change: top.change },
-          { label: "Budget Share", value: `${share}%`, trend: "stable" },
-          { label: "Programs", value: `${top.programs}`, trend: "up" },
-          { label: "YoY Change", value: `${top.change > 0 ? '+' : ''}${top.change.toFixed(1)}%`, trend: top.change > 0 ? "up" : top.change < 0 ? "down" : "stable", change: top.change },
+          { label: "Stated amount", value: formatMillions(top.amount), trend: "stable" },
+          { label: "Budget year", value: top.period ?? "—", trend: "stable" },
+          { label: "Amount in quote", value: top.confidence === "high" ? "Yes" : "No", trend: "stable" },
+          { label: "YoY Change", value: formatChange(top.change), trend: top.change == null ? "stable" : top.change > 0 ? "up" : top.change < 0 ? "down" : "stable", change: top.change },
         ],
         deepDive: {
           question: `What's driving ${top.sector} investment?`,
           insights: [
-            `${top.sector} has ${top.programs} active government programs`,
-            `Confidence level: ${top.confidence}`,
-            ...(second ? [`${second.sector} is the second largest sector at $${(second.amount / 1000).toFixed(1)}B`] : []),
-            `Total government budget across all sectors: $${(totalBudget / 1000).toFixed(1)}B`,
+            ...(top.evidence ? [`The document says: “${top.evidence.slice(0, 200)}${top.evidence.length > 200 ? "…" : ""}”`] : []),
+            `Source: ${top.sources[0]?.title ?? "SA budget papers"}`,
+            ...(second ? [`Next largest: ${second.sector} at ${formatMillions(second.amount)}`] : []),
           ],
         },
         conversationStarters: [
@@ -460,12 +468,12 @@ export function LiveDiscoveryFeed() {
         const byAmount = [...fundingAllocations].sort((a, b) => b.amount - a.amount);
         const top = byAmount[0];
         const second = byAmount[1];
-        if (top.change > 5 || top.change < -5) {
+        if (top.change != null && (top.change > 5 || top.change < -5)) {
           realDiscoveries.push({
             id: String(++idCounter),
             type: top.change > 0 ? "opportunity" : "anomaly",
             title: `${top.sector} funding ${top.change > 0 ? 'surged' : 'declined'} ${Math.abs(top.change).toFixed(1)}% year-over-year`,
-            description: `${top.sector} at $${(top.amount / 1000).toFixed(1)}B vs ${second.sector} at $${(second.amount / 1000).toFixed(1)}B. ${top.change > 0 ? 'Growing investment signals opportunity.' : 'Declining investment may impact jobs.'}`,
+            description: `${top.sector} at ${formatMillions(top.amount)} vs ${second.sector} at ${formatMillions(second.amount)}.`,
             confidence: 85,
             timestamp: new Date(Date.now() - 60000),
             action: "Explore sector",

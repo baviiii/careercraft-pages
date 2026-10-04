@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import type { FundingAllocation } from "@/contexts/IntelligenceContext";
 import { DataProvenance } from "./DataProvenance";
+import { formatChange } from "@/lib/intelligence/funding";
 
 interface FundingDetailModalProps {
   allocation: FundingAllocation | null;
@@ -109,25 +110,25 @@ export function FundingDetailModal({
 
           <div className="p-4 rounded-xl bg-muted/50 border border-border/50">
             <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className={cn("w-4 h-4", allocation.change >= 0 ? "text-emerald-500" : "text-red-500")} />
+              <TrendingUp className={cn("w-4 h-4", (allocation.change ?? 0) >= 0 ? "text-emerald-500" : "text-red-500")} />
               <span className="text-xs text-slate-400">Year-over-Year</span>
             </div>
-            <p className={cn("text-2xl font-bold", allocation.change >= 0 ? "text-emerald-600" : "text-red-600")}>
-              {allocation.change > 0 ? "+" : ""}{allocation.change.toFixed(1)}%
+            <p className={cn("text-2xl font-bold", allocation.change == null ? "text-foreground" : allocation.change >= 0 ? "text-emerald-600" : "text-red-600")}>
+              {formatChange(allocation.change)}
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              Change from prior year
+              {allocation.change == null ? "Not stated in the budget figures" : "Change from prior year"}
             </p>
           </div>
 
           <div className="p-4 rounded-xl bg-muted/50 border border-border/50">
             <div className="flex items-center gap-2 mb-1">
               <FileText className="w-4 h-4 text-blue-500" />
-              <span className="text-xs text-slate-400">Programs</span>
+              <span className="text-xs text-slate-400">Budget year</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{allocation.programs}</p>
+            <p className="text-2xl font-bold text-foreground">{allocation.period ?? "—"}</p>
             <p className="text-xs text-slate-400 mt-1">
-              Funding programs identified
+              As the document states it
             </p>
           </div>
         </div>

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { formatChange, formatMillions } from "@/lib/intelligence/funding";
 
 export function InvestmentHighlights() {
   const { 
@@ -24,7 +25,6 @@ export function InvestmentHighlights() {
     crossTabInsights, 
     globalLoading,
     topGrowthSector,
-    totalBudget,
   } = useIntelligence();
 
   // Build highlights from context
@@ -37,15 +37,18 @@ export function InvestmentHighlights() {
       description: string;
     }> = [];
 
-    // Top growth sector
-    const topGrowth = fundingAllocations.sort((a, b) => b.change - a.change)[0];
+    // Fastest growing — only among measures that state a change. (This sorted
+    // the context's own array in place before; it copies now.)
+    const topGrowth = fundingAllocations
+      .filter((a) => a.change != null)
+      .sort((a, b) => (b.change ?? 0) - (a.change ?? 0))[0];
     if (topGrowth) {
       items.push({
         title: topGrowth.sector,
-        value: `$${(topGrowth.amount / 1000).toFixed(1)}B`,
+        value: formatMillions(topGrowth.amount),
         change: topGrowth.change,
         type: "growth",
-        description: "Fastest growing sector",
+        description: "Largest stated increase",
       });
     }
 
@@ -54,10 +57,10 @@ export function InvestmentHighlights() {
     prioritySectors.slice(0, 2).forEach(sector => {
       items.push({
         title: sector.sector,
-        value: `${sector.programs} programs`,
+        value: formatMillions(sector.amount),
         change: sector.change,
         type: "priority",
-        description: "Priority investment area",
+        description: sector.period ? `Budget measure, ${sector.period}` : "Budget measure",
       });
     });
 
@@ -66,10 +69,10 @@ export function InvestmentHighlights() {
     if (largest && !items.find(i => i.title === largest.sector)) {
       items.push({
         title: largest.sector,
-        value: `$${(largest.amount / 1000).toFixed(1)}B`,
+        value: formatMillions(largest.amount),
         change: largest.change,
         type: "priority",
-        description: "Largest allocation",
+        description: "Largest stated measure",
       });
     }
 
@@ -131,12 +134,12 @@ export function InvestmentHighlights() {
               </div>
               <div className="text-right">
                 <p className="font-bold text-white drop-shadow-lg">{highlight.value}</p>
-                {highlight.change !== 0 && (
+                {highlight.change != null && highlight.change !== 0 && (
                   <span className={cn(
                     "text-xs font-medium",
                     highlight.change > 0 ? "text-emerald-300" : "text-red-300"
                   )}>
-                    {highlight.change > 0 ? "+" : ""}{highlight.change.toFixed(1)}%
+                    {formatChange(highlight.change)}
                   </span>
                 )}
               </div>
@@ -171,10 +174,10 @@ export function InvestmentHighlights() {
       {/* Total Summary */}
       <div className="mt-4 pt-4 border-t border-pink-400/30">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-pink-200/80">Total Budget Tracked</span>
+          <span className="text-sm text-pink-200/80">Budget measures with stated amounts</span>
           <div className="flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-pink-300" />
-            <span className="font-bold text-white drop-shadow-lg">${(totalBudget / 1000).toFixed(1)}B</span>
+            <span className="font-bold text-white drop-shadow-lg">{fundingAllocations.length}</span>
           </div>
         </div>
       </div>

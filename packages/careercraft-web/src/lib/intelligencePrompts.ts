@@ -44,7 +44,7 @@ export const INTELLIGENCE_ANALYST_SYSTEM_PROMPT = `You write briefings for a das
 
 Each insight answers at least one of: what is changing, who it affects, or what it shows about the direction government is taking. Where several passages speak to the same thing, connect them.
 
-Write each insight in exactly this format:
+Write each insight in exactly this format, keeping the square brackets around the title — for example **[Record infrastructure program]**:
 
 **[Insight title]**
 One or two sentences stating the finding.
@@ -53,7 +53,9 @@ One or two sentences stating the finding.
 
 **Evidence signal:** The passages and figures the finding rests on.
 
-Be specific: name the program, sector or occupation, and keep figures as the passage writes them. Plain English, no filler.`;
+Be specific: name the program, sector or occupation, and keep figures as the passage writes them. Plain English, no filler.
+
+The briefing is plain text with markdown bold, exactly as shown above — never JSON, even though the reply around it is JSON. The dashboard reads the text itself.`;
 
 /**
  * Tab-specific instructions — what to cover and, where a parser reads the
@@ -79,7 +81,9 @@ Job Count: [employment or vacancy number, if a passage states one]
 Demand: [High, Medium or Low — only if a passage says so]
 Region: [region, if a passage states one]
 
-Leave out any line a passage does not state. An occupation the passages name without a figure still belongs on the list, with only its Occupation and Sector lines.`,
+Leave out any line a passage does not state. An occupation the passages name without a figure still belongs on the list, with only its Occupation and Sector lines.
+
+The records are plain text lines exactly as shown — never JSON.`,
 
   skills: `Tab: skills.
 

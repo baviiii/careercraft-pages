@@ -47,6 +47,7 @@ import { useIntelligence } from "@/contexts/IntelligenceContext";
 import { useImpactQueries } from "@/hooks/useImpactQueries";
 import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
 import { IntelligenceState } from "./IntelligenceState";
+import { formatMillions } from "@/lib/intelligence/funding";
 
 interface AIInsightsPanelProps {
   tab: IntelligenceTab;
@@ -206,13 +207,15 @@ export function AIInsightsPanel({
          the order the array happened to arrive in. */
       const top = [...fundingAllocations].sort((a, b) => b.amount - a.amount)[0];
       fallbacks.push({
-        title: `${top.sector} Leads Budget Priority`,
-        explanation: `${top.sector} receives the largest allocation with $${(top.amount / 1000).toFixed(1)}B across ${top.programs} programs, signaling strong government commitment to this sector.`,
-        whyItMatters: "This concentration of resources indicates strategic priority and creates downstream job opportunities.",
-        evidenceSignal: `Budget data confirms ${top.change > 0 ? `+${top.change.toFixed(1)}%` : `${top.change.toFixed(1)}%`} year-over-year change across indexed documents.`,
-        trendDirection: top.change > 0 ? "up" : top.change < 0 ? "down" : "stable",
-        urgency: top.change > 10 ? "important" : "informational",
-        confidence: "high",
+        title: `${top.sector}: the largest stated measure`,
+        explanation: `${top.sector} carries the largest amount among the extracted budget measures: ${formatMillions(top.amount)}${top.period ? ` for ${top.period}` : ""}.`,
+        whyItMatters: "The largest single measures show where the budget papers put the most money.",
+        evidenceSignal: top.evidence
+          ? `“${top.evidence.slice(0, 200)}${top.evidence.length > 200 ? "…" : ""}”`
+          : `${top.sources[0]?.title ?? "SA budget papers"}`,
+        trendDirection: top.change == null ? "stable" : top.change > 0 ? "up" : top.change < 0 ? "down" : "stable",
+        urgency: "informational",
+        confidence: top.confidence === "high" ? "high" : "medium",
       });
     }
 

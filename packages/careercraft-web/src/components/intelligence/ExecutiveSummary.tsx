@@ -4,6 +4,7 @@
  */
 
 import { motion } from "framer-motion";
+import { formatMillions } from "@/lib/intelligence/funding";
 import { Sparkles, TrendingUp, AlertCircle, Info, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,7 @@ interface ExecutiveSummaryProps {
 }
 
 export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
-  const { getTabData, fundingAllocations, careerOpportunities, skillsDemand, totalBudget } = useIntelligence();
+  const { getTabData, fundingAllocations, careerOpportunities, skillsDemand } = useIntelligence();
   const tabData = getTabData(tab);
 
   // Generate executive summary based on tab and data
@@ -27,16 +28,18 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
   } => {
     switch (tab) {
       case "funding":
+        // One measure per entry, each a figure one document states. Nothing
+        // here is summed: a total of these is a number no document states.
         const topSector = fundingAllocations[0];
-        const highGrowthSectors = fundingAllocations.filter(f => f.change > 10);
         return {
-          headline: `$${(totalBudget / 1000).toFixed(1)}B Total Budget Tracked Across ${fundingAllocations.length} Key Sectors`,
+          headline: `${fundingAllocations.length} budget measures with stated amounts`,
           keyPoints: [
-            `${topSector?.sector || "Leading sector"} receives largest allocation: $${((topSector?.amount || 0) / 1000).toFixed(1)}B (${topSector?.change.toFixed(1)}% YoY)`,
-            `${highGrowthSectors.length} sectors show >10% funding growth, signaling strategic priorities`,
-            `${fundingAllocations.filter(f => f.confidence === "high").length} allocations verified from structured budget tables`,
+            topSector
+              ? `Largest stated measure: ${topSector.sector}, ${formatMillions(topSector.amount)}${topSector.period ? ` (${topSector.period})` : ""}`
+              : "No budget measures loaded yet",
+            `${fundingAllocations.filter(f => f.confidence === "high").length} of them quoted with the sentence that states the amount`,
           ],
-          urgency: highGrowthSectors.length > 3 ? "important" : "informational",
+          urgency: "informational",
           actionable: `Monitor ${topSector?.sector || "priority sectors"} for program opportunities and workforce demand signals.`,
         };
 
@@ -91,7 +94,7 @@ export function ExecutiveSummary({ tab }: ExecutiveSummaryProps) {
         return {
           headline: `Strategic Intelligence: Whole-of-Government Analysis`,
           keyPoints: [
-            `${fundingAllocations.length} sectors tracked with $${(totalBudget / 1000).toFixed(1)}B total budget`,
+            `${fundingAllocations.length} budget measures with stated amounts`,
             `${careerOpportunities.length} career opportunities aligned with funding signals`,
             `${skillsDemand.length} critical skills identified for workforce capability`,
           ],

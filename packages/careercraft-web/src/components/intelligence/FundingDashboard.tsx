@@ -51,6 +51,7 @@ import { useIntelligence, type FundingAllocation } from "@/contexts/Intelligence
 import { FundingDetailModal } from "./FundingDetailModal";
 import { ExecutiveSummary } from "./ExecutiveSummary";
 import { FundingCharts } from "./FundingCharts";
+import { formatChange, formatMillions } from "@/lib/intelligence/funding";
 import { useImpactQueries } from "@/hooks/useImpactQueries";
 import { ImpactBadge } from "./ImpactBadge";
 import { ImpactDetailsModal } from "./ImpactDetailsModal";
@@ -84,7 +85,7 @@ const sectorColors: Record<string, string> = {
 };
 
 export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
-  const { fundingAllocations, getTabData, globalLoading, totalBudget } = useIntelligence();
+  const { fundingAllocations, getTabData, globalLoading } = useIntelligence();
   const tabData = getTabData("funding");
   const { getImpactsForEntity } = useImpactQueries();
 
@@ -146,85 +147,57 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
     fetchSectorImpacts();
   }, [fundingAllocations, getImpactsForEntity]);
 
-  // Funding Investment Stories (useMemo before early return)
+  // Funding stories (useMemo before early return).
+  //
+  // Each entry is one budget measure with the amount one document states.
+  // These used to headline a summed "total budget", average growth, budget
+  // shares and a "funding → jobs multiplier" — figures no document states.
+  // The stories now say only what the extracted measures support.
   const fundingStories = useMemo(() => {
-    const topAllocation = fundingAllocations[0];
-    const fastestGrowing = [...fundingAllocations].sort((a, b) => b.change - a.change)[0];
-    const totalPrograms = fundingAllocations.reduce((s, a) => s + (a.programs || 0), 0);
-    const avgAllocation = fundingAllocations.length > 0 ? (totalBudget / fundingAllocations.length) : 0;
-    const avgChange = fundingAllocations.length > 0 ? (fundingAllocations.reduce((s, a) => s + a.change, 0) / fundingAllocations.length) : 0;
+    const top = fundingAllocations[0];
+    const quoted = fundingAllocations.filter((a) => a.confidence === "high").length;
+    const documents = new Set(fundingAllocations.flatMap((a) => a.sources.map((src) => src.title))).size;
+    const period = fundingAllocations.find((a) => a.period)?.period;
+    const quote = top?.evidence
+      ? ` The document says: “${top.evidence.slice(0, 220)}${top.evidence.length > 220 ? "…" : ""}”`
+      : "";
     return [
       {
-        id: "healthcare-wave",
-        title: `💰 ${topAllocation?.sector || "Top Sector"}: $${((topAllocation?.amount || 0) / 1000).toFixed(1)}B Investment`,
-        narrative: `The government allocated $${((topAllocation?.amount || 0) / 1000).toFixed(1)}B to ${topAllocation?.sector || "the top sector"} — the largest single sector allocation with a ${topAllocation?.change?.toFixed(1) || 0}% year-on-year change.`,
+        id: "largest-measure",
+        title: top ? `${top.sector}: ${formatMillions(top.amount)}` : "Largest stated measure",
+        narrative: top
+          ? `${top.sector} carries the largest amount among the extracted budget measures: ${formatMillions(top.amount)}${top.period ? ` for ${top.period}` : ""}.${quote}`
+          : "No budget measures have loaded yet.",
         metrics: [
-          { label: "Total Investment", value: topAllocation?.amount ? `$${(topAllocation.amount / 1000).toFixed(1)}B` : "N/A", icon: DollarSign },
-          { label: "Budget Entries", value: `${topAllocation?.programs || 0}`, icon: Award },
-          { label: "Growth Rate", value: `+${topAllocation?.change?.toFixed(1) || 0}%`, icon: TrendingUp },
-          { label: "Budget Share", value: totalBudget > 0 ? `${((topAllocation?.amount || 0) / totalBudget * 100).toFixed(0)}%` : "N/A", icon: Briefcase },
+          { label: "Stated amount", value: top ? formatMillions(top.amount) : "—", icon: DollarSign },
+          { label: "Budget year", value: top?.period ?? "—", icon: Award },
+          { label: "Amount in quote", value: top ? (top.confidence === "high" ? "Yes" : "Elsewhere in doc") : "—", icon: Target },
+          { label: "Documents", value: top ? `${top.sources.length}` : "—", icon: Briefcase },
         ],
-        fundingToJobs: {
-          avgProgramSize: topAllocation?.programs ? `$${(topAllocation.amount / topAllocation.programs).toFixed(0)}M avg` : "N/A",
-          jobsPerMillion: `${totalPrograms} budget rows`,
-          trainingSpots: `${topAllocation?.programs || 0} entries`,
-          successRate: `+${topAllocation?.change?.toFixed(0) || 0}% YoY`,
-        },
         conversationStarters: [
-          `Which ${topAllocation?.sector || "healthcare"} programs am I eligible for?`,
-          `Show me jobs created by the $${((topAllocation?.amount || 0) / 1000).toFixed(1)}B ${topAllocation?.sector || "healthcare"} investment`,
-          `Compare funding opportunities across all sectors`,
-          `What training programs have guaranteed job placements?`,
+          top ? `What is ${top.sector}, and who is it for?` : "What are the largest measures in the SA budget?",
+          "Which budget measures fund training in South Australia?",
+          "What does the budget fund for health and care workers?",
         ],
       },
       {
-        id: "fastest-growing",
-        title: `⚡ ${fastestGrowing?.sector || "Emerging Sector"}: Fastest Growing Investment`,
-        narrative: `${fastestGrowing?.sector || "This sector"}'s funding grew ${fastestGrowing?.change?.toFixed(1) || 0}% this year — the highest increase across all ${fundingAllocations.length} tracked sectors.`,
+        id: "budget-landscape",
+        title: "What the budget papers state",
+        narrative: `${fundingAllocations.length} budget measures were extracted${period ? ` for ${period}` : ""}, each with the amount one document states. They are not added together: the papers mix single measures with portfolio roll-ups, so a sum would be a number no document contains.`,
         metrics: [
-          { label: "Budget Increase", value: `+${fastestGrowing?.change?.toFixed(1) || 0}%`, icon: TrendingUp },
-          { label: "Budget Entries", value: `${fastestGrowing?.programs || 0}`, icon: Zap },
-          { label: "Investment", value: fastestGrowing?.amount ? `$${(fastestGrowing.amount / 1000).toFixed(1)}B` : "N/A", icon: DollarSign },
-          { label: "Confidence", value: fastestGrowing?.confidence || "Medium", icon: Target },
+          { label: "Measures", value: `${fundingAllocations.length}`, icon: Target },
+          { label: "Amounts quoted", value: `${quoted}`, icon: CheckCircle2 },
+          { label: "Budget year", value: period ?? "—", icon: Users },
+          { label: "Documents", value: `${documents}`, icon: DollarSign },
         ],
-        fundingToJobs: {
-          avgProgramSize: fastestGrowing?.programs ? `$${(fastestGrowing.amount / fastestGrowing.programs).toFixed(0)}M avg` : "N/A",
-          jobsPerMillion: `${fastestGrowing?.programs || 0} budget rows`,
-          trainingSpots: `${fastestGrowing?.programs || 0} entries`,
-          successRate: `+${fastestGrowing?.change?.toFixed(0) || 0}% YoY`,
-        },
         conversationStarters: [
-          `How do I access ${fastestGrowing?.sector || "growing sector"} training programs?`,
-          `Which programs have the highest job placement rates?`,
-          `Show me funding opportunities with government guarantees`,
-          `Calculate my ROI for sector-specific training`,
-        ],
-      },
-      {
-        id: "opportunity-mapping",
-        title: "🎯 Full Budget Landscape",
-        narrative: `SA Government invested $${(totalBudget / 1000).toFixed(1)}B across ${fundingAllocations.length} sectors extracted from budget documents. Average sector allocation is $${(avgAllocation / 1000).toFixed(1)}B with ${avgChange.toFixed(1)}% average year-on-year change.`,
-        metrics: [
-          { label: "Total Budget", value: `$${(totalBudget / 1000).toFixed(1)}B`, icon: DollarSign },
-          { label: "Sectors Tracked", value: `${fundingAllocations.length}`, icon: Target },
-          { label: "Budget Entries", value: `${totalPrograms}`, icon: Users },
-          { label: "Avg Growth", value: `+${avgChange.toFixed(1)}%`, icon: CheckCircle2 },
-        ],
-        fundingToJobs: {
-          avgProgramSize: `$${(avgAllocation / Math.max(totalPrograms / fundingAllocations.length, 1)).toFixed(0)}M avg`,
-          jobsPerMillion: `${totalPrograms} budget rows`,
-          trainingSpots: `${fundingAllocations.length} sectors`,
-          successRate: `+${avgChange.toFixed(0)}% avg growth`,
-        },
-        conversationStarters: [
-          "Which sectors have both high funding AND low competition?",
-          "Show me the funding-to-jobs multiplier for each sector",
-          "Find programs with guaranteed employment outcomes",
-          "Calculate career stability score based on funding trends",
+          "Which measures are new in this budget?",
+          "What programs support apprentices and trainees?",
+          "Which budget measures are jointly funded with the Commonwealth?",
         ],
       },
     ];
-  }, [fundingAllocations, totalBudget]);
+  }, [fundingAllocations]);
 
   useEffect(() => {
     if (!isAutoPlay) return;
@@ -239,19 +212,23 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
     setDetailModalOpen(true);
   };
 
-  // Build sector cards directly from real extracted allocation data
+  // One card per extracted budget measure. Year, deadline and status used to
+  // be filled in here ("2024-25", "Ongoing"/"TBC", active-if-top-three) —
+  // none of it from a document. Only what the measure carries is shown now.
   const fundingPrograms = useMemo<FundingProgram[]>(() => {
     return fundingAllocations.map((alloc) => ({
       name: alloc.sector,
-      amount: `$${(alloc.amount / 1000).toFixed(1)}B`,
+      amount: formatMillions(alloc.amount),
       sector: alloc.sector,
-      year: "2024-25",
-      status: alloc.priority === "high" ? "active" as const : "upcoming" as const,
-      eligibility: alloc.sources[0]?.excerpt
-        ? alloc.sources[0].excerpt.slice(0, 120)
-        : "See SA Government budget documents for details",
-      deadline: alloc.priority === "high" ? "Ongoing" : "TBC",
-      description: `${alloc.sources[0]?.title || "SA Budget"} · ${alloc.sources[0]?.extractionMethod === "table" ? "Table data" : "Document extract"} · ${alloc.confidence} confidence`,
+      year: alloc.period ?? "—",
+      // A budget measure is funded; the papers give no start dates the page
+      // could use to call one "upcoming".
+      status: "active" as const,
+      eligibility: "See the budget papers for eligibility",
+      deadline: "—",
+      description: alloc.evidence
+        ? `${alloc.evidence.slice(0, 160)}${alloc.evidence.length > 160 ? "…" : ""}`
+        : alloc.sources[0]?.title ?? "SA budget papers",
     }));
   }, [fundingAllocations]);
 
@@ -338,9 +315,8 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
               Where the money goes
             </h2>
             <p className="text-sm text-slate-400 flex items-center gap-2">
-              <span className="font-semibold text-pink-400">${(totalBudget / 1000).toFixed(1)}B</span> committed across
-              <span className="font-semibold text-fuchsia-400">{filteredPrograms.length}</span>
-              {filteredPrograms.length === 1 ? "program" : "programs"}
+              <span className="font-semibold text-fuchsia-400">{fundingAllocations.length}</span>
+              budget {fundingAllocations.length === 1 ? "measure" : "measures"}, each with the amount its document states
             </p>
           </div>
         </div>
@@ -445,37 +421,6 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
               })}
             </div>
 
-            {/* Funding-to-Jobs Multiplier */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="p-5 rounded-xl bg-gradient-to-br from-fuchsia-500/20 to-pink-500/20 backdrop-blur-sm border border-pink-400/30 mb-5"
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <Target className="w-4 h-4 text-pink-400" />
-                <span className="text-sm font-semibold text-pink-100">Funding → Jobs Multiplier:</span>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Avg Program Size</p>
-                  <p className="text-lg font-bold text-white">{fundingStories[activeStory].fundingToJobs.avgProgramSize}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Jobs per $1M</p>
-                  <p className="text-lg font-bold text-emerald-400">{fundingStories[activeStory].fundingToJobs.jobsPerMillion}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Training Spots</p>
-                  <p className="text-lg font-bold text-blue-400">{fundingStories[activeStory].fundingToJobs.trainingSpots}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Success Rate</p>
-                  <p className="text-lg font-bold text-purple-400">{fundingStories[activeStory].fundingToJobs.successRate}</p>
-                </div>
-              </div>
-            </motion.div>
-
             {/* Conversation Starters */}
             <div className="space-y-2">
               <div className="flex items-center gap-2 mb-3">
@@ -517,14 +462,14 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
               <DollarSign className="w-6 h-6 text-white" />
             </div>
             <div className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <span className="text-xs font-bold text-amber-600">TOTAL</span>
+              <span className="text-xs font-bold text-amber-600">LARGEST</span>
             </div>
           </div>
           <p className="text-4xl font-bold bg-gradient-to-br from-amber-600 to-orange-600 bg-clip-text text-transparent mb-2">
-            ${(totalBudget / 1000).toFixed(1)}B
+            {fundingAllocations[0] ? formatMillions(fundingAllocations[0].amount) : "—"}
           </p>
-          <p className="text-sm font-semibold text-slate-200">Total Budget</p>
-          <p className="text-xs text-slate-400 mt-1">Allocated across all sectors</p>
+          <p className="text-sm font-semibold text-slate-200">Largest stated measure</p>
+          <p className="text-xs text-slate-400 mt-1 truncate">{fundingAllocations[0]?.sector ?? "No measures loaded"}</p>
         </motion.div>
 
         <motion.div
@@ -563,10 +508,12 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
             </div>
           </div>
           <p className="text-4xl font-bold bg-gradient-to-br from-blue-600 to-cyan-600 bg-clip-text text-transparent mb-2">
-            +{fundingAllocations[0]?.change?.toFixed(1) || 0}%
+            {formatChange(fundingAllocations[0]?.change)}
           </p>
-          <p className="text-sm font-semibold text-slate-200">Top Growth Rate</p>
-          <p className="text-xs text-slate-400 mt-1">Highest sector increase YoY</p>
+          <p className="text-sm font-semibold text-slate-200">Year-on-year change</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {fundingAllocations[0]?.change != null ? "Largest measure" : "The budget figures state none"}
+          </p>
         </motion.div>
 
         <motion.div
@@ -592,14 +539,16 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
       </div>
 
       {/* Data Visualizations */}
-      <FundingCharts allocations={fundingAllocations} totalBudget={totalBudget} />
+      <FundingCharts allocations={fundingAllocations} />
 
       {/* Budget Allocations */}
       <div className="rounded-2xl border border-fuchsia-500/20 bg-gradient-to-br from-slate-900/70 via-purple-950/30 to-slate-900/70 p-6">
-        <h3 className="font-display text-lg font-semibold text-white mb-4">Which sectors got what</h3>
+        <h3 className="font-display text-lg font-semibold text-white mb-4">The largest stated measures</h3>
         <div className="space-y-3">
           {fundingAllocations.slice(0, 6).map((alloc, index) => {
-            const percentage = totalBudget > 0 ? (alloc.amount / totalBudget) * 100 : 0;
+            // Bar is relative to the largest measure — a comparison, not a share of a total.
+            const largest = fundingAllocations[0]?.amount ?? 0;
+            const percentage = largest > 0 ? (alloc.amount / largest) * 100 : 0;
             return (
               <motion.div
                 key={alloc.sector}
@@ -613,7 +562,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                   <div className="flex items-center gap-3">
                     <div className={cn("w-3 h-3 rounded-full", sectorColors[alloc.sector] || "bg-blue-500")} />
                     <span className="font-medium text-white">{alloc.sector}</span>
-                    <span className="text-xs text-slate-400">({alloc.programs} budget {alloc.programs === 1 ? 'entry' : 'entries'})</span>
+                    {alloc.period && <span className="text-xs text-slate-400">({alloc.period})</span>}
                     {alloc.sources[0]?.extractionMethod && (
                       <Badge variant="outline" className={cn(
                         "text-xs opacity-0 group-hover:opacity-100 transition-opacity",
@@ -642,13 +591,13 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    {alloc.change !== 0 && (
+                    {alloc.change != null && alloc.change !== 0 && (
                       <span className={cn("text-sm font-semibold flex items-center gap-1", alloc.change > 0 ? "text-emerald-500" : "text-red-500")}>
                         <TrendingUp className={cn("w-4 h-4", alloc.change < 0 && "rotate-180")} />
-                        {alloc.change > 0 ? "+" : ""}{alloc.change.toFixed(1)}%
+                        {formatChange(alloc.change)}
                       </span>
                     )}
-                    <span className="font-bold text-white">${(alloc.amount / 1000).toFixed(1)}B</span>
+                    <span className="font-bold text-white">{formatMillions(alloc.amount)}</span>
                     <Info className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
@@ -661,7 +610,7 @@ export function FundingDashboard({ searchQuery = "" }: FundingDashboardProps) {
                   />
                 </div>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-slate-400">{percentage.toFixed(1)}% of total</p>
+                  <p className="text-xs text-slate-400 truncate">{alloc.sources[0]?.title ?? ""}</p>
                   <p className="text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
                     Click for details →
                   </p>

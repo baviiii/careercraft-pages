@@ -56,7 +56,6 @@ const item = {
 
 export function IntelligenceHero() {
   const {
-    totalBudget,
     totalJobs,
     topGrowthSector,
     emergingTrends,
@@ -98,17 +97,19 @@ export function IntelligenceHero() {
     {
       id: "budget",
       label: "Where the money goes",
-      value: totalBudget > 0 ? `$${(totalBudget / 1000).toFixed(1)}B` : "—",
+      // Measures, not a total: the budget figures are single stated amounts
+      // and a sum of them is a number no document states.
+      value: fundingAllocations.length > 0 ? `${fundingAllocations.length}` : "—",
       subValue:
         fundingAllocations.length > 0
-          ? `${fundingAllocations.length} sectors tracked`
+          ? "budget measures with stated amounts"
           : fundingLoading ? "Reading budget papers" : "No figures found",
       icon: DollarSign,
       gradient: "from-amber-500 via-orange-500 to-red-500",
       bgGradient: "from-amber-500/10 to-orange-500/5",
       borderColor: "border-amber-500/30",
-      trend: fundingAllocations[0]?.change || 0,
-      loading: fundingLoading && totalBudget === 0,
+      trend: fundingAllocations[0]?.change ?? 0,
+      loading: fundingLoading && fundingAllocations.length === 0,
     },
     {
       id: "careers",
@@ -168,7 +169,7 @@ export function IntelligenceHero() {
       trend: crossTabInsights.filter(c => c.impact === "positive").length * 15,
       loading: connectionsLoading && crossTabInsights.length === 0,
     },
-  ], [totalBudget, totalJobs, fundingAllocations, careerOpportunities, skillsDemand, crossTabInsights,
+  ], [totalJobs, fundingAllocations, careerOpportunities, skillsDemand, crossTabInsights,
       fundingLoading, careersLoading, skillsLoading, connectionsLoading]);
 
   return (

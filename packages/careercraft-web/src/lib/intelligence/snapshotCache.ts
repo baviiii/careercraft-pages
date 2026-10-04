@@ -19,7 +19,10 @@
 const KEY = "cc-intelligence-snapshot";
 
 /** Bump when the persisted shape changes so stale entries are dropped. */
-const VERSION = 1;
+// 2: funding entries became single budget measures from Horus's extracted
+// figures (no summed totals, no invented year-on-year change). A v1 snapshot
+// holds the old scraped, merged-by-larger-amount sectors — drop it.
+const VERSION = 2;
 
 /**
  * How long a snapshot may be shown before it is treated as worthless.

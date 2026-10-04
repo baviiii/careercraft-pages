@@ -52,6 +52,7 @@ import {
   type AstralTabItem,
   type OrbitalNode,
 } from "@/components/astral";
+import { formatMillions } from "@/lib/intelligence/funding";
 
 const container = {
   hidden: { opacity: 0 },
@@ -146,7 +147,6 @@ function IntelligenceDashboardContent() {
     globalLoading,
     metrics,
     snapshotAge,
-    totalBudget,
     fundingAllocations,
     careerOpportunities,
     skillsDemand,
@@ -423,17 +423,17 @@ function IntelligenceDashboardContent() {
      sector leading the spend. */
   const orbitalNodes: OrbitalNode[] = useMemo(() => {
     const topSector = metrics?.topSectors?.[0];
-    const budgetB = totalBudget > 0 ? `$${(totalBudget / 1000).toFixed(1)}B` : "—";
-
+    // A count of measures, not a "committed" total: a sum of single budget
+    // measures is a number no document states.
     return [
-      { label: "Committed",   value: budgetB,                                   ring: 0, angle: 20,  color: "rgba(124,92,255,1)"  },
+      { label: "Budget measures", value: fundingAllocations.length > 0 ? String(fundingAllocations.length) : "—", ring: 0, angle: 20, color: "rgba(124,92,255,1)" },
       { label: "Biggest spend", value: topSector?.name ?? "—",                  ring: 1, angle: 85,  color: "rgba(252,211,77,1)"  },
-      { label: "Sectors",     value: String(metrics?.topSectors?.length ?? 0),  ring: 0, angle: 160, color: "rgba(244,114,182,1)" },
+      { label: "Largest amount", value: fundingAllocations[0] ? formatMillions(fundingAllocations[0].amount) : "—", ring: 0, angle: 160, color: "rgba(244,114,182,1)" },
       { label: "Roles named", value: String(careerOpportunities.length),        ring: 2, angle: 220, color: "rgba(94,234,212,1)"  },
       { label: "Skills in demand", value: String(skillsDemand.length),          ring: 1, angle: 305, color: "rgba(34,211,238,1)"  },
       { label: "Sources",     value: String(metrics?.totalDocuments ?? 0),      ring: 2, angle: 40,  color: "rgba(167,139,250,1)" },
     ];
-  }, [metrics, totalBudget, careerOpportunities.length, skillsDemand.length]);
+  }, [metrics, fundingAllocations, careerOpportunities.length, skillsDemand.length]);
 
   /* The one sentence the page leads with.
      There was no entry point before: the reader arrived to four tabs and a
@@ -441,20 +441,16 @@ function IntelligenceDashboardContent() {
      found. This states the strongest thing known, in plain words, and only
      when it is genuinely known — no data means no claim. */
   const leadFinding = useMemo(() => {
-    const topSector = metrics?.topSectors?.[0];
-    if (!topSector || totalBudget <= 0) return null;
+    const top = [...fundingAllocations].sort((a, b) => b.amount - a.amount)[0];
+    if (!top) return null;
 
     const roles = careerOpportunities.length;
     const skills = skillsDemand.length;
-    const share = Math.round(
-      (fundingAllocations.find(f => f.sector === topSector.name)?.amount ?? 0) /
-        Math.max(totalBudget, 1) * 100,
-    );
 
+    // The largest single stated measure — never a share of a summed total.
     const parts: string[] = [
-      `${topSector.name} takes the largest share of South Australia's committed spending`,
+      `${top.sector} is the largest measure in South Australia's budget papers, at ${formatMillions(top.amount)}${top.period ? ` for ${top.period}` : ""}`,
     ];
-    if (share > 0) parts.push(`about ${share}% of $${(totalBudget / 1000).toFixed(1)}B`);
 
     const tail: string[] = [];
     if (roles > 0) tail.push(`${roles} occupation${roles === 1 ? "" : "s"}`);
@@ -466,7 +462,7 @@ function IntelligenceDashboardContent() {
         ? `The same documents name ${tail.join(" and ")} the state expects to need.`
         : null,
     };
-  }, [metrics, totalBudget, fundingAllocations, careerOpportunities.length, skillsDemand.length]);
+  }, [fundingAllocations, careerOpportunities.length, skillsDemand.length]);
 
   return (
     <AstralShell

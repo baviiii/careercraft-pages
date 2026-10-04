@@ -15,18 +15,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIntelligence } from "@/contexts/IntelligenceContext";
+import { formatChange, formatMillions } from "@/lib/intelligence/funding";
 
 // Helper function to format amounts (billions or millions with one decimal)
-const formatAmount = (amount: number): string => {
-  if (amount >= 1000000000) {
-    return `$${(amount / 1000000000).toFixed(1)}B`;
-  } else if (amount >= 1000000) {
-    return `$${(amount / 1000000).toFixed(1)}M`;
-  } else {
-    return `$${amount.toLocaleString()}`;
-  }
-};
-
 const sectorColors: Record<string, { bg: string; text: string; gradient: string }> = {
   "Infrastructure": { bg: "bg-amber-500/20", text: "text-amber-600", gradient: "from-amber-500 to-orange-600" },
   "Healthcare": { bg: "bg-red-500/20", text: "text-red-600", gradient: "from-red-500 to-rose-600" },
@@ -49,15 +40,15 @@ function heatmapSectorKey(sector: string): string {
 }
 
 export function SectorHeatmap() {
-  const { fundingAllocations, careerOpportunities, globalLoading, totalBudget } = useIntelligence();
+  const { fundingAllocations, careerOpportunities, globalLoading } = useIntelligence();
 
   // Build heatmap data from context (canonical keys so Transport + Infrastructure merge)
   const heatmapData = useMemo(() => {
-    const sectorMap = new Map<string, { funding: number; jobs: number; growth: number; change: number }>();
+    const sectorMap = new Map<string, { funding: number; jobs: number; growth: number; change?: number }>();
 
     fundingAllocations.forEach(alloc => {
       const key = heatmapSectorKey(alloc.sector);
-      const existing = sectorMap.get(key) || { funding: 0, jobs: 0, growth: 0, change: 0 };
+      const existing = sectorMap.get(key) || { funding: 0, jobs: 0, growth: 0, change: undefined };
       sectorMap.set(key, {
         ...existing,
         funding: Math.max(existing.funding, alloc.amount),
@@ -114,7 +105,7 @@ export function SectorHeatmap() {
                 does not support — it is a share of a total, which is a thing
                 anyone can read directly. */}
             <h2 className="font-display text-xl font-bold text-white drop-shadow-lg">Which sectors get the most</h2>
-            <p className="text-sm text-pink-200/80">Share of committed spending</p>
+            <p className="text-sm text-pink-200/80">Largest stated budget measure per sector</p>
           </div>
         </div>
         <Badge className="text-xs bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-pink-200 border-pink-400/40 backdrop-blur-sm">{heatmapData.length} sectors</Badge>
@@ -151,16 +142,16 @@ export function SectorHeatmap() {
                       {sector.sector}
                     </p>
                     <p className="text-2xl font-bold text-white drop-shadow-lg">
-                      {formatAmount(sector.funding)}
+                      {sector.funding > 0 ? formatMillions(sector.funding) : "—"}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                      {sector.change !== 0 && (
+                      {sector.change != null && sector.change !== 0 && (
                         <div className={cn(
                           "flex items-center gap-0.5 text-xs font-medium",
                           sector.change > 0 ? "text-emerald-300" : "text-red-300"
                         )}>
                           {sector.change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                          {sector.change > 0 ? "+" : ""}{sector.change.toFixed(1)}%
+                          {formatChange(sector.change)}
                         </div>
                       )}
                       {sector.jobs > 0 && (
@@ -175,9 +166,9 @@ export function SectorHeatmap() {
               <TooltipContent>
                 <div className="space-y-1">
                   <p className="font-semibold">{sector.sector}</p>
-                  <p className="text-xs">Funding: {formatAmount(sector.funding ?? 0)}</p>
+                  <p className="text-xs">Largest stated measure: {sector.funding > 0 ? formatMillions(sector.funding) : "no stated measure"}</p>
                   {sector.jobs > 0 && <p className="text-xs">Jobs: {(sector.jobs ?? 0).toLocaleString()}</p>}
-                  {sector.change !== 0 && <p className="text-xs">YoY Change: {sector.change > 0 ? "+" : ""}{(sector.change ?? 0).toFixed(1)}%</p>}
+                  {sector.change != null && sector.change !== 0 && <p className="text-xs">YoY Change: {formatChange(sector.change)}</p>}
                 </div>
               </TooltipContent>
             </Tooltip>
@@ -198,7 +189,7 @@ export function SectorHeatmap() {
               <span>Higher Investment</span>
             </div>
           </div>
-          <span className="text-white font-semibold">Total: {formatAmount(totalBudget)}</span>
+          <span className="text-white font-semibold">{fundingAllocations.length} budget measures</span>
         </div>
       </div>
     </div>

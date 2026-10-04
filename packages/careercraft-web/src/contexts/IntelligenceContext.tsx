@@ -13,6 +13,8 @@ import { useRAGMetadata } from "@/hooks/useRAGMetadata";
 import type { IntelligenceTab, InsightOutput } from "@/lib/intelligencePrompts";
 import { SEMANTIC_QUERIES, parseInsightResponse, getTabPrompt } from "@/lib/intelligencePrompts";
 import { clearSnapshot, loadSnapshot, saveSnapshot } from "@/lib/intelligence/snapshotCache";
+import { horusBudgetAllocations, horusBudgetPeriods, type HorusBudgetAllocation } from "@/lib/horusKnowledge";
+import { defaultPeriod } from "@/hooks/useBudgetIntelligence";
 
 // ============================================================================
 // Cache for alerts and chart chunks
@@ -69,15 +71,67 @@ const chartCache = new SimpleCache();
 
    No callers left. Absent figures are absent now. */
 
+/**
+ * Funding, from Horus's extracted budget figures.
+ *
+ * Each entry is one measure with the amount one document states, the sentence
+ * that states it, and the documents it came from. This replaced scraping
+ * "Sector: X | Amount: $Y" out of model prose and keeping whichever reading
+ * was larger — the pattern INTELLIGENCE-REDESIGN.md §8 names as inflation.
+ * Nothing here adds amounts together: a sum of these is a number no document
+ * states.
+ */
+async function loadBudgetFunding(limit = 25): Promise<FundingAllocation[]> {
+  // horus-rag answers a Horus NOT_FOUND with 200 `{ notFound: true }` rather
+  // than an error, so a missing field means "no figures", not a crash.
+  const periodsResult = await horusBudgetPeriods();
+  const period = defaultPeriod(periodsResult?.periods ?? []);
+  const allocationsResult = await horusBudgetAllocations({
+    ...(period && { period }),
+    limit,
+  });
+  return (allocationsResult?.allocations ?? []).map((a: HorusBudgetAllocation, i): FundingAllocation => ({
+    sector: a.name,
+    amount: a.amountAud / 1_000_000,
+    period: a.period ?? undefined,
+    evidence: a.evidence ?? undefined,
+    // Horus ranks by amount; the top few lead the page.
+    priority: i < 3 ? "high" : i < 10 ? "medium" : "low",
+    // "high" only when the quoted sentence itself states the amount.
+    confidence: a.evidenceStatesAmount ? "high" : "medium",
+    sources: a.documents.map((d) => ({
+      title: d.title,
+      excerpt: a.evidence ?? "",
+      documentType: "PDF",
+      category: "budget",
+    })),
+  }));
+}
+
 // ============================================================================
 // Types
 // ============================================================================
 
 export interface FundingAllocation {
+  /**
+   * The measure's name. Historically a sector label scraped from prose; since
+   * funding reads Horus's budget figures it is one budget measure
+   * ("Fee-Free TAFE"), never a sum of several.
+   */
   sector: string;
+  /** Millions of AUD, exactly as one document states it. */
   amount: number;
-  change: number;
-  programs: number;
+  /**
+   * Year-on-year change. The budget figures carry none, so this is normally
+   * absent — render "—", never 0. (strictNullChecks is off: readers must
+   * check, the compiler won't make them.)
+   */
+  change?: number;
+  programs?: number;
+  /** Budget year the figure belongs to, e.g. "2025-26". */
+  period?: string;
+  /** The sentence that states the figure, when the document has one. */
+  evidence?: string;
   color?: string;
   priority: "high" | "medium" | "low";
   confidence: "high" | "medium" | "low"; // Source confidence
@@ -231,7 +285,8 @@ interface IntelligenceContextType extends IntelligenceState {
   };
   
   // Computed
-  totalBudget: number;
+  // There is deliberately no totalBudget: funding entries are single budget
+  // measures, and their sum is a number no document states (§8).
   totalJobs: number;
   topGrowthSector: string;
   emergingTrends: string[];
@@ -257,34 +312,6 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * Keep this in step with `supabase/functions/horus-rag/index.ts`.
  */
 const HORUS_MAX_TOP_K = 50;
-
-/** Remove sectors that share the same amount as a preferred sector (common RAG misattribution, e.g. Defence $2.4B also shown as Technology $2.4B). */
-function removeSameAmountDuplicates(allocations: FundingAllocation[]): FundingAllocation[] {
-  if (allocations.length <= 1) return allocations;
-  const byAmount = new Map<number, FundingAllocation[]>();
-  for (const a of allocations) {
-    const amt = Math.round(a.amount);
-    if (!byAmount.has(amt)) byAmount.set(amt, []);
-    byAmount.get(amt)!.push(a);
-  }
-  const dropSectors = new Set<string>();
-  for (const [, list] of byAmount) {
-    if (list.length < 2) continue;
-    const sectors = list.map(a => a.sector.toLowerCase());
-    // Defence $2.4B often misattributed to Technology/Digital in RAG — keep Defence only
-    if (sectors.some(s => s.includes("defence"))) {
-      list.forEach(a => {
-        const s = a.sector.toLowerCase();
-        if (s.includes("technology") || s.includes("digital")) dropSectors.add(a.sector);
-      });
-    }
-    // "Energy and Mining" one budget line — avoid both Energy and Mining with same amount
-    if (sectors.some(s => s.includes("energy")) && sectors.some(s => s.includes("mining"))) {
-      list.forEach(a => { if (a.sector.toLowerCase().includes("mining")) dropSectors.add(a.sector); });
-    }
-  }
-  return allocations.filter(a => !dropSectors.has(a.sector));
-}
 
 const initialTabData: TabData = {
   insights: [],
@@ -331,513 +358,6 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
   // ============================================================================
   // Data Extraction Helpers
   // ============================================================================
-
-  const extractFundingAllocations = useCallback((sources: any[]): FundingAllocation[] => {
-    const allocationsMap = new Map<string, FundingAllocation>();
-
-    // Canonical sector key for grouping. Map Transport into Infrastructure so "Infrastructure and Transport" $27.3B is not double-counted.
-    const getCanonicalFundingSector = (rawSector: string): string => {
-      const t = rawSector.trim().toLowerCase();
-      if (t.includes("infrastructure") || t === "infrastructure and transport") return "Infrastructure";
-      if (t === "transport" || t.includes("transport")) return "Infrastructure"; // same budget line as Infrastructure in SA budget
-      if (t.includes("health")) return "Health";
-      if (t.includes("education")) return "Education";
-      if (t.includes("energy")) return "Energy";
-      if (t.includes("skill") || t.includes("training") || t.includes("employment")) return "Skills";
-      if (t.includes("housing")) return "Housing";
-      if (t.includes("tourism")) return "Tourism";
-      if (t.includes("arts")) return "Arts";
-      if (t.includes("sport")) return "Sport";
-      if (t.includes("environment")) return "Environment";
-      return rawSector.charAt(0).toUpperCase() + rawSector.slice(1).trim();
-    };
-    // Prefer more specific/shorter sector name; never let a higher raw amount override a table-extracted entry
-    // (text extraction can pick up cumulative/total figures that are inflated)
-    const preferOver = (existing: FundingAllocation, incomingSector: string, incomingAmount: number): boolean => {
-      const canon = getCanonicalFundingSector(incomingSector);
-      if (getCanonicalFundingSector(existing.sector) !== canon) return true;
-      // Never replace a high-confidence (table) entry with anything
-      if (existing.confidence === "high") return false;
-      const existingRaw = existing.sector.toLowerCase();
-      const incomingRaw = incomingSector.toLowerCase();
-      // Prefer the shorter/more specific name (e.g. "Infrastructure" over "Infrastructure and Transport")
-      if (incomingRaw.length < existingRaw.length) return true;
-      if (incomingRaw.length > existingRaw.length) return false;
-      // Same specificity — keep FIRST seen. Text extraction picks up cumulative/historical
-      // figures that are larger but wrong (e.g. "$9B across last four budgets" vs "$1.9B this year")
-      return false;
-    };
-
-    // Known sectors for validation
-    const knownSectors = [
-      "Health", "Healthcare", "Education", "Infrastructure", "Transport",
-      "Technology", "Defence", "Agriculture", "Environment", "Energy",
-      "Housing", "Social Services", "Regional Development", "Skills",
-      "Training", "Employment", "Tourism", "Arts", "Sport", "Justice"
-    ];
-
-    // PRODUCTION-GRADE EXTRACTION: Prioritize table data over text
-    // Phase 1: Extract high-confidence data from tables only
-    const tableSources = sources.filter(s => {
-      try {
-        const meta = typeof s.metadata === "string" ? JSON.parse(s.metadata) : s.metadata;
-        return meta?.chunkType === "table_row";
-      } catch {
-        return false;
-      }
-    });
-
-    console.log(`[extractFundingAllocations] Processing ${tableSources.length} table sources out of ${sources.length} total`);
-
-    sources.forEach((source) => {
-      try {
-        let metadata = source.metadata;
-        if (typeof metadata === "string") {
-          metadata = JSON.parse(metadata);
-        }
-
-        // Validate source category for funding data
-        const category = source.category || metadata?.category || "";
-        const isBudgetSource = category.toLowerCase().includes("budget") ||
-                               category.toLowerCase().includes("finance") ||
-                               category.toLowerCase().includes("fiscal");
-
-        // METHOD 1: Extract from table rows (HIGHEST CONFIDENCE)
-        if (metadata?.chunkType === "table_row" && metadata.rowValues) {
-          const headers = metadata.headers || [];
-          const values = metadata.rowValues || [];
-
-          const sectorIdx = headers.findIndex((h: string) =>
-            h.toLowerCase().includes("sector") ||
-            h.toLowerCase().includes("department") ||
-            h.toLowerCase().includes("portfolio")
-          );
-          const amountIdx = headers.findIndex((h: string) =>
-            h.toLowerCase().includes("amount") ||
-            h.toLowerCase().includes("budget") ||
-            h.toLowerCase().includes("allocation") ||
-            h.toLowerCase().includes("$")
-          );
-          const changeIdx = headers.findIndex((h: string) =>
-            h.toLowerCase().includes("change") ||
-            h.toLowerCase().includes("growth") ||
-            h.toLowerCase().includes("variance") ||
-            h.toLowerCase().includes("%")
-          );
-
-          // Fallback: find prior-year and current-year columns to compute YoY (e.g. "2023-24" / "2024-25", "Prior" / "Current")
-          const priorYearPatterns = /prior|previous|last\s*year|2023-24|2022-23|^\d{4}$/i;
-          const currentYearPatterns = /current|this\s*year|2024-25|2025-26|estimate|budget\s*\d/i;
-          const priorColIdx = headers.findIndex((h: string) => priorYearPatterns.test(h.trim()));
-          const currentColIdx = headers.findIndex((h: string) => currentYearPatterns.test(h.trim()));
-
-          if (sectorIdx >= 0 && values[sectorIdx]) {
-            const sector = String(values[sectorIdx]).trim();
-
-            // Validate sector name
-            if (!sector || sector.length < 3 || sector.length > 60) return;
-            if (sector.toLowerCase().includes("total") || sector.toLowerCase().includes("grand total")) return;
-
-            let amount = 0;
-            let hasValidAmount = false;
-
-            if (amountIdx >= 0 && values[amountIdx]) {
-              const amountStr = String(values[amountIdx]).toLowerCase().replace(/\s/g, "");
-              const numMatch = amountStr.match(/([\d,]+(?:\.\d+)?)/);
-              if (numMatch) {
-                amount = parseFloat(numMatch[1].replace(/,/g, ""));
-
-                // Handle units (convert to millions for consistency)
-                if (amountStr.includes("billion") || amountStr.includes("bn") || /\d+b$/.test(amountStr)) {
-                  amount *= 1000;
-                } else if (amountStr.includes("million") || amountStr.includes("m")) {
-                  // Already in millions
-                } else if (amountStr.includes("thousand") || amountStr.includes("k")) {
-                  amount /= 1000;
-                } else if (amount > 100000) {
-                  // Large raw number — assume dollars, convert to millions
-                  amount /= 1000000;
-                }
-                // SA government budget: no single sector exceeds ~$30B. Cap at 30,000M to prevent
-                // raw table values (e.g. amounts stored in thousands) from producing absurd figures.
-                if (amount > 30000) {
-                  // Likely stored in thousands — divide by 1000 to get millions
-                  amount /= 1000;
-                }
-
-                // Validate amount is reasonable (between $1M and $30B)
-                if (amount >= 1 && amount <= 30000) {
-                  hasValidAmount = true;
-                }
-              }
-            }
-
-            if (hasValidAmount) {
-              let change = 0;
-              let changeValidations = [];
-              if (changeIdx >= 0 && values[changeIdx]) {
-                const changeStr = String(values[changeIdx]);
-                const changeMatch = changeStr.match(/([+-]?\d+(?:\.\d+)?)/);
-                if (changeMatch) {
-                  change = parseFloat(changeMatch[1]);
-                  // Validate change is reasonable (-50% to +200%)
-                  if (change < -50 || change > 200) {
-                    changeValidations.push(`Change ${change}% outside reasonable range, reset to 0`);
-                    change = 0;
-                  } else {
-                    changeValidations.push(`Change ${change}% within valid range`);
-                  }
-                }
-              }
-              // Fallback: compute YoY from prior-year and current-year columns when no change column
-              if (change === 0 && priorColIdx >= 0 && currentColIdx >= 0 && priorColIdx !== currentColIdx) {
-                const parseAmountFromCell = (cell: unknown): number => {
-                  const str = String(cell ?? "").toLowerCase().replace(/\s/g, "");
-                  const numMatch = str.match(/([\d,]+(?:\.\d+)?)/);
-                  if (!numMatch) return NaN;
-                  let val = parseFloat(numMatch[1].replace(/,/g, ""));
-                  if (str.includes("billion") || str.includes("bn") || str.includes("b")) val *= 1000;
-                  else if (str.includes("thousand") || str.includes("k")) val /= 1000;
-                  else if (val > 100000) val /= 1000000;
-                  return val;
-                };
-                const priorVal = parseAmountFromCell(values[priorColIdx]);
-                const currentVal = parseAmountFromCell(values[currentColIdx]);
-                if (priorVal > 0 && currentVal >= 0 && Number.isFinite(priorVal) && Number.isFinite(currentVal)) {
-                  change = Math.round(((currentVal - priorVal) / priorVal) * 1000) / 10;
-                  if (change < -50 || change > 200) change = 0;
-                  else changeValidations.push(`YoY computed from columns: ${change}%`);
-                }
-              }
-
-              const sourceTitle = source.title || source.fileName || "Budget Document";
-              const sourceExcerpt = values.slice(0, 5).join(" | ");
-              const sourceCategory = source.category || metadata?.category || "budget";
-              const sourcePageNum = metadata?.pageNumber || metadata?.page;
-              const sourceTableNum = metadata?.tableNumber || metadata?.tableIndex;
-
-              const canonicalKey = getCanonicalFundingSector(sector);
-              const existing = allocationsMap.get(canonicalKey);
-              const displaySector = sector.charAt(0).toUpperCase() + sector.slice(1);
-
-              // Build validation log
-              const validationsPassed = [
-                "Sector name valid (3-60 chars)",
-                `Amount $${amount}M within range (1M-100B)`,
-                "Extracted from structured table row",
-                `Source category: ${sourceCategory}`,
-                ...changeValidations.filter(v => !v.includes("reset"))
-              ];
-
-              const validationsFailed = [
-                ...changeValidations.filter(v => v.includes("reset"))
-              ];
-
-              // Same canonical sector: SUM amounts (e.g. Infrastructure 27.3B + 3B = 30.3B) so total budget is correct
-              const mergedAmount = existing ? existing.amount + amount : amount;
-              const mergedChange = existing && mergedAmount > 0
-                ? Math.round((existing.amount * (existing.change ?? 0) + amount * change) / mergedAmount)
-                : change;
-              allocationsMap.set(canonicalKey, {
-                sector: displaySector,
-                amount: mergedAmount,
-                change: mergedChange,
-                programs: (existing?.programs || 0) + 1,
-                priority: mergedChange > 10 ? "high" : mergedChange > 5 ? "medium" : "low",
-                confidence: "high", // Table data = high confidence
-                sources: [
-                  ...(existing?.sources || []),
-                  {
-                    title: sourceTitle,
-                    excerpt: sourceExcerpt,
-                    url: source.url,
-                    documentType: metadata?.documentType || "pdf",
-                    category: sourceCategory,
-                    pageNumber: sourcePageNum,
-                    tableNumber: sourceTableNum,
-                    extractionMethod: "table"
-                  }
-                ],
-                tableData: { headers, values },
-                extractionLog: {
-                  method: "table_row",
-                  timestamp: new Date(),
-                  rawValue: values[amountIdx] ? String(values[amountIdx]) : "",
-                  normalizedValue: amount,
-                  validationsPassed,
-                  validationsFailed
-                }
-              });
-
-              console.log(`[extractFundingAllocations] Table extraction: ${sector} = $${amount}M (${change}%) → sector total $${mergedAmount}M from ${sourceTitle} ${sourcePageNum ? `p.${sourcePageNum}` : ''} ${sourceTableNum ? `table ${sourceTableNum}` : ''}`);
-            }
-          }
-        }
-
-        // METHOD 2: Extract from content text (ONLY for budget-category documents)
-        // This is conservative and only runs if we don't have table data for a sector
-        if (isBudgetSource && metadata?.chunkType !== "table_row") {
-          const content = source.content || "";
-          if (content.length > 50) {
-            // Only extract if explicitly mentioned with dollar amount
-            const dollarMatches = content.matchAll(/\$\s*([\d,.]+)\s*(million|billion|m\b|bn\b)/gi);
-
-            for (const match of dollarMatches) {
-              let amount = parseFloat(match[1].replace(/,/g, ""));
-              const unit = (match[2] || "").toLowerCase();
-
-              // Handle units
-              if (unit.startsWith("b")) {
-                amount *= 1000; // Convert to millions
-              }
-
-              // Validate amount is reasonable (cap at $30B = 30000M, same as table extraction)
-              if (amount < 5 || amount > 30000) continue;
-
-              // Find nearby sector mention (within 150 chars)
-              const context = content.substring(
-                Math.max(0, match.index! - 150),
-                Math.min(content.length, match.index! + 150)
-              );
-
-              for (const sector of knownSectors) {
-                const sectorRegex = new RegExp(`\\b${sector}\\b`, "i");
-                if (sectorRegex.test(context)) {
-                  const canonicalKey = getCanonicalFundingSector(sector);
-                  const existing = allocationsMap.get(canonicalKey);
-
-                  // Try to parse YoY change from nearby text (e.g. "5.2% increase", "grew by 10%", "+3.1%")
-                  let textChange = existing?.change ?? 0;
-                  const changeInContext = context.match(/(?:increase|growth|rise|up|grew|change)\s*(?:of|by)?\s*([+-]?\d+(?:\.\d+)?)\s*%|([+-]?\d+(?:\.\d+)?)\s*%\s*(?:increase|growth|rise|yoy|year-on-year)/i);
-                  if (changeInContext) {
-                    const pct = parseFloat(changeInContext[1] || changeInContext[2] || "0");
-                    if (pct >= -50 && pct <= 200) textChange = pct;
-                  }
-
-                  // Only use text extraction if no table data exists or this is more specific
-                  const shouldSet = !existing || (existing.confidence !== "high" && preferOver(existing, sector, amount));
-                  if (shouldSet) {
-                    const sourceTitle = source.title || source.fileName || "Budget Document";
-                    const sourceExcerpt = context.substring(0, 200);
-                    const sourceCategory = source.category || metadata?.category || "budget";
-                    const sourcePageNum = metadata?.pageNumber || metadata?.page;
-
-                    allocationsMap.set(canonicalKey, {
-                      sector: sector.charAt(0).toUpperCase() + sector.slice(1),
-                      amount,
-                      change: textChange,
-                      programs: (existing?.programs || 0) + 1,
-                      priority: amount > 500 ? "high" : amount > 100 ? "medium" : "low",
-                      confidence: "medium", // Text extraction = medium confidence
-                      sources: [
-                        ...(existing?.sources || []),
-                        {
-                          title: sourceTitle,
-                          excerpt: sourceExcerpt,
-                          url: source.url,
-                          documentType: metadata?.documentType || "pdf",
-                          category: sourceCategory,
-                          pageNumber: sourcePageNum,
-                          extractionMethod: "text"
-                        }
-                      ],
-                      extractionLog: {
-                        method: "text_extraction",
-                        timestamp: new Date(),
-                        rawValue: match[0],
-                        normalizedValue: amount,
-                        validationsPassed: [
-                          `Amount $${amount}M within range (5M-50B)`,
-                          "Sector keyword found within 150 chars",
-                          `Source category: ${sourceCategory}`
-                        ],
-                        validationsFailed: []
-                      }
-                    });
-
-                    console.log(`[extractFundingAllocations] Text extraction: ${sector} = $${amount}M from ${sourceTitle} ${sourcePageNum ? `p.${sourcePageNum}` : ''}`);
-                  }
-                  break;
-                }
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("[extractFundingAllocations] Error processing source:", e);
-      }
-    });
-
-    const result = Array.from(allocationsMap.values())
-      .filter(a => a.amount > 0 && a.confidence !== "low")
-      .sort((a, b) => {
-        // Sort by confidence first, then amount
-        if (a.confidence === "high" && b.confidence !== "high") return -1;
-        if (b.confidence === "high" && a.confidence !== "high") return 1;
-        return b.amount - a.amount;
-      })
-      .slice(0, 12);
-
-    console.log(`[extractFundingAllocations] Extracted ${result.length} allocations`);
-    return result;
-  }, []);
-
-  // ============================================================================
-  // Extract funding from AI answer text (PRIMARY source — most reliable)
-  // Strategy: parse structured "Sector: X | Amount: $Y" lines first, then
-  // fall back to proximity-based regex for unstructured prose.
-  // ============================================================================
-  const extractFundingFromAnswer = useCallback((answerText: string): FundingAllocation[] => {
-    if (!answerText || answerText.length < 50) return [];
-
-    const allocations = new Map<string, FundingAllocation>();
-
-    console.log(`[extractFundingFromAnswer] Parsing AI answer (${answerText.length} chars), preview:`,
-      answerText.substring(0, 500));
-
-    // Helper: parse "$1.9 billion" / "$453 million" → amount in millions
-    const parseDollar = (raw: string): number | null => {
-      const m = raw.match(/\$?\s*([\d,.]+)\s*(billion|million|bn|m)?\b/i);
-      if (!m) return null;
-      let val = parseFloat(m[1].replace(/,/g, ""));
-      const unit = (m[2] || "").toLowerCase();
-      if (unit === "billion" || unit === "bn") val *= 1000;
-      else if (unit === "million" || unit === "m") { /* already M */ }
-      else if (val > 100) val /= 1; // raw number in millions assumed
-      else return null; // too small / no unit
-      return (val >= 1 && val <= 30000) ? val : null;
-    };
-
-    // Canonicalize sector names (align with extractFundingAllocations: Transport = same budget line as Infrastructure)
-    const canonicalize = (s: string): string => {
-      const t = s.trim().toLowerCase();
-      if (t.includes("infrastructure") || t === "infrastructure and transport") return "Infrastructure";
-      if (t.includes("transport") || t === "roads" || t === "rail") return "Infrastructure";
-      if (t.includes("health") || t.includes("hospital") || t.includes("medical")) return "Health";
-      if (t.includes("education") || t.includes("school") || t.includes("tafe")) return "Education";
-      if (t.includes("energy") || t.includes("renewable") || t.includes("hydrogen")) return "Energy";
-      if (t.includes("skill") || t.includes("training") || t.includes("employment") || t.includes("workforce")) return "Skills";
-      if (t.includes("housing") || t.includes("homelessness")) return "Housing";
-      if (t.includes("tourism") || t.includes("visitor")) return "Tourism";
-      if (t.includes("arts") || t.includes("cultur")) return "Arts";
-      if (t.includes("sport") || t.includes("recreation")) return "Sport";
-      if (t.includes("environment") || t.includes("climate") || t.includes("water")) return "Environment";
-      if (t.includes("defence") || t.includes("defense") || t.includes("naval") || t.includes("shipbuilding") || t.includes("submarine") || t.includes("aerospace") || t.includes("military")) return "Defence";
-      if (t.includes("technolog") || t.includes("digital") || t.includes("cyber") || t.includes("innovation")) return "Technology";
-      if (t.includes("justice") || t.includes("polic") || t.includes("correction")) return "Justice";
-      if (t.includes("agricultur") || t.includes("farming")) return "Agriculture";
-      return s.charAt(0).toUpperCase() + s.slice(1).trim();
-    };
-
-    const setAlloc = (sector: string, amount: number, change: number, programs: number, excerpt: string) => {
-      const canon = canonicalize(sector);
-      const existing = allocations.get(canon);
-      if (!existing || amount > existing.amount) {
-        allocations.set(canon, {
-          sector: canon,
-          amount,
-          change,
-          programs: Math.max(programs, existing?.programs || 0),
-          priority: amount > 5000 ? "high" : amount > 1000 ? "medium" : "low",
-          confidence: "high",
-          sources: [{ title: "AI Analysis", excerpt: excerpt.substring(0, 200), extractionMethod: "text", category: "budget" }],
-        });
-      }
-    };
-
-    // ── PASS 1: Structured format "Sector: X | Amount: $Y | Change: Z%" ──
-    const structuredPattern = /Sector:\s*([^|]+)\|[^|]*Amount:\s*(\$[\d,.]+\s*(?:billion|million|bn|m)?)/gi;
-    let structuredMatch: RegExpExecArray | null;
-    let structuredCount = 0;
-
-    while ((structuredMatch = structuredPattern.exec(answerText)) !== null) {
-      const sector = structuredMatch[1].trim();
-      const amountInM = parseDollar(structuredMatch[2]);
-      if (!amountInM || !sector) continue;
-
-      // Parse optional change
-      let change = 0;
-      const lineEnd = answerText.indexOf("\n", structuredMatch.index);
-      const line = answerText.substring(structuredMatch.index, lineEnd > 0 ? lineEnd : structuredMatch.index + 300);
-      const changeMatch = line.match(/Change:\s*([+-]?\d+(?:\.\d+)?)\s*%/i);
-      if (changeMatch) change = parseFloat(changeMatch[1]);
-
-      // Parse optional programs count
-      let programs = 1;
-      const progMatch = line.match(/Programs:\s*(\d+)/i);
-      if (progMatch) programs = parseInt(progMatch[1]);
-
-      setAlloc(sector, amountInM, change, programs, line);
-      structuredCount++;
-      console.log(`[extractFundingFromAnswer] STRUCTURED: ${sector} = $${amountInM}M, change=${change}%`);
-    }
-
-    console.log(`[extractFundingFromAnswer] Pass 1 (structured): found ${structuredCount} sectors`);
-
-    // ── PASS 2: Proximity-based "$X.X billion" near sector keywords ──
-    const sectorKeywords: Array<{ canon: string; patterns: RegExp[] }> = [
-      { canon: "Infrastructure", patterns: [/\binfrastructure\b/i, /\bcapital works\b/i, /\btransport\b/i, /\broad\s/i, /\brail\b/i, /\bcorridor\b/i] },
-      { canon: "Health", patterns: [/\bhealth\b/i, /\bhospital\b/i, /\bmedical\b/i, /\bhealthcare\b/i, /\bmental health\b/i] },
-      { canon: "Education", patterns: [/\beducation\b/i, /\bschool\b/i, /\buniversit/i, /\bTAFE\b/i] },
-      { canon: "Defence", patterns: [/\bdefence\b/i, /\bdefense\b/i, /\bnaval\b/i, /\bshipbuilding\b/i, /\bsubmarine\b/i, /\baerospace\b/i, /\bmilitary\b/i] },
-      { canon: "Technology", patterns: [/\btechnolog/i, /\bdigital\b/i, /\bcyber/i] },
-      { canon: "Energy", patterns: [/\benergy\b/i, /\brenewable\b/i, /\bhydrogen\b/i, /\belectricit/i] },
-      { canon: "Housing", patterns: [/\bhousing\b/i, /\baffordable home/i] },
-      { canon: "Agriculture", patterns: [/\bagricultur/i, /\bfarming\b/i] },
-      { canon: "Environment", patterns: [/\benvironment\b/i, /\bclimate\b/i] },
-      { canon: "Tourism", patterns: [/\btourism\b/i] },
-      { canon: "Arts", patterns: [/\barts\b/i, /\bcultur/i] },
-      { canon: "Sport", patterns: [/\bsport\b/i] },
-      { canon: "Justice", patterns: [/\bjustice\b/i, /\bpolic/i] },
-      { canon: "Skills", patterns: [/\bskills\b/i, /\btraining\b/i, /\bworkforce\b/i] },
-    ];
-
-    const amountPattern = /\$\s*([\d,.]+)\s*(billion|million|bn|m)\b/gi;
-    let amountMatch: RegExpExecArray | null;
-    let proximityCount = 0;
-
-    while ((amountMatch = amountPattern.exec(answerText)) !== null) {
-      const amountInM = parseDollar(amountMatch[0]);
-      if (!amountInM) continue;
-
-      // Skip if this sector is already captured with a larger amount from structured pass
-      const windowStart = Math.max(0, amountMatch.index - 180);
-      const windowEnd = Math.min(answerText.length, amountMatch.index + amountMatch[0].length + 180);
-      const window = answerText.substring(windowStart, windowEnd);
-      const dollarPos = amountMatch.index - windowStart;
-
-      // Find nearest sector keyword
-      let bestSector: string | null = null;
-      let bestDist = Infinity;
-      for (const { canon, patterns } of sectorKeywords) {
-        for (const pat of patterns) {
-          const m = pat.exec(window);
-          if (m) {
-            const dist = Math.abs(m.index - dollarPos);
-            if (dist < bestDist) {
-              bestDist = dist;
-              bestSector = canon;
-            }
-          }
-        }
-      }
-
-      if (bestSector && !allocations.has(bestSector)) {
-        // Only add if not already captured by structured pass
-        setAlloc(bestSector, amountInM, 0, 1, window.trim());
-        proximityCount++;
-        console.log(`[extractFundingFromAnswer] PROXIMITY: ${bestSector} = $${amountInM}M`);
-      }
-    }
-
-    console.log(`[extractFundingFromAnswer] Pass 2 (proximity): found ${proximityCount} new sectors`);
-
-    const result = Array.from(allocations.values()).sort((a, b) => b.amount - a.amount);
-    const total = result.reduce((s, a) => s + a.amount, 0);
-    console.log(`[extractFundingFromAnswer] FINAL: ${result.length} sectors, total $${(total/1000).toFixed(1)}B:`,
-      result.map(a => `${a.sector}=$${a.amount}M`).join(", "));
-    return result;
-  }, []);
 
   // Normalize sector names to match Career Explorer SECTOR_CONFIGS
   const normalizeSector = useCallback((rawSector: string | undefined): string => {
@@ -2481,31 +2001,14 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       let trainingProgramsData: TrainingProgram[] = [];
 
       if (tab === "funding") {
-        const fromSources = extractFundingAllocations(sources);
-        const fromAnswer = result.answer ? extractFundingFromAnswer(result.answer) : [];
-        console.log(`[fetchTabData] funding: ${fromSources.length} from sources (table/text), ${fromAnswer.length} from AI answer`);
-
-        // Merge: take BEST of both — per sector use the higher amount so we don't undercount when chunks are a subset
-        const mergedMap = new Map<string, FundingAllocation>();
-        for (const alloc of fromSources) mergedMap.set(alloc.sector.toLowerCase(), alloc);
-        for (const alloc of fromAnswer) {
-          const key = alloc.sector.toLowerCase();
-          const existing = mergedMap.get(key);
-          if (!existing) {
-            mergedMap.set(key, alloc);
-          } else if (alloc.amount > existing.amount) {
-            // Prefer higher amount (avoids undercount when table chunks are partial)
-            mergedMap.set(key, alloc);
-          }
-          // else keep existing (source or previous AI) — don't replace with lower number
+        // Figures come from the budget extraction, not from the answer text:
+        // the answer is the written analysis only.
+        try {
+          fundingData = await loadBudgetFunding();
+          console.log(`[fetchTabData] funding: ${fundingData.length} measures from Horus budget figures`);
+        } catch (err) {
+          console.warn("[fetchTabData] funding: budget figures unavailable:", err);
         }
-        fundingData = removeSameAmountDuplicates(
-          Array.from(mergedMap.values()).sort((a, b) => b.amount - a.amount)
-        );
-
-        const total = fundingData.reduce((s, a) => s + a.amount, 0);
-        console.log(`[fetchTabData] funding: merged ${fundingData.length} sectors, total $${(total/1000).toFixed(1)}B`,
-          fundingData.map(a => `${a.sector}=$${a.amount}M(${a.confidence})`).join(", "));
       }
       if (tab === "careers") {
         console.log(`[fetchTabData] ${tab} Starting extraction with ${sources.length} sources`);
@@ -2771,7 +2274,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       fetchInProgress.current.delete(tab);
       console.log(`[fetchTabData] ${tab} fetch completed`);
     }
-      }, [semanticSearch, extractFundingAllocations, extractFundingFromAnswer, extractCareerOpportunities, extractSkillsDemand, generateCrossTabInsights, extractCareersFromAnswer, extractSkillsFromAnswer, extractTrainingProgramsFromAnswer]);
+      }, [semanticSearch, extractCareerOpportunities, extractSkillsDemand, generateCrossTabInsights, extractCareersFromAnswer, extractSkillsFromAnswer, extractTrainingProgramsFromAnswer]);
 
   const ingestAgenticResult = useCallback((tab: IntelligenceTab, payload: { answer: string; sources: any[] }) => {
     const { answer, sources: rawSources } = payload;
@@ -2787,39 +2290,8 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
       let newSkills = prev.skillsDemand;
       let newTrainingPrograms = prev.trainingPrograms;
 
-      if (tab === "funding") {
-        const fromSources = extractFundingAllocations(sources);
-        const fromAnswer = answer ? extractFundingFromAnswer(answer) : [];
-        // Combine: take higher amount per sector so we don't lose info when chunks are a subset
-        const combinedMap = new Map<string, FundingAllocation>();
-        for (const alloc of fromSources) combinedMap.set(alloc.sector.toLowerCase(), alloc);
-        for (const alloc of fromAnswer) {
-          const key = alloc.sector.toLowerCase();
-          const existing = combinedMap.get(key);
-          if (!existing || alloc.amount > existing.amount) combinedMap.set(key, alloc);
-        }
-        const extracted = Array.from(combinedMap.values());
-
-        if (extracted.length > 0) {
-          const mergedMap = new Map<string, FundingAllocation>();
-          for (const alloc of prev.fundingAllocations) {
-            mergedMap.set(alloc.sector.toLowerCase(), alloc);
-          }
-          for (const alloc of extracted) {
-            const key = alloc.sector.toLowerCase();
-            const existing = mergedMap.get(key);
-            if (!existing) {
-              mergedMap.set(key, alloc);
-            } else if (alloc.confidence === "high" && existing.confidence !== "high") {
-              mergedMap.set(key, alloc);
-            }
-            // else keep existing — don't let same-confidence replace (prevents inflation)
-          }
-          newFunding = removeSameAmountDuplicates(
-            Array.from(mergedMap.values()).sort((a, b) => b.amount - a.amount)
-          );
-        }
-      }
+      // Funding figures are loaded from Horus's budget extraction by
+      // fetchTabData; an answer's prose is never mined for amounts.
       if (tab === "careers") {
         const fromSources = extractCareerOpportunities(sources);
         const fromAnswer = answer ? extractCareersFromAnswer(answer) : [];
@@ -2882,7 +2354,7 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
         crossTabInsights: generateCrossTabInsights(newFunding, newCareers, newSkills),
       };
     });
-  }, [extractFundingAllocations, extractFundingFromAnswer, extractCareerOpportunities, extractCareersFromAnswer, extractSkillsDemand, extractSkillsFromAnswer, extractTrainingProgramsFromAnswer, generateCrossTabInsights]);
+  }, [extractCareerOpportunities, extractCareersFromAnswer, extractSkillsDemand, extractSkillsFromAnswer, extractTrainingProgramsFromAnswer, generateCrossTabInsights]);
 
   // ============================================================================
   // Initialize
@@ -3168,12 +2640,6 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
   // Computed Values
   // ============================================================================
 
-  // Single source of truth: sum of all allocations (same-sector amounts already merged in extraction)
-  const totalBudget = useMemo(() =>
-    state.fundingAllocations.reduce((sum, f) => sum + f.amount, 0),
-    [state.fundingAllocations]
-  );
-
   const totalJobs = useMemo(() =>
     state.careerOpportunities.reduce((sum, c) => sum + (c.jobs || 0), 0),
     [state.careerOpportunities]
@@ -3262,7 +2728,6 @@ export function IntelligenceProvider({ children }: { children: React.ReactNode }
     getTabData,
     getTopInsights,
     getRelatedData,
-    totalBudget,
     totalJobs,
     topGrowthSector,
     emergingTrends,
