@@ -266,7 +266,8 @@ export default function AustralianJobs() {
       loadUserPreferences(session.user.id);
       loadSavedJobs(session.user.id);
 
-      const searchTerm = hasPersonalizationData ? getPersonalizedJobQuery() : "developer";
+      // No profile yet → a broad search, not a guess that everyone is a developer.
+      const searchTerm = (hasPersonalizationData && getPersonalizedJobQuery()) || "";
 
       setLoading(true);
       try {
@@ -279,6 +280,10 @@ export default function AustralianJobs() {
           },
         });
 
+        // This runs again once the profile loads (broad search, then the
+        // learner's role). A run that's been superseded must not land last
+        // and replace the personalised results.
+        if (!mounted) return;
         if (error) throw error;
         if (data.error) console.error("API Error:", data.error);
 
@@ -286,6 +291,7 @@ export default function AustralianJobs() {
         setStats(data.stats || null);
         setHasMore((data.jobs || []).length >= 20);
       } catch (error: any) {
+        if (!mounted) return;
         console.error("Error fetching jobs:", error);
         toast({
           title: "Failed to load jobs",
@@ -293,7 +299,7 @@ export default function AustralianJobs() {
           variant: "destructive",
         });
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
     init();
@@ -350,8 +356,13 @@ export default function AustralianJobs() {
       }
 
       try {
-        const currentPage = reset ? 1 : page;
-        const sanitizedQuery = sanitize(searchQuery || "developer", { maxLength: 200 });
+        // `page` is the last page loaded, so "Load more" asks for the one after it.
+        // It used to ask for `page` itself, re-fetching page 1 as duplicates.
+        const currentPage = reset ? 1 : page + 1;
+        // An empty search box means "what the first page searched": the profile's
+        // role, or a broad search with no profile — never a guessed "developer".
+        const fallbackQuery = (hasPersonalizationData && getPersonalizedJobQuery()) || "";
+        const sanitizedQuery = sanitize(searchQuery || fallbackQuery, { maxLength: 200 });
         const sanitizedIndustry = sanitize(selectedIndustry, { maxLength: 100 });
 
         const { data, error } = await supabase.functions.invoke("job-news", {
@@ -387,7 +398,7 @@ export default function AustralianJobs() {
           success: true,
         });
 
-        if (!reset) setPage((p) => p + 1);
+        if (!reset) setPage(currentPage);
       } catch (error: any) {
         console.error("Error fetching jobs:", error);
         toast({
@@ -402,6 +413,8 @@ export default function AustralianJobs() {
     },
     [
       searchQuery,
+      hasPersonalizationData,
+      getPersonalizedJobQuery,
       selectedCity,
       selectedType,
       selectedLevel,

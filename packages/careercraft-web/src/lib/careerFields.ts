@@ -1,110 +1,79 @@
 /**
- * Single source of truth for career field + seniority labels used across
- * Interview Prep, Career Guidance, Certifications, and profile mapping.
+ * Role and level vocabulary for Interview Prep and the career tabs.
+ *
+ * There is no list of allowed careers. The role is whatever the learner is going
+ * for — their getting-started answer, or anything they type — and the coach
+ * understands any job. This file used to hold a closed list of 18 fields, half
+ * of them tech, plus an industry → field substring map that sent security guards
+ * to cyber security and food production to product management. What remains is
+ * only vocabulary that is genuinely fixed:
+ *  - a broad seed of example roles, shown as suggestions when nothing better is known;
+ *  - the career levels exactly as profiles store them, with plain labels.
  */
+import { CAREER_LEVELS } from "@/hooks/useUserProfile";
 
-export const CAREER_FIELDS = [
-  "Software Engineering",
-  "DevOps / SRE",
-  "Cloud / AWS",
-  "Data Science",
-  "Data Engineering",
-  "Security",
-  "Networking",
-  "IT Support",
-  "Product Management",
-  "UX/UI Design",
-  "Sales",
-  "Marketing",
-  "Finance",
-  "Healthcare / Nursing",
-  "Human Resources",
-  "Legal",
-  "Operations",
-  "Customer Success",
-] as const;
+/** Example roles across the whole workforce. Suggestions only — never a limit. */
+export const POPULAR_ROLES: readonly string[] = [
+  // Trades and construction
+  "Electrician",
+  "Plumber",
+  "Carpenter",
+  "Diesel Mechanic",
+  "Construction Labourer",
+  // Health and care
+  "Registered Nurse",
+  "Aged Care Worker",
+  "Disability Support Worker",
+  "Pharmacy Assistant",
+  "Medical Receptionist",
+  // Hospitality and retail
+  "Chef",
+  "Barista",
+  "Retail Assistant",
+  "Hospitality Manager",
+  // Education and community
+  "Primary School Teacher",
+  "Early Childhood Educator",
+  "Youth Worker",
+  // Business and office
+  "Administration Officer",
+  "Accountant",
+  "Customer Service Officer",
+  "Sales Representative",
+  "Marketing Coordinator",
+  "Human Resources Officer",
+  // Transport and logistics
+  "Truck Driver",
+  "Warehouse Worker",
+  // Technology
+  "Software Engineer",
+  "IT Support Officer",
+  "Data Analyst",
+];
 
-export type CareerField = (typeof CAREER_FIELDS)[number];
-
-export const CAREER_SENIORITY = [
-  "Junior",
-  "Mid-Level",
-  "Senior",
-  "Lead",
-  "Manager",
-  "Director",
-  "VP",
-  "C-Level",
-] as const;
-
-export type CareerSeniority = (typeof CAREER_SENIORITY)[number];
-
-/** Maps legacy / alternate labels to the canonical list (handles old saved values). */
-const FIELD_ALIASES: Record<string, CareerField> = {
-  "DevOps & SRE": "DevOps / SRE",
-  "Data Science & ML": "Data Science",
-};
-
-export function normalizeCareerField(value: string | undefined | null): string {
-  if (!value) return "";
-  const trimmed = value.trim();
-  if (FIELD_ALIASES[trimmed]) return FIELD_ALIASES[trimmed];
-  if (isCareerField(trimmed)) return trimmed;
-  return trimmed;
-}
-
-export function isCareerField(value: string): value is CareerField {
-  return (CAREER_FIELDS as readonly string[]).includes(value);
-}
-
-export function isCareerSeniority(value: string): value is CareerSeniority {
-  return (CAREER_SENIORITY as readonly string[]).includes(value);
-}
-
-/** Profile industry keywords → canonical field (used by personalization defaults). */
-export const INDUSTRY_TO_CAREER_FIELD: Record<string, CareerField> = {
-  technology: "Software Engineering",
-  software: "Software Engineering",
-  devops: "DevOps / SRE",
-  cloud: "Cloud / AWS",
-  data: "Data Science",
-  "data engineering": "Data Engineering",
-  security: "Security",
-  networking: "Networking",
-  "it support": "IT Support",
-  product: "Product Management",
-  design: "UX/UI Design",
-  sales: "Sales",
-  marketing: "Marketing",
-  finance: "Finance",
-  healthcare: "Healthcare / Nursing",
-  hr: "Human Resources",
-  legal: "Legal",
-  operations: "Operations",
-  "customer success": "Customer Success",
-};
-
-/** Profile career level keywords → canonical seniority. */
-export const CAREER_LEVEL_TO_SENIORITY: Record<string, CareerSeniority> = {
-  entry: "Junior",
-  junior: "Junior",
-  mid: "Mid-Level",
+/** Labels that read right for a tradie or a nurse as much as an office worker. */
+const PLAIN_LEVEL_LABELS: Record<string, string> = {
+  entry: "Starting out (apprentice, graduate, entry level)",
+  mid: "Experienced",
   senior: "Senior",
-  lead: "Lead",
+  lead: "Lead or supervisor",
   manager: "Manager",
   director: "Director",
-  vp: "VP",
-  executive: "C-Level",
+  vp: "Executive",
+  "c-level": "Chief executive or owner",
 };
 
-export function mapIndustryToCareerField(industry: string): string {
-  const lower = industry.toLowerCase();
-  const hit = Object.entries(INDUSTRY_TO_CAREER_FIELD).find(([key]) => lower.includes(key));
-  return hit?.[1] ?? industry;
-}
+/** Career levels as `profiles.career_level` stores them (shared with Settings), with plain labels. */
+export const CAREER_LEVEL_OPTIONS: ReadonlyArray<{ value: string; label: string }> = CAREER_LEVELS.map((l) => ({
+  value: l.value,
+  label: PLAIN_LEVEL_LABELS[l.value] ?? l.label,
+}));
 
-export function mapCareerLevelToSeniority(level: string): CareerSeniority | undefined {
-  const lower = level.toLowerCase();
-  const hit = Object.entries(CAREER_LEVEL_TO_SENIORITY).find(([key]) => lower.includes(key));
-  return hit?.[1];
+/**
+ * What to call a level: the job's own name for it when the coach supplied one
+ * ("Apprentice" for an electrician's entry level), otherwise the plain label.
+ */
+export function levelLabel(value: string | null | undefined, jobLevels?: Partial<Record<string, string>>): string {
+  if (!value) return "Any level";
+  return jobLevels?.[value] ?? CAREER_LEVEL_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }

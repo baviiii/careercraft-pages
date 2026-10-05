@@ -1,7 +1,7 @@
 /**
  * Practice setup — situation-first, dual start (drill / full mock).
  */
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -15,7 +15,6 @@ import {
   Wrench,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { usePersonalization } from "@/hooks/usePersonalization";
 import {
   interviewCoach,
   COACH_AVAILABLE,
@@ -23,15 +22,6 @@ import {
   type InterviewPlan,
   type PlanRound,
 } from "@/lib/interviewCoach";
-import {
-  CAREER_FIELDS,
-  CAREER_SENIORITY,
-  mapCareerLevelToSeniority,
-  mapIndustryToCareerField,
-  normalizeCareerField,
-  isCareerField,
-  isCareerSeniority,
-} from "@/lib/careerFields";
 import { SAMarketIntelligence } from "@/components/interview/SAMarketIntelligence";
 import { stageSession } from "../hooks/useInterviewSession";
 import type { InterviewMode } from "../types";
@@ -129,38 +119,24 @@ function Field({
   );
 }
 
-export function SetupPanel() {
+/**
+ * `role` / `level` come from the page's "Going for" card — the learner's saved
+ * role, or one they picked just this once — so this panel never asks again.
+ */
+export function SetupPanel({ role, level }: { role?: string; level?: string }) {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile, loading: profileLoading, hasPersonalizationData } = usePersonalization();
+  const field = role ?? "";
+  const seniority = level ?? "";
 
   const [situation, setSituation] = useState<SituationId | null>(null);
-  const [field, setField] = useState("");
-  const [seniority, setSeniority] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [mode, setMode] = useState<InterviewMode>("realistic");
   const [questionCount, setQuestionCount] = useState(6);
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [plan, setPlan] = useState<InterviewPlan | null>(null);
   const [buildingPlan, setBuildingPlan] = useState(false);
-  const [prefilled, setPrefilled] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
-
-  useEffect(() => {
-    if (field || profileLoading || !hasPersonalizationData) return;
-    if (profile.industry) {
-      const mapped = normalizeCareerField(mapIndustryToCareerField(profile.industry));
-      if (isCareerField(mapped)) {
-        setField(mapped);
-        setPrefilled(true);
-      }
-    }
-    if (profile.careerLevel) {
-      const mapped = mapCareerLevelToSeniority(profile.careerLevel);
-      if (mapped && isCareerSeniority(mapped)) setSeniority(mapped);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileLoading, hasPersonalizationData]);
 
   const pickSituation = (id: SituationId) => {
     const s = SITUATIONS.find((x) => x.id === id)!;
@@ -187,7 +163,11 @@ export function SetupPanel() {
 
   const requireField = (): boolean => {
     if (!field) {
-      toast({ title: "Pick your field first", variant: "destructive" });
+      toast({
+        title: "Tell us the job you're going for",
+        description: "Use the card at the top of the page. Any job works.",
+        variant: "destructive",
+      });
       return false;
     }
     return true;
@@ -248,10 +228,7 @@ export function SetupPanel() {
     enterRoom({ focusAreas: round.focusAreas, roundName: round.name });
   };
 
-  const recommendedTitle =
-    profile.targetJobTitles?.[0] ||
-    (field ? field : null) ||
-    "your target role";
+  const recommendedTitle = field || "your target role";
 
   return (
     <div className="space-y-5">
@@ -323,47 +300,13 @@ export function SetupPanel() {
         <div className="border-b border-[color:var(--cc-hair)] bg-[color:var(--cc-rust-soft)]/40 px-5 py-4 md:px-6">
           <div className="cc-kicker">Session setup</div>
           <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
-            {prefilled
-              ? "Prefilled from your profile — change anything below."
-              : "Field and level shape every question."}
+            {field
+              ? `Questions are tuned to ${field}. Change the job at the top of the page.`
+              : "Tell us the job you're going for at the top of the page, then start."}
           </p>
         </div>
 
         <div className="space-y-6 p-5 md:p-6">
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field id="iv-field" label="Field" hint="Required before you can start.">
-              <select
-                id="iv-field"
-                value={field}
-                onChange={(e) => setField(e.target.value)}
-                className="cc-field"
-              >
-                <option value="" disabled>
-                  Choose your field
-                </option>
-                {CAREER_FIELDS.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field id="iv-seniority" label="Level">
-              <select
-                id="iv-seniority"
-                value={seniority}
-                onChange={(e) => setSeniority(e.target.value)}
-                className="cc-field"
-              >
-                <option value="">Any level</option>
-                {CAREER_SENIORITY.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
 
           <Field
             id="iv-jd"
