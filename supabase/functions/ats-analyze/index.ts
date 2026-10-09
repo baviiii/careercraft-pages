@@ -218,6 +218,27 @@ const AtsAnalysisSchema = z.object({
   summary: z.record(z.any()),
 });
 
+// The Horus gateway guarantees a JSON object, not which one — no schema reaches
+// the model. Without this block it guessed the field names, failed validation,
+// and only sometimes recovered on the retry (which quotes the missing paths
+// back). The shape mirrors ATSAIAnalysis in the web app's lib/atsAIAnalyzer.ts,
+// which is what the analysis screen actually reads.
+const ATS_ANALYSIS_SHAPE = `OUTPUT — respond with a single JSON object in exactly this shape. Include every key; use [] for empty lists. No markdown fences, no commentary.
+{
+  "overallScore": number 0-100,
+  "subScores": { "skillsMatch": number 0-100, "experienceMatch": number 0-100, "keywordMatch": number 0-100, "formatCompatibility": number 0-100 },
+  "jobRequirements": { "mandatorySkills": string[], "preferredSkills": string[], "technicalKeywords": string[], "softSkills": string[], "requiredExperience": string, "tools": string[], "certifications": string[] },
+  "resumeKeywords": { "matched": string[], "missing": string[], "underRepresented": string[], "overused": string[] },
+  "writingQuality": { "grammarScore": number 0-10, "impactLanguageScore": number 0-10, "metricsUsageScore": number 0-10, "actionVerbsScore": number 0-10, "clarityScore": number 0-10, "structureScore": number 0-10 },
+  "redFlags": [ { "type": string, "severity": "critical" | "warning" | "minor", "description": string, "location": string } ],
+  "improvements": {
+    "quickFixes": [ { "issue": string, "fix": string } ],
+    "strongEnhancements": [ { "section": string, "current": string, "improved": string, "impact": string } ],
+    "advancedOptimizations": string[]
+  },
+  "summary": { "topStrengths": string[], "topWeaknesses": string[], "mostImportantFixes": string[], "overallVerdict": string }
+}`;
+
 const StructuredResumeSchema = z.object({
   contact: z.record(z.any()),
   summary: z.string(),
@@ -369,8 +390,10 @@ ${AU_RESUME_CONVENTIONS}
 SCORING IMPLICATIONS FOR THE AUSTRALIAN MARKET:
 - Do NOT penalise 2-3 page length, a Referees section, AQF qualification names, or Australian spelling — these are correct for this market, not red flags.
 - DO flag as improvements: photos, date of birth, marital status, US spelling in an Australian resume, and missing right-to-work information when the job description asks for it.
-- If the job description lists selection criteria, add a red flag noting that this employer expects a separate selection-criteria statement which the resume alone does not satisfy.`;
-      
+- If the job description lists selection criteria, add a red flag noting that this employer expects a separate selection-criteria statement which the resume alone does not satisfy.
+
+${ATS_ANALYSIS_SHAPE}`;
+
       userPrompt = `Analyze this resume against the job description and provide a comprehensive ATS analysis.
 
 JOB DESCRIPTION:
