@@ -251,21 +251,21 @@ serve(handler(async (req) => {
       }
     }
 
-    const page = jobs.slice(0, perPage);
+    const results = jobs.slice(0, perPage);
 
     /* Rank by meaning as well as keyword. This board is keyword-matched, so
        "ICU Nurse" misses "Critical Care Registered Nurse" — the `terms` list
        above is the blunt fix for that, and this is the one that does not need
        every phrasing enumerated in advance. Degrades silently; see job-news. */
     const similarityStatus = await attachSimilarity(
-      page as unknown as Array<Record<string, unknown>>,
+      results as unknown as Array<Record<string, unknown>>,
       body.profileText,
     );
 
     // `partial` tells the caller these results are thinner than they should be,
     // so a short result set reads as a degraded search rather than a quiet one.
     return json({
-      jobs: page,
+      jobs: results,
       terms,
       partial: failures.length > 0,
       similarityStatus,
