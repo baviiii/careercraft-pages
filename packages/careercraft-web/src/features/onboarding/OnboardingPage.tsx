@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Check } from 'lucide-react';
+import { FaircopyMark } from '@/components/brand/FaircopyMark';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { applyAccent, resolveAccent } from '@/lib/personaTheme';
@@ -126,10 +128,7 @@ export default function OnboardingPage() {
           industry: edited.inferredProfile.industry,
         }),
       );
-      toast({
-        title: 'You\'re all set',
-        description: 'Your profile is now personalised across Faircopy.',
-      });
+      toast({ title: 'Profile saved' });
       navigate('/dashboard', { replace: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Save failed';
@@ -161,20 +160,21 @@ export default function OnboardingPage() {
         aria-hidden
         style={{
           background:
-            'radial-gradient(circle at 82% 8%, rgba(200,67,30,0.18), transparent 32%), radial-gradient(circle at 14% 22%, rgba(255,253,247,0.62), transparent 30%)',
+            'radial-gradient(circle at 84% 4%, var(--cc-rust-soft), transparent 34%), radial-gradient(circle at 12% 20%, rgba(255,255,255,0.7), transparent 30%)',
         }}
       />
       <div className="cc-grain pointer-events-none absolute inset-0" aria-hidden />
 
       {/* Masthead */}
       <header className="relative border-b border-[color:var(--cc-hair-strong)]">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-5">
-          <span className="cc-font-display text-xl tracking-tight text-[color:var(--cc-ink)]">
-            Faircopy
-          </span>
-          <span className="cc-label-sm text-[color:var(--cc-ash)]">
-            {stage === 'choose' ? 'Step 1 · Setup' : 'Step 2 · Review'}
-          </span>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-4">
+          <div className="flex items-center gap-2.5">
+            <FaircopyMark className="h-8 w-8" />
+            <span className="cc-font-display text-[1.3rem] leading-none tracking-tight text-[color:var(--cc-ink)]">
+              Faircopy
+            </span>
+          </div>
+          <StepIndicator current={stage === 'choose' ? 1 : 2} />
         </div>
       </header>
 
@@ -206,5 +206,51 @@ export default function OnboardingPage() {
         />
       </div>
     </div>
+  );
+}
+
+const STEPS = ['Your résumé', 'Check & save'] as const;
+
+/** Two steps, so the whole path fits in the masthead. Labels other than the
+ *  current one drop out on narrow screens; the numbers carry the order. */
+function StepIndicator({ current }: { current: 1 | 2 }) {
+  return (
+    <ol className="flex items-center gap-2.5 sm:gap-3" aria-label="Setup progress">
+      {STEPS.map((label, i) => {
+        const n = i + 1;
+        const state = n < current ? 'done' : n === current ? 'current' : 'todo';
+        return (
+          <li
+            key={label}
+            className="flex items-center gap-2.5 sm:gap-3"
+            aria-current={state === 'current' ? 'step' : undefined}
+          >
+            {i > 0 && <span aria-hidden className="h-px w-5 bg-[color:var(--cc-hair-strong)] sm:w-8" />}
+            <span
+              className={
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors ' +
+                (state === 'current'
+                  ? 'border-[color:var(--cc-rust)] bg-[color:var(--cc-rust)] text-white'
+                  : state === 'done'
+                    ? 'border-[color:var(--cc-ink)] text-[color:var(--cc-ink)]'
+                    : 'border-[color:var(--cc-hair-strong)] text-[color:var(--cc-ash)]')
+              }
+            >
+              {state === 'done' ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : n}
+            </span>
+            <span
+              className={
+                'text-[13px] ' +
+                (state === 'current'
+                  ? 'font-medium text-[color:var(--cc-ink)]'
+                  : 'hidden text-[color:var(--cc-ink-soft)] sm:inline')
+              }
+            >
+              {label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

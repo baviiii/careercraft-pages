@@ -1,12 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, MessageSquare, Upload, X, ArrowRight } from 'lucide-react';
+import { ArrowRight, Check, FileText, Loader2, MessageSquare, Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   extractResumeFromFile,
   formatResumeDataAsText,
 } from '@/lib/resumeParser';
 import type { OnboardingMode } from './types';
+import { SectionIcon } from './ui';
 
 interface Props {
   onAnalyze: (mode: OnboardingMode, text: string, resumeText: string) => void;
@@ -38,10 +39,6 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
         const aiData = await extractResumeFromFile(file, () => {});
         const extracted = formatResumeDataAsText(aiData);
         setResumeText(extracted);
-        toast({
-          title: 'Résumé read',
-          description: 'We pulled out your experience — ready to analyse.',
-        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Could not read this file';
         toast({ title: 'Extraction failed', description: msg, variant: 'destructive' });
@@ -88,27 +85,27 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
     >
       <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
         <aside className="lg:sticky lg:top-24">
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 01 · Onboarding</div>
-          <h1 className="mt-4 cc-font-display text-5xl md:text-7xl leading-[0.86] tracking-[-0.04em] text-[color:var(--cc-ink)]">
-            Let's get to
-            <span className="block cc-italic-wonk text-[color:var(--cc-rust)]">know you.</span>
+          <div className="cc-label text-[color:var(--cc-rust)]">§ 01 · Your résumé</div>
+          <h1 className="mt-4 cc-font-display text-5xl md:text-7xl leading-[0.9] tracking-[-0.04em] text-[color:var(--cc-ink)]">
+            Start with
+            <span className="block text-[color:var(--cc-rust)]">your résumé.</span>
           </h1>
-          <p className="mt-6 cc-font-editorial text-xl md:text-2xl leading-snug text-[color:var(--cc-ink-soft)]">
-            One good signal is enough. A résumé gives the clearest read; your own words help us understand what you want next.
+          <p className="mt-6 cc-font-editorial text-lg md:text-xl leading-snug text-[color:var(--cc-ink-soft)]">
+            We read it and fill in your profile. You check everything before it's saved.
           </p>
-          <div className="mt-8 hidden border-l border-[color:var(--cc-rust)] pl-5 lg:block">
-            <p className="cc-font-editorial italic text-lg leading-snug text-[color:var(--cc-ash)]">
-              This sets up your résumé tools, job tracker, market insights and interview coach.
+          <div className="mt-8 hidden border-l-2 border-[color:var(--cc-rust)] pl-5 lg:block">
+            <p className="cc-font-editorial text-base leading-snug text-[color:var(--cc-ink-soft)]">
+              Your profile sets your job matches, résumé rewrites and interview practice.
             </p>
           </div>
         </aside>
 
         <div>
           <section className="cc-card p-5 md:p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <FileText className="h-4 w-4 text-[color:var(--cc-rust)]" />
-              <span className="cc-label text-[color:var(--cc-ink)]">Upload your résumé</span>
-              <span className="ml-auto cc-tag">Best signal</span>
+            <div className="mb-4 flex items-center gap-2.5">
+              <SectionIcon icon={FileText} />
+              <h2 className="cc-font-display text-lg tracking-tight text-[color:var(--cc-ink)]">Upload your résumé</h2>
+              <span className="ml-auto hidden sm:block"><span className="cc-tag">Recommended</span></span>
             </div>
 
             {!resumeFile ? (
@@ -153,9 +150,17 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
                     <p className="truncate cc-font-editorial text-lg text-[color:var(--cc-ink)]">
                       {resumeFile.name}
                     </p>
-                    <p className="cc-label-sm text-[color:var(--cc-ash)]">
-                      {extracting ? 'Reading file…' : 'Ready to analyse'}
-                    </p>
+                    {extracting ? (
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-[color:var(--cc-ink-soft)]">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[color:var(--cc-rust)]" />
+                        Reading your résumé…
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-[color:var(--cc-signal)]">
+                        <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                        Read and ready
+                      </p>
+                    )}
                   </div>
                 </div>
                 <button
@@ -170,12 +175,13 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
             )}
           </section>
 
-          <div className="cc-dot-rule my-6">or add context</div>
+          <div className="cc-dot-rule my-6">and / or</div>
 
           <section className="cc-card p-5 md:p-6">
-            <div className="mb-3 flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-[color:var(--cc-rust)]" />
-              <span className="cc-label text-[color:var(--cc-ink)]">What are you aiming for?</span>
+            <div className="mb-3 flex items-center gap-2.5">
+              <SectionIcon icon={MessageSquare} />
+              <h2 className="cc-font-display text-lg tracking-tight text-[color:var(--cc-ink)]">What are you aiming for?</h2>
+              <span className="ml-auto text-[13px] text-[color:var(--cc-ash)]">Optional</span>
             </div>
             <textarea
               value={text}
@@ -185,11 +191,11 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
               disabled={busy}
               className="cc-field cc-field-textarea"
             />
-            <p className="mt-2 cc-label-sm text-[color:var(--cc-ash)]">
-              {text.trim().length > 0 && text.trim().length < 20
-                ? `${20 - text.trim().length} more characters to enable`
-                : `${text.length} characters`}
-            </p>
+            {text.trim().length > 0 && text.trim().length < 20 && (
+              <p className="mt-2 text-[13px] text-[color:var(--cc-ash)]">
+                {20 - text.trim().length} more characters, or upload a résumé
+              </p>
+            )}
           </section>
 
           <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -197,7 +203,7 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
               Skip for now
             </button>
             <button onClick={submit} disabled={!canAnalyze || busy || extracting} className="cc-btn cc-btn-primary">
-              {busy ? 'Analysing…' : 'Analyse with AI'}
+              {busy ? 'Building…' : extracting ? 'Reading résumé…' : 'Build my profile'}
               <ArrowRight className="cc-arrow-right h-4 w-4" />
             </button>
           </div>

@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Briefcase,
+  Check,
   CheckCircle2,
   FileCheck,
+  Info,
   Loader2,
   RefreshCw,
-  Sparkles,
+  Tags,
   Target,
-  X,
+  UserRound,
 } from 'lucide-react';
+import { FaircopyMark } from '@/components/brand/FaircopyMark';
 import {
   CAREER_LEVELS,
   EMPLOYMENT_STATUS,
@@ -17,6 +20,7 @@ import {
   YEARS_OF_EXPERIENCE,
 } from '@/hooks/useUserProfile';
 import type { OnboardingAnalysis } from './types';
+import { Chip, SectionIcon } from './ui';
 
 interface Props {
   analysis: OnboardingAnalysis | null;
@@ -28,20 +32,30 @@ interface Props {
   saving?: boolean;
 }
 
-const LOADING_MESSAGES = [
-  'Reading your background…',
-  'Categorising your role and seniority…',
-  'Inferring your career targets…',
-  'Mapping your skills…',
-  'Setting your CV standards…',
-];
-
-const REMOTE_OPTIONS = [
+const WORK_OPTIONS = [
   { value: 'remote', label: 'Remote' },
   { value: 'hybrid', label: 'Hybrid' },
   { value: 'onsite', label: 'On-site' },
-  { value: 'any', label: 'Any' },
 ];
+
+/* The shared labels carry year ranges ("Mid Level (2-5 years)") that sit right
+   beside the Experience field here and contradict it whenever the two disagree.
+   Experience already says how long; level only needs to say how senior. */
+const LEVEL_OPTIONS = CAREER_LEVELS.map((l) => ({ ...l, label: l.label.replace(/\s*\(.*\)$/, '') }));
+
+/** Below this the analyser was guessing, and saying so beats a score. */
+const LOW_CONFIDENCE = 0.6;
+
+/**
+ * remote_preference is single-valued; work_arrangement is the set the person
+ * actually picks. Asking both on one screen read as the same question twice, so
+ * only the set is asked and the single value is derived from it on save.
+ */
+function deriveRemotePreference(arrangement: string[], current: string): string {
+  if (arrangement.includes(current)) return current;
+  if (arrangement.length === 1) return arrangement[0];
+  return 'any';
+}
 
 export function AnalyzeStep({
   analysis,
@@ -52,17 +66,7 @@ export function AnalyzeStep({
   onBack,
   saving = false,
 }: Props) {
-  const [msgIdx, setMsgIdx] = useState(0);
-
-  useEffect(() => {
-    if (!loading) return;
-    const id = setInterval(() => setMsgIdx((i) => (i + 1) % LOADING_MESSAGES.length), 1800);
-    return () => clearInterval(id);
-  }, [loading]);
-
-  if (loading || !analysis) {
-    return <LoadingPanel message={LOADING_MESSAGES[msgIdx]} />;
-  }
+  if (loading || !analysis) return <LoadingPanel />;
 
   return (
     <RevealPanel
@@ -76,34 +80,28 @@ export function AnalyzeStep({
   );
 }
 
-function LoadingPanel({ message }: { message: string }) {
+function LoadingPanel() {
   return (
-    <div className="cc-card p-10 md:p-14">
-      <div className="flex flex-col items-center gap-6 text-center">
-        <div className="relative flex h-16 w-16 items-center justify-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-[color:var(--cc-rust-soft)]" />
-          <span className="relative flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream-2)]">
-            <Sparkles className="h-7 w-7 text-[color:var(--cc-rust)]" />
-          </span>
-        </div>
-        <div className="space-y-3">
+    <div className="cc-card p-10 md:p-16">
+      <div className="mx-auto flex max-w-sm flex-col items-center gap-6 text-center">
+        <motion.div
+          animate={{ scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] }}
+          transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <FaircopyMark className="h-14 w-14" />
+        </motion.div>
+        <div>
           <p className="cc-font-display text-2xl tracking-tight text-[color:var(--cc-ink)]">
-            Reading your career
+            Building your profile
           </p>
-          <div className="flex h-6 items-center justify-center gap-2 cc-label-sm text-[color:var(--cc-ash)]">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={message}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.25 }}
-              >
-                {message}
-              </motion.span>
-            </AnimatePresence>
-          </div>
+          <p className="mt-2 text-[15px] text-[color:var(--cc-ink-soft)]">Usually under half a minute.</p>
+        </div>
+        <div className="relative h-[3px] w-48 overflow-hidden rounded-full bg-[color:var(--cc-hair)]" aria-hidden>
+          <motion.span
+            className="absolute inset-y-0 w-1/3 rounded-full bg-[color:var(--cc-rust)]"
+            animate={{ x: ['-100%', '300%'] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          />
         </div>
       </div>
     </div>
@@ -134,82 +132,116 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
   const stagger = (i: number) => ({
     initial: { opacity: 0, y: 12 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.35, delay: i * 0.07 },
+    transition: { duration: 0.35, delay: i * 0.06 },
   });
 
   const { persona, inferredProfile, skills, cvStandards, confidence } = edited;
-  const confidencePct = Math.round((confidence?.overall ?? 0) * 100);
+  const name = inferredProfile.full_name?.trim();
+  const roleLine = [inferredProfile.current_job_title, inferredProfile.current_company]
+    .filter(Boolean)
+    .join(' at ');
+  const lowConfidence = (confidence?.overall ?? 0) < LOW_CONFIDENCE;
+  const currency = edited.targets.desired_salary_currency || 'AUD';
+
+  const toggleWork = (value: string) => {
+    const cur = edited.targets.work_arrangement;
+    setTargets({
+      work_arrangement: cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value],
+    });
+  };
+
+  const save = () =>
+    onConfirm({
+      ...edited,
+      jobPreferences: {
+        ...edited.jobPreferences,
+        remote_preference: deriveRemotePreference(
+          edited.targets.work_arrangement,
+          edited.jobPreferences.remote_preference,
+        ),
+      },
+    });
 
   return (
     <div className="space-y-4">
-      {/* Persona — the headline plate */}
+      {/* Who this is — read straight off the details below, so edits show here */}
       <motion.div {...stagger(0)}>
-        <div className="cc-card border-[color:var(--cc-ink)] p-6 md:p-8">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Your profile</div>
-            {runsRemaining > 0 && (
-              <span className="cc-label-sm text-[color:var(--cc-ash)]">
-                {runsRemaining} re-analyses left today
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="cc-label-sm text-[color:var(--cc-ash)]">Here's how we read you</p>
-              <h2 className="mt-2 cc-font-display text-3xl md:text-4xl leading-[0.95] tracking-[-0.02em] text-[color:var(--cc-ink)]">
-                {persona.archetype}
-              </h2>
-            </div>
-            <ConfidenceRing pct={confidencePct} />
-          </div>
-
-          <p className="mt-5 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
-            {persona.narrative}
-          </p>
+        <div className="cc-card p-6 md:p-8">
+          <div className="cc-label text-[color:var(--cc-rust)]">§ 02 · Check your profile</div>
+          <h1 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-[-0.03em] text-[color:var(--cc-ink)]">
+            {name || roleLine || 'Your profile'}
+          </h1>
+          {name && roleLine && (
+            <p className="mt-2 text-lg text-[color:var(--cc-ink-soft)]">{roleLine}</p>
+          )}
 
           <div className="mt-5 flex flex-wrap gap-2">
             <PersonaPill label="Seniority" value={persona.seniority} />
             <PersonaPill label="Function" value={persona.function} />
             {persona.subFunction && <PersonaPill label="Focus" value={persona.subFunction} />}
-            {persona.vertical && <PersonaPill label="Vertical" value={persona.vertical} />}
+            {inferredProfile.location_city && (
+              <PersonaPill label="Based in" value={inferredProfile.location_city} />
+            )}
           </div>
+
+          <p className="mt-6 border-t border-[color:var(--cc-hair)] pt-4 text-[15px] text-[color:var(--cc-ink-soft)]">
+            {lowConfidence ? (
+              <span className="flex items-start gap-2">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--cc-rust)]" />
+                Parts of your résumé were hard to read. Check the details below before saving.
+              </span>
+            ) : (
+              'Check the details below. You can change any of them later in Settings.'
+            )}
+          </p>
         </div>
       </motion.div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
         <div className="space-y-4">
-          {/* Targets — editable */}
           <motion.div {...stagger(1)}>
-            <SectionCard
-              icon={Target}
-              title="Tune your targets"
-              subtitle="These are the details worth checking before saving."
-            >
+            <SectionCard icon={Target} title="What you're looking for">
               <div className="space-y-5">
                 <EditField label="Target roles">
                   <EditableChips
                     items={edited.targets.target_job_titles}
                     onChange={(v) => setTargets({ target_job_titles: v })}
-                    placeholder="Add a role…"
+                    placeholder="Add a role"
                   />
                 </EditField>
                 <EditField label="Preferred locations">
                   <EditableChips
                     items={edited.targets.preferred_locations}
                     onChange={(v) => setTargets({ preferred_locations: v })}
-                    placeholder="Add a location…"
+                    placeholder="Add a location"
                   />
                 </EditField>
                 <EditField label="Work arrangement">
-                  <EditableChips
-                    items={edited.targets.work_arrangement}
-                    onChange={(v) => setTargets({ work_arrangement: v })}
-                    placeholder="e.g. remote, hybrid…"
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    {WORK_OPTIONS.map((opt) => {
+                      const active = edited.targets.work_arrangement.includes(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => toggleWork(opt.value)}
+                          aria-pressed={active}
+                          className={
+                            'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] transition-colors ' +
+                            (active
+                              ? 'border-[color:var(--cc-ink)] bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]'
+                              : 'border-[color:var(--cc-hair-strong)] bg-white/70 text-[color:var(--cc-ink)] hover:border-[color:var(--cc-ink)]')
+                          }
+                        >
+                          {active && <Check className="h-3.5 w-3.5" strokeWidth={2.5} />}
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </EditField>
                 <div className="grid grid-cols-2 gap-4">
-                  <EditField label="Min salary">
+                  <EditField label={`Min salary (${currency})`}>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -217,11 +249,11 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
                       onChange={(e) =>
                         setTargets({ desired_salary_min: e.target.value ? Number(e.target.value) : null })
                       }
-                      placeholder="90000"
+                      placeholder="e.g. 90000"
                       className="cc-field"
                     />
                   </EditField>
-                  <EditField label="Max salary">
+                  <EditField label={`Max salary (${currency})`}>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -229,7 +261,7 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
                       onChange={(e) =>
                         setTargets({ desired_salary_max: e.target.value ? Number(e.target.value) : null })
                       }
-                      placeholder="130000"
+                      placeholder="e.g. 130000"
                       className="cc-field"
                     />
                   </EditField>
@@ -245,48 +277,48 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
                   <EditableChips
                     items={edited.targets.target_companies}
                     onChange={(v) => setTargets({ target_companies: v })}
-                    placeholder="Add a company…"
+                    placeholder="Add a company"
                   />
                 </EditField>
                 <EditField label="Industries">
                   <EditableChips
                     items={edited.jobPreferences.industries}
                     onChange={(v) => setPrefs({ industries: v })}
-                    placeholder="Add an industry…"
+                    placeholder="Add an industry"
                   />
                 </EditField>
-                <EditField label="Remote preference">
-                  <div className="flex flex-wrap gap-2">
-                    {REMOTE_OPTIONS.map((opt) => {
-                      const active = edited.jobPreferences.remote_preference === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setPrefs({ remote_preference: opt.value })}
-                          className={
-                            'cc-pill transition-colors ' +
-                            (active ? 'cc-pill-filled' : 'hover:border-[color:var(--cc-ink)]')
-                          }
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </EditField>
               </div>
+            </SectionCard>
+          </motion.div>
+
+          <motion.div {...stagger(4)}>
+            <SectionCard icon={Tags} title="Skills" count={skills.length}>
+              <EditableChips
+                items={skills.map((s) => s.name)}
+                onChange={(names) =>
+                  setEdited((p) => ({
+                    ...p,
+                    skills: names.map(
+                      (n) =>
+                        p.skills.find((s) => s.name === n) ?? {
+                          name: n,
+                          category: 'domain',
+                          proficiency: 'intermediate',
+                          years_experience: null,
+                        },
+                    ),
+                  }))
+                }
+                placeholder="Add a skill"
+                empty="No skills found. Add the ones you want employers to see."
+              />
             </SectionCard>
           </motion.div>
         </div>
 
         <div className="space-y-4">
           <motion.div {...stagger(3)}>
-            <SectionCard
-              icon={Briefcase}
-              title="Your details"
-              subtitle="Saved straight into your profile — fix anything we misread."
-            >
+            <SectionCard icon={UserRound} title="Your details">
               <div className="space-y-4">
                 <EditField label="Full name">
                   <input
@@ -326,7 +358,7 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
                     <CanonicalSelect
                       value={inferredProfile.career_level}
                       onChange={(v) => setProfile({ career_level: v })}
-                      options={CAREER_LEVELS}
+                      options={LEVEL_OPTIONS}
                     />
                   </EditField>
                   <EditField label="Experience">
@@ -366,41 +398,25 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
             </SectionCard>
           </motion.div>
 
-          <motion.div {...stagger(4)}>
-            <SectionCard icon={Sparkles} title={`Skills · ${skills.length}`}>
-              <div className="flex flex-wrap gap-2">
-                {skills.slice(0, 18).map((s) => (
-                  <span key={s.name} className="cc-pill">
-                    {s.name}
-                  </span>
-                ))}
-                {skills.length === 0 && (
-                  <p className="cc-font-editorial text-base text-[color:var(--cc-ash)]">
-                    No skills inferred — try the résumé path or describe in more detail.
-                  </p>
-                )}
-              </div>
-            </SectionCard>
-          </motion.div>
 
           <motion.div {...stagger(5)}>
             <SectionCard
               icon={FileCheck}
               title="CV standards"
+              subtitle="Used when we write or rewrite your résumé."
               accent
-              subtitle="Used when we generate or rewrite your résumé."
             >
               <div className="grid grid-cols-2 gap-4">
                 <KV label="Length" value={cvStandards.recommended_length} />
-                <KV label="Format" value={cvStandards.format} />
+                <KV label="Format" value={cvStandards.format.replace(/-/g, ' ')} />
               </div>
               {cvStandards.improvements?.length > 0 && (
                 <div className="mt-5">
-                  <p className="cc-label-sm text-[color:var(--cc-rust)] mb-2">Top improvements</p>
-                  <ul className="space-y-1.5">
+                  <p className="cc-field-label mb-2">Improve first</p>
+                  <ul className="space-y-2">
                     {cvStandards.improvements.slice(0, 4).map((n, i) => (
-                      <li key={i} className="flex gap-2 cc-font-editorial text-base text-[color:var(--cc-ink-soft)]">
-                        <span className="mt-0.5 text-[color:var(--cc-rust)]">→</span>
+                      <li key={i} className="flex gap-2 text-[15px] leading-snug text-[color:var(--cc-ink-soft)]">
+                        <span className="text-[color:var(--cc-rust)]">→</span>
                         <span>{n}</span>
                       </li>
                     ))}
@@ -409,11 +425,11 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
               )}
               {cvStandards.ats_notes?.length > 0 && (
                 <div className="mt-5">
-                  <p className="cc-label-sm text-[color:var(--cc-rust)] mb-2">ATS notes</p>
-                  <ul className="space-y-1.5">
+                  <p className="cc-field-label mb-2">ATS tips</p>
+                  <ul className="space-y-2">
                     {cvStandards.ats_notes.slice(0, 3).map((n, i) => (
-                      <li key={i} className="flex gap-2 cc-font-editorial text-base text-[color:var(--cc-ink-soft)]">
-                        <CheckCircle2 className="mt-1 h-3.5 w-3.5 shrink-0 text-[color:var(--cc-signal)]" />
+                      <li key={i} className="flex gap-2 text-[15px] leading-snug text-[color:var(--cc-ink-soft)]">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--cc-signal)]" />
                         <span>{n}</span>
                       </li>
                     ))}
@@ -435,20 +451,20 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
             <button
               onClick={onReanalyze}
               disabled={saving || runsRemaining <= 0}
-              title={runsRemaining <= 0 ? 'Daily limit reached' : 'Re-run AI analysis'}
+              title={runsRemaining <= 0 ? 'No re-analyses left today' : undefined}
               className="cc-btn cc-btn-ghost"
             >
               <RefreshCw className="h-4 w-4" />
-              Re-analyse
+              Re-analyse{runsRemaining > 0 ? ` (${runsRemaining} left)` : ''}
             </button>
-            <button onClick={() => onConfirm(edited)} disabled={saving} className="cc-btn cc-btn-signal">
+            <button onClick={save} disabled={saving} className="cc-btn cc-btn-signal">
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" /> Saving…
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-4 w-4" /> Save &amp; personalise
+                  <CheckCircle2 className="h-4 w-4" /> Save profile
                 </>
               )}
             </button>
@@ -459,45 +475,8 @@ function RevealPanel({ analysis, runsRemaining, onConfirm, onReanalyze, onBack, 
   );
 }
 
-function ConfidenceRing({ pct }: { pct: number }) {
-  const r = 30;
-  const c = 2 * Math.PI * r;
-  const offset = c - (pct / 100) * c;
-  const tone = pct >= 75 ? 'good' : pct >= 45 ? 'warn' : 'poor';
-  return (
-    <div className="flex shrink-0 items-center gap-3">
-      <svg className="cc-ring" viewBox="0 0 72 72" style={{ width: 64, height: 64 }}>
-        <circle className="cc-ring-track" cx="36" cy="36" r={r} />
-        <circle
-          className={`cc-ring-fill-${tone}`}
-          cx="36"
-          cy="36"
-          r={r}
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)' }}
-        />
-        <text
-          x="36"
-          y="41"
-          textAnchor="middle"
-          className="cc-font-display cc-tabular"
-          style={{ fontSize: 18, fill: 'var(--cc-ink)' }}
-        >
-          {pct}
-        </text>
-      </svg>
-      <div className="cc-label-sm text-[color:var(--cc-ash)] leading-tight">
-        AI
-        <br />
-        confidence
-      </div>
-    </div>
-  );
-}
-
 function PersonaPill({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
   return (
     <div className="cc-meta border border-[color:var(--cc-hair-strong)] px-3 py-1.5">
       <span className="cc-meta-label">{label}</span>
@@ -509,14 +488,16 @@ function PersonaPill({ label, value }: { label: string; value: string }) {
 }
 
 function SectionCard({
-  icon: Icon,
+  icon,
   title,
+  count,
   subtitle,
   accent = false,
   children,
 }: {
   icon: typeof Briefcase;
   title: string;
+  count?: number;
   subtitle?: string;
   accent?: boolean;
   children: React.ReactNode;
@@ -527,13 +508,14 @@ function SectionCard({
       style={accent ? { borderColor: 'var(--cc-rust)', background: 'var(--cc-rust-soft)' } : undefined}
     >
       <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-[color:var(--cc-rust)]" />
-          <h3 className="cc-label text-[color:var(--cc-ink)]">{title}</h3>
+        <div className="flex items-center gap-2.5">
+          <SectionIcon icon={icon} />
+          <h2 className="cc-font-display text-lg tracking-tight text-[color:var(--cc-ink)]">{title}</h2>
+          {count !== undefined && (
+            <span className="text-[13px] tabular-nums text-[color:var(--cc-ash)]">{count}</span>
+          )}
         </div>
-        {subtitle && (
-          <p className="mt-1.5 cc-font-editorial text-base text-[color:var(--cc-ash)]">{subtitle}</p>
-        )}
+        {subtitle && <p className="mt-1.5 text-[14px] text-[color:var(--cc-ink-soft)]">{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -573,7 +555,7 @@ function CanonicalSelect({
 function EditField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="cc-field-label">{label}</p>
+      <p className="cc-field-label mb-1.5">{label}</p>
       {children}
     </div>
   );
@@ -583,10 +565,12 @@ function EditableChips({
   items,
   onChange,
   placeholder,
+  empty,
 }: {
   items: string[];
   onChange: (v: string[]) => void;
   placeholder?: string;
+  empty?: string;
 }) {
   const [val, setVal] = useState('');
   const add = () => {
@@ -596,22 +580,16 @@ function EditableChips({
   };
   return (
     <div>
-      {items.length > 0 && (
-        <div className="mb-2.5 flex flex-wrap gap-2">
+      {items.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-2">
           {items.map((it) => (
-            <span key={it} className="cc-pill gap-1.5">
+            <Chip key={it} onRemove={() => onChange(items.filter((x) => x !== it))}>
               {it}
-              <button
-                type="button"
-                onClick={() => onChange(items.filter((x) => x !== it))}
-                aria-label={`Remove ${it}`}
-                className="opacity-60 transition-opacity hover:opacity-100"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
+            </Chip>
           ))}
         </div>
+      ) : (
+        empty && <p className="mb-3 text-[14px] text-[color:var(--cc-ash)]">{empty}</p>
       )}
       <div className="flex gap-2">
         <input
@@ -629,7 +607,8 @@ function EditableChips({
         <button
           type="button"
           onClick={add}
-          className="shrink-0 border border-[color:var(--cc-ink)] bg-transparent px-4 cc-label text-[color:var(--cc-ink)] transition-colors hover:bg-[color:var(--cc-ink)] hover:text-[color:var(--cc-cream)]"
+          disabled={!val.trim()}
+          className="shrink-0 rounded-[0.85rem] border border-[color:var(--cc-ink)] bg-transparent px-4 cc-label text-[color:var(--cc-ink)] transition-colors hover:bg-[color:var(--cc-ink)] hover:text-[color:var(--cc-cream)] disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[color:var(--cc-ink)]"
         >
           Add
         </button>
@@ -641,8 +620,8 @@ function EditableChips({
 function KV({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="cc-label-sm text-[color:var(--cc-ash)]">{label}</p>
-      <p className="mt-1 cc-font-display text-lg capitalize text-[color:var(--cc-ink)]">{value}</p>
+      <p className="cc-field-label mb-1.5">{label}</p>
+      <p className="cc-font-display text-lg capitalize text-[color:var(--cc-ink)]">{value}</p>
     </div>
   );
 }
