@@ -190,12 +190,22 @@ async function enforceOnboardingLimit(userId: string): Promise<number> {
   return Math.max(0, DAILY_LIMIT - used - 1);
 }
 
-const JSON_SYSTEM =
-  "You must respond with a single JSON object matching the OnboardingAnalysis shape. " +
-  "Its top-level keys are exactly: persona, inferredProfile, targets, jobPreferences, " +
-  "skills, certifications, cvStandards, confidence. " +
-  "Use job_function (not function) for career function. " +
-  "Use null for unknown fields. No markdown fences, no commentary.";
+// The full shape, spelled out. Describing fields in prose was not enough: the
+// model returned only the inferredProfile fields listed under CANONICAL
+// VOCABULARY (dropping name, role, company, headline, bio) and a bare number
+// for confidence, which failed validation, cost a retry, and fell back to 0.5.
+const JSON_SYSTEM = `Respond with a single JSON object in exactly this shape. Include every key; use null for unknown values and [] for empty lists. No markdown fences, no commentary.
+{
+  "persona": { "archetype": string, "seniority": string, "job_function": string, "subFunction": string|null, "vertical": string|null, "narrative": string },
+  "inferredProfile": { "full_name": string|null, "phone": string|null, "headline": string, "bio": string, "current_job_title": string|null, "current_company": string|null, "years_of_experience": string, "industry": string, "career_level": string, "location_city": string|null, "location_country": string|null, "employment_status": string },
+  "targets": { "target_job_titles": string[], "target_companies": string[], "preferred_locations": string[], "work_arrangement": string[], "desired_salary_min": number|null, "desired_salary_max": number|null, "desired_salary_currency": string, "job_change_timeline": string|null, "search_terms": string[] },
+  "jobPreferences": { "industries": string[], "job_types": string[], "company_sizes": string[], "remote_preference": string, "min_salary": number|null },
+  "skills": [ { "name": string, "category": string, "proficiency": string, "years_experience": number|null } ],
+  "certifications": [ { "name": string, "issuer": string|null, "issue_date": string|null, "expiry_date": string|null } ],
+  "cvStandards": { "recommended_length": string, "format": string, "ats_notes": string[], "improvements": string[] },
+  "confidence": { "overall": number, "persona": number, "skills": number }
+}
+Use job_function (not function) for career function. Confidence values are between 0 and 1.`;
 
 async function runAnalysis(userMessage: string, meter: MeterContext) {
   const tier = ONBOARD_TIER();
@@ -274,7 +284,7 @@ CERTIFICATIONS
 CV STANDARDS RUBRIC (key: cvStandards)
 - recommended_length: "1 page" if <5y experience, "2 pages" if 5-15y, "3+ pages" only for exec/principal or 15+y
 - format: "reverse-chronological" by default; "functional" for career changers; "hybrid" for those with gaps or non-linear careers
-- ats_notes: actionable rules (e.g. "Use standard section headers", "Avoid tables/columns", "Include exact keywords from target_job_titles")
+- ats_notes: actionable rules written to the person, never naming a field from this schema (e.g. "Use standard section headers", "Avoid tables and columns", "Use the exact wording of the job titles you're targeting")
 - improvements: specific, prioritised actions grounded in THEIR input (e.g. "Quantify the impact of your Q3 launch — include a metric"), not generic advice. Each improvement must reference something concrete from their resume or description — a role, project, certification, or gap — and fit their actual profession (a nurse gets clinical-career advice, not software advice).
 
 CONFIDENCE
