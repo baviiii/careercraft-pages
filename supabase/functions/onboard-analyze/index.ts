@@ -132,6 +132,11 @@ const CVStandardsSchema = z.object({
   format: z.string().nullish().transform((v) => v ?? "reverse-chronological"),
   ats_notes: strArray,
   improvements: strArray,
+}).nullish().transform((v) => v ?? {
+  recommended_length: "1 page",
+  format: "reverse-chronological",
+  ats_notes: [],
+  improvements: [],
 });
 
 const ConfidenceSchema = z.object({
@@ -187,6 +192,8 @@ async function enforceOnboardingLimit(userId: string): Promise<number> {
 
 const JSON_SYSTEM =
   "You must respond with a single JSON object matching the OnboardingAnalysis shape. " +
+  "Its top-level keys are exactly: persona, inferredProfile, targets, jobPreferences, " +
+  "skills, certifications, cvStandards, confidence. " +
   "Use job_function (not function) for career function. " +
   "Use null for unknown fields. No markdown fences, no commentary.";
 
@@ -264,7 +271,7 @@ SKILLS — be exhaustive, this drives job matching:
 CERTIFICATIONS
 - Every certification, licence, registration, or credential (e.g. "AHPRA Registration", "White Card", "AWS Solutions Architect") with issuer and dates when present (dates as YYYY-MM-DD or YYYY-MM or YYYY).
 
-CV STANDARDS RUBRIC
+CV STANDARDS RUBRIC (key: cvStandards)
 - recommended_length: "1 page" if <5y experience, "2 pages" if 5-15y, "3+ pages" only for exec/principal or 15+y
 - format: "reverse-chronological" by default; "functional" for career changers; "hybrid" for those with gaps or non-linear careers
 - ats_notes: actionable rules (e.g. "Use standard section headers", "Avoid tables/columns", "Include exact keywords from target_job_titles")
