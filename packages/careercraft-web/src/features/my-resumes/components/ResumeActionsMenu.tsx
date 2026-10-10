@@ -4,6 +4,7 @@ import {
   Download,
   Edit,
   Eye,
+  Mail,
   MoreVertical,
   Star,
   StarOff,
@@ -27,6 +28,7 @@ interface ResumeActionsMenuProps {
   onPreview: (r: Resume) => void;
   onEdit: (r: Resume) => void;
   onAnalyze: (r: Resume) => void;
+  onCoverLetter?: (r: Resume) => void;
   onDownload: (r: Resume) => void;
   onDuplicate: (r: Resume) => void;
   onManageTags: (r: Resume) => void;
@@ -45,6 +47,7 @@ export const ResumeActionsMenu = ({
   onPreview,
   onEdit,
   onAnalyze,
+  onCoverLetter,
   onDownload,
   onDuplicate,
   onManageTags,
@@ -71,6 +74,9 @@ export const ResumeActionsMenu = ({
         <MenuRow icon={Eye} label="Preview" onSelect={() => onPreview(resume)} />
         <MenuRow icon={Edit} label="Edit in builder" onSelect={() => onEdit(resume)} />
         <MenuRow icon={BarChart3} label="Run ATS analysis" onSelect={() => onAnalyze(resume)} />
+        {onCoverLetter && (
+          <MenuRow icon={Mail} label="Write cover letter" onSelect={() => onCoverLetter(resume)} />
+        )}
         {hasTemplate && (
           <MenuRow
             icon={Download}

@@ -13,6 +13,7 @@ interface ResumeCardProps {
   onPreview: (r: Resume) => void;
   onEdit: (r: Resume) => void;
   onAnalyze: (r: Resume) => void;
+  onCoverLetter?: (r: Resume) => void;
   onDownload: (r: Resume) => void;
   onDuplicate: (r: Resume) => void;
   onManageTags: (r: Resume) => void;
@@ -27,6 +28,7 @@ export const ResumeCard = ({
   onPreview,
   onEdit,
   onAnalyze,
+  onCoverLetter,
   onDownload,
   onDuplicate,
   onManageTags,
@@ -59,6 +61,7 @@ export const ResumeCard = ({
             onPreview={onPreview}
             onEdit={onEdit}
             onAnalyze={onAnalyze}
+            onCoverLetter={onCoverLetter}
             onDownload={onDownload}
             onDuplicate={onDuplicate}
             onManageTags={onManageTags}

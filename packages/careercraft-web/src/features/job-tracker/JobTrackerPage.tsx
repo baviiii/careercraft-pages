@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
 import { CraftEmpty } from "@/components/craft/AppPrimitives";
+import { letterLabel } from "@/features/cover-letter/lib/letterLabel";
 import { usePersonalization } from "@/hooks/usePersonalization";
 
 import { AutomationDialog } from "./components/AutomationDialog";
@@ -153,6 +154,24 @@ export default function JobTrackerPage() {
     },
     [navigate],
   );
+
+  /* The cover letter desk loads the application itself from the id, prefills
+     its ad and résumé, and attaches the letter here when it's saved. */
+  const writeCoverLetter = useCallback(
+    (app: JobApplication) => navigate(`/cover-letter?application=${app.id}`),
+    [navigate],
+  );
+  const openCoverLetter = useCallback(
+    (letterId: string) => navigate(`/cover-letter?letter=${letterId}`),
+    [navigate],
+  );
+  const viewLetter = useMemo(() => {
+    const id = viewTarget?.cover_letter_id;
+    const cl = id ? coverLetters.find((c) => c.id === id) : undefined;
+    return cl && viewTarget
+      ? { id: cl.id, label: letterLabel(cl, viewTarget), excerpt: cl.content }
+      : null;
+  }, [viewTarget, coverLetters]);
 
   /* ───── Loading state ─────────────────────────────────────── */
   if (loading) {
@@ -425,9 +444,12 @@ export default function JobTrackerPage() {
         onOpenChange={(o) => !o && setViewTarget(null)}
         resumeName={viewTarget ? getResumeName(viewTarget.resume_id) : null}
         hasCoverLetter={Boolean(viewTarget?.cover_letter_id)}
+        coverLetter={viewLetter}
         onEdit={setEditTarget}
         events={viewTarget ? automation.eventsByApplication[viewTarget.id] || [] : []}
         onAnalyse={analyseApplication}
+        onWriteCoverLetter={writeCoverLetter}
+        onOpenCoverLetter={openCoverLetter}
         onLoadTimeline={(id) => automation.loadEvents(id).then(() => undefined)}
         onClassifyEmail={(id, subject, body, requireConfirm) =>
           automation.classifyEmail(id, subject, body, requireConfirm)

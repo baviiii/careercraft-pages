@@ -92,7 +92,7 @@ export function useJobTracker() {
     try {
       const { data, error } = await supabase
         .from("cover_letters")
-        .select("id, content, created_at")
+        .select("id, title, content, created_at")
         .order("created_at", { ascending: false });
       if (!error && data) setCoverLetters(data);
     } catch (e) {

@@ -86,6 +86,7 @@ export interface ResumeRef {
 
 export interface CoverLetterRef {
   id: string;
+  title: string | null;
   content: string;
   created_at: string;
 }

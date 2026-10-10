@@ -1,0 +1,278 @@
+/* Imported by CoverLetterPage.tsx. Kept beside the feature rather than in
+   styles/craft.css; it uses the same --cc-* tokens. */
+/* ═══════════════════════════════════════════════════════════════════════
+   COVER LETTER — the stationery desk.
+
+   The brief on the left, the letter on a sheet of stationery on the right,
+   saved letters as envelopes underneath. Tone is the colour: it tints the
+   letterhead band, the stamp and the envelope, and each tone keeps one
+   colour everywhere so a glance at the library tells you which is which.
+   Everything is scoped under .cc-desk.
+
+   TONES  professional → cobalt (the accent, so it follows the persona
+   theme) · confident → red pen · casual → sage.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.cc-desk {
+  --desk-paper: #FFFDF8;
+  --desk-envelope: #FBF7EE;
+  --tone: var(--cc-rust);
+}
+.cc-desk [data-tone="professional"] { --tone: var(--cc-rust); }
+.cc-desk [data-tone="confident"]    { --tone: #C2412D; }
+.cc-desk [data-tone="casual"]       { --tone: var(--cc-signal); }
+
+/* Brief ---------------------------------------------------------------- */
+.cc-desk-field-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-family: 'Bricolage Grotesque', 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cc-ink);
+}
+.cc-desk-note {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--cc-wheat-deep);
+  background: var(--cc-wheat-soft);
+  border-left: 3px solid var(--cc-wheat);
+  padding: 0.65rem 0.85rem;
+}
+
+.cc-desk-tone {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--cc-hair-strong);
+  border-radius: 999px;
+  background: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cc-ink-soft);
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.cc-desk-tone::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+.cc-desk-tone:hover { border-color: var(--tone); color: var(--cc-ink); }
+.cc-desk-tone[aria-checked="true"] {
+  border-color: var(--tone);
+  color: var(--cc-ink);
+  background: color-mix(in srgb, var(--tone) 9%, #fff);
+  box-shadow: inset 0 0 0 1px var(--tone);
+}
+.cc-desk-tone:focus-visible { outline: 2px solid var(--tone); outline-offset: 2px; }
+
+/* The sheet ------------------------------------------------------------ */
+.cc-desk-sheet {
+  position: relative;
+  background: var(--desk-paper);
+  border-radius: 4px;
+  overflow: hidden;
+  /* Two sheets peeking out underneath, then the shadow on the desk. */
+  box-shadow:
+    0 1px 0 rgba(20, 22, 26, 0.06),
+    6px 7px 0 -1px #F3EFE6,
+    6px 7px 0 0 rgba(20, 22, 26, 0.08),
+    12px 14px 0 -1px #ECE7DC,
+    12px 14px 0 0 rgba(20, 22, 26, 0.06),
+    0 40px 70px -45px rgba(20, 22, 26, 0.55);
+}
+.cc-desk-band {
+  height: 14px;
+  background: linear-gradient(
+    90deg,
+    var(--tone) 0 62%,
+    color-mix(in srgb, var(--tone) 55%, #fff) 62% 82%,
+    color-mix(in srgb, var(--tone) 25%, #fff) 82%
+  );
+}
+.cc-desk-date {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cc-ash);
+}
+.cc-desk-body {
+  display: block;
+  width: 100%;
+  min-height: 26rem;
+  padding: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  font-family: 'Gelasio', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.8;
+  color: var(--cc-ink);
+  caret-color: var(--tone);
+}
+.cc-desk-body::placeholder { color: var(--cc-ash); opacity: 0.8; font-style: italic; }
+.cc-desk-body::selection { background: color-mix(in srgb, var(--tone) 18%, transparent); }
+
+/* Writing: ruled lines filling with ink. */
+.cc-desk-ink { display: grid; gap: 1.05rem; min-height: 26rem; align-content: start; }
+.cc-desk-ink > i { height: 0.4rem; }
+.cc-desk-ink > span {
+  height: 11px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--tone) 8%, transparent) 0%,
+    color-mix(in srgb, var(--tone) 30%, transparent) 50%,
+    color-mix(in srgb, var(--tone) 8%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: cc-desk-ink 1.6s ease-in-out infinite;
+}
+.cc-desk-ink > span:nth-child(odd) { animation-delay: .15s; }
+@keyframes cc-desk-ink {
+  from { background-position: 100% 0; }
+  to   { background-position: -100% 0; }
+}
+
+/* The stamp -------------------------------------------------------------
+   Perforation: a ring of paper-coloured circles with holes, round-repeated
+   along the edge, over a solid inner rectangle. The holes show whatever is
+   behind the stamp. */
+.cc-desk-stamp {
+  --r: 4px;
+  --stamp-paper: #FFFFFF;
+  display: inline-block;
+  padding: calc(2.25 * var(--r));
+  background:
+    radial-gradient(var(--r), #0000 97%, var(--stamp-paper)) round
+      calc(-1.5 * var(--r)) calc(-1.5 * var(--r)) / calc(3 * var(--r)) calc(3 * var(--r)),
+    linear-gradient(var(--stamp-paper) 0 0) no-repeat
+      50% / calc(100% - 3 * var(--r)) calc(100% - 3 * var(--r));
+  filter: drop-shadow(0 2px 3px rgba(20, 22, 26, 0.18));
+  transform: rotate(3deg);
+}
+.cc-desk-stamp-face {
+  min-width: 7rem;
+  max-width: 10rem;
+  padding: 0.7rem 0.65rem 0.6rem;
+  text-align: center;
+  color: #fff;
+  background:
+    radial-gradient(circle at 80% 15%, rgba(255, 255, 255, 0.22), transparent 55%),
+    var(--tone);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.cc-desk-stamp-primary {
+  font-family: 'Bricolage Grotesque', 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.cc-desk-stamp-secondary {
+  margin-top: 0.35rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.88;
+  overflow-wrap: anywhere;
+}
+.cc-desk-stamp--sm { --r: 3px; transform: rotate(5deg); }
+.cc-desk-stamp--sm .cc-desk-stamp-face { min-width: 0; padding: 0.4rem 0.45rem; }
+.cc-desk-stamp--sm .cc-desk-stamp-primary {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Envelopes ------------------------------------------------------------ */
+.cc-desk-envelope {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 3.4rem 1.4rem 1.1rem;
+  background: var(--desk-envelope);
+  border: 1px solid var(--cc-hair);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 18px 40px -34px rgba(20, 22, 26, 0.45);
+  transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s ease, border-color .3s ease;
+}
+/* The flap */
+.cc-desk-envelope::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2.5rem;
+  background: color-mix(in srgb, var(--tone) 13%, #F3EEE3);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+/* The tone's edge, like the stripe on an airmail envelope, kept quiet. */
+.cc-desk-envelope::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 4px;
+  background: var(--tone);
+}
+.cc-desk-envelope:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 26px 50px -32px rgba(20, 22, 26, 0.5);
+}
+.cc-desk-envelope.is-active {
+  border-color: var(--tone);
+  box-shadow: 0 0 0 1px var(--tone), 0 26px 50px -32px rgba(20, 22, 26, 0.5);
+}
+.cc-desk-envelope-stamp { position: absolute; top: 0.8rem; right: 0.9rem; z-index: 1; }
+
+.cc-desk-excerpt {
+  font-family: 'Gelasio', Georgia, serif;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--cc-ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cc-desk-sent {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 12%, #fff);
+  color: color-mix(in srgb, var(--tone) 80%, #000);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.cc-desk-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  color: var(--cc-ash);
+  transition: color .2s ease, background-color .2s ease;
+}
+.cc-desk-icon-btn:hover { color: var(--cc-ink); background: var(--cc-cream-2); }
+.cc-desk-icon-btn--danger:hover { color: #C2412D; background: rgba(194, 65, 45, 0.08); }
+.cc-desk-icon-btn:focus-visible { outline: 2px solid var(--cc-rust); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-desk-ink > span { animation: none; }
+  .cc-desk-envelope,
+  .cc-desk-envelope:hover { transform: none; transition: none; }
+}

@@ -1,4 +1,4 @@
-import { Brain, Edit, ExternalLink, FileText, Mail, MapPin, Sparkles } from "lucide-react";
+import { Brain, Edit, ExternalLink, FileText, Mail, MapPin, PenLine, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -16,10 +16,15 @@ interface JobDetailPanelProps {
   onOpenChange: (open: boolean) => void;
   resumeName: string | null;
   hasCoverLetter: boolean;
+  /** The attached letter, when it's one we could load. */
+  coverLetter?: { id: string; label: string; excerpt: string } | null;
   onEdit: (app: JobApplication) => void;
   events?: ApplicationEvent[];
   /** Hand this application to /analysis with its résumé and ad prefilled. */
   onAnalyse?: (app: JobApplication) => void;
+  /** Open the cover letter desk for this application; saving there attaches. */
+  onWriteCoverLetter?: (app: JobApplication) => void;
+  onOpenCoverLetter?: (letterId: string) => void;
   onLoadTimeline?: (applicationId: string) => void;
   onClassifyEmail?: (
     applicationId: string,
@@ -51,9 +56,12 @@ export const JobDetailPanel = ({
   onOpenChange,
   resumeName,
   hasCoverLetter,
+  coverLetter,
   onEdit,
   events = [],
   onAnalyse,
+  onWriteCoverLetter,
+  onOpenCoverLetter,
   onLoadTimeline,
   onClassifyEmail,
   onConfirmStatusUpdate,
@@ -181,12 +189,22 @@ export const JobDetailPanel = ({
                   {resumeName}
                 </span>
               )}
-              {application.cover_letter_id && hasCoverLetter && (
-                <span className="cc-pill cc-pill-rust">
-                  <Mail className="w-3 h-3" />
-                  Cover letter attached
-                </span>
-              )}
+              {application.cover_letter_id && hasCoverLetter &&
+                (coverLetter && onOpenCoverLetter ? (
+                  <button
+                    type="button"
+                    className="cc-pill cc-pill-rust hover:bg-[color:var(--cc-rust-soft)] transition-colors"
+                    onClick={() => onOpenCoverLetter(coverLetter.id)}
+                  >
+                    <Mail className="w-3 h-3" />
+                    {coverLetter.label}
+                  </button>
+                ) : (
+                  <span className="cc-pill cc-pill-rust">
+                    <Mail className="w-3 h-3" />
+                    Cover letter attached
+                  </span>
+                ))}
             </div>
           </section>
         )}
@@ -265,6 +283,60 @@ export const JobDetailPanel = ({
             </div>
           </div>
         </section>
+
+        {/* ───── Cover letter ──────────────────────────────────────────
+            Hands off to /cover-letter?application=<id>, which prefills this
+            job's ad and résumé and attaches the letter here when saved. Same
+            snippet rule as the ATS check: a letter written to a two-line
+            extract can't answer the ad. */}
+        {onWriteCoverLetter && (
+          <section>
+            <div className="cc-font-sans text-sm font-semibold text-[color:var(--cc-rust)] mb-2">
+              Cover letter
+            </div>
+            <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-4 space-y-3">
+              {coverLetter ? (
+                <p className="cc-font-sans text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)] line-clamp-2">
+                  {coverLetter.excerpt}
+                </p>
+              ) : (
+                <p className="cc-font-sans text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+                  {hasFullDescription
+                    ? "Write one from this job's ad and your résumé. It's attached to this application when you save it."
+                    : "Only a short extract of this ad came through. Paste the full description on the next screen so the letter can answer it."}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {coverLetter && onOpenCoverLetter && (
+                  <CraftButton onClick={() => onOpenCoverLetter(coverLetter.id)}>
+                    <Mail className="w-4 h-4" />
+                    Open letter
+                  </CraftButton>
+                )}
+                <CraftButton
+                  variant={coverLetter ? "ghost" : "primary"}
+                  onClick={() => onWriteCoverLetter(application)}
+                >
+                  <PenLine className="w-4 h-4" />
+                  {coverLetter
+                    ? "Write a new one"
+                    : hasFullDescription
+                      ? "Write cover letter"
+                      : "Paste the ad and write"}
+                </CraftButton>
+                {!coverLetter && !hasFullDescription && application.job_url && (
+                  <CraftButton
+                    variant="ghost"
+                    onClick={() => window.open(application.job_url as string, "_blank")}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open posting to copy
+                  </CraftButton>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Email automation */}
         {(onClassifyEmail || onConfirmStatusUpdate) && (

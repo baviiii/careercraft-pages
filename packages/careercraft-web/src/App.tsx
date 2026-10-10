@@ -19,7 +19,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Onboarding = lazy(() => import("./features/onboarding/OnboardingPage"));
 const Analysis = lazy(() => import("./features/analysis/AnalysisPage"));
 const Rewrite = lazy(() => import("./pages/Rewrite"));
-const CoverLetter = lazy(() => import("./pages/CoverLetter"));
+const CoverLetter = lazy(() => import("./features/cover-letter/CoverLetterPage"));
 const JobTracker = lazy(() => import("./features/job-tracker/JobTrackerPage"));
 const ResumeBuilder = lazy(() => import("./features/resume-builder/ResumeBuilderPage"));
 const MyResumes = lazy(() => import("./features/my-resumes/MyResumesPage"));

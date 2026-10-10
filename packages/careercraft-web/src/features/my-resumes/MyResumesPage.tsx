@@ -50,6 +50,7 @@ export default function MyResumesPage() {
   };
 
   const goToAnalysis = (r: Resume) => navigate(`/analysis?id=${r.id}`);
+  const goToCoverLetter = (r: Resume) => navigate(`/cover-letter?resume=${r.id}`);
 
   const downloadPdf = async (r: Resume) => {
     setIsExporting(true);
@@ -181,6 +182,7 @@ export default function MyResumesPage() {
                     onPreview={setPreviewTarget}
                     onEdit={goToBuilder}
                     onAnalyze={goToAnalysis}
+                    onCoverLetter={goToCoverLetter}
                     onDownload={downloadPdf}
                     onDuplicate={mutations.duplicateResume}
                     onManageTags={setTagTarget}
@@ -201,6 +203,7 @@ export default function MyResumesPage() {
                     onPreview={setPreviewTarget}
                     onEdit={goToBuilder}
                     onAnalyze={goToAnalysis}
+                    onCoverLetter={goToCoverLetter}
                     onDownload={downloadPdf}
                     onDuplicate={mutations.duplicateResume}
                     onManageTags={setTagTarget}

@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { letterLabel } from "@/features/cover-letter/lib/letterLabel";
 import {
   JOB_TYPE_OPTIONS,
   STATUS_ORDER,
@@ -178,8 +179,7 @@ export const JobFormFields = ({
                 <SelectItem value="none">None</SelectItem>
                 {coverLetters.map((cl) => (
                   <SelectItem key={cl.id} value={cl.id}>
-                    {new Date(cl.created_at).toLocaleDateString()} —{" "}
-                    {cl.content.substring(0, 30)}…
+                    {letterLabel(cl)}
                   </SelectItem>
                 ))}
               </SelectContent>
