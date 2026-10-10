@@ -243,3 +243,49 @@ list. Both are larger than the problem currently justifies.
 `industryMatches`'s synonym list was written against Adzuna category labels that
 were *predicted, not observed*; their `/categories` endpoint needs a key. The
 jobs page logs unmatched categories in dev so the real ones surface.
+
+---
+
+## 8. Résumé content that doesn't fit the 12 sections is dropped
+
+**Found:** 2026-10-11, while rebuilding the cover letter page.
+
+The builder (`ResumeData`, `features/resume-builder/types.ts:94`) has 12 fixed
+sections: contact, summary, experience, education, skills, projects,
+certifications, referees, languages, awards, volunteering, publications. Users
+can add as many *entries* as they like, but not a section of their own. The
+parser, the import mapper and the shared reader (`formatResumeDataAsText`)
+all carry those 12, so the main path is sound. What falls through:
+
+- **No custom section.** Work rights / visa status, Working With Children or
+  police checks, memberships, interests, availability have nowhere to live.
+- **The parser discards them on upload.** `parse-resume` is told "if something
+  cannot be placed in a proper field, leave it out". A WWCC survives only if the
+  model files it under certifications; "Working rights: Permanent Resident" is
+  simply gone.
+- **Smaller field drops.** Education's field of study is stored in the
+  `location` slot (`mapEdgeParsedToAIResumeData`), and its achievements and
+  start date are dropped. The shared reader leaves out the website, volunteer
+  dates, award and publication descriptions, certification expiry, and referees
+  entirely (possibly on purpose, to keep referee contact details away from the
+  model, but nothing says so).
+
+**Why it matters:** the builder's promise is that anyone can put down whatever
+their career has. And personalisation reads the résumé through the same reader,
+so it inherits the gaps. Two that matter for matching are lost entirely: **work
+rights** (not captured anywhere, though work-rights filtering is part of the
+Australian positioning) and **languages** (on the résumé, never stored on the
+profile).
+
+**Not urgent because:** nothing crashes, the 12 sections cover most résumés, and
+the AI features still get the core of every résumé.
+
+**Decide later, cheapest first:**
+1. Parser puts unplaced content into an "Other" bucket instead of deleting it;
+   the reader prints every field; field of study gets its own slot. Invisible,
+   small.
+2. A custom section with the user's own heading in the builder. Every template
+   and its react-pdf port would need to render it, so size how much the
+   templates share first.
+3. Work rights and languages on the profile: onboarding extracts them, Settings
+   edits them, job matching filters on work rights.
