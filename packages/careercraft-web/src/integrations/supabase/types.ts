@@ -318,6 +318,7 @@ export type Database = {
           notes: string | null
           resume_id: string | null
           tags: string[] | null
+          title: string | null
           tone: string | null
           updated_at: string
           user_id: string
@@ -331,6 +332,7 @@ export type Database = {
           notes?: string | null
           resume_id?: string | null
           tags?: string[] | null
+          title?: string | null
           tone?: string | null
           updated_at?: string
           user_id: string
@@ -344,6 +346,7 @@ export type Database = {
           notes?: string | null
           resume_id?: string | null
           tags?: string[] | null
+          title?: string | null
           tone?: string | null
           updated_at?: string
           user_id?: string
