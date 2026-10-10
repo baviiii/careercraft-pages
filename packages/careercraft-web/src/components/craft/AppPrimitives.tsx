@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+import { CraftGround } from "./CraftGround";
+
 /* ─────────────────────────── AppShell ────────────────────────── */
 
 interface CraftAppShellProps {
@@ -27,7 +29,7 @@ interface CraftAppShellProps {
 }
 
 /**
- * Cream background + grain, antialiased, the root wrapper for every
+ * Paper ground (CraftGround), antialiased, the root wrapper for every
  * logged-in toolkit page (MyResumes, ResumeBuilder, Analysis, JobTracker, …).
  * Matches `CraftPageShell` in feel, but skips the public-nav + footer.
  */
@@ -37,9 +39,9 @@ export const CraftAppShell = memo(function CraftAppShell({
 }: CraftAppShellProps) {
   return (
     <main
-      className={`ds-shell cc-root cc-font-sans min-h-screen antialiased ${className}`}
+      className={`cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased ${className}`}
     >
-      <div className="cc-grain pointer-events-none fixed inset-0 z-0" />
+      <CraftGround />
       <div className="relative z-10">{children}</div>
     </main>
   );
@@ -77,7 +79,7 @@ export const CraftAppHeader = memo(function CraftAppHeader({
   return (
     <>
       {/* Thin sticky bar — only back + CTA; never eats more than ~56px of viewport */}
-      <div className="sticky top-0 z-30 ds-nav">
+      <div className="cc-bar sticky top-0 z-30">
         <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-14 flex items-center justify-between gap-4">
           <button
             onClick={() => navigate(backTo)}

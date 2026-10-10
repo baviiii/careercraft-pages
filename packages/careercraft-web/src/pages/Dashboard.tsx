@@ -36,6 +36,7 @@ import {
   FileText,
   Compass,
 } from "lucide-react";
+import { CraftGround } from "@/components/craft/CraftGround";
 import { CraftSidebar, CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
 import { DispatchFeed } from "@/features/dispatch/DispatchFeed";
 import { OnboardingBanner } from "@/features/onboarding/OnboardingBanner";
@@ -400,7 +401,7 @@ export default function Dashboard() {
             <div className="absolute inset-0 rounded-full border-2 border-[color:var(--cc-hair-strong)]" />
             <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-[color:var(--cc-rust)]" />
           </div>
-          <p className="cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">Opening your atelier…</p>
+          <p className="cc-font-editorial text-lg text-[color:var(--cc-ink-soft)]">Loading…</p>
         </div>
       </div>
     );
@@ -413,17 +414,7 @@ export default function Dashboard() {
 
   return (
     <main className="cc-root cc-font-sans min-h-screen overflow-x-hidden bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased">
-      <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div
-          className="absolute -right-20 -top-28 h-[28rem] w-[28rem] rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, rgba(42,82,204,0.08), transparent 70%)" }}
-        />
-        <div
-          className="absolute left-[-6%] top-[42%] h-[22rem] w-[22rem] rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, rgba(63,122,92,0.06), transparent 70%)" }}
-        />
-        <div className="cc-grain absolute inset-0 opacity-[0.025]" />
-      </div>
+      <CraftGround withSidebar />
 
       <AnimatePresence>
         {sidebarOpen && (
@@ -449,7 +440,7 @@ export default function Dashboard() {
       />
 
       <div className="relative z-10 flex min-h-screen flex-col lg:pl-[272px]">
-        <header className="sticky top-0 z-30 border-b border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)]/80 backdrop-blur-2xl">
+        <header className="cc-bar sticky top-0 z-30">
           <div className="flex h-16 items-center justify-between px-5 md:px-8">
             <div className="flex items-center gap-3">
               <button
@@ -459,12 +450,7 @@ export default function Dashboard() {
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <div>
-                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-[color:var(--cc-ash)]">
-                  Atelier
-                </div>
-                <div className="text-sm text-[color:var(--cc-ink-soft)]">{todayStamp}</div>
-              </div>
+              <div className="text-sm text-[color:var(--cc-ink-soft)]">{todayStamp}</div>
             </div>
 
             <div className="flex items-center gap-2">

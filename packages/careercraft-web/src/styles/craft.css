@@ -1315,44 +1315,6 @@
 .cc-action--sm { padding: 0.5rem 1rem; font-size: 13px; }
 .cc-action--lg { padding: 0.85rem 1.6rem; font-size: 15px; }
 
-/* Nav item — grouped sidebar link with active paper state. */
-.cc-nav-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  border-radius: 0.75rem;
-  padding: 0.625rem;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--cc-ink-soft);
-  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
-  cursor: pointer;
-}
-.cc-nav-item:hover { background: var(--cc-cream-2); color: var(--cc-ink); }
-.cc-nav-item.is-active {
-  background: #fff;
-  color: var(--cc-ink);
-  box-shadow: 0 8px 20px -14px rgba(20, 22, 26, 0.35), inset 0 0 0 1px var(--cc-hair-strong);
-}
-.cc-nav-item__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 2rem;
-  width: 2rem;
-  flex-shrink: 0;
-  border-radius: 0.5rem;
-  background: var(--cc-cream-2);
-  color: var(--cc-ink-soft);
-  transition: background .2s ease, color .2s ease;
-}
-.cc-nav-item.is-active .cc-nav-item__icon {
-  background: var(--cc-rust-soft);
-  color: var(--cc-rust);
-}
-
 /* Big display metric numeral. */
 .cc-metric {
   font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
@@ -2311,4 +2273,257 @@
     animation: none;
     transform: scaleX(1);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   APP CHROME — the spine and the proof paper.
+
+   Every logged-in page sits on one warm paper (.cc-ground): a baseline
+   grid that fades out below the fold, the persona accent glowing in from
+   the top corner, grain, and a red-pen margin rule beside the sidebar.
+   The sidebar (.cc-side) is the dark spine — the same carbon as the ATS
+   scorecard — and marks the current page with a highlighter stroke.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Ground --------------------------------------------------------------- */
+.cc-ground {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.cc-ground::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(20, 22, 26, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 22, 26, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, rgba(0, 0, 0, 0.45) 280px, transparent 640px);
+  mask-image: linear-gradient(180deg, #000 0, rgba(0, 0, 0, 0.45) 280px, transparent 640px);
+}
+.cc-ground::after {
+  content: '';
+  position: absolute;
+  top: -22rem;
+  right: -14rem;
+  width: 52rem;
+  height: 52rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--cc-rust) 13%, transparent) 0%, transparent 62%);
+}
+/* Exercise-book margin: a double red rule just right of the spine. */
+.cc-ground__margin {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 290px;
+  width: 4px;
+  border-left: 1px solid rgba(194, 65, 45, 0.24);
+  border-right: 1px solid rgba(194, 65, 45, 0.24);
+}
+@media (min-width: 1024px) {
+  .cc-ground--side .cc-ground__margin { display: block; }
+}
+
+/* Sticky top bars on paper. */
+.cc-bar {
+  background: rgba(247, 247, 244, 0.86);
+  border-bottom: 1px solid var(--cc-hair);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+/* Spine ---------------------------------------------------------------- */
+.cc-side {
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  color: #F4F4F0;
+  background:
+    radial-gradient(ellipse 130% 34% at 0% 0%, color-mix(in srgb, var(--cc-rust) 40%, transparent), transparent 72%),
+    linear-gradient(180deg, #1B1E24 0%, #14161A 42%, #0D0F12 100%);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06), 26px 0 60px -44px rgba(20, 22, 26, 0.55);
+}
+.cc-side::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 34px 34px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, transparent 46%);
+  mask-image: linear-gradient(180deg, #000 0, transparent 46%);
+  pointer-events: none;
+}
+
+.cc-side__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.85rem;
+  background: #F7F7F4;
+  box-shadow: 0 10px 22px -12px rgba(0, 0, 0, 0.8);
+  transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+}
+.group:hover .cc-side__logo { transform: rotate(-8deg) scale(1.04); }
+
+/* "New résumé" — a sheet of paper that lifts and tilts. */
+.cc-side__cta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.9rem;
+  background: #F7F7F4;
+  color: var(--cc-ink);
+  text-align: left;
+  box-shadow: inset 0 1px 0 #fff, 0 18px 30px -20px rgba(0, 0, 0, 0.9);
+  transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s ease;
+}
+.cc-side__cta:hover {
+  transform: translateY(-2px) rotate(-1.2deg);
+  box-shadow: inset 0 1px 0 #fff, 0 24px 36px -20px rgba(0, 0, 0, 0.95);
+}
+.cc-side__cta-plus {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.6rem;
+  background: var(--cc-rust);
+  color: #fff;
+  transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-side__cta:hover .cc-side__cta-plus { transform: rotate(90deg); }
+
+.cc-side__group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.7rem;
+  margin-bottom: 0.4rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(244, 244, 240, 0.36);
+}
+.cc-side__group::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cc-side__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.6rem;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  color: rgba(244, 244, 240, 0.64);
+  transition: color .2s ease, background-color .2s ease;
+}
+/* Icon + label; the highlighter is sized to this, not the whole row. */
+.cc-side__ink {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.cc-side__ink > :not(.cc-side__hilite) { position: relative; z-index: 1; }
+.cc-side__icon {
+  flex-shrink: 0;
+  color: rgba(244, 244, 240, 0.42);
+  transition: color .2s ease, transform .25s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-side__item:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+.cc-side__item:hover .cc-side__icon {
+  color: color-mix(in srgb, var(--cc-rust) 40%, #fff);
+  transform: translateX(1px) rotate(-6deg);
+}
+.cc-side__item:focus-visible { outline: 2px solid color-mix(in srgb, var(--cc-rust) 50%, #fff); outline-offset: 1px; }
+.cc-side__item.is-active,
+.cc-side__item.is-active .cc-side__icon { color: var(--cc-ink); transform: none; }
+.cc-side__item.is-active { background: transparent; font-weight: 600; }
+
+/* The highlighter stroke behind the current page. */
+.cc-side__hilite {
+  position: absolute;
+  inset: -0.3rem -0.65rem -0.3rem -0.5rem;
+  z-index: 0;
+  border-radius: 0.3rem 0.8rem 0.35rem 0.75rem;
+  background: linear-gradient(100deg,
+    rgba(255, 222, 89, 0.25) 0%,
+    rgba(255, 222, 89, 0.96) 4%,
+    rgba(255, 214, 72, 0.88) 60%,
+    rgba(255, 222, 89, 0.96) 95%,
+    rgba(255, 222, 89, 0.3) 100%);
+  transform: rotate(-1deg);
+  transform-origin: left center;
+}
+
+.cc-side__me {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.cc-side__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--cc-rust) 85%, #fff) 0%, transparent 60%),
+    linear-gradient(320deg, rgba(139, 211, 168, 0.7) 0%, transparent 55%),
+    #22262D;
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+}
+/* `display` at zero specificity so `lg:hidden` can still hide it. */
+:where(.cc-side__icon-btn) { display: grid; }
+.cc-side__icon-btn {
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.6rem;
+  color: rgba(244, 244, 240, 0.5);
+  transition: color .2s ease, background-color .2s ease;
+}
+.cc-side__icon-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-side__logo,
+  .cc-side__cta,
+  .cc-side__cta-plus,
+  .cc-side__icon { transition: none; }
+  .group:hover .cc-side__logo,
+  .cc-side__cta:hover,
+  .cc-side__cta:hover .cc-side__cta-plus,
+  .cc-side__item:hover .cc-side__icon { transform: none; }
 }

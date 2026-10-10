@@ -1,6 +1,6 @@
 /* ───────────────────────────────────────────────────────────
    Faircopy — logged-in app layout.
-   Cream ground, grain, editorial sidebar, sticky top bar.
+   Paper ground, dark sidebar spine, sticky top bar.
    Wrap any toolkit page that wants the dashboard feel.
    ─────────────────────────────────────────────────────────── */
 
@@ -11,6 +11,7 @@ import { Menu } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
+import { CraftGround } from "./CraftGround";
 import { CraftSidebar, CraftSidebarLink } from "./CraftSidebar";
 
 interface CraftAppLayoutProps {
@@ -117,8 +118,7 @@ export const CraftAppLayout = memo(function CraftAppLayout({
         fill ? "h-[100dvh] overflow-hidden" : "min-h-screen"
       }`}
     >
-      {/* Grain backdrop */}
-      <div className="cc-grain pointer-events-none fixed inset-0 z-0" />
+      <CraftGround withSidebar />
 
       {/* Mobile sidebar overlay */}
       <AnimatePresence>
@@ -151,7 +151,7 @@ export const CraftAppLayout = memo(function CraftAppLayout({
         }`}
       >
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-[color:var(--cc-cream)]/90 backdrop-blur-sm border-b border-[color:var(--cc-hair)]">
+        <header className="cc-bar sticky top-0 z-30">
           <div className="flex items-center justify-between px-6 md:px-10 h-16">
             <div className="flex items-center gap-4">
               <button

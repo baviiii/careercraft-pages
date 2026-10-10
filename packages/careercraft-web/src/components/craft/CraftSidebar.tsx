@@ -1,10 +1,11 @@
 /* ───────────────────────────────────────────────────────────
-   Faircopy sidebar — grouped navigation, living accents,
-   clear active state. Shared across logged-in pages.
+   Faircopy sidebar — the dark spine. Grouped navigation, the
+   current page marked with a highlighter stroke. Shared across
+   logged-in pages. Styles: "APP CHROME" in styles/craft.css.
    ─────────────────────────────────────────────────────────── */
 
 import { memo, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   BarChart3,
   Brain,
@@ -20,7 +21,6 @@ import {
   Settings,
   TrendingUp,
   X,
-  Sparkles,
 } from "lucide-react";
 import { FaircopyMark } from "@/components/brand/FaircopyMark";
 
@@ -90,6 +90,7 @@ export const CraftSidebar = memo(function CraftSidebar({
   navigate,
 }: CraftSidebarProps) {
   const initial = (userName || "·").charAt(0).toUpperCase();
+  const reduce = useReducedMotion();
 
   const grouped = useMemo(() => {
     return GROUPS.map((g) => ({
@@ -100,24 +101,13 @@ export const CraftSidebar = memo(function CraftSidebar({
 
   return (
     <aside
-      className={`fixed top-0 left-0 z-50 h-full w-[272px] border-r border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] transform transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] lg:translate-x-0 ${
+      className={`cc-side fixed top-0 left-0 z-50 h-full w-[272px] transform transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] lg:translate-x-0 ${
         open ? "translate-x-0" : "-translate-x-full"
       }`}
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, rgba(42,82,204,0.14), transparent 70%)" }}
-        />
-        <div
-          className="absolute bottom-28 -left-16 h-44 w-44 rounded-full blur-3xl"
-          style={{ background: "radial-gradient(circle, rgba(63,122,92,0.1), transparent 70%)" }}
-        />
-      </div>
-
       <div className="relative flex h-full flex-col px-3.5 py-5">
         {/* Brand */}
-        <div className="mb-5 flex items-center justify-between px-1.5">
+        <div className="mb-6 flex items-center justify-between px-1.5">
           <button
             onClick={() => {
               navigate("/");
@@ -125,21 +115,15 @@ export const CraftSidebar = memo(function CraftSidebar({
             }}
             className="group flex items-center gap-3"
           >
-            <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-[color:var(--cc-cream)] ring-1 ring-[color:var(--cc-ink)]/8 shadow-[0_10px_24px_-12px_rgba(20,22,26,0.28)] transition-transform duration-300 group-hover:scale-[1.04]">
-              <FaircopyMark className="relative h-8 w-8" title="Faircopy" />
-            </div>
-            <div className="text-left">
-              <div className="cc-font-display text-[1.15rem] leading-none tracking-tight">
-                Faircopy
-              </div>
-              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[color:var(--cc-ash)]">
-                <Sparkles className="h-3 w-3 text-[color:var(--cc-rust)]" />
-                Atelier
-              </div>
-            </div>
+            <span className="cc-side__logo h-10 w-10">
+              <FaircopyMark className="h-7 w-7" title="Faircopy" />
+            </span>
+            <span className="cc-font-display text-[1.2rem] leading-none tracking-tight text-white">
+              Faircopy
+            </span>
           </button>
           <button
-            className="rounded-xl p-2 text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)] lg:hidden"
+            className="cc-side__icon-btn lg:hidden"
             onClick={onClose}
             aria-label="Close navigation"
           >
@@ -153,26 +137,19 @@ export const CraftSidebar = memo(function CraftSidebar({
             navigate("/builder");
             onClose();
           }}
-          className="group mb-5 flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-[color:var(--cc-rust)]/25 bg-[color:var(--cc-rust)] px-3.5 py-3 text-left shadow-[0_14px_28px_-16px_rgba(42,82,204,0.55)] transition-all hover:bg-[color:var(--cc-rust-deep)]"
+          className="cc-side__cta mb-6"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 text-white transition-transform group-hover:scale-105">
-            <Plus className="h-4 w-4" />
+          <span className="cc-side__cta-plus">
+            <Plus className="h-4 w-4" strokeWidth={2.5} />
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-white">New résumé</span>
-            <span className="block text-[11px] text-white/70">Builder · templates · PDF</span>
-          </span>
+          <span className="text-sm font-semibold">New résumé</span>
         </button>
 
         {/* Nav groups */}
         <nav className="-mr-1 flex-1 overflow-y-auto pr-1">
           {grouped.map((group) => (
-            <div key={group.id || "home"} className="mb-4 last:mb-0">
-              {group.label ? (
-                <div className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--cc-ash)]">
-                  {group.label}
-                </div>
-              ) : null}
+            <div key={group.id || "home"} className="mb-5 last:mb-0">
+              {group.label ? <div className="cc-side__group">{group.label}</div> : null}
               <ul className="space-y-0.5">
                 {group.items.map((l) => {
                   const active =
@@ -185,19 +162,23 @@ export const CraftSidebar = memo(function CraftSidebar({
                           navigate(l.path);
                           onClose();
                         }}
-                        className={`cc-nav-item ${active ? "is-active" : ""}`}
+                        aria-current={active ? "page" : undefined}
+                        className={`cc-side__item ${active ? "is-active" : ""}`}
                       >
-                        {active && (
-                          <motion.span
-                            layoutId="cc-side-glow"
-                            className="absolute inset-y-1.5 left-1 w-1 rounded-full bg-[color:var(--cc-rust)]"
-                            transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                          />
-                        )}
-                        <span className="cc-nav-item__icon relative">
-                          <l.icon className="h-3.5 w-3.5" />
+                        <span className="cc-side__ink">
+                          {active && (
+                            <motion.span
+                              aria-hidden
+                              className="cc-side__hilite"
+                              style={{ originX: 0 }}
+                              initial={reduce ? false : { scaleX: 0, rotate: -1 }}
+                              animate={{ scaleX: 1, rotate: -1 }}
+                              transition={{ duration: 0.5, ease: [0.65, 0, 0.25, 1], delay: 0.15 }}
+                            />
+                          )}
+                          <l.icon className="cc-side__icon h-4 w-4" />
+                          <span className="truncate">{l.label}</span>
                         </span>
-                        <span className="relative truncate">{l.label}</span>
                       </button>
                     </li>
                   );
@@ -208,31 +189,21 @@ export const CraftSidebar = memo(function CraftSidebar({
         </nav>
 
         {/* User */}
-        <div className="mt-3 rounded-2xl border border-[color:var(--cc-hair)] bg-gradient-to-br from-[color:var(--cc-cream-2)] to-[color:var(--cc-cream)] p-3">
-          <div className="flex items-center gap-3">
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[color:var(--cc-ink)]">
-              <span
-                aria-hidden
-                className="absolute inset-0"
-                style={{
-                  background:
-                    "linear-gradient(145deg, rgba(42,82,204,0.75), transparent 55%), linear-gradient(320deg, rgba(63,122,92,0.55), transparent 50%)",
-                }}
-              />
-              <span className="relative text-sm font-semibold text-white">{initial}</span>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-[color:var(--cc-ink)]">
-                {userName || "Guest"}
-              </div>
-              <div className="truncate text-[11px] text-[color:var(--cc-ash)]">{userEmail}</div>
-            </div>
+        <div className="cc-side__me mt-4">
+          <span className="cc-side__avatar" aria-hidden>
+            {initial}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-white">{userName || "Guest"}</div>
+            <div className="truncate text-[11px] text-white/45">{userEmail}</div>
           </div>
           <button
             onClick={onSignOut}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]/90 px-3 py-2 text-xs font-medium text-[color:var(--cc-ink-soft)] transition-colors hover:border-[color:var(--cc-ink)] hover:text-[color:var(--cc-ink)]"
+            className="cc-side__icon-btn"
+            aria-label="Sign out"
+            title="Sign out"
           >
-            <LogOut className="h-3.5 w-3.5" /> Sign out
+            <LogOut className="h-4 w-4" />
           </button>
         </div>
       </div>

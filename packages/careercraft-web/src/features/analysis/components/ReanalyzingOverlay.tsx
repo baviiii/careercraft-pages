@@ -13,7 +13,7 @@ export const ReanalyzingOverlay = ({ open }: ReanalyzingOverlayProps) => (
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(248,250,252,0.82)] backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(247,247,244,0.82)] backdrop-blur-sm"
         role="status"
         aria-live="polite"
       >

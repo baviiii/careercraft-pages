@@ -30,7 +30,7 @@ interface ResultTabsProps {
 }
 
 export const ResultTabs = ({ active, onChange, counts = {} }: ResultTabsProps) => (
-  <div className="sticky top-14 z-20 -mx-2 mt-8 bg-[rgba(248,250,252,0.88)] px-2 py-2 backdrop-blur-md">
+  <div className="sticky top-14 z-20 -mx-2 mt-8 bg-[rgba(247,247,244,0.88)] px-2 py-2 backdrop-blur-md">
     <nav className="cc-tabs" role="tablist" aria-label="Results">
       {TABS.map((tab) => {
         const Icon = tab.icon;
