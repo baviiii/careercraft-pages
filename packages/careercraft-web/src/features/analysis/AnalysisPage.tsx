@@ -1,11 +1,11 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { useRef, type CSSProperties } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, ScanSearch } from "lucide-react";
 
 import {
   CraftAppBody,
   CraftAppHeader,
   CraftAppShell,
-  CraftButton,
 } from "@/components/craft/AppPrimitives";
 
 import { ActionableRewritesPanel } from "./components/ActionableRewritesPanel";
@@ -23,15 +23,22 @@ import { ResultTabs } from "./components/ResultTabs";
 import { ResumeSelector } from "./components/ResumeSelector";
 import { ScoreBreakdown } from "./components/ScoreBreakdown";
 import { ScoreGauge } from "./components/ScoreGauge";
+import { ScoreTallies } from "./components/ScoreTallies";
 import { SuggestionsPanel } from "./components/SuggestionsPanel";
 import { WritingQualityPanel } from "./components/WritingQualityPanel";
 import { CreateResumeDialog } from "./dialogs/CreateResumeDialog";
 import { SaveResumeDialog } from "./dialogs/SaveResumeDialog";
 import { useAnalysis } from "./hooks/useAnalysis";
+import { toneVar } from "./tone";
+import { scoreTone, type ResultTabId } from "./types";
 import { QuotaNotice } from "@/components/craft/QuotaNotice";
+
+const EASE = [0.2, 0.8, 0.2, 1] as const;
 
 export default function AnalysisPage() {
   const a = useAnalysis();
+  const reduce = useReducedMotion();
+  const tabsAnchor = useRef<HTMLDivElement>(null);
 
   /* ─── Step: analyzing ────────────────────────────────── */
   if (a.step === "analyzing") return <AnalyzingScreen />;
@@ -39,20 +46,10 @@ export default function AnalysisPage() {
   /* ─── Step: upload ───────────────────────────────────── */
   if (a.step === "upload") {
     return (
-      <CraftAppShell>
-        <CraftAppHeader
-          kicker="§ 03 · The audit"
-          title={
-            <>
-              Read the <span className="cc-italic-wonk">draft</span> against
-              <br />
-              the posting.
-            </>
-          }
-          sub="A close read for clarity, metrics, and keywords — so the pages pass both machines and human readers."
-        />
+      <CraftAppShell className="cc-proof">
+        <CraftAppHeader kicker="ATS check" title="Check your résumé against a job." />
 
-        <CraftAppBody>
+        <CraftAppBody className="!pt-0">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -93,21 +90,16 @@ export default function AnalysisPage() {
             </div>
           )}
 
-          <div className="mt-10 flex flex-col items-center text-center">
-            <CraftButton
+          <div className="mt-10 flex justify-center">
+            <button
+              className="cc-action cc-action--lg"
               onClick={a.handleAnalyze}
               disabled={!a.resumeText || !a.jobDescription.trim() || a.isAnalyzing}
             >
-              <Sparkles className="w-4 h-4" />
-              {a.coverLetterText
-                ? "Run the complete reading"
-                : "Audit the draft"}
+              <ScanSearch className="w-4 h-4" />
+              {a.coverLetterText ? "Check résumé and letter" : "Check my résumé"}
               <ArrowRight className="w-4 h-4" />
-            </CraftButton>
-            <p className="mt-5 cc-font-editorial italic text-[color:var(--cc-ink-soft)] max-w-xl">
-              The audit covers ATS score, keyword match, writing quality, red
-              flags, and the full rewrite toolkit.
-            </p>
+            </button>
           </div>
         </CraftAppBody>
       </CraftAppShell>
@@ -117,61 +109,82 @@ export default function AnalysisPage() {
   /* ─── Step: results ──────────────────────────────────── */
   if (!a.analysis) return null;
 
+  const { tone } = scoreTone(a.analysis.overallScore);
+
+  const jumpTo = (tab: ResultTabId) => {
+    a.setActiveResultTab(tab);
+    tabsAnchor.current?.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "start",
+    });
+  };
+
+  const actions = (
+    <>
+      <button className="cc-action cc-action--ghost cc-action--sm" onClick={a.handleNewAnalysis}>
+        New check
+      </button>
+      <button
+        className="cc-action cc-action--ghost cc-action--sm"
+        onClick={() => a.openSaveDialog("original")}
+      >
+        Save
+      </button>
+      <button className="cc-action cc-action--ghost cc-action--sm" onClick={a.goToCoverLetterEditor}>
+        Cover letter
+      </button>
+      <button
+        className="cc-action cc-action--sm"
+        onClick={() => a.setShowTemplateDialog(true)}
+        disabled={!a.parsedResumeData}
+      >
+        Create résumé
+      </button>
+    </>
+  );
+
   return (
-    <CraftAppShell>
+    <CraftAppShell className="cc-proof">
       <ReanalyzingOverlay open={a.isReanalyzing} />
 
       <CraftAppHeader
-        kicker="§ The reading"
-        title={
-          <>
-            Redlines & <span className="cc-italic-wonk">marginalia</span>.
-          </>
-        }
-        sub="A working mark-up of the draft — what's strong, what's missing, and where to sharpen."
-        rightSlot={
-          <div className="hidden md:flex items-center gap-2">
-            <CraftButton variant="ghost" size="sm" onClick={a.handleNewAnalysis}>
-              New audit
-            </CraftButton>
-            <CraftButton
-              variant="ghost"
-              size="sm"
-              onClick={() => a.openSaveDialog("original")}
-            >
-              Save
-            </CraftButton>
-            <CraftButton
-              variant="ghost"
-              size="sm"
-              onClick={a.goToCoverLetterEditor}
-            >
-              Cover letter
-            </CraftButton>
-            <CraftButton
-              size="sm"
-              onClick={() => a.setShowTemplateDialog(true)}
-              disabled={!a.parsedResumeData}
-            >
-              Create résumé
-            </CraftButton>
-          </div>
-        }
+        rightSlot={<div className="hidden md:flex items-center gap-2">{actions}</div>}
       />
 
-      <CraftAppBody className="!py-6 md:!py-8">
-        <section className="border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-7 md:p-8">
-          <div className="grid md:grid-cols-[auto_1fr] gap-8 items-start">
+      <CraftAppBody className="!pt-5 md:!pt-7">
+        <motion.section
+          className="cc-proof-card"
+          style={{ "--pf-tone": toneVar(tone) } as CSSProperties}
+          initial={reduce ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: EASE }}
+        >
+          <div className="grid gap-10 p-6 md:p-10 lg:grid-cols-[1.2fr_1fr] lg:gap-20 lg:p-12">
             <ScoreGauge score={a.analysis.overallScore} fileName={a.fileName} />
             <ScoreBreakdown subScores={a.analysis.subScores} />
           </div>
-        </section>
+          <ScoreTallies analysis={a.analysis} onJump={jumpTo} />
+        </motion.section>
 
-        <ExecutiveSummary summary={a.analysis.summary} />
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: EASE, delay: 0.15 }}
+        >
+          <ExecutiveSummary summary={a.analysis.summary} />
+        </motion.div>
 
-        <ResultTabs active={a.activeResultTab} onChange={a.setActiveResultTab} />
+        <div ref={tabsAnchor} className="scroll-mt-14" />
+        <ResultTabs
+          active={a.activeResultTab}
+          onChange={a.setActiveResultTab}
+          counts={{
+            redflags: a.analysis.redFlags.length,
+            improvements: a.analysis.improvements.quickFixes.length,
+          }}
+        />
 
-        <div className="mt-8">
+        <div className="mt-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={a.activeResultTab}
@@ -181,7 +194,7 @@ export default function AnalysisPage() {
               transition={{ duration: 0.25 }}
             >
               {a.activeResultTab === "overview" && (
-                <OverviewPanel analysis={a.analysis} />
+                <OverviewPanel analysis={a.analysis} onJump={a.setActiveResultTab} />
               )}
               {a.activeResultTab === "requirements" && (
                 <RequirementsPanel analysis={a.analysis} />
@@ -225,46 +238,13 @@ export default function AnalysisPage() {
                   onSave={a.saveCoverLetter}
                   onCopy={a.copyToClipboard}
                   copiedText={a.copiedText}
-                  overallScore={a.analysis.overallScore}
                 />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        <div className="mt-12 flex md:hidden flex-wrap gap-2 justify-center">
-          <CraftButton variant="ghost" size="sm" onClick={a.handleNewAnalysis}>
-            New audit
-          </CraftButton>
-          <CraftButton
-            variant="ghost"
-            size="sm"
-            onClick={() => a.openSaveDialog("original")}
-          >
-            Save
-          </CraftButton>
-          <CraftButton
-            variant="ghost"
-            size="sm"
-            onClick={a.goToCoverLetterEditor}
-          >
-            Cover letter
-          </CraftButton>
-          <CraftButton
-            size="sm"
-            onClick={() => a.setShowTemplateDialog(true)}
-            disabled={!a.parsedResumeData}
-          >
-            Create résumé
-          </CraftButton>
-        </div>
-
-        <div className="mt-12 cc-dot-rule">
-          <span>end of reading</span>
-          <span className="cc-tabular">
-            score {a.analysis.overallScore}/100
-          </span>
-        </div>
+        <div className="mt-12 flex md:hidden flex-wrap gap-2 justify-center">{actions}</div>
       </CraftAppBody>
 
       <SaveResumeDialog

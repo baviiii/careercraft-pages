@@ -1,6 +1,6 @@
-import { ChevronRight } from "lucide-react";
-
 import type { ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
+
+import { Empty, FixRow, Mark, Panel } from "./proof";
 
 interface SuggestionsPanelProps {
   analysis: ATSAIAnalysis;
@@ -11,86 +11,69 @@ export const SuggestionsPanel = ({ analysis }: SuggestionsPanelProps) => {
     analysis.improvements;
 
   return (
-    <div className="space-y-8">
-      <section className="cc-card p-7">
-        <div className="cc-label text-[color:var(--cc-rust)]">§ Quick redlines</div>
-        <h3 className="mt-2 cc-font-display text-2xl leading-tight mb-5">
-          Small <span className="cc-italic-wonk">corrections</span>.
-        </h3>
+    <div className="space-y-5">
+      <Panel title="Quick fixes" count={quickFixes.length}>
         {quickFixes.length === 0 ? (
-          <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-            Nothing to redline at this pass.
-          </p>
+          <Empty />
         ) : (
-          <ul className="divide-y divide-[color:var(--cc-hair-strong)]">
+          <div className="divide-y divide-[color:var(--cc-hair)]">
             {quickFixes.map((fix, i) => (
-              <li
-                key={i}
-                className="py-3 cc-font-editorial text-[17px] leading-snug"
-              >
-                <span className="cc-strike">{fix.issue}</span>
-                <span className="mx-2 text-[color:var(--cc-ash)]">→</span>
-                <span className="italic text-[color:var(--cc-rust)]">
-                  {fix.fix}
+              <div key={i} className="py-4 first:pt-0 last:pb-0">
+                <FixRow issue={fix.issue} fix={fix.fix} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Before and after" count={strongEnhancements.length}>
+        {strongEnhancements.length === 0 ? (
+          <Empty />
+        ) : (
+          <div className="space-y-6">
+            {strongEnhancements.map((enh, i) => (
+              <article key={i}>
+                {enh.section && <Mark kind="plain">{enh.section}</Mark>}
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl bg-[color:var(--cc-cream-2)] p-4">
+                    <div className="cc-label-sm text-[color:var(--cc-ash)]">Before</div>
+                    <p className="mt-2 text-[14.5px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+                      {enh.current}
+                    </p>
+                  </div>
+                  <div className="cc-proof-sheet !rounded-xl !border-l-[3px] !border-l-[color:var(--cc-rust)] p-4">
+                    <div className="cc-label-sm text-[color:var(--cc-rust)]">After</div>
+                    <p className="mt-2 text-[14.5px] leading-relaxed">{enh.improved}</p>
+                  </div>
+                </div>
+                {enh.impact && (
+                  <p className="mt-2.5 text-[13.5px] text-[color:var(--cc-ash)]">
+                    <span className="font-semibold text-[color:var(--cc-ink-soft)]">Why:</span>{" "}
+                    {enh.impact}
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Bigger changes" count={advancedOptimizations.length}>
+        {advancedOptimizations.length === 0 ? (
+          <Empty />
+        ) : (
+          <ol className="space-y-3.5">
+            {advancedOptimizations.map((opt, i) => (
+              <li key={i} className="flex gap-4">
+                <span className="cc-metric w-6 shrink-0 text-[20px] !text-[color:var(--cc-rust)]">
+                  {i + 1}
                 </span>
+                <span className="text-[15px] leading-snug text-[color:var(--cc-ink)]">{opt}</span>
               </li>
             ))}
-          </ul>
+          </ol>
         )}
-      </section>
-
-      <section className="cc-card p-7">
-        <div className="cc-label text-[color:var(--cc-rust)]">§ Stronger phrasing</div>
-        <h3 className="mt-2 cc-font-display text-2xl leading-tight mb-5">
-          Before <span className="cc-italic-wonk">&</span> after.
-        </h3>
-        <div className="space-y-6">
-          {strongEnhancements.map((enh, i) => (
-            <article
-              key={i}
-              className="border border-[color:var(--cc-hair-strong)] p-5"
-            >
-              <span className="cc-pill">{enh.section}</span>
-              <div className="grid md:grid-cols-2 gap-4 mt-4">
-                <div className="border-l-2 border-l-[color:var(--cc-hair-strong)] pl-4">
-                  <div className="cc-label text-[color:var(--cc-ash)]">§ Current</div>
-                  <p className="mt-2 cc-font-editorial text-[color:var(--cc-ink-soft)]">
-                    {enh.current}
-                  </p>
-                </div>
-                <div className="border-l-2 border-l-[color:var(--cc-rust)] pl-4">
-                  <div className="cc-label text-[color:var(--cc-rust)]">§ Revised</div>
-                  <p className="mt-2 cc-font-editorial italic text-[color:var(--cc-ink)]">
-                    {enh.improved}
-                  </p>
-                </div>
-              </div>
-              <p className="mt-4 cc-label text-[color:var(--cc-ash)]">
-                Impact · {enh.impact}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="cc-card p-7">
-        <div className="cc-label text-[color:var(--cc-rust)]">
-          § Advanced optimisations
-        </div>
-        <h3 className="mt-2 cc-font-display text-2xl leading-tight mb-5">
-          The <span className="cc-italic-wonk">deeper</span> edits.
-        </h3>
-        <ul className="space-y-3">
-          {advancedOptimizations.map((opt, i) => (
-            <li key={i} className="flex items-start gap-3">
-              <ChevronRight className="w-4 h-4 mt-1 text-[color:var(--cc-rust)] flex-shrink-0" />
-              <span className="cc-font-editorial italic text-[17px] text-[color:var(--cc-ink)]">
-                {opt}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      </Panel>
     </div>
   );
 };

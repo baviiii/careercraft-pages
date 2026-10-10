@@ -27,14 +27,8 @@ export const SaveResumeDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ Save & edit"
-    title={
-      <>
-        Save &{" "}
-        <span className="cc-italic-wonk">edit</span> in Builder
-      </>
-    }
-    description="We'll parse this draft, save it to your resumes, and open it in the Builder to pick a template."
+    title="Save and open in builder"
+    description="Saved to My résumés, then opened in the builder to pick a template."
     maxWidth="max-w-lg"
     footer={
       <>
@@ -45,10 +39,10 @@ export const SaveResumeDialog = ({
           {isSaving ? (
             <>
               <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              Parsing…
+              Saving…
             </>
           ) : (
-            <>Continue to Builder</>
+            <>Continue to builder</>
           )}
         </CraftButton>
       </>
@@ -56,9 +50,7 @@ export const SaveResumeDialog = ({
   >
     <div className="space-y-5">
       <label className="block">
-        <span className="cc-label text-[color:var(--cc-ash)] block mb-2">
-          Name the draft
-        </span>
+        <span className="cc-label-sm text-[color:var(--cc-ash)] block mb-2">Name</span>
         <input
           value={saveName}
           onChange={(e) => onSaveNameChange(e.target.value)}
@@ -67,28 +59,17 @@ export const SaveResumeDialog = ({
         />
       </label>
 
-      <div className="border-l-2 border-[color:var(--cc-rust)] pl-4">
-        <div className="cc-label text-[color:var(--cc-rust)]">§ What happens next</div>
-        <ol className="mt-2 space-y-1.5 cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-          <li>i. the draft is parsed into structured fields</li>
-          <li>ii. you'll pick a template in the Builder</li>
-          <li>iii. edit, rework, and export as a clean PDF</li>
-        </ol>
-      </div>
-
-      <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-4">
+      <div className="rounded-xl bg-[color:var(--cc-cream-2)] p-4">
         <div className="cc-meta">
           <span className="cc-meta-label">Saving</span>
           <span className="cc-meta-value">
-            {saveType === "enhanced" ? "Enhanced version" : "Original résumé"}
+            {saveType === "enhanced" ? "Rewritten version" : "Original résumé"}
           </span>
         </div>
         {analysis && (
           <div className="cc-meta mt-1.5">
-            <span className="cc-meta-label">Reading</span>
-            <span className="cc-meta-value">
-              {analysis.overallScore} / 100
-            </span>
+            <span className="cc-meta-label">Score</span>
+            <span className="cc-meta-value">{analysis.overallScore} / 100</span>
           </div>
         )}
       </div>

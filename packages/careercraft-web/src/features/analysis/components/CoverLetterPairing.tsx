@@ -1,4 +1,5 @@
 import type { SavedCoverLetter } from "../types";
+import { Ready } from "./proof";
 
 interface CoverLetterPairingProps {
   savedCoverLetters: SavedCoverLetter[];
@@ -17,29 +18,19 @@ export const CoverLetterPairing = ({
   onChangeText,
   onClearSelection,
 }: CoverLetterPairingProps) => (
-  <section className="border-2 border-dashed border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-7 md:p-8 mt-6">
-    <div className="flex items-start justify-between gap-4 mb-5">
-      <div>
-        <div className="cc-label text-[color:var(--cc-ash)]">
-          § 03 · Marginalia (optional)
-        </div>
-        <h3 className="mt-3 cc-font-display text-2xl leading-tight">
-          Pair a <span className="cc-italic-wonk">cover letter</span>.
-        </h3>
-        <p className="mt-3 cc-font-editorial italic text-[color:var(--cc-ink-soft)] max-w-xl">
-          For a complete reading — we'll check whether the letter complements
-          the draft for this posting.
-        </p>
-      </div>
-      {coverLetterText && (
-        <span className="cc-pill cc-pill-filled">Paired</span>
-      )}
+  <section className="rounded-[1.25rem] border-2 border-dashed border-[color:var(--cc-hair-strong)] p-6 md:p-8 mt-6">
+    <div className="flex items-center justify-between gap-4 mb-5">
+      <h3 className="cc-font-display text-[22px] leading-tight text-[color:var(--cc-ink)]">
+        Cover letter{" "}
+        <span className="text-[15px] font-normal text-[color:var(--cc-ash)]">optional</span>
+      </h3>
+      {coverLetterText && <Ready>Added</Ready>}
     </div>
 
     {savedCoverLetters.length > 0 && (
       <div className="mb-5">
-        <label className="cc-label text-[color:var(--cc-ash)] block mb-2">
-          From the letter book
+        <label className="cc-label-sm text-[color:var(--cc-ash)] block mb-2">
+          Saved cover letters
         </label>
         <select
           value={selectedCoverLetterId}
@@ -58,7 +49,8 @@ export const CoverLetterPairing = ({
     )}
 
     <textarea
-      placeholder="…or paste a letter here."
+      placeholder={savedCoverLetters.length > 0 ? "…or paste one here." : "Paste a cover letter to check it too."}
+      aria-label="Cover letter"
       value={coverLetterText}
       onChange={(e) => {
         onChangeText(e.target.value);

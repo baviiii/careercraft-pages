@@ -48,8 +48,9 @@ export const CraftAppShell = memo(function CraftAppShell({
 /* ─────────────────────────── AppHeader ──────────────────────── */
 
 interface CraftAppHeaderProps {
-  kicker: string; // e.g. "§ 01 · Cabinet"
-  title: ReactNode; // Fraunces-set page title
+  kicker?: string; // e.g. "§ 01 · Cabinet"
+  /** Page title. Leave out for a bar-only header (the page leads with its own hero). */
+  title?: ReactNode;
   sub?: ReactNode;
   /** Text for the primary CTA shown at the top-right. */
   ctaLabel?: string;
@@ -103,17 +104,19 @@ export const CraftAppHeader = memo(function CraftAppHeader({
       </div>
 
       {/* Editorial masthead — scrolls away naturally so reading space isn't pinched */}
-      <header className="max-w-[1400px] mx-auto px-6 md:px-10 pt-8 md:pt-10 pb-10 md:pb-12">
-        <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>
-        <h1 className="mt-4 cc-font-display text-4xl md:text-6xl lg:text-7xl leading-[0.92] tracking-tight">
-          {title}
-        </h1>
-        {sub && (
-          <p className="mt-6 cc-font-editorial text-xl md:text-2xl leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
-            {sub}
-          </p>
-        )}
-      </header>
+      {title && (
+        <header className="max-w-[1400px] mx-auto px-6 md:px-10 pt-8 md:pt-10 pb-10 md:pb-12">
+          {kicker && <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>}
+          <h1 className="mt-4 cc-font-display text-4xl md:text-6xl lg:text-7xl leading-[0.92] tracking-tight">
+            {title}
+          </h1>
+          {sub && (
+            <p className="mt-6 cc-font-editorial text-xl md:text-2xl leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
+              {sub}
+            </p>
+          )}
+        </header>
+      )}
     </>
   );
 });

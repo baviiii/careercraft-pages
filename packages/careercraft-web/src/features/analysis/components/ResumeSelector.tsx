@@ -1,9 +1,8 @@
 import { FileText, Upload } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 
-import { CraftButton } from "@/components/craft/AppPrimitives";
-
 import type { ResumeSource, SavedResume } from "../types";
+import { Ready } from "./proof";
 
 interface ResumeSelectorProps {
   savedResumes: SavedResume[];
@@ -42,24 +41,19 @@ export const ResumeSelector = ({
   });
 
   return (
-    <section className="cc-card p-7 md:p-8">
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <div className="cc-label text-[color:var(--cc-rust)]">§ 01 · The draft</div>
-          <h3 className="mt-3 cc-font-display text-2xl leading-tight">
-            The <span className="cc-italic-wonk">résumé</span> to audit.
-          </h3>
-        </div>
-        {resumeText && (
-          <span className="cc-pill cc-pill-filled">On file</span>
-        )}
+    <section className="cc-surface p-6 md:p-8">
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <h3 className="cc-font-display text-[22px] leading-tight text-[color:var(--cc-ink)]">
+          Your résumé
+        </h3>
+        {resumeText && <Ready>Added</Ready>}
       </div>
 
       <div className="space-y-5">
         {savedResumes.length > 0 && (
           <div>
-            <label className="cc-label text-[color:var(--cc-ash)] block mb-2">
-              Saved resumes
+            <label className="cc-label-sm text-[color:var(--cc-ash)] block mb-2">
+              Saved résumés
             </label>
             <select
               value={selectedResumeId}
@@ -88,33 +82,33 @@ export const ResumeSelector = ({
 
         {resumeText ? (
           <div className="space-y-4">
-            <div className="flex items-center gap-3 border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream-2)] px-4 py-3">
-              <FileText className="w-4 h-4 text-[color:var(--cc-rust)]" />
-              <span className="cc-font-editorial italic text-[17px] flex-1 truncate text-[color:var(--cc-ink)]">
-                {fileName || "Résumé on file"}
+            <div className="flex items-center gap-3 rounded-xl bg-[color:var(--cc-cream-2)] px-4 py-3">
+              <FileText className="w-4 h-4 shrink-0 text-[color:var(--cc-rust)]" />
+              <span className="text-[15px] font-medium flex-1 truncate text-[color:var(--cc-ink)]">
+                {fileName || "Résumé"}
               </span>
-              <span className="cc-pill">
-                {resumeSource === "saved" ? "Saved" : "Upload"}
+              <span className="text-[12px] text-[color:var(--cc-ash)]">
+                {resumeSource === "saved" ? "Saved" : "Uploaded"}
               </span>
             </div>
 
-            <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] max-h-40 overflow-auto p-4">
-              <pre className="whitespace-pre-wrap cc-font-mono text-[11px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+            <div className="cc-proof-sheet max-h-40 overflow-auto p-4 !text-[12.5px] !leading-relaxed !text-[color:var(--cc-ink-soft)]">
+              <div className="whitespace-pre-wrap">
                 {resumeText.slice(0, 600)}
                 {resumeText.length > 600 ? "…" : ""}
-              </pre>
+              </div>
             </div>
 
-            <CraftButton variant="ghost" size="sm" onClick={onClear}>
-              Clear the draft
-            </CraftButton>
+            <button className="cc-action cc-action--ghost cc-action--sm" onClick={onClear}>
+              Remove
+            </button>
           </div>
         ) : (
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
+            className={`rounded-[1.25rem] border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
               isDragActive
-                ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-cream-2)]"
+                ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)]"
                 : "border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)]"
             }`}
           >
@@ -122,8 +116,8 @@ export const ResumeSelector = ({
             {isUploading ? (
               <div className="py-4">
                 <div className="w-10 h-10 border-2 border-[color:var(--cc-ink)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-                  Setting the type…
+                <p className="text-[14px] text-[color:var(--cc-ink-soft)]">
+                  Reading file…
                 </p>
               </div>
             ) : (
@@ -132,7 +126,7 @@ export const ResumeSelector = ({
                 <p className="cc-font-display text-xl leading-tight">
                   {isDragActive ? "Drop here" : "Upload a résumé"}
                 </p>
-                <p className="mt-2 cc-label text-[color:var(--cc-ash)]">
+                <p className="mt-2 cc-label-sm text-[color:var(--cc-ash)]">
                   PDF · DOC · DOCX · PNG · JPG
                 </p>
               </>

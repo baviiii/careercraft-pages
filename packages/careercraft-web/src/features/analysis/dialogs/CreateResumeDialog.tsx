@@ -1,10 +1,11 @@
 import {
   AlertTriangle,
+  ArrowRight,
   Briefcase,
-  CheckCircle2,
   FileOutput,
+  PenLine,
   Save,
-  Wand2,
+  type LucideIcon,
 } from "lucide-react";
 
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
@@ -24,6 +25,16 @@ interface CreateResumeDialogProps {
   onAddToJobs: () => void;
 }
 
+/** "Jane Doe · 4 roles · 22 skills" — what was read from the résumé. */
+const extractedLine = (data: AIResumeData | null) =>
+  [
+    data?.contact?.name,
+    data?.experience?.length ? `${data.experience.length} roles` : "",
+    data?.skills?.length ? `${data.skills.length} skills` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
 export const CreateResumeDialog = ({
   open,
   onOpenChange,
@@ -39,14 +50,8 @@ export const CreateResumeDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ What next"
-    title={
-      <>
-        Set this draft in{" "}
-        <span className="cc-italic-wonk">motion</span>.
-      </>
-    }
-    description="Your data is extracted. Pick what to do next — build a new resume, draft a cover letter, save it, or track the job."
+    title="What next?"
+    description={extractedLine(parsedResumeData) || undefined}
     maxWidth="max-w-2xl"
     footer={
       <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
@@ -54,112 +59,73 @@ export const CreateResumeDialog = ({
       </CraftButton>
     }
   >
-    {parsedResumeData && (
-      <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-4 mb-5">
-        <div className="flex items-start gap-3">
-          <CheckCircle2 className="w-4 h-4 mt-1 text-[color:var(--cc-rust)] flex-shrink-0" />
-          <div className="min-w-0">
-            <div className="cc-label text-[color:var(--cc-rust)]">
-              § Data extracted
-            </div>
-            <p className="mt-1 cc-font-editorial italic text-[color:var(--cc-ink)]">
-              {parsedResumeData.contact?.name &&
-                `${parsedResumeData.contact.name}`}
-              {parsedResumeData.experience?.length
-                ? ` · ${parsedResumeData.experience.length} roles`
-                : ""}
-              {parsedResumeData.skills?.length
-                ? ` · ${parsedResumeData.skills.length} skills`
-                : ""}
-            </p>
-            {isBuilderResume && selectedResumeTemplateId && (
-              <p className="mt-1 cc-label text-[color:var(--cc-rust)]">
-                built with template · {selectedResumeTemplateId}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+    {isBuilderResume && selectedResumeTemplateId && (
+      <p className="mb-4 cc-label-sm text-[color:var(--cc-ash)]">
+        Template · {selectedResumeTemplateId}
+      </p>
     )}
 
-    <div className="grid grid-cols-2 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
+    <div className="grid gap-3 sm:grid-cols-2">
       <DialogTile
-        Icon={Wand2}
-        kicker="§ 01"
-        title={isBuilderResume ? "Edit in Builder" : "Resume Builder"}
-        body={
-          isBuilderResume
-            ? "Edit using your current template."
-            : "Pick a template & export as PDF."
-        }
+        Icon={PenLine}
+        title={isBuilderResume ? "Edit in builder" : "Résumé builder"}
+        body={isBuilderResume ? "Keep your current template" : "Pick a template, export a PDF"}
         onClick={onGoBuilder}
       />
       <DialogTile
         Icon={FileOutput}
-        kicker="§ 02"
         title="Cover letter"
-        body="Draft a tailored letter for this posting."
+        body="A letter for this job"
         onClick={onGoCoverLetter}
       />
       <DialogTile
         Icon={Save}
-        kicker="§ 03"
         title="Save résumé"
-        body="Save a copy to your resumes."
+        body="Keep a copy in My résumés"
         onClick={onSaveResume}
       />
       <DialogTile
         Icon={Briefcase}
-        kicker="§ 04"
         title="Track the job"
-        body="Log this application in the tracker."
+        body="Add it to the job tracker"
         onClick={onAddToJobs}
       />
     </div>
 
     {analysis && analysis.overallScore < 70 && (
-      <div className="mt-5 border-l-2 border-[color:var(--cc-rust)] pl-4 flex items-start gap-2.5">
-        <AlertTriangle className="w-4 h-4 mt-1 text-[color:var(--cc-rust)] flex-shrink-0" />
-        <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-          Reading of{" "}
-          <span className="text-[color:var(--cc-ink)] cc-tabular">
-            {analysis.overallScore}/100
-          </span>
-          . Run the rewrite tools before settling on a final draft.
-        </p>
-      </div>
+      <p className="mt-5 flex items-start gap-2.5 rounded-xl bg-[color:var(--cc-wheat-soft)] px-4 py-3 text-[14px] text-[color:var(--cc-ink)]">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--cc-wheat-deep)]" />
+        <span>
+          Score <span className="cc-tabular font-semibold">{analysis.overallScore}/100</span> — the
+          Rewrite tab can lift it first.
+        </span>
+      </p>
     )}
   </CraftDialog>
 );
 
 const DialogTile = ({
   Icon,
-  kicker,
   title,
   body,
   onClick,
 }: {
-  Icon: typeof Wand2;
-  kicker: string;
+  Icon: LucideIcon;
   title: string;
   body: string;
   onClick: () => void;
 }) => (
   <button
     onClick={onClick}
-    className="bg-[color:var(--cc-cream)] p-5 text-left hover:bg-[color:var(--cc-cream-2)] transition-colors group"
+    className="group flex items-center gap-3.5 rounded-2xl border border-[color:var(--cc-hair)] bg-white p-4 text-left transition-colors hover:border-[color:var(--cc-ink)]"
   >
-    <div className="flex items-start gap-3">
-      <div className="flex-shrink-0 w-10 h-10 border border-[color:var(--cc-ink)] flex items-center justify-center group-hover:bg-[color:var(--cc-ink)] transition-colors">
-        <Icon className="w-4 h-4 text-[color:var(--cc-rust)] group-hover:text-[color:var(--cc-cream)] transition-colors" />
-      </div>
-      <div className="min-w-0">
-        <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>
-        <h4 className="mt-1.5 cc-font-display text-lg leading-tight">{title}</h4>
-        <p className="mt-1 cc-font-editorial italic text-[color:var(--cc-ink-soft)] text-sm">
-          {body}
-        </p>
-      </div>
-    </div>
+    <span className="cc-icon-chip h-10 w-10 shrink-0">
+      <Icon className="h-4 w-4" />
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="block cc-font-display text-[17px] leading-tight">{title}</span>
+      <span className="mt-0.5 block text-[13px] text-[color:var(--cc-ink-soft)]">{body}</span>
+    </span>
+    <ArrowRight className="h-4 w-4 shrink-0 text-[color:var(--cc-ash)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--cc-ink)]" />
   </button>
 );

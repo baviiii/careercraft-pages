@@ -1,90 +1,54 @@
 import type { ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
 
+import { Empty, Mark, Panel } from "./proof";
+
 interface RequirementsPanelProps {
   analysis: ATSAIAnalysis;
 }
 
+const norm = (s: string) => s.trim().toLowerCase();
+
 export const RequirementsPanel = ({ analysis }: RequirementsPanelProps) => {
   const r = analysis.jobRequirements;
-  return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-      <Block
-        kicker="§ Mandatory"
-        title="Must-have skills"
-        items={r.mandatorySkills}
-        emphasis="rust"
-      />
-      <Block
-        kicker="§ Preferred"
-        title="Nice-to-have"
-        items={r.preferredSkills}
-      />
-      <Block
-        kicker="§ Technical"
-        title="Technical keywords"
-        items={r.technicalKeywords}
-      />
-      <Block
-        kicker="§ Soft"
-        title="Soft skills"
-        items={r.softSkills}
-      />
-      <Block
-        kicker="§ Tools"
-        title="Tools & tech"
-        items={r.tools}
-      />
-      <section className="cc-card p-6">
-        <div className="cc-label text-[color:var(--cc-rust)]">§ Tenure</div>
-        <h4 className="mt-2 cc-font-display text-xl leading-tight">
-          Required <span className="cc-italic-wonk">experience</span>
-        </h4>
-        <p className="mt-4 cc-font-editorial italic text-[color:var(--cc-ink-soft)] text-[17px] leading-relaxed">
-          {r.requiredExperience || "—"}
-        </p>
-      </section>
-      {r.certifications && r.certifications.length > 0 && (
-        <Block
-          kicker="§ Papers"
-          title="Certifications"
-          items={r.certifications}
-        />
+  // Only exact keyword matches are highlighted — an unmarked item is
+  // "not confirmed", not "missing".
+  const have = new Set(analysis.resumeKeywords.matched.map(norm));
+
+  const block = (title: string, items: string[], className = "") => (
+    <Panel title={title} count={items.length} className={className}>
+      {items.length === 0 ? (
+        <Empty />
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {items.map((item, i) => (
+            <Mark key={i} kind={have.has(norm(item)) ? "hit" : "plain"}>
+              {item}
+            </Mark>
+          ))}
+        </div>
       )}
+    </Panel>
+  );
+
+  return (
+    <div>
+      <p className="mb-4 flex items-center gap-2 text-[13px] text-[color:var(--cc-ash)]">
+        <Mark kind="hit">Highlighted</Mark>
+        on your résumé
+      </p>
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        {block("Must-have", r.mandatorySkills, "md:col-span-2 lg:col-span-2")}
+        <Panel title="Experience">
+          <p className="text-[16px] leading-relaxed text-[color:var(--cc-ink)]">
+            {r.requiredExperience || "—"}
+          </p>
+        </Panel>
+        {block("Nice to have", r.preferredSkills)}
+        {block("Technical", r.technicalKeywords)}
+        {block("Tools", r.tools)}
+        {block("Soft skills", r.softSkills)}
+        {r.certifications?.length > 0 && block("Certifications", r.certifications)}
+      </div>
     </div>
   );
 };
-
-const Block = ({
-  kicker,
-  title,
-  items,
-  emphasis,
-}: {
-  kicker: string;
-  title: string;
-  items: string[];
-  emphasis?: "rust";
-}) => (
-  <section className="cc-card p-6">
-    <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>
-    <h4 className="mt-2 cc-font-display text-xl leading-tight">{title}</h4>
-    <div className="mt-4 flex flex-wrap gap-1.5">
-      {items.length === 0 ? (
-        <span className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-          —
-        </span>
-      ) : (
-        items.map((item, i) => (
-          <span
-            key={i}
-            className={`cc-pill ${
-              emphasis === "rust" ? "cc-pill-rust" : ""
-            }`}
-          >
-            {item}
-          </span>
-        ))
-      )}
-    </div>
-  </section>
-);

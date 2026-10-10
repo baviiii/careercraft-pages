@@ -1,13 +1,6 @@
-import type {
-  LayoutGrid,
-  BriefcaseIcon,
-  Search,
-  FileCheck,
-  AlertTriangle,
-  Lightbulb,
-  Wand2,
-  FileOutput,
-} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+import { toneFor, type Tone } from "./tone";
 
 export type AnalysisStep = "upload" | "analyzing" | "results";
 
@@ -50,24 +43,18 @@ export type ResumeSource = "upload" | "saved";
 export interface ResultTab {
   id: ResultTabId;
   label: string;
-  icon:
-    | typeof LayoutGrid
-    | typeof BriefcaseIcon
-    | typeof Search
-    | typeof FileCheck
-    | typeof AlertTriangle
-    | typeof Lightbulb
-    | typeof Wand2
-    | typeof FileOutput;
+  icon: LucideIcon;
 }
 
-/** Editorial tone helper — returns classes keyed to the ATS score. */
-export const scoreTone = (score: number): {
-  tone: "strong" | "steady" | "uneven" | "weak";
-  label: string;
-} => {
-  if (score >= 80) return { tone: "strong", label: "Well set" };
-  if (score >= 60) return { tone: "steady", label: "Passable" };
-  if (score >= 40) return { tone: "uneven", label: "Needs edits" };
-  return { tone: "weak", label: "Unready" };
+const VERDICT: Record<Tone, string> = {
+  good: "Strong match",
+  ok: "Almost there",
+  warn: "Needs work",
+  bad: "Not ready",
+};
+
+/** The ATS score's band and the word stamped on the scorecard. */
+export const scoreTone = (score: number): { tone: Tone; label: string } => {
+  const tone = toneFor(score);
+  return { tone, label: VERDICT[tone] };
 };

@@ -1,4 +1,6 @@
-import { AlertCircle, ChevronRight, Star } from "lucide-react";
+import { Check, Minus } from "lucide-react";
+
+import { Empty } from "./proof";
 
 interface ExecutiveSummaryProps {
   summary: {
@@ -10,66 +12,76 @@ interface ExecutiveSummaryProps {
 }
 
 export const ExecutiveSummary = ({ summary }: ExecutiveSummaryProps) => (
-  <section className="mt-8 border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-7 md:p-8">
-    <div className="flex items-baseline justify-between gap-6 mb-5">
-      <div>
-        <div className="cc-label text-[color:var(--cc-rust)]">§ The verdict</div>
-        <h2 className="mt-2 cc-font-display text-2xl md:text-3xl leading-tight">
-          Executive <span className="cc-italic-wonk">reading</span>.
+  <section className="cc-surface mt-6 p-6 md:p-9">
+    <div className="grid gap-9 lg:grid-cols-[1.35fr_1fr] lg:gap-12">
+      <div className="min-w-0">
+        <h2 className="cc-font-display text-[24px] leading-tight text-[color:var(--cc-ink)]">
+          Summary
         </h2>
+        <p className="mt-3 max-w-3xl text-[17px] leading-[1.65] text-[color:var(--cc-ink-soft)]">
+          {summary.overallVerdict}
+        </p>
+
+        <div className="mt-8 grid gap-8 sm:grid-cols-2">
+          <PointList title="Strengths" items={summary.topStrengths} kind="good" />
+          <PointList title="Gaps" items={summary.topWeaknesses} kind="gap" />
+        </div>
       </div>
-    </div>
 
-    <p className="cc-font-editorial text-lg leading-relaxed text-[color:var(--cc-ink)] cc-dropcap max-w-3xl">
-      {summary.overallVerdict}
-    </p>
-
-    <div className="grid md:grid-cols-3 gap-6 mt-8">
-      <Column
-        kicker="§ In the draft's favour"
-        title="Strengths"
-        Icon={Star}
-        items={summary.topStrengths}
-      />
-      <Column
-        kicker="§ Where it falters"
-        title="Weaknesses"
-        Icon={AlertCircle}
-        items={summary.topWeaknesses}
-      />
-      <Column
-        kicker="§ Fix first"
-        title="Priority edits"
-        Icon={ChevronRight}
-        items={summary.mostImportantFixes}
-      />
+      <aside className="cc-proof-note self-start p-6 md:p-7">
+        <h3 className="cc-font-display text-[20px] leading-tight">Fix first</h3>
+        {summary.mostImportantFixes.length === 0 ? (
+          <div className="mt-4">
+            <Empty />
+          </div>
+        ) : (
+          <ol className="mt-5 space-y-5">
+            {summary.mostImportantFixes.map((fix, i) => (
+              <li key={i} className="flex gap-4">
+                <span className="cc-proof-note__num w-5 shrink-0">{i + 1}</span>
+                <span className="text-[15px] leading-snug">{fix}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </aside>
     </div>
   </section>
 );
 
-const Column = ({
-  kicker,
+const PointList = ({
   title,
-  Icon,
   items,
+  kind,
 }: {
-  kicker: string;
   title: string;
-  Icon: typeof Star;
   items: string[];
-}) => (
-  <div className="border-t border-[color:var(--cc-hair-strong)] pt-5">
-    <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>
-    <h4 className="mt-2 cc-font-display text-xl leading-tight">{title}</h4>
-    <ul className="mt-4 space-y-3">
-      {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-2.5 text-[15px] leading-snug">
-          <Icon className="w-3.5 h-3.5 mt-1 flex-shrink-0 text-[color:var(--cc-rust)]" />
-          <span className="cc-font-editorial italic text-[color:var(--cc-ink)]">
-            {item}
-          </span>
-        </li>
-      ))}
-    </ul>
-  </div>
-);
+  kind: "good" | "gap";
+}) => {
+  const Icon = kind === "good" ? Check : Minus;
+  const color = kind === "good" ? "var(--pf-good)" : "var(--pf-redpen)";
+  return (
+    <div>
+      <h3 className="cc-label-sm text-[color:var(--cc-ash)]">{title}</h3>
+      {items.length === 0 ? (
+        <div className="mt-3">
+          <Empty />
+        </div>
+      ) : (
+        <ul className="mt-4 space-y-3.5">
+          {items.map((item, i) => (
+            <li key={i} className="flex items-start gap-3 text-[15px] leading-snug text-[color:var(--cc-ink)]">
+              <span
+                className="mt-[1px] grid h-5 w-5 shrink-0 place-items-center rounded-full"
+                style={{ background: `color-mix(in srgb, ${color} 14%, transparent)`, color }}
+              >
+                <Icon className="h-3 w-3" strokeWidth={3} />
+              </span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};

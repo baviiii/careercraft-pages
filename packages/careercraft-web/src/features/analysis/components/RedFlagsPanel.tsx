@@ -1,6 +1,8 @@
-import { CheckCircle2 } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import type { ATSAIAnalysis } from "@/lib/atsAIAnalyzer";
+
+import { SEVERITY } from "../tone";
 
 interface RedFlagsPanelProps {
   analysis: ATSAIAnalysis;
@@ -9,47 +11,49 @@ interface RedFlagsPanelProps {
 export const RedFlagsPanel = ({ analysis }: RedFlagsPanelProps) => {
   if (analysis.redFlags.length === 0) {
     return (
-      <section className="border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-10 md:p-14 text-center">
-        <CheckCircle2 className="w-10 h-10 mx-auto text-[color:var(--cc-rust)]" />
-        <div className="cc-label text-[color:var(--cc-rust)] mt-6">
-          § Clean pages
-        </div>
-        <h3 className="mt-3 cc-font-display text-3xl md:text-4xl leading-tight">
-          No red flags <span className="cc-italic-wonk">raised</span>.
-        </h3>
-        <p className="mt-4 cc-font-editorial italic text-[color:var(--cc-ink-soft)] max-w-md mx-auto">
-          The draft passes every red-flag check we run against it.
-        </p>
+      <section className="cc-surface grid place-items-center p-14">
+        <span
+          className="cc-proof-stamp cc-proof-stamp--tilt"
+          style={{ "--stamp": "var(--pf-good)" } as CSSProperties}
+        >
+          No red flags
+        </span>
       </section>
     );
   }
 
   return (
     <div className="space-y-4">
-      {analysis.redFlags.map((flag, i) => (
-        <article
-          key={i}
-          className="cc-card p-6 border-l-[3px] border-l-[color:var(--cc-rust)]"
-        >
-          <div className="flex items-baseline justify-between gap-4 flex-wrap">
-            <div>
-              <div className="cc-label text-[color:var(--cc-rust)]">
-                § {flag.type}
+      {analysis.redFlags.map((flag, i) => {
+        const color = SEVERITY[flag.severity] ?? SEVERITY.minor;
+        return (
+          <article key={i} className="cc-surface relative overflow-hidden p-6 pl-7 md:p-7 md:pl-8">
+            <span className="absolute inset-y-0 left-0 w-1" style={{ background: color }} />
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0 max-w-3xl">
+                {flag.type && (
+                  <div className="cc-label-sm text-[color:var(--cc-ash)]">{flag.type}</div>
+                )}
+                <h3 className="mt-2 text-[16.5px] font-medium leading-snug text-[color:var(--cc-ink)]">
+                  {flag.description}
+                </h3>
               </div>
-              <h4 className="mt-2 cc-font-display text-xl leading-tight">
-                {flag.description}
-              </h4>
+              <span
+                className="cc-proof-stamp cc-proof-stamp--sm cc-proof-stamp--tilt"
+                style={{ "--stamp": color } as CSSProperties}
+              >
+                {flag.severity}
+              </span>
             </div>
-            <span className="cc-pill cc-pill-rust">{flag.severity}</span>
-          </div>
-          <p className="mt-3 cc-font-editorial italic text-[color:var(--cc-ink-soft)] text-[15px]">
-            <span className="cc-label text-[color:var(--cc-ash)] mr-2">
-              Location
-            </span>
-            {flag.location}
-          </p>
-        </article>
-      ))}
+            {flag.location && (
+              <p className="mt-3 text-[14px] text-[color:var(--cc-ink-soft)]">
+                <span className="cc-label-sm mr-2 text-[color:var(--cc-ash)]">Where</span>
+                {flag.location}
+              </p>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 };

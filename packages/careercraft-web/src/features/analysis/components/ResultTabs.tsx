@@ -4,50 +4,52 @@ import {
   FileCheck,
   FileOutput,
   LayoutGrid,
-  Lightbulb,
+  ListChecks,
+  PenLine,
   Search,
-  Wand2,
 } from "lucide-react";
 
 import type { ResultTab, ResultTabId } from "../types";
 
 const TABS: ResultTab[] = [
   { id: "overview", icon: LayoutGrid, label: "Overview" },
-  { id: "requirements", icon: BriefcaseIcon, label: "Job Brief" },
+  { id: "requirements", icon: BriefcaseIcon, label: "Job brief" },
   { id: "keywords", icon: Search, label: "Keywords" },
   { id: "quality", icon: FileCheck, label: "Writing" },
-  { id: "redflags", icon: AlertTriangle, label: "Red Flags" },
-  { id: "improvements", icon: Lightbulb, label: "Redlines" },
-  { id: "enhance", icon: Wand2, label: "Rewrite" },
-  { id: "coverletter", icon: FileOutput, label: "Cover Letter" },
+  { id: "redflags", icon: AlertTriangle, label: "Red flags" },
+  { id: "improvements", icon: ListChecks, label: "Fixes" },
+  { id: "enhance", icon: PenLine, label: "Rewrite" },
+  { id: "coverletter", icon: FileOutput, label: "Cover letter" },
 ];
 
 interface ResultTabsProps {
   active: ResultTabId;
   onChange: (id: ResultTabId) => void;
+  /** Small count shown on a tab, e.g. keywords missing. Hidden at 0. */
+  counts?: Partial<Record<ResultTabId, number>>;
 }
 
-export const ResultTabs = ({ active, onChange }: ResultTabsProps) => (
-  <nav className="border-y border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] mt-8">
-    <div className="flex overflow-x-auto">
+export const ResultTabs = ({ active, onChange, counts = {} }: ResultTabsProps) => (
+  <div className="sticky top-14 z-20 -mx-2 mt-8 bg-[rgba(248,250,252,0.88)] px-2 py-2 backdrop-blur-md">
+    <nav className="cc-tabs" role="tablist" aria-label="Results">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const isActive = active === tab.id;
+        const count = counts[tab.id];
         return (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={isActive}
             onClick={() => onChange(tab.id)}
-            className={`inline-flex items-center gap-2 px-5 py-3 cc-label whitespace-nowrap border-r border-[color:var(--cc-hair-strong)] transition-colors ${
-              isActive
-                ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-                : "text-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)]"
-            }`}
+            className={`cc-tab ${isActive ? "is-active" : ""}`}
           >
-            <Icon className="w-3.5 h-3.5" />
+            <Icon className="h-4 w-4" />
             {tab.label}
+            {!!count && <span className="cc-tab__hint">{count}</span>}
           </button>
         );
       })}
-    </div>
-  </nav>
+    </nav>
+  </div>
 );

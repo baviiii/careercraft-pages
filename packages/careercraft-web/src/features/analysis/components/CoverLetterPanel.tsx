@@ -1,7 +1,5 @@
-import { Check, Copy, FileOutput, Loader2, Save, Sparkles } from "lucide-react";
+import { Check, Copy, FileText, Loader2, PenLine, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-import { CraftButton } from "@/components/craft/AppPrimitives";
 
 import type { CoverLetterTone } from "../types";
 
@@ -15,13 +13,12 @@ interface CoverLetterPanelProps {
   onSave: () => void;
   onCopy: (text: string, id: string) => void;
   copiedText: string | null;
-  overallScore: number;
 }
 
-const TONES: Array<{ id: CoverLetterTone; label: string; desc: string }> = [
-  { id: "professional", label: "Professional", desc: "Formal & traditional" },
-  { id: "confident", label: "Confident", desc: "Bold & assertive" },
-  { id: "casual", label: "Casual", desc: "Friendly & warm" },
+const TONES: Array<{ id: CoverLetterTone; label: string }> = [
+  { id: "professional", label: "Professional" },
+  { id: "confident", label: "Confident" },
+  { id: "casual", label: "Casual" },
 ];
 
 export const CoverLetterPanel = ({
@@ -34,125 +31,80 @@ export const CoverLetterPanel = ({
   onSave,
   onCopy,
   copiedText,
-  overallScore,
 }: CoverLetterPanelProps) => {
   const navigate = useNavigate();
 
   return (
-    <div className="space-y-6">
-      <section className="cc-card p-7">
-        <div className="flex items-baseline justify-between gap-6 mb-2 flex-wrap">
-          <div>
-            <div className="cc-label text-[color:var(--cc-rust)]">§ The letter</div>
-            <h2 className="mt-2 cc-font-display text-2xl md:text-3xl leading-tight">
-              Draft a <span className="cc-italic-wonk">cover letter</span>.
-            </h2>
+    <section className="cc-surface p-6 md:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <h2 className="cc-font-display text-[24px] leading-tight text-[color:var(--cc-ink)]">
+            Cover letter
+          </h2>
+          <div className="mt-4 flex flex-wrap gap-2" role="radiogroup" aria-label="Tone">
+            {TONES.map((t) => (
+              <button
+                key={t.id}
+                role="radio"
+                aria-checked={tone === t.id}
+                onClick={() => onToneChange(t.id)}
+                className={`cc-proof-chip ${tone === t.id ? "is-active" : ""}`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-          <FileOutput className="w-5 h-5 text-[color:var(--cc-rust)]" />
         </div>
-
-        <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)] max-w-2xl">
-          A tailored letter, set from this résumé and this posting — then
-          handed to you for the final human touch.
-        </p>
-
-        <div className="mt-6 flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[260px]">
-            <div className="cc-label text-[color:var(--cc-ash)] mb-2">§ Tone</div>
-            <div className="flex flex-wrap gap-2">
-              {TONES.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => onToneChange(t.id)}
-                  className={`cc-pill ${
-                    tone === t.id ? "cc-pill-filled" : ""
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <CraftButton onClick={onGenerate} disabled={isGenerating}>
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Drafting…
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Draft the letter
-              </>
-            )}
-          </CraftButton>
-        </div>
-
-        <div className="mt-6">
-          {generated ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="cc-label text-[color:var(--cc-rust)]">
-                  § The draft
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <CraftButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onCopy(generated, "coverletter")}
-                  >
-                    {copiedText === "coverletter" ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                    Copy
-                  </CraftButton>
-                  <CraftButton size="sm" onClick={onSave}>
-                    <Save className="w-3.5 h-3.5" />
-                    File it
-                  </CraftButton>
-                  <CraftButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => navigate("/cover-letter")}
-                  >
-                    Open editor
-                  </CraftButton>
-                </div>
-              </div>
-              <textarea
-                value={generated}
-                onChange={(e) => onGeneratedChange(e.target.value)}
-                className="cc-textarea w-full min-h-[400px] cc-font-mono text-[13px]"
-              />
-            </div>
+        <button className="cc-action" onClick={onGenerate} disabled={isGenerating}>
+          {isGenerating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <div className="border-2 border-dashed border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-12 text-center">
-              <FileOutput className="w-10 h-10 mx-auto text-[color:var(--cc-ash)] mb-4" />
-              <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)] max-w-md mx-auto">
-                Press <span className="text-[color:var(--cc-rust)]">Draft the letter</span>{" "}
-                to set a tailored cover note from your résumé and the posting.
-              </p>
-            </div>
+            <PenLine className="h-4 w-4" />
           )}
-        </div>
-      </section>
+          {isGenerating ? "Writing…" : generated ? "Write again" : "Write letter"}
+        </button>
+      </div>
 
-      <section className="border-l-2 border-[color:var(--cc-rust)] pl-5">
-        <div className="cc-label text-[color:var(--cc-rust)]">§ Marginalia</div>
-        <ul className="mt-2 space-y-1.5 cc-font-editorial italic text-[color:var(--cc-ink-soft)] text-[15px]">
-          <li>
-            The letter borrows from the audit — your reading of{" "}
-            <span className="text-[color:var(--cc-ink)] cc-tabular">
-              {overallScore}/100
-            </span>{" "}
-            guides which skills to highlight.
-          </li>
-          <li>Edit freely before sending — add the personal note a machine cannot.</li>
-          <li>File it to the library to track applications.</li>
-        </ul>
-      </section>
-    </div>
+      <div className="mt-7">
+        {generated ? (
+          <>
+            <div className="mb-3 flex flex-wrap justify-end gap-2">
+              <button
+                className="cc-action cc-action--ghost cc-action--sm"
+                onClick={() => onCopy(generated, "coverletter")}
+              >
+                {copiedText === "coverletter" ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                Copy
+              </button>
+              <button
+                className="cc-action cc-action--ghost cc-action--sm"
+                onClick={() => navigate("/cover-letter")}
+              >
+                Open editor
+              </button>
+              <button className="cc-action cc-action--ink cc-action--sm" onClick={onSave}>
+                <Save className="h-3.5 w-3.5" />
+                Save
+              </button>
+            </div>
+            <textarea
+              value={generated}
+              onChange={(e) => onGeneratedChange(e.target.value)}
+              aria-label="Cover letter"
+              className="cc-proof-sheet block min-h-[460px] w-full resize-y p-6 focus:outline-none focus:ring-2 focus:ring-[color:var(--cc-rust-soft)] md:p-10"
+            />
+          </>
+        ) : (
+          <div className="grid place-items-center rounded-[1.25rem] border border-dashed border-[color:var(--cc-hair-strong)] px-6 py-14 text-center">
+            <FileText className="mb-3 h-8 w-8 text-[color:var(--cc-ash)]" />
+            <p className="text-[14px] text-[color:var(--cc-ash)]">Pick a tone, then write the letter.</p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 };
