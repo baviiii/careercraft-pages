@@ -150,7 +150,7 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
             className="mt-6 max-w-2xl cc-font-editorial text-xl leading-snug sm:text-2xl"
             style={{ color: "rgba(225, 224, 204, 0.92)", textShadow: "0 1px 24px rgba(0,0,0,0.6)" }}
           >
-            Build the résumé, aim it at the job, track every application. One calm workspace for the Australian job market.
+            Work out where you're headed, get ready for the market, then go for the role. One calm workspace for the Australian job market.
           </motion.p>
 
           <motion.div
@@ -187,7 +187,7 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
                   className="group inline-flex items-center gap-2 text-sm transition-colors sm:text-base"
                   style={{ color: "rgba(225, 224, 204, 0.85)" }}
                 >
-                  Build one now — no account needed
+                  Build a résumé now — no account needed
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </button>
               </>
@@ -280,8 +280,8 @@ FigureCell.displayName = "FigureCell";
 const Figures = memo(() => {
   const rows = [
     { fig: "25", label: "Résumé templates", sub: "modern · professional · creative · minimal" },
-    { fig: "9", label: "Tools in the workspace", sub: "first draft through to signed offer" },
-    { fig: "4", label: "Steps to a finished PDF", sub: "upload · edit · choose · export" },
+    { fig: "9", label: "Tools in the workspace", sub: "first question through to signed offer" },
+    { fig: "3", label: "Stages, start to finish", sub: "figure it out · get ready · go for it" },
   ];
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
@@ -312,64 +312,84 @@ Figures.displayName = "Figures";
 
 /* ─────────────────────────── TOOLKIT ─────────────────────────── */
 
-/* The nine tools that actually exist in the app. The face carries the
-   promise in the reader's words; the back carries the specifics. No
-   numbering — these are a set you pick from, not a sequence you follow.
-   (The Method section below IS a sequence, and keeps its order.) */
-const toolkit = [
+/* The nine tools that actually exist in the app, grouped by the stage
+   they help with. The face carries the promise in the reader's words; the
+   back carries the specifics. Stages are numbered because they're a rough
+   order; the tools inside a stage aren't, because you pick from them. */
+type Tool = { title: [string, string]; face: string; back: string; tags: string[] };
+
+const stages: { n: string; name: string; tools: Tool[] }[] = [
   {
-    title: ["Résumé", "builder"],
-    face: "Start from the résumé you already have, or from nothing at all. Watch it take shape as you type.",
-    back: "Drop in a PDF, Word file or a photo and Faircopy reads your history out of it. Edit with the page live beside you, choose from 25 templates across four styles, then export a print-ready PDF.",
-    tags: ["Live preview", "25 templates", "PDF export"],
+    n: "01",
+    name: "Figure it out",
+    tools: [
+      {
+        title: ["Career", "coach"],
+        face: "Not sure what's next? Talk it through and get answers with their sources attached.",
+        back: "Ask about roles, pathways or where the work is, and follow up like a conversation. Answers come back with the document behind them, so you can check the claim rather than take our word for it. Deepest on South Australia today, widening from there.",
+        tags: ["Cited answers", "Follow-up questions", "SA-deep"],
+      },
+      {
+        title: ["Market", "news"],
+        face: "What's moving in your industry, without the doomscroll.",
+        back: "A running read on hiring, pay and demand in the sectors you care about — so you know whether it's you or the market.",
+        tags: ["Hiring", "Pay", "By sector"],
+      },
+      {
+        title: ["Browse", "jobs"],
+        face: "Openings across Australia, read for what the employer actually wants.",
+        back: "Search live listings, see which skills keep coming up and what they pay — then send the résumé you built here straight at them.",
+        tags: ["Live listings", "In-demand skills", "Salary"],
+      },
+    ],
   },
   {
-    title: ["ATS", "analysis"],
-    face: "See what the screening software sees — while there's still time to do something about it.",
-    back: "Paste the job ad and get a compatibility score with the reasoning shown: which keywords matched, which requirements you meet, which you don't, and the red flags a recruiter would catch on the first pass. Reads résumés the Australian way — two pages and a referees section won't cost you marks.",
-    tags: ["Match score", "Keyword gaps", "Built for AU résumés"],
+    n: "02",
+    name: "Get ready",
+    tools: [
+      {
+        title: ["Résumé", "builder"],
+        face: "Start from the résumé you already have, or from nothing at all. Watch it take shape as you type.",
+        back: "Drop in a PDF, Word file or a photo and Faircopy reads your history out of it. Edit with the page live beside you, choose from 25 templates across four styles, then export a print-ready PDF.",
+        tags: ["Live preview", "25 templates", "PDF export"],
+      },
+      {
+        title: ["Bullet", "rewrite"],
+        face: "Turn “responsible for” into something a hiring manager actually remembers.",
+        back: "Point it at the role you're going for and rewrite any bullet against that job. You approve every line — nothing changes in your résumé until you say so.",
+        tags: ["Line by line", "Job-matched", "You approve"],
+      },
+      {
+        title: ["Cover", "letters"],
+        face: "A letter that sounds like you wrote it, for the role in front of you.",
+        back: "Draws on the résumé you've already built and the job ad you're answering, in Australian English — organised, not organized. Edit until it reads right, then keep it in your library or download it.",
+        tags: ["From your résumé", "Australian English", "Fully editable"],
+      },
+    ],
   },
   {
-    title: ["Bullet", "rewrite"],
-    face: "Turn “responsible for” into something a hiring manager actually remembers.",
-    back: "Point it at the role you're going for and rewrite any bullet against that job. You approve every line — nothing changes in your résumé until you say so.",
-    tags: ["Line by line", "Job-matched", "You approve"],
-  },
-  {
-    title: ["Cover", "letters"],
-    face: "A letter that sounds like you wrote it, for the role in front of you.",
-    back: "Draws on the résumé you've already built and the job ad you're answering, in Australian English — organised, not organized. Edit until it reads right, then keep it in your library or download it.",
-    tags: ["From your résumé", "Australian English", "Fully editable"],
-  },
-  {
-    title: ["Job", "tracker"],
-    face: "Every application in one place, so nothing quietly goes cold on you.",
-    back: "Log each role, move it along as things progress, and see at a glance what's waiting on you. Covers every state and territory.",
-    tags: ["Your pipeline", "Status at a glance", "Australia-wide"],
-  },
-  {
-    title: ["Interview", "practice"],
-    face: "Rehearse the hard questions before somebody asks them for real.",
-    back: "Work through the questions that come up for your role, step into a practice room and answer them properly, then read back how it went.",
-    tags: ["Practice room", "Role-specific", "Debrief"],
-  },
-  {
-    title: ["Browse", "jobs"],
-    face: "Openings across Australia, read for what the employer actually wants.",
-    back: "Search live listings, see which skills keep coming up and what they pay — then send the résumé you built here straight at them.",
-    tags: ["Live listings", "In-demand skills", "Salary"],
-  },
-  {
-    title: ["Market", "news"],
-    face: "What's moving in your industry, without the doomscroll.",
-    back: "A running read on hiring, pay and demand in the sectors you care about — so you know whether it's you or the market.",
-    tags: ["Hiring", "Pay", "By sector"],
-  },
-  {
-    title: ["Career", "insights"],
-    face: "Ask a real question about the market and get an answer with its sources attached.",
-    back: "Answers come back with the document behind them, so you can check the claim rather than take our word for it. Deepest on South Australia today, widening from there.",
-    tags: ["Cited answers", "Ask anything", "SA-deep"],
+    n: "03",
+    name: "Go for it",
+    tools: [
+      {
+        title: ["ATS", "analysis"],
+        face: "See what the screening software sees — while there's still time to do something about it.",
+        back: "Paste the job ad and get a compatibility score with the reasoning shown: which keywords matched, which requirements you meet, which you don't, and the red flags a recruiter would catch on the first pass. Reads résumés the Australian way — two pages and a referees section won't cost you marks.",
+        tags: ["Match score", "Keyword gaps", "Built for AU résumés"],
+      },
+      {
+        title: ["Job", "tracker"],
+        face: "Every application in one place, so nothing quietly goes cold on you.",
+        back: "Log each role, move it along as things progress, and see at a glance what's waiting on you. Covers every state and territory.",
+        tags: ["Your pipeline", "Status at a glance", "Australia-wide"],
+      },
+      {
+        title: ["Interview", "practice"],
+        face: "Rehearse the hard questions before somebody asks them for real.",
+        back: "Work through the questions that come up for your role, step into a practice room and answer them properly, then read back how it went.",
+        tags: ["Practice room", "Role-specific", "Debrief"],
+      },
+    ],
   },
 ];
 
@@ -381,7 +401,7 @@ const FLIP_FACE =
   "shadow-[0_22px_50px_-32px_rgba(70,45,20,0.5)] transition-shadow duration-500 " +
   "group-hover:shadow-[0_32px_60px_-30px_rgba(70,45,20,0.55)] p-10 md:p-12 min-h-[21rem]";
 
-const ToolkitCard = memo(({ item, i }: { item: typeof toolkit[0]; i: number }) => {
+const ToolkitCard = memo(({ item, i }: { item: Tool; i: number }) => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
   const [open, setOpen] = useState(false);
@@ -453,12 +473,22 @@ const Toolkit = memo(() => (
     <CraftSectionHead
       section="The toolkit"
       title={<>Nine tools.<br /><span className="cc-italic-wonk">One workspace.</span></>}
-      sub={<>Everything between the first draft and the signed offer. Tap any card to see what it actually does.</>}
+      sub={<>Everything from working out what's next to the signed offer. Tap any card to see what it actually does.</>}
     />
 
-    <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {toolkit.map((t, i) => (
-        <ToolkitCard key={`${t.title[0]}-${t.title[1]}`} item={t} i={i} />
+    <div className="mt-16 md:mt-20 space-y-16 md:space-y-20">
+      {stages.map((stage) => (
+        <div key={stage.n}>
+          <h3 className="border-t border-[color:var(--cc-ink)]/40 pt-6 flex items-baseline gap-4">
+            <span className="cc-label-sm cc-tabular text-[color:var(--cc-rust)]">{stage.n}</span>
+            <span className="cc-font-display text-2xl md:text-3xl tracking-tight text-[color:var(--cc-ink)]">{stage.name}</span>
+          </h3>
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {stage.tools.map((t, i) => (
+              <ToolkitCard key={`${t.title[0]}-${t.title[1]}`} item={t} i={i} />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   </SkySection>
@@ -471,9 +501,9 @@ const Method = memo(() => {
   /* A real sequence — you do these in order — so the numerals carry
      information rather than decoration. */
   const steps = [
-    { n: "01", title: "Bring what you have", body: "Upload an old résumé, paste it in, or start from a blank page. Either way you're editing within minutes." },
-    { n: "02", title: "Aim it at the job", body: "Score it against the ad, close the gaps it finds, and rewrite the lines that aren't pulling their weight." },
-    { n: "03", title: "Send it and track it", body: "Export a print-ready PDF, log the application, and keep every role moving from one board." },
+    { n: "01", title: "Figure it out", body: "Talk through where you're headed, see what's being advertised and what it pays, and keep up with what's moving in your field." },
+    { n: "02", title: "Get ready", body: "Bring the résumé you have or start fresh, tighten every line, and write a cover letter that sounds like you." },
+    { n: "03", title: "Go for it", body: "Check your résumé against the ad, keep every application moving, and rehearse the interview before it's real." },
   ];
   return (
     <SkySection id="method" tone="dusk">
@@ -513,10 +543,10 @@ Method.displayName = "Method";
 /* ─────────────────────────── SUBJECTS ─────────────────────────── */
 
 const subjects = [
-  { id: "A", who: "Job seekers", body: "Stop rebuilding the same résumé from scratch for every role you go for." },
+  { id: "A", who: "Job seekers", body: "One place for every application, so nothing starts from scratch or quietly goes cold." },
   { id: "B", who: "Career changers", body: "Find the roles your experience already qualifies you for — and the words to prove it." },
-  { id: "C", who: "Students & graduates", body: "Write a first résumé that doesn't read like a first résumé." },
-  { id: "D", who: "New to Australia", body: "Put your experience into the shape Australian employers expect to read." },
+  { id: "C", who: "Students & graduates", body: "Figure out where to start, then apply like it isn't your first time." },
+  { id: "D", who: "New to Australia", body: "Get a read on the market here, and put your experience in the shape Australian employers expect." },
 ];
 
 const Subjects = memo(() => (
@@ -579,7 +609,7 @@ const CTA = memo(({ session, navigate }: { session: Session | null; navigate: (t
           Ready to run your job search with less chaos?
         </h2>
         <p className="mt-6 cc-font-editorial text-lg md:text-xl leading-snug text-[color:var(--cc-ink-soft)]">
-          Nine tools, 25 templates, and one place to keep every application moving. Start with a résumé and go from there.
+          Nine tools and one place to keep it all. Start wherever you are: a question, a résumé, or an interview next week.
         </p>
         <div className="mt-10 flex items-center justify-center">
           <button
@@ -607,7 +637,7 @@ CTA.displayName = "CTA";
 const Index = memo(() => {
   const [session, setSession] = useState<Session | null>(null);
   const navigate = useNavigate();
-  usePageMeta({ title: "Faircopy: résumé builder for the Australian job market", path: "/" });
+  usePageMeta({ title: "Faircopy: plan your next career move in Australia", path: "/" });
 
   useEffect(() => {
     let cancelled = false;
