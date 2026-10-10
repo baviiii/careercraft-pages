@@ -7,9 +7,15 @@ import {
   CraftScrollProgress,
   CraftFleuron,
 } from "@/components/landing/CraftShell";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 export default function ContactUs() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: "Contact · Faircopy",
+    description: "Questions, feedback, corrections — every message is read by a person, usually within a day.",
+    path: "/contact",
+  });
   const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
 

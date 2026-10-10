@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { CraftPageShell } from "@/components/landing/CraftShell";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const sections = [
   {
@@ -52,6 +53,11 @@ const sections = [
 
 export default function Privacy() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: "Privacy policy · Faircopy",
+    description: "A short, honest account of what Faircopy collects, why, and how we keep it.",
+    path: "/privacy",
+  });
   const updated = new Date().toLocaleDateString("en-AU", { year: "numeric", month: "long", day: "numeric" });
 
   return (

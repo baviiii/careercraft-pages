@@ -7,6 +7,7 @@ import {
   CraftScrollProgress,
   CraftFleuron,
 } from "@/components/landing/CraftShell";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const values = [
   { n: "i.", title: "Mission", body: "Give every Australian the market intelligence a top recruiter has — sourced, cited, and free to start." },
@@ -26,6 +27,11 @@ const pillars = [
 
 export default function AboutUs() {
   const navigate = useNavigate();
+  usePageMeta({
+    title: "About · Faircopy",
+    description: "Faircopy is a career workspace built in Adelaide for the Australian job market.",
+    path: "/about",
+  });
 
   return (
     <CraftPageShell>

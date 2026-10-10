@@ -35,6 +35,25 @@ checklist to get there, ordered so you do the cheapest launch-blocking work firs
 - [ ] **End-to-end userflow QA** (see §2) — walk the whole journey as a real user and fix what's
       broken. This is the big one and the reason to test the flow before finishing more features.
 
+### Trust & discoverability (added 2026-10-10)
+
+faircopy.au is a new domain, so Google and mail providers trust it slowly. These start that clock
+and catch the failures a first visitor would hit. The code side (meta tags, sitemap, share image,
+robots.txt, removing the made-up gov news) is done; these need your accounts.
+
+- [ ] **Signup confirmation email lands in the inbox.** Do a real signup with a fresh Gmail and an
+      Outlook address. Supabase Auth sends it through the SMTP set in the *Supabase dashboard* (not
+      the Gmail→Resend relay), and new-domain mail often goes to spam. If confirmation mail is
+      spammed, people sign up and never get in.
+- [ ] **Google Search Console + Bing Webmaster Tools.** Verify `faircopy.au` as a Domain property
+      (DNS TXT record in Cloudflare), then submit `https://www.faircopy.au/sitemap.xml`. Bing can
+      import straight from Search Console.
+- [ ] **`support@` and `privacy@faircopy.au` actually arrive.** Both are printed on the Contact and
+      Privacy pages. Check they're routed in Cloudflare Email Routing and send a test to each.
+- [ ] **Share card looks right.** After deploy, paste `https://www.faircopy.au/` into LinkedIn Post
+      Inspector and opengraph.xyz. To change the image later, use a new filename: `*.png` is
+      cached for a year.
+
 ---
 
 ## 2. 🔴 End-to-end userflow test (do this yourself + with me)

@@ -20,6 +20,7 @@ import { detectXSS } from "@/lib/security/xss";
 import { AuthExperience } from "@/components/auth/AuthExperience";
 import { peekGuestReturn } from "@/features/resume-builder/lib/guestDraft";
 import { resolvePostAuthDestination } from "@/lib/postAuthDestination";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const SESSION_TOKEN_KEY = "horus_session_token";
 const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL as string | undefined)?.trim();
@@ -144,6 +145,7 @@ const FieldError = ({ msg }: { msg?: string }) =>
 
 const Auth = () => {
   const navigate = useNavigate();
+  usePageMeta({ title: "Sign in · Faircopy", noindex: true });
   const [mode, setMode] = useState<Mode>("signin");
 
   const [isLoading, setIsLoading] = useState(false);

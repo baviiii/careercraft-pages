@@ -12,6 +12,7 @@ import {
   CraftFleuron,
 } from "@/components/landing/CraftShell";
 import { WordsPullUp } from "@/components/ui/prisma-hero";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 /* The 3D meadow is heavy (three.js) — load it on demand so it never weighs
    down first paint. A painted sky placeholder holds its space meanwhile. */
@@ -509,60 +510,6 @@ const Method = memo(() => {
 });
 Method.displayName = "Method";
 
-/* ─────────────────────────── DISPATCHES ─────────────────────────── */
-
-const dispatches = [
-  { date: "17 April 2026", dept: "Dept. of Industry & Skills", headline: "Cyber apprenticeships expanded by 320 seats", body: "New intake targeting school leavers and mid-career switchers. Focus: SOC analyst, cloud security, GRC." },
-  { date: "12 April 2026", dept: "Invest SA", headline: "$144M committed to advanced manufacturing corridor", body: "Elizabeth–Osborne corridor receives funding. Robotics, composites, and low-emissions metals prioritised." },
-  { date: "04 April 2026", dept: "Dept. for Health", headline: "Regional allied-health roles: +18% forecast", body: "Mid-north regions leading growth. Physio, occupational therapy, and mental-health streams named." },
-];
-
-const Dispatches = memo(() => (
-  <SkySection id="dispatches" tone="dawn">
-    <CraftSectionHead
-      section="Updates"
-      title={<>Latest from the<br /><span className="cc-italic-wonk">SA government.</span></>}
-      sub={<>The kind of signal Faircopy reads — policy, funding and hiring moves, each one sourced and dated.</>}
-    />
-
-    <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
-      {dispatches.map((d, i) => (
-        <motion.article
-          key={d.headline}
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.8, delay: i * 0.12, ease: [0.2, 0.8, 0.2, 1] }}
-          className="cc-telegram cc-font-mono"
-        >
-          <div className="cc-tele-stamp">Update</div>
-
-          <div className="flex items-center justify-between mt-2 pt-2">
-            <div className="cc-label-sm text-[color:var(--cc-ash)]">{d.date}</div>
-            <div className="cc-label-sm text-[color:var(--cc-rust)]">Published</div>
-          </div>
-
-          <div className="mt-4 cc-label text-[color:var(--cc-ink-soft)]">{d.dept}</div>
-
-          <h3 className="mt-5 cc-font-display text-2xl md:text-3xl leading-tight tracking-tight text-[color:var(--cc-ink)]">
-            {d.headline}
-          </h3>
-
-          <p className="mt-4 cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
-            {d.body}
-          </p>
-
-          <div className="mt-8 pt-4 flex items-center justify-between text-[color:var(--cc-ash)]">
-            <span className="cc-label-sm">—— END ——</span>
-            <ArrowUpRight className="w-4 h-4" />
-          </div>
-        </motion.article>
-      ))}
-    </div>
-  </SkySection>
-));
-Dispatches.displayName = "Dispatches";
-
 /* ─────────────────────────── SUBJECTS ─────────────────────────── */
 
 const subjects = [
@@ -660,6 +607,7 @@ CTA.displayName = "CTA";
 const Index = memo(() => {
   const [session, setSession] = useState<Session | null>(null);
   const navigate = useNavigate();
+  usePageMeta({ title: "Faircopy: résumé builder for the Australian job market", path: "/" });
 
   useEffect(() => {
     let cancelled = false;
@@ -715,7 +663,6 @@ const Index = memo(() => {
       <Figures />
       <Toolkit />
       <Method />
-      <Dispatches />
       <Subjects />
       <Suspense
         fallback={

@@ -1,7 +1,13 @@
 # Faircopy — crawler policy
 #
 # Search engines and link previews: welcome, we want to be found and shared.
+# AI search bots: welcome too. They fetch a page to answer someone's question
+# and link back to it, which is the same deal a search engine offers.
 # AI training crawlers: not welcome, they take the content and give nothing back.
+#
+# Most AI companies run these as separate bots (OpenAI: OAI-SearchBot vs
+# GPTBot; Anthropic: Claude-SearchBot vs ClaudeBot), so we can allow one and
+# block the other.
 #
 # This is a request, not a lock — a crawler that ignores robots.txt is not
 # stopped by it. It works on the ones that behave, which is most of them.
@@ -37,6 +43,27 @@ Allow: /
 User-agent: Discordbot
 Allow: /
 
+# ── AI search and answer bots: allowed ─────────────────────────────────────
+# The *-User agents fetch a page because a person asked about it, in the
+# moment. The search bots build the index those answers cite and link from.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
 # ── AI training crawlers: blocked ──────────────────────────────────────────
 # Google-Extended and Applebot-Extended control AI training ONLY. They do not
 # affect Google Search or Siri results — blocking them costs no ranking.
@@ -49,19 +76,10 @@ Disallow: /
 User-agent: GPTBot
 Disallow: /
 
-User-agent: OAI-SearchBot
-Disallow: /
-
 User-agent: ClaudeBot
 Disallow: /
 
 User-agent: anthropic-ai
-Disallow: /
-
-User-agent: Claude-Web
-Disallow: /
-
-User-agent: PerplexityBot
 Disallow: /
 
 User-agent: CCBot
@@ -96,6 +114,10 @@ Disallow: /
 
 # ── Everyone else ──────────────────────────────────────────────────────────
 # Left open on purpose. The app itself is behind a login and the API is behind
-# auth and per-user quotas, so what a crawler can reach is the marketing page.
+# auth and per-user quotas, so what a crawler can reach is the public pages
+# listed in the sitemap.
 User-agent: *
 Allow: /
+
+# ── Sitemap ────────────────────────────────────────────────────────────────
+Sitemap: https://www.faircopy.au/sitemap.xml

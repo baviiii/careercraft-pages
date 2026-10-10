@@ -11,6 +11,7 @@ import { Loader2, Lock, Shield, CheckCircle2, Sparkles, Eye, EyeOff, AlertTriang
 import { z } from "zod";
 import { useSessionTracking } from "@/hooks/useSessionTracking";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const passwordSchema = z.object({
   password: z
@@ -29,6 +30,7 @@ const passwordSchema = z.object({
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  usePageMeta({ title: "Reset password · Faircopy", noindex: true });
   const [isLoading, setIsLoading] = useState(false);
   const [isValidSession, setIsValidSession] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
