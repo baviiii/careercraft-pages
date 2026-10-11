@@ -4,7 +4,8 @@
    Order: Profile → Career → Skills → Alerts → Account.
    ─────────────────────────────────────────────────────────── */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CaptchaField, captchaEnabled, type CaptchaHandle } from "@/components/auth/CaptchaField";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -353,6 +354,11 @@ export default function Settings() {
   const [usageLoading, setUsageLoading] = useState(true);
   const [upgradeRequested, setUpgradeRequested] = useState(false);
   const [savingInterest, setSavingInterest] = useState(false);
+  // Password-reset emails go through Supabase's recovery endpoint, which
+  // requires a captcha token whenever captcha protection is on for the
+  // project — even for a signed-in user.
+  const [resetCaptchaToken, setResetCaptchaToken] = useState<string | null>(null);
+  const resetCaptchaRef = useRef<CaptchaHandle>(null);
 
   const {
     loading,
@@ -1652,15 +1658,32 @@ export default function Settings() {
         <TabsContent value="account" className="cc-tabs-panel mt-6 focus-visible:ring-0">
           <div className="space-y-5">
             <Panel title="Password" subtitle="We’ll email a secure link to reset your password." tone="ink">
+              <CaptchaField
+                ref={resetCaptchaRef}
+                onToken={setResetCaptchaToken}
+                action="password-reset"
+                className="mb-4"
+              />
               <button
                 type="button"
                 className="cc-action cc-action--ghost"
+                disabled={captchaEnabled && !resetCaptchaToken}
                 onClick={async () => {
                   const email = session?.user?.email;
                   if (!email) return;
-                  await supabase.auth.resetPasswordForEmail(email, {
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
                     redirectTo: `${APP_BASE_URL}/reset-password`,
+                    ...(resetCaptchaToken && { captchaToken: resetCaptchaToken }),
                   });
+                  resetCaptchaRef.current?.reset();
+                  if (error) {
+                    toast({
+                      title: "Couldn't send reset email",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                    return;
+                  }
                   toast({
                     title: "Reset email sent",
                     description: "Check your inbox for the password reset link.",

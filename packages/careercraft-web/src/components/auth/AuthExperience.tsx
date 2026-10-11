@@ -46,6 +46,11 @@ interface AuthExperienceProps {
   rateLimitMessage: string;
   /** Why a builder guest was sent here. Null for an ordinary visit. */
   gateNotice: { title: string; body: string } | null;
+  /** Turnstile widget, rendered above the submit button of whichever form is
+      showing. Null when captcha is not configured. */
+  captcha?: React.ReactNode;
+  /** True while captcha is required but not yet solved — holds the submit. */
+  captchaPending?: boolean;
   onSignIn: (event: React.FormEvent) => void;
   onSignUp: (event: React.FormEvent) => void;
   onForgotPassword: (event: React.FormEvent) => void;
@@ -191,6 +196,8 @@ export const AuthExperience = ({
   isRateLimited,
   rateLimitMessage,
   gateNotice,
+  captcha = null,
+  captchaPending = false,
   onSignIn,
   onSignUp,
   onForgotPassword,
@@ -312,7 +319,8 @@ export const AuthExperience = ({
                             className="cc-input mt-2"
                           />
                         </Field>
-                        <SubmitPill loading={isResetLoading} disabled={isRateLimited} loadingText="Sending link…">
+                        {captcha}
+                        <SubmitPill loading={isResetLoading} disabled={isRateLimited || captchaPending} loadingText="Sending link…">
                           Send reset link
                         </SubmitPill>
                       </form>
@@ -387,7 +395,8 @@ export const AuthExperience = ({
                               </button>
                             </div>
                           </Field>
-                          <SubmitPill loading={isLoading} disabled={isRateLimited} loadingText="Opening workspace…">Sign in</SubmitPill>
+                          {captcha}
+                          <SubmitPill loading={isLoading} disabled={isRateLimited || captchaPending} loadingText="Opening workspace…">Sign in</SubmitPill>
                           <button type="button" onClick={() => setShowForgotPassword(true)} className="w-full text-center cc-label-sm text-[color:var(--cc-ash)] transition-colors hover:text-[color:var(--cc-ink)]">
                             Forgot your password?
                           </button>
@@ -467,7 +476,8 @@ export const AuthExperience = ({
                               </motion.div>
                             )}
                           </AnimatePresence>
-                          <SubmitPill loading={isLoading} disabled={isRateLimited || passwordStrength < 100} loadingText="Creating your file…">Create account</SubmitPill>
+                          {captcha}
+                          <SubmitPill loading={isLoading} disabled={isRateLimited || passwordStrength < 100 || captchaPending} loadingText="Creating your file…">Create account</SubmitPill>
                         </form>
                       )}
                     </>

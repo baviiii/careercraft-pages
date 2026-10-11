@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Session } from "@supabase/supabase-js";
@@ -18,6 +18,7 @@ import { checkRateLimit, RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { sanitizeEmail, sanitize } from "@/lib/security/sanitizers";
 import { detectXSS } from "@/lib/security/xss";
 import { AuthExperience } from "@/components/auth/AuthExperience";
+import { CaptchaField, captchaEnabled, type CaptchaHandle } from "@/components/auth/CaptchaField";
 import { peekGuestReturn } from "@/features/resume-builder/lib/guestDraft";
 import { resolvePostAuthDestination } from "@/lib/postAuthDestination";
 import { usePageMeta } from "@/hooks/usePageMeta";
@@ -367,12 +368,28 @@ const Auth = () => {
   };
 
   /* ─── email/password handlers ─── */
+  /* ─── captcha ─── */
+  /* One token, one attempt. Turnstile tokens are single-use, so the widget is
+     reset in every handler's `finally` — otherwise a mistyped password would
+     leave a spent token behind and the retry would fail for the wrong reason. */
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<CaptchaHandle>(null);
+  const captchaPending = captchaEnabled && !captchaToken;
+
+  const requireCaptcha = (): boolean => {
+    if (!captchaPending) return true;
+    toast.error("Please complete the security check first.");
+    return false;
+  };
+  const resetCaptcha = () => captchaRef.current?.reset();
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
     if (!checkAuthRateLimit()) return;
     if (!checkInputSecurity(fullName, "name")) return;
     if (!checkInputSecurity(email, "email")) return;
+    if (!requireCaptcha()) return;
 
     const result = signupSchema.safeParse({ fullName, email, password });
     if (!result.success) {
@@ -392,7 +409,11 @@ const Auth = () => {
       const { data, error } = await supabase.auth.signUp({
         email: sanitizedEmail,
         password,
-        options: { emailRedirectTo: getAppRedirectUrl("/"), data: { full_name: sanitizedName } },
+        options: {
+          emailRedirectTo: getAppRedirectUrl("/"),
+          data: { full_name: sanitizedName },
+          ...(captchaToken && { captchaToken }),
+        },
       });
       if (error) {
         await trackAuthEvent("signup_failure", sanitizedEmail, null, error.message);
@@ -423,6 +444,7 @@ const Auth = () => {
       else toast.error(err.message || "Failed to sign up");
     } finally {
       setIsLoading(false);
+      resetCaptcha();
     }
   };
 
@@ -431,6 +453,7 @@ const Auth = () => {
     setErrors({});
     if (!checkAuthRateLimit()) return;
     if (!checkInputSecurity(email, "email")) return;
+    if (!requireCaptcha()) return;
 
     const result = loginSchema.safeParse({ email, password });
     if (!result.success) {
@@ -446,7 +469,11 @@ const Auth = () => {
     setIsLoading(true);
     const sanitizedEmail = sanitizeEmail(email);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email: sanitizedEmail, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: sanitizedEmail,
+        password,
+        ...(captchaToken && { options: { captchaToken } }),
+      });
       if (error) {
         await trackAuthEvent("login_failure", sanitizedEmail, null, error.message);
         throw error;
@@ -459,6 +486,7 @@ const Auth = () => {
       else toast.error(err.message || "Failed to sign in");
     } finally {
       setIsLoading(false);
+      resetCaptcha();
     }
   };
 
@@ -466,6 +494,7 @@ const Auth = () => {
     e.preventDefault();
     if (!checkAuthRateLimit()) return;
     if (!checkInputSecurity(resetEmail, "email")) return;
+    if (!requireCaptcha()) return;
     const result = resetEmailSchema.safeParse({ email: resetEmail });
     if (!result.success) {
       toast.error("Please enter a valid email address");
@@ -477,6 +506,7 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(sanitizedEmail, {
         redirectTo: getAppRedirectUrl("/reset-password"),
+        ...(captchaToken && { captchaToken }),
       });
       if (error) throw error;
       await trackAuthEvent("password_reset_request", sanitizedEmail);
@@ -487,6 +517,7 @@ const Auth = () => {
       toast.error(err.message || "Failed to send reset link");
     } finally {
       setIsResetLoading(false);
+      resetCaptcha();
     }
   };
 
@@ -521,6 +552,8 @@ const Auth = () => {
       isRateLimited={isRateLimited}
       rateLimitMessage={rateLimitMessage}
       gateNotice={gateNotice}
+      captcha={<CaptchaField ref={captchaRef} onToken={setCaptchaToken} action="auth" />}
+      captchaPending={captchaPending}
       onSignIn={handleSignIn}
       onSignUp={handleSignUp}
       onForgotPassword={handleForgotPassword}
