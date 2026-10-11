@@ -24,10 +24,22 @@ export default function SaveJob() {
       return;
     }
     storePendingImport(job);
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) setGuestReturnTo("/tracker");
-      navigate("/tracker", { replace: true });
-    });
+    // The job is already parked, so the user must reach the tracker whatever
+    // the session check does. If getSession() rejects (storage lock timeout,
+    // auth service down) we can't tell signed-in from signed-out: assume
+    // signed-out. That costs a signed-in user nothing but a harmless stored
+    // return-to; the other guess would strand a guest at /auth with no way
+    // back here. Navigation lives in `finally` so no outcome can skip it.
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!data.session) setGuestReturnTo("/tracker");
+      })
+      .catch((error: unknown) => {
+        console.warn("[save-job] Could not read the session; continuing as signed-out:", error);
+        setGuestReturnTo("/tracker");
+      })
+      .finally(() => navigate("/tracker", { replace: true }));
   }, [navigate]);
 
   return (
