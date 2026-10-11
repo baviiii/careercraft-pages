@@ -93,144 +93,20 @@ export interface CoverLetterRef {
 
 export type StatusFilter = ApplicationStatus | "all";
 
-export type StatusPillVariant =
-  | "default"
-  | "rust"
-  | "filled"
-  | "signal"
-  | "signal-filled"
-  | "rust-soft";
-
 export interface StatusMeta {
   id: ApplicationStatus;
   label: string;
-  kicker: string;
-  pill: StatusPillVariant;
-  verb: string;
 }
 
-/** Editorial metadata for each application status. */
+/** What each stage is called on the board, in filters and in the form. */
 export const STATUS_META: Record<ApplicationStatus, StatusMeta> = {
   /* Found it, haven't applied yet. Kept out of the reply rate. */
-  saved: {
-    id: "saved",
-    label: "Saved",
-    kicker: "§ Saved",
-    pill: "default",
-    verb: "Save a job",
-  },
-  applied: {
-    id: "applied",
-    label: "Applied",
-    kicker: "§ Applied",
-    pill: "signal",
-    verb: "Log an application",
-  },
-  interview: {
-    id: "interview",
-    label: "Interview",
-    kicker: "§ Interview",
-    pill: "rust",
-    verb: "Log an interview",
-  },
-  offer: {
-    id: "offer",
-    label: "Offer",
-    kicker: "§ Offer",
-    pill: "signal-filled",
-    verb: "Log an offer",
-  },
-  rejected: {
-    id: "rejected",
-    label: "Rejected",
-    kicker: "§ Rejected",
-    pill: "rust-soft",
-    verb: "Log a rejection",
-  },
+  saved: { id: "saved", label: "Saved" },
+  applied: { id: "applied", label: "Applied" },
+  interview: { id: "interview", label: "Interview" },
+  offer: { id: "offer", label: "Offer" },
+  rejected: { id: "rejected", label: "Didn't work out" },
 };
-
-/** Maps status metadata to Craft pill classes (list cards + detail panel). */
-export function statusPillClass(status: ApplicationStatus): string {
-  switch (STATUS_META[status].pill) {
-    case "filled":
-      return "cc-pill cc-pill-filled";
-    case "rust":
-      return "cc-pill cc-pill-rust";
-    case "signal":
-      return "cc-pill cc-pill-signal";
-    case "signal-filled":
-      return "cc-pill cc-pill-signal cc-pill-filled";
-    case "rust-soft":
-      return "cc-pill cc-pill-rust-soft";
-    default:
-      return "cc-pill";
-  }
-}
-
-/* ───────── Per-status accent palette ──────────────────────────
-   Every status earns its own colour identity so cards, chips and
-   ledger glyphs share one visual language. Values resolve at runtime
-   so they inherit any later theme changes from design-system.css.
-   ──────────────────────────────────────────────────────────── */
-export interface StatusAccent {
-  /** 4-px edge band drawn on the JobCard left side. */
-  edge: string;
-  /** Soft tinted background for chips, lane headers, dot fills. */
-  soft: string;
-  /** Deep type colour used against soft fills for legibility. */
-  deep: string;
-  /** Single-glyph mark used in the ledger summary glyph row. */
-  mark: string;
-  /** Lowercase noun phrase for italic captions ("awaiting reply"). */
-  note: string;
-}
-
-export const STATUS_ACCENT: Record<ApplicationStatus, StatusAccent> = {
-  saved: {
-    edge: "var(--cc-ink-soft)",
-    soft: "var(--cc-cream-2)",
-    deep: "var(--cc-ink)",
-    mark: "S",
-    note: "not applied yet",
-  },
-  applied: {
-    edge: "var(--cc-signal)",
-    soft: "var(--cc-signal-soft)",
-    deep: "var(--cc-signal-deep)",
-    mark: "A",
-    note: "awaiting reply",
-  },
-  interview: {
-    edge: "var(--cc-rust)",
-    soft: "var(--cc-rust-soft)",
-    deep: "var(--cc-rust-deep)",
-    mark: "I",
-    note: "in conversation",
-  },
-  offer: {
-    edge: "var(--cc-wheat-deep)",
-    soft: "var(--cc-wheat-soft)",
-    deep: "var(--cc-wheat-deep)",
-    mark: "O",
-    note: "decision pending",
-  },
-  rejected: {
-    edge: "var(--cc-ash)",
-    soft: "rgba(116, 106, 96, 0.14)",
-    deep: "var(--cc-ash)",
-    mark: "R",
-    note: "closed entry",
-  },
-};
-
-/** Lowercase roman numerals — used for ledger glyphs (i, ii, iii, …, xxx). */
-const ROMAN_ONES = ["", "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix"];
-const ROMAN_TENS = ["", "x", "xx", "xxx", "xl", "l", "lx", "lxx", "lxxx", "xc"];
-export function toRoman(value: number): string {
-  if (value <= 0) return "·";
-  if (value >= 100) return String(value);
-  return `${ROMAN_TENS[Math.floor(value / 10)]}${ROMAN_ONES[value % 10]}`;
-}
 
 export const STATUS_ORDER: ApplicationStatus[] = [
   "saved",

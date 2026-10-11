@@ -1,0 +1,292 @@
+/* Job tracker — the ticket board. Imported by JobTrackerPage.tsx and scoped
+   under .cc-board, beside the feature like cover-letter.css. Uses the --cc-*
+   tokens from styles/craft.css.
+
+   Each job is a ticket: a stub in its stage's colour, a perforation, notches
+   at the tear line. Moving a card on stamps it and slides it to the next lane.
+   Motion only ever follows something the user did (or plays once on load),
+   never loops, and has a still version under "reduce motion". */
+
+/* Stage colours, read through --st / --st-soft by lanes, cards and pills. */
+.cc-board [data-stage="saved"]     { --st: var(--cc-ink-soft); --st-soft: rgba(64, 69, 78, 0.08); }
+.cc-board [data-stage="applied"]   { --st: var(--cc-rust);     --st-soft: rgba(42, 82, 204, 0.09); }
+.cc-board [data-stage="interview"] { --st: var(--cc-signal);   --st-soft: rgba(63, 122, 92, 0.12); }
+.cc-board [data-stage="offer"]     { --st: var(--cc-wheat-deep); --st-soft: rgba(180, 135, 44, 0.15); }
+.cc-board [data-stage="rejected"]  { --st: var(--cc-ash);      --st-soft: rgba(116, 120, 130, 0.10); }
+
+.cc-board {
+  /* Solid version of the lane surface, so the ticket notches can "cut" it. */
+  --lane-bg: #FBFBF8;
+}
+
+/* ── Lanes ───────────────────────────────────────────────────── */
+.cc-lane {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  border-radius: 16px;
+  background: var(--lane-bg);
+  border: 1px solid var(--cc-hair);
+  transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.cc-lane.is-target {
+  border-color: var(--st);
+  background: color-mix(in srgb, var(--st-soft) 100%, var(--lane-bg));
+  box-shadow: 0 0 0 3px var(--st-soft);
+}
+.cc-lane__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--st); flex: none; }
+
+/* ── Ticket ──────────────────────────────────────────────────── */
+.cc-ticket {
+  position: relative;
+  display: flex;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(20, 22, 26, 0.04), 0 10px 24px -20px rgba(20, 22, 26, 0.45);
+  transition: box-shadow .25s ease, translate .25s cubic-bezier(.2, .8, .2, 1), filter .4s ease, opacity .4s ease;
+}
+/* Notches at the tear line, cut in the lane's colour. */
+.cc-ticket::before,
+.cc-ticket::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lane-bg);
+  z-index: 1;
+}
+.cc-ticket::before { top: -8px; }
+.cc-ticket::after { bottom: -8px; }
+
+.cc-ticket__stub {
+  position: relative;
+  flex: none;
+  width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px 0 0 12px;
+  background: var(--st-soft);
+  transition: translate .25s cubic-bezier(.2, .8, .2, 1), rotate .25s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-ticket__stub span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--st);
+  white-space: nowrap;
+}
+/* The perforation between stub and body. */
+.cc-ticket__stub::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  top: 8px;
+  bottom: 8px;
+  width: 8px;
+  background: radial-gradient(circle at 4px 5px, var(--lane-bg) 2.6px, transparent 3px) 0 0 / 8px 10px repeat-y;
+}
+
+@media (hover: hover) {
+  .cc-ticket:hover {
+    translate: 0 -2px;
+    box-shadow: 0 1px 0 rgba(20, 22, 26, 0.05), 0 18px 30px -20px rgba(20, 22, 26, 0.5);
+  }
+  .cc-ticket:hover .cc-ticket__stub { translate: -2px 0; rotate: -1.5deg; }
+}
+
+.cc-ticket.is-closed { filter: grayscale(1); opacity: 0.72; }
+.cc-ticket.is-dragging { opacity: 0.35; }
+
+/* "Offer!" — the still celebration every offer card keeps. */
+.cc-ticket__offer {
+  position: absolute;
+  right: 12px;
+  bottom: 44px;
+  rotate: -8deg;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--cc-wheat-deep);
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  padding: 1px 6px;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.cc-ticket__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--cc-cream-2);
+  color: var(--cc-ink-soft);
+}
+.cc-ticket__chip--due { background: var(--cc-wheat-soft); color: var(--cc-wheat-deep); font-weight: 500; }
+
+.cc-ticket__next {
+  border: 1px solid var(--st);
+  color: var(--st);
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color .2s ease, color .2s ease;
+}
+.cc-ticket__next:hover:not(:disabled) { background: var(--st); color: #fff; }
+.cc-ticket__next:disabled { opacity: 0.6; cursor: default; }
+
+/* ── Rubber stamp ────────────────────────────────────────────── */
+.cc-stamp {
+  position: absolute;
+  z-index: 3;
+  left: 55%;
+  top: 46%;
+  pointer-events: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  letter-spacing: 0.2em;
+  color: var(--st);
+  border: 2.5px solid currentColor;
+  border-radius: 7px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.8);
+  transform: translate(-50%, -50%) rotate(-9deg);
+  animation: cc-stamp-thunk .32s cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes cc-stamp-thunk {
+  from { transform: translate(-50%, -50%) rotate(-18deg) scale(1.9); opacity: 0; }
+  65%  { opacity: 1; }
+  to   { transform: translate(-50%, -50%) rotate(-9deg) scale(1); opacity: 1; }
+}
+
+/* ── Up next ─────────────────────────────────────────────────── */
+.cc-nudge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  font-size: 14px;
+  color: var(--cc-ink-soft);
+  text-align: left;
+  transition: border-color .2s ease, translate .2s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-nudge:hover { border-color: var(--cc-hair-strong); translate: 0 -1px; }
+.cc-nudge strong { color: var(--cc-ink); font-weight: 600; }
+.cc-nudge svg { flex: none; }
+.cc-nudge__bell { transform-origin: 50% 4px; animation: cc-bell-ring .9s cubic-bezier(.2, .8, .2, 1) .6s 1; }
+@keyframes cc-bell-ring {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(16deg); }
+  30% { transform: rotate(-13deg); }
+  45% { transform: rotate(9deg); }
+  60% { transform: rotate(-5deg); }
+  75% { transform: rotate(2deg); }
+}
+
+/* ── Confetti (lib/confetti.ts) ──────────────────────────────── */
+.cc-confetti {
+  position: fixed;
+  z-index: 80;
+  width: 9px;
+  height: 13px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* ── Detail panel bits ───────────────────────────────────────── */
+.cc-board-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--st-soft);
+  color: var(--st);
+  font-size: 13px;
+  font-weight: 600;
+}
+.cc-board-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+.cc-next-box {
+  border-radius: 14px;
+  background: var(--st-soft);
+  padding: 14px 16px 16px;
+}
+.cc-next-box__label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--st);
+}
+.cc-next-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--st);
+  background: var(--st);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: filter .2s ease, background-color .2s ease, color .2s ease;
+}
+.cc-next-btn:hover { filter: brightness(1.08); }
+.cc-next-btn--quiet { background: #fff; color: var(--st); }
+.cc-next-btn--quiet:hover { filter: none; background: var(--st); color: #fff; }
+.cc-next-btn:focus-visible,
+.cc-ticket__next:focus-visible { outline: 2px solid var(--st); outline-offset: 2px; }
+
+.cc-fold {
+  border: 1px solid var(--cc-hair);
+  border-radius: 14px;
+  background: #fff;
+  padding: 0 16px;
+}
+.cc-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 13px 0;
+  font-weight: 600;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--cc-ink);
+}
+.cc-fold > summary::-webkit-details-marker { display: none; }
+.cc-fold > summary::after { content: "+"; margin-left: auto; color: var(--cc-ash); font-weight: 400; font-size: 18px; }
+.cc-fold[open] > summary::after { content: "–"; }
+.cc-fold > summary:focus-visible { outline: 2px solid var(--cc-rust); outline-offset: 2px; border-radius: 6px; }
+
+/* ── Reduce motion: keep the information, drop the movement ─── */
+@media (prefers-reduced-motion: reduce) {
+  .cc-ticket,
+  .cc-ticket__stub,
+  .cc-nudge,
+  .cc-lane { transition: none; }
+  .cc-ticket:hover,
+  .cc-nudge:hover { translate: none; }
+  .cc-ticket:hover .cc-ticket__stub { translate: none; rotate: none; }
+  .cc-stamp { animation: none; }
+  .cc-nudge__bell { animation: none; }
+}
+
+/* Delete, in the tracker's dialogs (TrackerButton variant="danger"). */
+.cc-action--danger { background: #9C3424; box-shadow: none; }
+.cc-action--danger:hover:not(:disabled) { background: #7F2A1D; }

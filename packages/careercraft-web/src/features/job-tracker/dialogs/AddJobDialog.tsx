@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftDialog } from "@/components/craft/AppPrimitives";
 
+import { TrackerButton } from "../components/TrackerButton";
 import { EMPTY_FORM } from "../types";
 import type {
   CoverLetterRef,
@@ -22,7 +23,7 @@ interface AddJobDialogProps {
   sourceLabel?: string | null;
 }
 
-/** Editorial "Log an application" dialog — blank, or pre-filled from a captured ad. */
+/** "Add a job": blank, or pre-filled from an ad captured by the browser extension. */
 export const AddJobDialog = ({
   open,
   onOpenChange,
@@ -57,32 +58,30 @@ export const AddJobDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker={captured ? `Saved from ${sourceLabel || "the web"}` : "§ Log an application"}
+      kicker={captured ? `Saved from ${sourceLabel || "the web"}` : undefined}
       title={
         captured ? (
           <>
             Check it, then <span className="cc-italic-wonk">save</span>.
           </>
         ) : (
-          <>
-            New <span className="cc-italic-wonk">application</span>.
-          </>
+          "Add a job"
         )
       }
       description={
         captured
           ? "Filled in from the ad you were looking at. Fix anything that came through wrong, add the résumé you'll use, and save."
-          : "Company, role, and status are the essentials. Add the job description and notes if you have them."
+          : "The role and company are enough to start. The rest can wait."
       }
       maxWidth="max-w-2xl"
       footer={
         <>
-          <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
+          <TrackerButton variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
-          </CraftButton>
-          <CraftButton onClick={handleSubmit} disabled={saving}>
-            {saving ? "Saving…" : captured ? "Save job" : "Save application"}
-          </CraftButton>
+          </TrackerButton>
+          <TrackerButton onClick={handleSubmit} disabled={saving}>
+            {saving ? "Saving…" : "Add to board"}
+          </TrackerButton>
         </>
       }
     >

@@ -10,6 +10,7 @@ import {
 import { letterLabel } from "@/features/cover-letter/lib/letterLabel";
 import {
   JOB_TYPE_OPTIONS,
+  STATUS_META,
   STATUS_ORDER,
 } from "../types";
 import type {
@@ -27,11 +28,7 @@ interface JobFormFieldsProps {
   coverLetters: CoverLetterRef[];
 }
 
-/**
- * The shared form used by both Add and Edit dialogs.
- * Editorial: cc-field text fields, shadcn Select with className overrides,
- * ink dividers between logical sections.
- */
+/** The shared form used by both Add and Edit dialogs. */
 export const JobFormFields = ({
   values,
   onChange,
@@ -67,7 +64,7 @@ export const JobFormFields = ({
 
       {/* Row: status + job type */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <FieldLabel label="Status">
+        <FieldLabel label="Stage">
           <Select
             value={values.status}
             onValueChange={(v: ApplicationStatus) => onChange({ status: v })}
@@ -77,8 +74,8 @@ export const JobFormFields = ({
             </SelectTrigger>
             <SelectContent className={contentCls}>
               {STATUS_ORDER.map((s) => (
-                <SelectItem key={s} value={s} className="capitalize">
-                  {s}
+                <SelectItem key={s} value={s}>
+                  {STATUS_META[s].label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -128,7 +125,7 @@ export const JobFormFields = ({
       </div>
 
       {/* Job URL */}
-      <FieldLabel label="Job URL">
+      <FieldLabel label="Link to the ad">
         <input
           className="cc-field"
           placeholder="https://…"
@@ -141,10 +138,10 @@ export const JobFormFields = ({
       <div className="pt-4 border-t border-[color:var(--cc-hair-strong)]">
         <div className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-rust)] mb-3">
           <FileText className="w-3.5 h-3.5" />
-          § Enclosures
+          What you're sending
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <FieldLabel label="Résumé used">
+          <FieldLabel label="Résumé">
             <Select
               value={values.selectedResumeId || "none"}
               onValueChange={(v) =>
@@ -189,7 +186,7 @@ export const JobFormFields = ({
       </div>
 
       {/* Reminder */}
-      <FieldLabel label="Follow-up reminder">
+      <FieldLabel label="Follow up on">
         <input
           type="date"
           className="cc-field"
@@ -199,9 +196,9 @@ export const JobFormFields = ({
       </FieldLabel>
 
       {/* Job description */}
-      <FieldLabel label="The brief">
+      <FieldLabel label="Job ad">
         <textarea
-          placeholder="Paste the job description here…"
+          placeholder="Paste the whole ad. The résumé check and cover letter work from it."
           value={values.jobDescription}
           onChange={(e) => onChange({ jobDescription: e.target.value })}
           className="cc-field cc-field-textarea min-h-[100px] placeholder:italic"
@@ -209,9 +206,9 @@ export const JobFormFields = ({
       </FieldLabel>
 
       {/* Notes */}
-      <FieldLabel label="Marginalia">
+      <FieldLabel label="Notes">
         <textarea
-          placeholder="Private notes…"
+          placeholder="Who you spoke to, what they asked, anything worth remembering. Only you see these."
           value={values.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
           className="cc-field cc-field-textarea min-h-[80px] placeholder:italic"

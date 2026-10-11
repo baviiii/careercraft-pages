@@ -315,3 +315,46 @@ and there are no users yet.
 by session id), have Faircopy remember the coach session ids it creates, and call
 it from `delete-account` before `delete_user_data()`. Then drop the
 "email us" line from the policy.
+
+---
+
+## 10. Every CraftButton primary is a purple-to-cyan gradient
+
+**Found:** 2026-10-11, rebuilding the job tracker.
+
+`CraftButton` (components/craft/AppPrimitives.tsx) renders
+`cc-btn ds-btn cc-btn-primary ds-btn-primary`. design-system.css loads after
+craft.css, so `.ds-btn-primary` wins: a #635bff → #14b8ff gradient pill with
+spaced mono capitals. That's the Stripe-era look, not paper/carbon/cobalt, and
+it shows in every Craft dialog's footer (cover letters, résumés, settings and
+so on). design-system.css even warns against restyling cc-* there; CraftButton
+opts in by adding the ds-* classes itself.
+
+**Why it matters:** it's the most "AI template" thing left on the paper pages.
+
+**Not urgent because:** it's cosmetic and consistent. The tracker already
+avoids it (features/job-tracker/components/TrackerButton.tsx, the cobalt
+`cc-action` pill).
+
+**Decide later:** drop `ds-btn` / `ds-btn-primary` from CraftButton (and check
+the ghost and danger variants still read well), or point CraftButton at
+`cc-action` like TrackerButton, then delete TrackerButton. Check each dialog
+after, since padding and type change.
+
+---
+
+## 11. The job tracker's "email automation" settings did nothing
+
+**Found:** 2026-10-11, rewording the tracker.
+
+The tracker had an "Automation settings" strip and dialog (email sync,
+confidence threshold, auto-apply). There is no inbox connection: nothing reads
+`email_sync_enabled`, and auto-apply never fires because the only caller (the
+"Got an email about this job?" box) always sends `requireConfirm: true`. The
+strip and dialog are removed from the page; the settings table, the
+`get_settings` / `save_settings` actions in `job-email-events`, and
+`useJobAutomation`'s settings functions are still there, unused.
+
+**Decide later:** if inbox sync is ever built (Gmail API, or a forwarding
+address), bring back a settings dialog that matches what it really does.
+Otherwise drop `job_automation_settings` and the two actions.

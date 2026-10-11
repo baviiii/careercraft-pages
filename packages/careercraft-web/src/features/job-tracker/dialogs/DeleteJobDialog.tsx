@@ -1,5 +1,6 @@
-import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftDialog } from "@/components/craft/AppPrimitives";
 
+import { TrackerButton } from "../components/TrackerButton";
 import type { JobApplication } from "../types";
 
 interface DeleteJobDialogProps {
@@ -18,25 +19,21 @@ export const DeleteJobDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ Delete application"
-    title="Delete this application?"
+    title="Delete this job?"
     description={
       <>
-        The application at{" "}
-        <span className="cc-italic-wonk">
-          “{application?.company || "this company"}”
-        </span>{" "}
-        will be permanently deleted. This cannot be undone.
+        {application ? `${application.job_title} at ${application.company}` : "This job"} comes
+        off your board for good, notes and all. Your résumés and cover letters stay where they are.
       </>
     }
     footer={
       <>
-        <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
+        <TrackerButton variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
-        </CraftButton>
-        <CraftButton variant="danger" onClick={onConfirm}>
+        </TrackerButton>
+        <TrackerButton variant="danger" onClick={onConfirm}>
           Delete
-        </CraftButton>
+        </TrackerButton>
       </>
     }
   />

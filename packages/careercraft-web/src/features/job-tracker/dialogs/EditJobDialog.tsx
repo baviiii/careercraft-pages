@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftDialog } from "@/components/craft/AppPrimitives";
 
+import { TrackerButton } from "../components/TrackerButton";
 import { EMPTY_FORM, appToForm } from "../types";
 import type {
   CoverLetterRef,
@@ -20,7 +21,7 @@ interface EditJobDialogProps {
   onSubmit: (id: string, form: JobFormValues) => Promise<boolean>;
 }
 
-/** Editorial "Amend entry" dialog prefilled from an existing application. */
+/** "Edit job", prefilled from the saved row. */
 export const EditJobDialog = ({
   application,
   open,
@@ -51,22 +52,19 @@ export const EditJobDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker="§ Edit application"
-      title={
-        <>
-          Update this <span className="cc-italic-wonk">application</span>.
-        </>
+      title="Edit job"
+      description={
+        application ? `${application.job_title} at ${application.company}` : undefined
       }
-      description="Change the status, add notes, or update any details."
       maxWidth="max-w-2xl"
       footer={
         <>
-          <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
+          <TrackerButton variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
-          </CraftButton>
-          <CraftButton onClick={handleSubmit} disabled={saving}>
+          </TrackerButton>
+          <TrackerButton onClick={handleSubmit} disabled={saving}>
             {saving ? "Saving…" : "Save changes"}
-          </CraftButton>
+          </TrackerButton>
         </>
       }
     >

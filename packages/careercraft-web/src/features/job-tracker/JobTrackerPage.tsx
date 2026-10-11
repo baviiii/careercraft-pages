@@ -1,5 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -8,13 +7,10 @@ import { CraftEmpty } from "@/components/craft/AppPrimitives";
 import { letterLabel } from "@/features/cover-letter/lib/letterLabel";
 import { usePersonalization } from "@/hooks/usePersonalization";
 
-import { AutomationDialog } from "./components/AutomationDialog";
-import { AutomationStrip } from "./components/AutomationStrip";
-import { JobCard } from "./components/JobCard";
 import { JobDetailPanel } from "./components/JobDetailPanel";
 import { JobFilterBar } from "./components/JobFilterBar";
-import { LedgerRule } from "./components/LedgerRule";
-import { LedgerSummary } from "./components/LedgerSummary";
+import { TrackerBoard } from "./components/TrackerBoard";
+import { UpNext } from "./components/UpNext";
 import { WireDispatch } from "./components/WireDispatch";
 import { AddJobDialog } from "./dialogs/AddJobDialog";
 import { DeleteJobDialog } from "./dialogs/DeleteJobDialog";
@@ -22,13 +18,11 @@ import { EditJobDialog } from "./dialogs/EditJobDialog";
 import { useJobAutomation } from "./hooks/useJobAutomation";
 import { useJobDiscovery } from "./hooks/useJobDiscovery";
 import { useJobTracker } from "./hooks/useJobTracker";
+import { confettiFrom, firstCelebration } from "./lib/confetti";
 import { importToForm, takePendingImport, type JobImport } from "./lib/jobImport";
-import {
-  STATUS_ACCENT,
-  STATUS_META,
-  STATUS_ORDER,
-} from "./types";
+import { STATUS_ORDER } from "./types";
 import type { ApplicationStatus, JobApplication } from "./types";
+import "./tracker.css";
 
 export default function JobTrackerPage() {
   const navigate = useNavigate();
@@ -84,7 +78,6 @@ export default function JobTrackerPage() {
   const [editTarget, setEditTarget] = useState<JobApplication | null>(null);
   const [viewTarget, setViewTarget] = useState<JobApplication | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<JobApplication | null>(null);
-  const [automationOpen, setAutomationOpen] = useState(false);
 
   const searchFilteredApplications = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
@@ -139,10 +132,6 @@ export default function JobTrackerPage() {
   }, [discovery.jobs, perso.hasPersonalizationData, perso.isJobRecommended]);
 
   useEffect(() => {
-    automation.loadSettings().catch(() => undefined);
-  }, [automation.loadSettings]);
-
-  useEffect(() => {
     if (!viewTarget) return;
     automation.loadEvents(viewTarget.id).catch(() => undefined);
   }, [viewTarget, automation.loadEvents]);
@@ -177,13 +166,38 @@ export default function JobTrackerPage() {
     (letterId: string) => navigate(`/cover-letter?letter=${letterId}`),
     [navigate],
   );
+  /* The detail panel reads the live row, so a move made from inside it (or
+     anywhere else) shows straight away. */
+  const viewing = useMemo(
+    () => (viewTarget ? applications.find((a) => a.id === viewTarget.id) ?? viewTarget : null),
+    [viewTarget, applications],
+  );
+
   const viewLetter = useMemo(() => {
-    const id = viewTarget?.cover_letter_id;
+    const id = viewing?.cover_letter_id;
     const cl = id ? coverLetters.find((c) => c.id === id) : undefined;
-    return cl && viewTarget
-      ? { id: cl.id, label: letterLabel(cl, viewTarget), excerpt: cl.content }
+    return cl && viewing
+      ? { id: cl.id, label: letterLabel(cl, viewing), excerpt: cl.content }
       : null;
-  }, [viewTarget, coverLetters]);
+  }, [viewing, coverLetters]);
+
+  /* Every stage change goes through here: the card's button and menu, the
+     detail panel, and drag and drop. The first time a job reaches Offer it
+     gets a second of confetti (skipped under reduce motion). */
+  const moveTo = useCallback(
+    async (id: string, status: ApplicationStatus) => {
+      const from = applications.find((a) => a.id === id)?.status;
+      if (!from || from === status) return;
+      await mutations.updateStatus(id, status);
+      if (status === "offer" && firstCelebration(id)) {
+        window.setTimeout(
+          () => confettiFrom(document.querySelector(`[data-card-id="${id}"]`)),
+          450,
+        );
+      }
+    },
+    [applications, mutations],
+  );
 
   /* ───── Loading state ─────────────────────────────────────── */
   if (loading) {
@@ -191,8 +205,8 @@ export default function JobTrackerPage() {
       <CraftAppLayout>
         <div className="grid place-items-center py-32">
           <div className="text-center">
-            <div className="cc-kicker mb-3">Loading applications</div>
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--cc-hair-strong)] border-t-[color:var(--cc-rust)]" />
+            <div className="cc-kicker mb-3">Loading your board</div>
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--cc-hair-strong)] border-t-[color:var(--cc-rust)] motion-reduce:[animation-duration:1.8s]" />
           </div>
         </div>
       </CraftAppLayout>
@@ -200,7 +214,17 @@ export default function JobTrackerPage() {
   }
 
   const total = applications.length;
-  const visible = pipelineApplications.length;
+  const onTheGo = stats.saved + stats.applied + stats.interview;
+  const sent = total - stats.saved;
+  const heardBack = stats.interview + stats.offer + stats.rejected;
+  const headline = [
+    `${onTheGo} on the go`,
+    stats.interview > 0 && `${stats.interview} interview${stats.interview === 1 ? "" : "s"} lined up`,
+    stats.offer > 0 && `${stats.offer} offer${stats.offer === 1 ? "" : "s"}`,
+    sent > 0 && `heard back from ${heardBack} of ${sent} sent`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <CraftAppLayout
@@ -209,205 +233,76 @@ export default function JobTrackerPage() {
       }
       headerActions={
         <button onClick={() => setAddOpen(true)} className="cc-action cc-action--sm">
-          File application <ArrowUpRight className="h-3.5 w-3.5" />
+          <Plus className="h-3.5 w-3.5" /> Add a job
         </button>
       }
     >
-      <header className="mb-9">
-        <div className="cc-kicker">Job tracker</div>
-        <h1 className="mt-3 cc-font-display text-4xl leading-[0.95] tracking-tight md:text-5xl">
-          Track every job in <span className="cc-italic-wonk">one</span> clear board.
-        </h1>
-        <p className="mt-4 max-w-2xl cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] md:text-xl">
-          Log applications, move them through stages, and spot what needs action today.
-        </p>
-      </header>
-
-      <div className="space-y-12" data-ds-tokenized="true">
-        {/* ── § A. LEDGER SUMMARY ─────────────────────────────────────── */}
-        <section className="space-y-4">
-          <LedgerRule
-            mark="§"
-            label="Overview"
-            right={`${String(total).padStart(2, "0")} applications`}
-          />
-          <LedgerSummary applications={applications} stats={stats} />
-        </section>
-
-        {/* ── § B. PIPELINE ───────────────────────────────────────────── */}
-        <section className="space-y-5">
-          <LedgerRule
-            mark="¶"
-            label="Pipeline"
-            right={
-              filters.status === "all" ? (
-                <>
-                  {visible} / {total} visible
-                </>
-              ) : (
-                `Showing ${STATUS_META[filters.status as ApplicationStatus].label}`
-              )
-            }
-          />
-
-          <JobFilterBar
-            search={filters.search}
-            onSearchChange={(v) => setFilters((f) => ({ ...f, search: v }))}
-            status={filters.status}
-            onStatusChange={(v) => setFilters((f) => ({ ...f, status: v }))}
-          />
-
-          {pipelineApplications.length > 0 && (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {[
-                { n: "Step 1", t: "Find a role using search and status filters." },
-                { n: "Step 2", t: "Open a card to review notes, fit score, and timeline." },
-                { n: "Step 3", t: "Use card actions to move status as your process changes." },
-              ].map((s) => (
-                <div key={s.n} className="cc-surface p-4">
-                  <div className="cc-font-sans text-xs font-semibold uppercase tracking-[0.08em] text-[color:var(--cc-ash)]">
-                    {s.n}
-                  </div>
-                  <p className="mt-1 cc-font-sans text-sm text-[color:var(--cc-ink-soft)]">
-                    {s.t}
-                  </p>
-                </div>
-              ))}
-            </div>
+      <div className="cc-board space-y-10">
+        <header>
+          <div className="cc-kicker">Job tracker</div>
+          <h1 className="mt-3 cc-font-display text-4xl leading-[0.95] tracking-tight md:text-5xl">
+            Your job hunt
+          </h1>
+          {total > 0 && (
+            <p className="mt-3 cc-font-sans text-base text-[color:var(--cc-ink-soft)] md:text-lg">
+              {headline}
+            </p>
           )}
+        </header>
 
-          {pipelineApplications.length === 0 ? (
-            <CraftEmpty
-              kicker={
-                applications.length === 0
-                  ? "No applications yet"
-                  : "No matches"
-              }
-              title={
-                applications.length === 0 ? (
-                  <>
-                    File your first application.
-                  </>
-                ) : (
-                  <>No applications match these filters.</>
-                )
-              }
-              body={
-                applications.length === 0
-                  ? "One entry per application. Keep it current and the ledger will start telling its own story."
-                  : "Clear search or switch status to see more applications."
-              }
-              ctaLabel={
-                applications.length === 0 ? "File your first" : undefined
-              }
-              onCta={applications.length === 0 ? () => setAddOpen(true) : undefined}
+        {total === 0 ? (
+          <CraftEmpty
+            kicker="Job tracker"
+            title="Your board's empty."
+            body="Add a job you're eyeing, save one from Find more jobs below, or use the Faircopy browser button on any job ad."
+            ctaLabel="Add a job"
+            onCta={() => setAddOpen(true)}
+          />
+        ) : (
+          <>
+            <UpNext
+              applications={applications}
+              onOpen={setViewTarget}
+              onShowSaved={() => setFilters((f) => ({ ...f, status: "saved" }))}
             />
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-4">
-              {lanes.map((lane, laneIndex) => {
-                const accent = STATUS_ACCENT[lane.status];
-                const meta = STATUS_META[lane.status];
-                return (
-                  <motion.div
-                    key={lane.status}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: laneIndex * 0.05, duration: 0.4 }}
-                    className="cc-surface overflow-hidden"
+
+            <section aria-label="Your board" className="space-y-4">
+              <JobFilterBar
+                search={filters.search}
+                onSearchChange={(v) => setFilters((f) => ({ ...f, search: v }))}
+                status={filters.status}
+                onStatusChange={(v) => setFilters((f) => ({ ...f, status: v }))}
+              />
+
+              {pipelineApplications.length === 0 ? (
+                <p className="rounded-2xl border border-[color:var(--cc-hair)] bg-white px-5 py-6 cc-font-sans text-[15px] text-[color:var(--cc-ink-soft)]">
+                  Nothing matches that.{" "}
+                  <button
+                    type="button"
+                    className="cc-link text-[color:var(--cc-ink)]"
+                    onClick={() => setFilters({ search: "", status: "all" })}
                   >
-                    {/* Lane header */}
-                    <header
-                      className="flex items-center justify-between border-b px-4 py-3"
-                      style={{
-                        borderColor: "var(--cc-hair)",
-                        background: `linear-gradient(90deg, ${accent.soft} 0%, transparent 70%)`,
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="cc-font-display italic text-base leading-none w-6 h-6 grid place-items-center"
-                          style={{
-                            color: accent.deep,
-                            fontVariationSettings: "'SOFT' 100, 'WONK' 1",
-                          }}
-                          aria-hidden
-                        >
-                          {accent.mark}
-                        </span>
-                        <div>
-                          <div
-                            className="cc-font-sans text-sm font-semibold"
-                            style={{ color: accent.deep }}
-                          >
-                            {meta.label}
-                          </div>
-                          <div className="cc-font-sans text-xs text-[color:var(--cc-ash)]">
-                            {accent.note}
-                          </div>
-                        </div>
-                      </div>
-                      <span
-                        className="cc-font-sans cc-tabular text-2xl font-semibold leading-none"
-                        style={{ color: accent.deep }}
-                      >
-                        {String(lane.items.length).padStart(2, "0")}
-                      </span>
-                    </header>
+                    Show everything
+                  </button>
+                </p>
+              ) : (
+                <TrackerBoard
+                  lanes={lanes}
+                  getResumeName={getResumeName}
+                  onView={setViewTarget}
+                  onEdit={setEditTarget}
+                  onDelete={setDeleteTarget}
+                  onMove={(id, status) => void moveTo(id, status)}
+                />
+              )}
+            </section>
+          </>
+        )}
 
-                    <div className="p-3 space-y-3 min-h-[120px]">
-                      {lane.items.length === 0 ? (
-                        <div className="border border-dashed border-[color:var(--cc-hair-strong)] py-8 px-3 text-center cc-font-sans text-sm text-[color:var(--cc-ash)]">
-                          No applications in this stage yet.{" "}
-                          <button
-                            type="button"
-                            onClick={() => setAddOpen(true)}
-                            className="cc-link"
-                            style={{ color: accent.deep }}
-                          >
-                            file one
-                          </button>
-                        </div>
-                      ) : (
-                        <AnimatePresence initial={false}>
-                          {lane.items.map((app, i) => (
-                            <JobCard
-                              key={app.id}
-                              application={app}
-                              index={i}
-                              resumeName={getResumeName(app.resume_id)}
-                              hasCoverLetter={Boolean(app.cover_letter_id)}
-                              onView={setViewTarget}
-                              onEdit={setEditTarget}
-                              onDelete={setDeleteTarget}
-                              onStatusChange={mutations.updateStatus}
-                            />
-                          ))}
-                        </AnimatePresence>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* ── § C. AUTOMATION ─────────────────────────────────────────── */}
-        <section className="space-y-4">
-          <LedgerRule mark="⚙" label="Automation" accent="ash" />
-          <AutomationStrip
-            settings={automation.settings}
-            onConfigure={() => setAutomationOpen(true)}
-          />
-        </section>
-
-        {/* ── § D. DISCOVERY (Adzuna feed) ────────────────────────────── */}
-        <section className="space-y-5">
-          <LedgerRule
-            mark="✺"
-            label="Job discovery"
-            right={discovery.jobs.length > 0 ? `${discovery.jobs.length} results` : "—"}
-          />
+        <section aria-labelledby="find-jobs-title" className="space-y-4">
+          <h2 id="find-jobs-title" className="cc-font-display text-xl tracking-tight">
+            Find more jobs
+          </h2>
           <WireDispatch
             jobs={rankedDiscoveryJobs}
             filters={discovery.filters}
@@ -420,16 +315,6 @@ export default function JobTrackerPage() {
             onSave={discovery.saveToTracker}
           />
         </section>
-
-        {/* End rule */}
-        {pipelineApplications.length > 0 && (
-          <div className="flex items-center justify-between border-t border-[color:var(--cc-hair)] pt-3 cc-font-sans text-xs text-[color:var(--cc-ash)]">
-            <span>Board summary</span>
-            <span className="cc-tabular">
-              {visible} of {total}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Dialogs */}
@@ -456,14 +341,15 @@ export default function JobTrackerPage() {
       />
 
       <JobDetailPanel
-        application={viewTarget}
-        open={!!viewTarget}
+        application={viewing}
+        open={!!viewing}
         onOpenChange={(o) => !o && setViewTarget(null)}
-        resumeName={viewTarget ? getResumeName(viewTarget.resume_id) : null}
-        hasCoverLetter={Boolean(viewTarget?.cover_letter_id)}
+        resumeName={viewing ? getResumeName(viewing.resume_id) : null}
+        hasCoverLetter={Boolean(viewing?.cover_letter_id)}
         coverLetter={viewLetter}
         onEdit={setEditTarget}
-        events={viewTarget ? automation.eventsByApplication[viewTarget.id] || [] : []}
+        onStatusChange={(id, status) => void moveTo(id, status)}
+        events={viewing ? automation.eventsByApplication[viewing.id] || [] : []}
         onAnalyse={analyseApplication}
         onWriteCoverLetter={writeCoverLetter}
         onOpenCoverLetter={openCoverLetter}
@@ -471,9 +357,11 @@ export default function JobTrackerPage() {
         onClassifyEmail={(id, subject, body, requireConfirm) =>
           automation.classifyEmail(id, subject, body, requireConfirm)
         }
-        onConfirmStatusUpdate={(id, status) =>
-          automation.confirmStatusUpdate(id, status)
-        }
+        onConfirmStatusUpdate={async (id, status) => {
+          // The move happens server-side; pull the board so the card follows.
+          await automation.confirmStatusUpdate(id, status);
+          await refreshApplications();
+        }}
       />
 
       <DeleteJobDialog
@@ -484,14 +372,6 @@ export default function JobTrackerPage() {
           if (deleteTarget) await mutations.deleteApplication(deleteTarget.id);
           setDeleteTarget(null);
         }}
-      />
-
-      <AutomationDialog
-        open={automationOpen}
-        onOpenChange={setAutomationOpen}
-        settings={automation.settings}
-        isBusy={automation.isBusy}
-        onSave={automation.saveSettings}
       />
     </CraftAppLayout>
   );

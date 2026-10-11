@@ -101,10 +101,10 @@ export function useJobDiscovery(
       setIsIngesting(true);
       try {
         const results = await search(override);
-        const summary = `${results.length} role${results.length === 1 ? "" : "s"} on the wire`;
+        const summary = `${results.length} job${results.length === 1 ? "" : "s"} found`;
         setLastIngestSummary(summary);
         if (!opts?.silent) {
-          toast({ title: "Search refreshed", description: summary });
+          toast({ title: "Refreshed", description: summary });
         }
         return results;
       } finally {
@@ -134,8 +134,8 @@ export function useJobDiscovery(
         });
         if (error) throw error;
         toast({
-          title: "Saved to tracker",
-          description: "Job added to your application pipeline.",
+          title: "Saved to your board",
+          description: "It's in the Saved lane.",
         });
         await onSavedToTracker?.();
       } catch (e) {
@@ -179,8 +179,8 @@ export function useJobDiscovery(
         const widened = await search({ query: q, location: "" });
         setLastIngestSummary(
           widened.length > 0
-            ? `No ${q} roles near ${loc} — widened to all of Australia`
-            : `No ${q} roles on the wire right now`,
+            ? `No ${q} jobs near ${loc}, so these are from across Australia`
+            : `No ${q} jobs listed right now`,
         );
       }
     })();
