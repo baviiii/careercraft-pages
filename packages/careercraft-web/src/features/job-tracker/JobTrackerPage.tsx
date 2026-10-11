@@ -22,6 +22,7 @@ import { EditJobDialog } from "./dialogs/EditJobDialog";
 import { useJobAutomation } from "./hooks/useJobAutomation";
 import { useJobDiscovery } from "./hooks/useJobDiscovery";
 import { useJobTracker } from "./hooks/useJobTracker";
+import { importToForm, takePendingImport, type JobImport } from "./lib/jobImport";
 import {
   STATUS_ACCENT,
   STATUS_META,
@@ -69,6 +70,17 @@ export default function JobTrackerPage() {
   const automation = useJobAutomation();
 
   const [addOpen, setAddOpen] = useState(false);
+  /* A job captured by the browser extension (via /save-job) opens Add Job
+     pre-filled, once the tracker has loaded. */
+  const [captured, setCaptured] = useState<JobImport | null>(null);
+  useEffect(() => {
+    if (loading) return;
+    const job = takePendingImport();
+    if (job) {
+      setCaptured(job);
+      setAddOpen(true);
+    }
+  }, [loading]);
   const [editTarget, setEditTarget] = useState<JobApplication | null>(null);
   const [viewTarget, setViewTarget] = useState<JobApplication | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<JobApplication | null>(null);
@@ -423,10 +435,15 @@ export default function JobTrackerPage() {
       {/* Dialogs */}
       <AddJobDialog
         open={addOpen}
-        onOpenChange={setAddOpen}
+        onOpenChange={(o) => {
+          setAddOpen(o);
+          if (!o) setCaptured(null);
+        }}
         resumes={resumes}
         coverLetters={coverLetters}
         onSubmit={mutations.createApplication}
+        initial={captured ? importToForm(captured) : null}
+        sourceLabel={captured?.source}
       />
 
       <EditJobDialog

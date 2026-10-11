@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <title>Faircopy: Save job — options</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #14161a;
+        background: #f7f7f4;
+        max-width: 520px;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      p { color: #40454e; margin: 0 0 20px; }
+      label { display: block; font-weight: 600; margin-bottom: 6px; }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        font: inherit;
+        border: 1px solid rgba(20, 22, 26, 0.28);
+        border-radius: 8px;
+        background: #fff;
+      }
+      input:focus { outline: 2px solid #2a52cc; outline-offset: 1px; }
+      .row { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+      button {
+        font: inherit;
+        font-weight: 600;
+        padding: 9px 16px;
+        border: 0;
+        border-radius: 999px;
+        color: #fff;
+        background: #14161a;
+        cursor: pointer;
+      }
+      button.secondary { color: #14161a; background: transparent; border: 1px solid rgba(20, 22, 26, 0.28); }
+      #status { color: #3f7a5c; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>Faircopy: Save job</h1>
+    <p>Where saved jobs are sent. Leave this as it is unless you're testing a local copy of Faircopy.</p>
+    <label for="base">Faircopy address</label>
+    <input id="base" type="url" placeholder="https://www.faircopy.au" />
+    <div class="row">
+      <button id="save">Save</button>
+      <button id="reset" class="secondary">Reset</button>
+      <span id="status" role="status"></span>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>

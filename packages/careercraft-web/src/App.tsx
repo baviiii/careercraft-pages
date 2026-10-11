@@ -39,6 +39,7 @@ const AboutUs = lazy(() => import("./pages/AboutUs"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const SaveJob = lazy(() => import("./pages/SaveJob"));
 const TryUs = lazy(() => import("./pages/TryUs"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
@@ -121,6 +122,9 @@ const App = () => (
             <Route path="/about" element={<AboutUs />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            {/* Where the "Save to Faircopy" extension lands. Public so a signed-out
+                user keeps the job through sign-in; see pages/SaveJob.tsx. */}
+            <Route path="/save-job" element={<SaveJob />} />
 
             {/* The résumé builder is deliberately public. Guests can build and
                 preview a real résumé; the gate is on export and save, handled

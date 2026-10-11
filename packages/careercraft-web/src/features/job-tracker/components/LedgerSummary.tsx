@@ -18,11 +18,13 @@ export const LedgerSummary = ({ applications, stats }: LedgerSummaryProps) => {
     ? new Date(applications[0].applied_date)
     : null;
   const lastFiled = lastApplied
-    ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(lastApplied)
+    ? new Intl.DateTimeFormat("en-AU", { month: "short", day: "numeric" }).format(lastApplied)
     : "—";
 
+  // Saved jobs haven't been sent anywhere, so they can't have been replied to.
   const replied = stats.interview + stats.offer + stats.rejected;
-  const replyRate = stats.total > 0 ? Math.round((replied / stats.total) * 100) : 0;
+  const sent = stats.total - stats.saved;
+  const replyRate = sent > 0 ? Math.round((replied / sent) * 100) : 0;
 
   const turnaround = (() => {
     const dated = applications
@@ -97,7 +99,7 @@ export const LedgerSummary = ({ applications, stats }: LedgerSummaryProps) => {
 
       <div className="border-t border-[color:var(--cc-hair-strong)] px-4 md:px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5">
         <RailMetric label="Ledger total" value={String(stats.total).padStart(2, "0")} suffix="entries" />
-        <RailMetric label="Reply rate" value={`${replyRate}%`} suffix={`of ${stats.total} filed`} />
+        <RailMetric label="Reply rate" value={`${replyRate}%`} suffix={`of ${sent} sent`} />
         <RailMetric label="Avg. turnaround" value={turnaround} suffix="to first reply" />
         <div className="ml-auto flex items-center gap-2 cc-font-sans text-xs text-[color:var(--cc-ash)]">
           <span className="cc-font-sans text-xs text-[color:var(--cc-ink-soft)]">

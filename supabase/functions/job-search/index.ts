@@ -292,7 +292,9 @@ serve(handler(async (req) => {
       user_id: userId,
       job_title: job.title,
       company: job.company,
-      status: "applied",
+      // Saving a job isn't applying for it. Filing it as "applied" counted every
+      // saved job against the reply rate as an application that never heard back.
+      status: "saved",
       job_url: job.canonical_url ?? null,
       location: job.location ?? null,
       /* Say when the range is Adzuna's prediction rather than the employer's

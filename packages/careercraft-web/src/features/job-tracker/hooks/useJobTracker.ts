@@ -19,6 +19,12 @@ interface Filters {
   status: StatusFilter;
 }
 
+/* A saved job's applied_date is the day it was saved. When it moves on to
+   Applied (or straight to Interview), stamp the real date so "applied on" and
+   the turnaround figure mean what they say. */
+const leavingSaved = (from: ApplicationStatus | undefined, to: ApplicationStatus) =>
+  from === "saved" && to !== "saved" ? { applied_date: new Date().toISOString() } : {};
+
 /**
  * Owns all job-tracker state: session guard, fetch, filters, and CRUD mutations.
  */
@@ -206,9 +212,10 @@ export function useJobTracker() {
       return false;
     }
     try {
+      const prev = applications.find((a) => a.id === id)?.status;
       const { error } = await supabase
         .from("job_applications")
-        .update(buildPayload(form))
+        .update({ ...buildPayload(form), ...leavingSaved(prev, form.status) })
         .eq("id", id);
       if (error) throw error;
       toast({
@@ -229,13 +236,17 @@ export function useJobTracker() {
 
   const updateStatus = async (id: string, status: ApplicationStatus) => {
     try {
+      const patch = {
+        status,
+        ...leavingSaved(applications.find((a) => a.id === id)?.status, status),
+      };
       const { error } = await supabase
         .from("job_applications")
-        .update({ status })
+        .update(patch)
         .eq("id", id);
       if (error) throw error;
       setApplications((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status } : a))
+        prev.map((a) => (a.id === id ? { ...a, ...patch } : a))
       );
     } catch (error) {
       toast({

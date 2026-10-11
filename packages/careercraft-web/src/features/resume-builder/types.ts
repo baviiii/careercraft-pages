@@ -283,6 +283,8 @@ export const GUEST_RETURN_ALLOWLIST = [
   "/au-jobs",
   "/job-market-news",
   "/career-coach",
+  // The browser extension's /save-job hands off here after sign-in.
+  "/tracker",
 ] as const;
 
 export type GuestReturnPath = (typeof GUEST_RETURN_ALLOWLIST)[number];
