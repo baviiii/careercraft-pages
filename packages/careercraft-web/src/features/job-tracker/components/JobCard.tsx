@@ -120,25 +120,30 @@ export const JobCard = ({
       </div>
 
       <div className="min-w-0 flex-1 px-3.5 pb-3 pt-3.5 space-y-2.5">
-        <div className="flex items-start gap-2.5">
-          <span
-            aria-hidden
-            className="grid h-[34px] w-[34px] flex-none place-items-center rounded-[10px] cc-font-display text-[13px] font-bold"
-            style={{ background: tone.bg, color: tone.fg }}
-          >
-            {initials(application.company)}
-          </span>
+        {/* The title gets the card's full width; the company's initials sit
+            beside its name, like a logo. */}
+        <div className="flex items-start gap-1.5">
           <button
             type="button"
             onClick={() => onView(application)}
+            title={application.job_title}
             className="min-w-0 flex-1 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--cc-rust)]"
           >
-            <span className="block cc-font-display text-[15.5px] font-semibold leading-tight text-[color:var(--cc-ink)]">
+            <span className="line-clamp-3 cc-font-display text-[15.5px] font-semibold leading-tight text-[color:var(--cc-ink)]">
               {application.job_title}
             </span>
-            <span className="mt-0.5 block truncate cc-font-sans text-[13px] text-[color:var(--cc-ink-soft)]">
-              {application.company}
-              {application.location ? ` · ${application.location}` : ""}
+            <span className="mt-1.5 flex items-center gap-1.5 cc-font-sans text-[13px] text-[color:var(--cc-ink-soft)]">
+              <span
+                aria-hidden
+                className="grid h-5 w-5 flex-none place-items-center rounded-md cc-font-display text-[9.5px] font-bold"
+                style={{ background: tone.bg, color: tone.fg }}
+              >
+                {initials(application.company)}
+              </span>
+              <span className="min-w-0 truncate">
+                {application.company}
+                {application.location ? ` · ${application.location}` : ""}
+              </span>
             </span>
           </button>
 
@@ -147,7 +152,7 @@ export const JobCard = ({
               <button
                 type="button"
                 aria-label={`More for ${application.job_title}`}
-                className="-mr-1.5 -mt-1 grid h-8 w-8 flex-none place-items-center rounded-lg text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
+                className="-mr-1.5 -mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-lg text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </button>
@@ -214,8 +219,8 @@ export const JobCard = ({
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2">
-          <span className="cc-font-sans text-[12.5px] text-[color:var(--cc-ash)]">{whenLine(application)}</span>
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+          <span className="whitespace-nowrap cc-font-sans text-[12.5px] text-[color:var(--cc-ash)]">{whenLine(application)}</span>
           {next && onStatusChange && (
             <button type="button" className="cc-ticket__next" onClick={advance} disabled={Boolean(stamp)}>
               {next.label}
