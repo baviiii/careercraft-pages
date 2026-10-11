@@ -414,7 +414,7 @@ export default function Dashboard() {
 
   return (
     <main className="cc-root cc-font-sans min-h-screen overflow-x-hidden bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased">
-      <CraftGround withSidebar />
+      <CraftGround />
 
       <AnimatePresence>
         {sidebarOpen && (

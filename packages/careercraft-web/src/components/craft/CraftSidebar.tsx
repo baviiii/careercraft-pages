@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   Faircopy sidebar — the dark spine. Grouped navigation, the
+   Faircopy sidebar — the page's margin. Grouped navigation, the
    current page marked with a highlighter stroke. Shared across
    logged-in pages. Styles: "APP CHROME" in styles/craft.css.
    ─────────────────────────────────────────────────────────── */
@@ -118,7 +118,7 @@ export const CraftSidebar = memo(function CraftSidebar({
             <span className="cc-side__logo h-10 w-10">
               <FaircopyMark className="h-7 w-7" title="Faircopy" />
             </span>
-            <span className="cc-font-display text-[1.2rem] leading-none tracking-tight text-white">
+            <span className="cc-font-display text-[1.2rem] leading-none tracking-tight">
               Faircopy
             </span>
           </button>
@@ -177,7 +177,7 @@ export const CraftSidebar = memo(function CraftSidebar({
                             />
                           )}
                           <l.icon className="cc-side__icon h-4 w-4" />
-                          <span className="truncate">{l.label}</span>
+                          <span className="cc-side__label truncate">{l.label}</span>
                         </span>
                       </button>
                     </li>
@@ -194,8 +194,8 @@ export const CraftSidebar = memo(function CraftSidebar({
             {initial}
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-white">{userName || "Guest"}</div>
-            <div className="truncate text-[11px] text-white/45">{userEmail}</div>
+            <div className="truncate text-sm font-semibold">{userName || "Guest"}</div>
+            <div className="truncate text-[11px] text-[color:var(--cc-ash)]">{userEmail}</div>
           </div>
           <button
             onClick={onSignOut}

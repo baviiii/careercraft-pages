@@ -118,7 +118,7 @@ export const CraftAppLayout = memo(function CraftAppLayout({
         fill ? "h-[100dvh] overflow-hidden" : "min-h-screen"
       }`}
     >
-      <CraftGround withSidebar />
+      <CraftGround />
 
       {/* Mobile sidebar overlay */}
       <AnimatePresence>

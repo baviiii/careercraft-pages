@@ -1,21 +1,16 @@
 /* ───────────────────────────────────────────────────────────
    Faircopy — the paper every logged-in page sits on.
-   Baseline grid, accent glow, grain, and (beside the sidebar)
-   a red-pen margin rule. See "APP CHROME" in styles/craft.css.
+   Baseline grid, accent glow and grain. The sidebar draws the
+   same grid, so the two read as one sheet. See "APP CHROME"
+   in styles/craft.css.
    ─────────────────────────────────────────────────────────── */
 
 import { memo } from "react";
 
-export const CraftGround = memo(function CraftGround({
-  withSidebar = false,
-}: {
-  /** Draw the margin rule beside the 272px sidebar (lg and up). */
-  withSidebar?: boolean;
-}) {
+export const CraftGround = memo(function CraftGround() {
   return (
-    <div aria-hidden className={`cc-ground ${withSidebar ? "cc-ground--side" : ""}`}>
+    <div aria-hidden className="cc-ground">
       <div className="cc-grain absolute inset-0" />
-      <div className="cc-ground__margin" />
     </div>
   );
 });
