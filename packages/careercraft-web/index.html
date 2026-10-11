@@ -26,6 +26,36 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://www.faircopy.au/og-image.png" />
 
+    <!-- Who we are, for search engines. WebSite sets the site name Google shows
+         above results; Organization ties "Faircopy" to this domain and logo
+         rather than to the dictionary phrase "fair copy". When the LinkedIn /
+         Product Hunt profiles exist, list them under Organization "sameAs". -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://www.faircopy.au/#website",
+            "name": "Faircopy",
+            "alternateName": ["faircopy.au", "Faircopy Australia"],
+            "url": "https://www.faircopy.au/",
+            "inLanguage": "en-AU",
+            "publisher": { "@id": "https://www.faircopy.au/#organization" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://www.faircopy.au/#organization",
+            "name": "Faircopy",
+            "url": "https://www.faircopy.au/",
+            "logo": "https://www.faircopy.au/brand/faircopy-mark.png",
+            "description": "A career workspace for the Australian job market: résumé builder, ATS check, cover letters, job tracker, interview practice and a career coach.",
+            "areaServed": { "@type": "Country", "name": "Australia" }
+          }
+        ]
+      }
+    </script>
+
     <!-- Editorial Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

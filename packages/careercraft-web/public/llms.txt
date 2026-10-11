@@ -1,0 +1,26 @@
+# Faircopy
+
+> Faircopy (faircopy.au) is a career workspace for the Australian job market, built in Adelaide. It helps people work out what's next, get ready for the market and go for the role, with nine tools in one place.
+
+Faircopy reads résumés the Australian way: two pages and a referees section are normal here and don't cost marks. Cover letters are written in Australian English.
+
+## Tools
+
+- Résumé builder: start from an existing résumé (PDF, Word or a photo) or from nothing, edit with a live preview, choose from 25 templates and export a print-ready PDF. No account is needed to start.
+- ATS check: paste a job ad and get a compatibility score with the reasoning shown — matched and missing keywords, which requirements are met, and red flags.
+- Bullet rewrite: rewrite résumé lines against a specific job; nothing changes until the user approves it.
+- Cover letters: drafted from the user's résumé and the job ad, then edited and saved.
+- Job tracker: every application in one place, moved through stages.
+- Interview practice: role-specific questions, a practice room and a debrief.
+- Career coach: questions about roles, pathways and the market, answered with sources attached. Deepest on South Australia.
+- Browse jobs: live Australian listings with in-demand skills and pay.
+- Market news: hiring, pay and demand by sector.
+
+## Pages
+
+- [Home](https://www.faircopy.au/)
+- [Résumé builder](https://www.faircopy.au/builder)
+- [About](https://www.faircopy.au/about)
+- [Contact](https://www.faircopy.au/contact)
+- [Privacy policy](https://www.faircopy.au/privacy)
+- [Terms of use](https://www.faircopy.au/terms)

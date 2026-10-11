@@ -26,7 +26,7 @@ import { LoadResumeDialog } from "./dialogs/LoadResumeDialog";
 import { PasteTextDialog } from "./dialogs/PasteTextDialog";
 import { SaveResumeDialog } from "./dialogs/SaveResumeDialog";
 import { useResumeBuilder } from "./hooks/useResumeBuilder";
-import { usePageMeta } from "@/hooks/usePageMeta";
+import { publicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
 
 export default function ResumeBuilderPage() {
   // Dialog open state lives here so the hook can toggle it directly.
@@ -38,11 +38,7 @@ export default function ResumeBuilderPage() {
   const [showJobDescDialog, setShowJobDescDialog] = useState(false);
 
   const [pastedText, setPastedText] = useState("");
-  usePageMeta({
-    title: "Build your résumé · Faircopy",
-    description: "Build your résumé in four steps: upload or paste what you have, edit it, pick a template, export.",
-    path: "/builder",
-  });
+  usePageMeta(publicPageMeta("/builder"));
 
   const builder = useResumeBuilder({
     openSaveDialog: () => setShowSaveDialog(true),

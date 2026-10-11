@@ -1,23 +1,34 @@
 /**
  * Per-page <title>, description, canonical and noindex for the public pages.
  *
- * The site is one index.html, so without this every route reads to Google as
- * the homepage. Google renders the JS and picks these up; link-preview bots
- * don't run JS and only ever see index.html, which is fine — the homepage is
- * what gets shared.
+ * Public pages take their title and description from src/seo/public-pages.json.
+ * The build (scripts/prerender-meta.mjs) writes the same values into a static
+ * HTML file per page, so crawlers that don't run JS — link previews, Bing, AI
+ * search bots — see each page as itself rather than as the homepage. This hook
+ * keeps the tags right as people move around the app.
  *
- * On unmount everything goes back to index.html's own values, so a page that
+ * On unmount everything goes back to the homepage's values, so a page that
  * doesn't call this (everything behind sign-in) never inherits the last public
  * page's title.
  */
 import { useEffect } from "react";
 
-const SITE = "https://www.faircopy.au";
+import publicPages from "@/seo/public-pages.json";
 
-// What index.html shipped with, read once before any page changes it.
-const DEFAULT_TITLE = document.title;
-const DEFAULT_DESCRIPTION =
-  document.querySelector<HTMLMetaElement>('meta[name="description"]')?.content ?? "";
+const SITE = publicPages.site;
+const HOME = publicPages.pages.find((p) => p.path === "/")!;
+
+// The homepage's values, not whatever HTML the visitor landed on: arriving at
+// /about loads about/index.html, whose <title> is About's.
+const DEFAULT_TITLE = HOME.title;
+const DEFAULT_DESCRIPTION = HOME.description;
+
+/** Title, description and path for a page listed in public-pages.json. */
+export function publicPageMeta(path: string): PageMeta {
+  const page = publicPages.pages.find((p) => p.path === path);
+  if (!page) throw new Error(`usePageMeta: ${path} is not in src/seo/public-pages.json`);
+  return page;
+}
 
 interface PageMeta {
   title: string;

@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { CraftPageShell } from "@/components/landing/CraftShell";
-import { usePageMeta } from "@/hooks/usePageMeta";
+import { publicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
 
 const sections = [
   {
@@ -81,11 +81,7 @@ const sections = [
 
 export default function Terms() {
   const navigate = useNavigate();
-  usePageMeta({
-    title: "Terms of use · Faircopy",
-    description: "The agreement between you and Faircopy, in plain Australian English.",
-    path: "/terms",
-  });
+  usePageMeta(publicPageMeta("/terms"));
   // The date these terms last changed (c4846e5). Update it whenever they do;
   // it used to be new Date(), so the terms claimed to be rewritten every day.
   const updated = "19 September 2026";

@@ -56,6 +56,11 @@
     }
   ],
   "rewrites": [
+    { "source": "/builder", "destination": "/builder/index.html" },
+    { "source": "/about", "destination": "/about/index.html" },
+    { "source": "/contact", "destination": "/contact/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"

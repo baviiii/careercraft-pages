@@ -1,0 +1,35 @@
+{
+  "site": "https://www.faircopy.au",
+  "pages": [
+    {
+      "path": "/",
+      "title": "Faircopy: plan your next career move in Australia",
+      "description": "Work out where you're headed, get ready for the market, then go for the role. Career coaching, résumés, interview practice and job tracking for Australia."
+    },
+    {
+      "path": "/builder",
+      "title": "Build your résumé · Faircopy",
+      "description": "Build your résumé in four steps: upload or paste what you have, edit it, pick a template, export."
+    },
+    {
+      "path": "/about",
+      "title": "About · Faircopy",
+      "description": "Faircopy is a career workspace built in Adelaide for the Australian job market."
+    },
+    {
+      "path": "/contact",
+      "title": "Contact · Faircopy",
+      "description": "Questions, feedback, corrections — every message is read by a person, usually within a day."
+    },
+    {
+      "path": "/privacy",
+      "title": "Privacy policy · Faircopy",
+      "description": "A short, honest account of what Faircopy collects, why, and how we keep it."
+    },
+    {
+      "path": "/terms",
+      "title": "Terms of use · Faircopy",
+      "description": "The agreement between you and Faircopy, in plain Australian English."
+    }
+  ]
+}

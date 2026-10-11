@@ -12,7 +12,7 @@ import {
   CraftFleuron,
 } from "@/components/landing/CraftShell";
 import { WordsPullUp } from "@/components/ui/prisma-hero";
-import { usePageMeta } from "@/hooks/usePageMeta";
+import { publicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
 
 /* The 3D meadow is heavy (three.js) — load it on demand so it never weighs
    down first paint. A painted sky placeholder holds its space meanwhile. */
@@ -637,7 +637,7 @@ CTA.displayName = "CTA";
 const Index = memo(() => {
   const [session, setSession] = useState<Session | null>(null);
   const navigate = useNavigate();
-  usePageMeta({ title: "Faircopy: plan your next career move in Australia", path: "/" });
+  usePageMeta(publicPageMeta("/"));
 
   useEffect(() => {
     let cancelled = false;
