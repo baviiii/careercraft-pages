@@ -125,6 +125,7 @@ export function useJobTracker() {
   const stats = useMemo(
     () => ({
       total: applications.length,
+      saved: applications.filter((a) => a.status === "saved").length,
       applied: applications.filter((a) => a.status === "applied").length,
       interview: applications.filter((a) => a.status === "interview").length,
       offer: applications.filter((a) => a.status === "offer").length,

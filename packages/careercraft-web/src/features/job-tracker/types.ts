@@ -1,4 +1,4 @@
-export type ApplicationStatus = "applied" | "interview" | "offer" | "rejected";
+export type ApplicationStatus = "saved" | "applied" | "interview" | "offer" | "rejected";
 
 export type JobType =
   | "full-time"
@@ -111,6 +111,14 @@ export interface StatusMeta {
 
 /** Editorial metadata for each application status. */
 export const STATUS_META: Record<ApplicationStatus, StatusMeta> = {
+  /* Found it, haven't applied yet. Kept out of the reply rate. */
+  saved: {
+    id: "saved",
+    label: "Saved",
+    kicker: "§ Saved",
+    pill: "default",
+    verb: "Save a job",
+  },
   applied: {
     id: "applied",
     label: "Applied",
@@ -178,6 +186,13 @@ export interface StatusAccent {
 }
 
 export const STATUS_ACCENT: Record<ApplicationStatus, StatusAccent> = {
+  saved: {
+    edge: "var(--cc-ink-soft)",
+    soft: "var(--cc-cream-2)",
+    deep: "var(--cc-ink)",
+    mark: "S",
+    note: "not applied yet",
+  },
   applied: {
     edge: "var(--cc-signal)",
     soft: "var(--cc-signal-soft)",
@@ -218,6 +233,7 @@ export function toRoman(value: number): string {
 }
 
 export const STATUS_ORDER: ApplicationStatus[] = [
+  "saved",
   "applied",
   "interview",
   "offer",
@@ -280,7 +296,7 @@ export function appToForm(app: JobApplication): JobFormValues {
 }
 
 export function formatAppliedDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  return new Date(iso).toLocaleDateString("en-AU", {
     month: "short",
     day: "numeric",
     year: "numeric",
