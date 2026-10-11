@@ -289,3 +289,29 @@ the AI features still get the core of every résumé.
    templates share first.
 3. Work rights and languages on the profile: onboarding extracts them, Settings
    edits them, job matching filters on work rights.
+
+---
+
+## 9. Deleting an account leaves its coach conversations in Horus
+
+**Found:** 2026-10-12, while making "Delete account" actually delete.
+
+`delete-account` (edge function) + `delete_user_data()` (migration
+20261012010000) remove every row Faircopy holds for the user, then the login.
+But the career coach runs on Horus, which stores each conversation itself
+(`ChatSession` / `ChatMessage` in horus-platform's schema). Horus has no
+endpoint to delete a session, so those conversations stay there after the
+Faircopy account is gone. They aren't linked to the user by id on Horus's side,
+but the messages can contain anything the person typed.
+
+**Why it matters:** the privacy policy promises deletion. It now says plainly
+that coach conversations are held by the AI service and are removed on request
+via privacy@faircopy.au, so the promise is honest, but it's manual.
+
+**Not urgent because:** the policy is accurate, requests can be handled by hand,
+and there are no users yet.
+
+**Decide later:** add `DELETE /api/sdk/chat/sessions` to Horus (tenant-scoped,
+by session id), have Faircopy remember the coach session ids it creates, and call
+it from `delete-account` before `delete_user_data()`. Then drop the
+"email us" line from the policy.

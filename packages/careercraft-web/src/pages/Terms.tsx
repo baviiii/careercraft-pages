@@ -86,7 +86,9 @@ export default function Terms() {
     description: "The agreement between you and Faircopy, in plain Australian English.",
     path: "/terms",
   });
-  const updated = new Date().toLocaleDateString("en-AU", { year: "numeric", month: "long", day: "numeric" });
+  // The date these terms last changed (c4846e5). Update it whenever they do;
+  // it used to be new Date(), so the terms claimed to be rewritten every day.
+  const updated = "19 September 2026";
 
   return (
     <CraftPageShell>

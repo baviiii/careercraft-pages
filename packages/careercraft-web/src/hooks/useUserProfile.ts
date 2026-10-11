@@ -621,29 +621,46 @@ export function useUserProfile() {
     }
   }, [toast]);
 
-  // Delete account
+  /* Delete account — for real. This used to sign out and toast "deleted
+     within 30 days" while deleting nothing.
+
+     The delete-account edge function removes every row Faircopy holds for
+     this user in one transaction, then the login itself. Only after that
+     succeeds do we sign out and clear what this browser kept. Returns true
+     when the account is gone. */
   const deleteAccount = useCallback(async () => {
     if (!userId) return false;
-    
-    try {
-      // This would typically call a server function that handles account deletion
-      // For now, we'll just sign out
-      await supabase.auth.signOut();
-      
-      toast({
-        title: 'Account deletion requested',
-        description: 'Your account will be deleted within 30 days',
-      });
-      
-      return true;
-    } catch (error) {
-      toast({
-        title: 'Error deleting account',
-        description: 'Please contact support',
-        variant: 'destructive',
-      });
+
+    const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+    if (error) {
+      let detail = 'Nothing was removed. Try again, or email privacy@faircopy.au.';
+      try {
+        const body = await (error as { context?: Response }).context?.json();
+        if (body?.error) detail = `${body.error} If it keeps happening, email privacy@faircopy.au.`;
+      } catch {
+        /* keep the generic message */
+      }
+      toast({ title: "Couldn't delete your account", description: detail, variant: 'destructive' });
       return false;
     }
+
+    // The user no longer exists, so signOut's server call may fail; the local
+    // session is cleared either way.
+    await supabase.auth.signOut().catch(() => undefined);
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('cc-') || key.startsWith('savedJobs_')) localStorage.removeItem(key);
+      }
+      sessionStorage.clear();
+    } catch {
+      /* private mode */
+    }
+
+    toast({
+      title: 'Your account has been deleted',
+      description: 'Your résumés, cover letters, applications and profile are gone.',
+    });
+    return true;
   }, [userId, toast]);
 
   // Export user data

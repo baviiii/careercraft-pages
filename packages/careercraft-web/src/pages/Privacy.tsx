@@ -44,7 +44,8 @@ const sections = [
     items: [
       "We handle personal information in line with the Privacy Act 1988 (Cth) and the Australian Privacy Principles.",
       "Access your personal data at any time, and request correction of anything inaccurate.",
-      "Request deletion of your account — we remove your data from our systems.",
+      "Delete your account from Settings — your résumés, cover letters, applications and profile are deleted straight away.",
+      "Career coach conversations are held by the AI service that runs the coach; to have those removed too, email privacy@faircopy.au.",
       "Export your data in a portable format, and opt out of marketing at will.",
       "Unhappy with our answer? You can complain to us first, and to the Office of the Australian Information Commissioner (oaic.gov.au) if we don't resolve it.",
     ],
@@ -58,7 +59,9 @@ export default function Privacy() {
     description: "A short, honest account of what Faircopy collects, why, and how we keep it.",
     path: "/privacy",
   });
-  const updated = new Date().toLocaleDateString("en-AU", { year: "numeric", month: "long", day: "numeric" });
+  // The date this text last changed. Update it whenever the policy changes;
+  // it used to be new Date(), so the policy claimed to be rewritten every day.
+  const updated = "12 October 2026";
 
   return (
     <CraftPageShell>

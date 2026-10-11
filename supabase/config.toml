@@ -150,6 +150,10 @@ verify_jwt = true
 [functions.job-email-events]
 verify_jwt = true
 
+# Settings → "Delete account". Deletes only the caller's own data and login.
+[functions.delete-account]
+verify_jwt = true
+
 [functions.job-search]
 verify_jwt = true
 

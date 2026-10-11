@@ -571,8 +571,8 @@ export default function Settings() {
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== "DELETE") return;
-    await deleteAccount();
-    navigate("/");
+    // Stay put if it failed: the error toast explains, and the account is intact.
+    if (await deleteAccount()) navigate("/");
   };
 
   const handleRegisterInterest = async () => {
