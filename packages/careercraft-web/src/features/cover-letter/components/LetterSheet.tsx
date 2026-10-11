@@ -2,6 +2,7 @@ import { Check, Copy, Download, Loader2 } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
+import { CraftSpinner, useElapsedSeconds } from "@/components/craft/CraftSpinner";
 
 import { letterDate } from "../lib/letterLabel";
 import type { LetterTone } from "../types";
@@ -39,6 +40,7 @@ export const LetterSheet = ({
   saved,
 }: LetterSheetProps) => {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const seconds = useElapsedSeconds(generating);
 
   // Grow with the letter so the sheet reads like a page, not a scroll box.
   useLayoutEffect(() => {
@@ -70,11 +72,19 @@ export const LetterSheet = ({
           </div>
 
           {generating ? (
-            <div className="cc-desk-ink mt-6" role="status" aria-label="Writing your letter">
-              {[92, 100, 96, 70, 0, 100, 94, 98, 88, 60, 0, 97, 100, 82].map((w, i) =>
-                w ? <span key={i} style={{ width: `${w}%` }} /> : <i key={i} />,
-              )}
-            </div>
+            <>
+              {/* The ink lines stop under "reduce motion"; this row keeps saying it's working. */}
+              <div className="mt-6 flex items-center gap-2.5 text-[14px] text-[color:var(--cc-ink-soft)]">
+                <CraftSpinner size="sm" label="Writing your letter" />
+                <span>Writing your letter</span>
+                <span className="cc-tabular text-[color:var(--cc-ash)]">· {seconds}s</span>
+              </div>
+              <div className="cc-desk-ink mt-5" aria-hidden>
+                {[92, 100, 96, 70, 0, 100, 94, 98, 88, 60, 0, 97, 100, 82].map((w, i) =>
+                  w ? <span key={i} style={{ width: `${w}%` }} /> : <i key={i} />,
+                )}
+              </div>
+            </>
           ) : (
             <textarea
               ref={ref}

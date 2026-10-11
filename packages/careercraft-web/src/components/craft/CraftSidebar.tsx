@@ -13,6 +13,7 @@ import {
   FileText,
   Home,
   LogOut,
+  Mail,
   PenLine,
   MessageSquareText,
   Newspaper,
@@ -52,6 +53,8 @@ export const CRAFT_SIDEBAR_LINKS: CraftSidebarLink[] = [
   { icon: PenLine, label: "Résumé Builder", path: "/builder", group: "craft" },
   { icon: FileText, label: "My Résumés", path: "/my-resumes", group: "craft" },
   { icon: BarChart3, label: "ATS Check", path: "/analysis", group: "craft" },
+  // Same story as the two above: reachable only from the dashboard's tool grid.
+  { icon: Mail, label: "Cover Letters", path: "/cover-letter", group: "craft" },
   { icon: Briefcase, label: "Job Tracker", path: "/tracker", group: "craft" },
   { icon: MessageSquareText, label: "Interview Prep", path: "/interview-prep", group: "craft" },
   { icon: Brain, label: "Career Coach", path: "/career-coach", group: "craft" },
