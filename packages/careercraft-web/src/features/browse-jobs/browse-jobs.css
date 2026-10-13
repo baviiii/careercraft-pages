@@ -1,0 +1,228 @@
+/* Browse jobs — imported by BrowseJobsPage.tsx and scoped under .cc-browse,
+   beside the feature like tracker.css. Uses the --cc-* tokens from
+   styles/craft.css.
+
+   The page reads like a sentence you fill in ("Show me ___ jobs in ___"),
+   then a board of ad cards. Motion is small and only follows something the
+   user did, or plays once as results arrive; every bit of it has a still
+   version under "reduce motion". */
+
+/* ── The search sentence ─────────────────────────────────────── */
+.cc-browse .cc-sentence {
+  border-radius: 22px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  box-shadow: 0 1px 0 rgba(20, 22, 26, 0.04), 0 24px 48px -36px rgba(20, 22, 26, 0.35);
+}
+.cc-browse .cc-sentence__line {
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  font-size: clamp(24px, 2.9vw, 34px);
+  line-height: 1.55;
+  letter-spacing: -0.015em;
+  color: var(--cc-ink);
+  /* Long text in a blank must never push the page sideways. */
+  overflow-x: clip;
+}
+.cc-browse .cc-blank-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0 0.1em;
+  vertical-align: baseline;
+}
+.cc-browse .cc-blank-size {
+  display: inline-block;
+  visibility: hidden;
+  white-space: pre;
+  font-weight: 600;
+  padding: 0 0.3em;
+  min-width: 2.5em;
+}
+.cc-browse .cc-blank {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: inherit;
+  color: var(--cc-rust);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--cc-hair-strong);
+  border-radius: 0;
+  padding: 0 0.3em;
+  outline: none;
+  transition: border-color .2s ease, background-color .2s ease;
+}
+/* The suggestions arrow Chrome adds to inputs with a list eats the last letters. */
+.cc-browse .cc-blank::-webkit-calendar-picker-indicator { display: none !important; }
+.cc-browse .cc-blank::placeholder { color: var(--cc-ash); opacity: 0.75; }
+.cc-browse .cc-blank:hover { border-bottom-color: var(--cc-ink-soft); }
+.cc-browse .cc-blank:focus { border-bottom-color: var(--cc-rust); background: rgba(42, 82, 204, 0.05); }
+
+.cc-browse .cc-try {
+  border-radius: 999px;
+  border: 1px dashed var(--cc-hair-strong);
+  padding: 4px 11px;
+  font-size: 13px;
+  color: var(--cc-ink-soft);
+  transition: border-color .2s ease, color .2s ease, background-color .2s ease;
+}
+.cc-browse .cc-try:hover { border-style: solid; border-color: var(--cc-rust); color: var(--cc-rust); background: rgba(42, 82, 204, 0.05); }
+
+/* ── Refine chips ────────────────────────────────────────────── */
+.cc-browse .cc-refine {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-hair-strong);
+  background: #fff;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-ink-soft);
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+}
+.cc-browse .cc-refine:hover:not(:disabled) { border-color: var(--cc-ink-soft); color: var(--cc-ink); }
+.cc-browse .cc-refine[aria-pressed="true"] { background: var(--cc-ink); border-color: var(--cc-ink); color: var(--cc-cream); }
+.cc-browse .cc-refine:disabled { opacity: 0.45; cursor: default; }
+.cc-browse .cc-refine__n { font-size: 11.5px; font-variant-numeric: tabular-nums; opacity: 0.7; }
+
+/* ── Job ad card ─────────────────────────────────────────────── */
+.cc-browse .cc-jobad {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  padding: 18px 18px 16px;
+  transition: translate .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s ease, border-color .25s ease;
+  animation: cc-rise .45s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+@media (hover: hover) {
+  .cc-browse .cc-jobad:hover {
+    translate: 0 -2px;
+    border-color: var(--cc-hair-strong);
+    box-shadow: 0 18px 32px -24px rgba(20, 22, 26, 0.45);
+  }
+}
+@keyframes cc-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.cc-browse .cc-jobad.is-tracked { background: linear-gradient(0deg, rgba(63, 122, 92, 0.05), rgba(63, 122, 92, 0.05)), #fff; }
+
+.cc-browse .cc-jobad__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  background: var(--cc-cream-2);
+  color: var(--cc-ink-soft);
+}
+.cc-browse .cc-jobad__chip--pay { background: rgba(42, 82, 204, 0.09); color: var(--cc-rust-deep); font-weight: 600; }
+.cc-browse .cc-jobad__chip--est { background: var(--cc-cream-2); color: var(--cc-ink-soft); font-weight: 500; }
+.cc-browse .cc-jobad__chip--remote { background: rgba(63, 122, 92, 0.12); color: var(--cc-signal-deep); }
+
+/* Fit, in words. Colour follows the band. */
+.cc-browse .cc-fit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 10px 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cc-browse .cc-fit[data-band="strong"] { background: rgba(63, 122, 92, 0.14); color: var(--cc-signal-deep); }
+.cc-browse .cc-fit[data-band="good"] { background: rgba(63, 122, 92, 0.08); color: var(--cc-signal-deep); }
+.cc-browse .cc-fit[data-band="fair"] { background: var(--cc-wheat-soft); color: var(--cc-wheat-deep); }
+.cc-browse .cc-fit__dots { display: inline-flex; gap: 2px; }
+.cc-browse .cc-fit__dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.25; }
+.cc-browse .cc-fit__dots i.on { opacity: 1; }
+
+/* Save button: a small pop when it lands. */
+.cc-browse .cc-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-rust);
+  background: var(--cc-rust);
+  color: #fff;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+}
+.cc-browse .cc-save:hover:not(:disabled) { background: var(--cc-rust-deep); border-color: var(--cc-rust-deep); }
+.cc-browse .cc-save:disabled { opacity: 0.6; cursor: default; }
+.cc-browse .cc-save.is-saved {
+  background: rgba(63, 122, 92, 0.12);
+  border-color: transparent;
+  color: var(--cc-signal-deep);
+  animation: cc-pop .35s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-browse .cc-save.is-saved:hover { background: rgba(63, 122, 92, 0.2); }
+@keyframes cc-pop {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* ── Summary rail ────────────────────────────────────────────── */
+.cc-browse .cc-summary {
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  padding: 18px;
+}
+.cc-browse .cc-tally { display: block; height: 6px; border-radius: 999px; background: var(--cc-cream-2); overflow: hidden; }
+.cc-browse .cc-tally > span { display: block; height: 100%; border-radius: inherit; background: var(--cc-rust); transition: width .6s cubic-bezier(.2, .8, .2, 1); }
+.cc-browse .cc-tally--sage > span { background: var(--cc-signal); }
+
+/* ── Loading ─────────────────────────────────────────────────── */
+.cc-browse .cc-skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--cc-cream-2) 0%, #fff 50%, var(--cc-cream-2) 100%) 0 0 / 200% 100%;
+  animation: cc-shimmer 1.4s linear infinite;
+}
+@keyframes cc-shimmer { to { background-position: -200% 0; } }
+
+/* ── The ticket that flies to the tracker (lib/flyToTracker.ts) ── */
+.cc-fly-ticket {
+  position: fixed;
+  z-index: 90;
+  width: 28px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--cc-rust);
+  box-shadow: 0 6px 14px -6px rgba(42, 82, 204, 0.6);
+  pointer-events: none;
+}
+.cc-fly-ticket::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 3px;
+  bottom: 3px;
+  border-left: 2px dotted rgba(255, 255, 255, 0.7);
+}
+
+/* ── Reduce motion: keep the information, drop the movement ─── */
+@media (prefers-reduced-motion: reduce) {
+  .cc-browse .cc-jobad { animation: none; transition: none; }
+  .cc-browse .cc-jobad:hover { translate: none; }
+  .cc-browse .cc-save.is-saved { animation: none; }
+  .cc-browse .cc-tally > span { transition: none; }
+  .cc-browse .cc-skel { animation: none; }
+  .cc-browse .cc-blank,
+  .cc-browse .cc-refine,
+  .cc-browse .cc-try { transition: none; }
+}
