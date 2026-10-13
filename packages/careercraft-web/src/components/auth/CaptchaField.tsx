@@ -4,26 +4,31 @@
 // and a free account comes with a real AI budget. Nothing in the functions can
 // tell a résumé from an essay, so the only place to stop someone minting
 // accounts by the hundred is at signup. Turnstile forces each signup through
-// a real browser; Supabase then verifies the token server-side when
+// a real browser; Supabase then verifies the token server-side because
 // "Enable Captcha protection" is on in Authentication → Attack Protection.
 //
 // Behaviour:
-//   - No VITE_TURNSTILE_SITE_KEY → renders nothing, `captchaEnabled` is false,
-//     and callers send no token. Local dev keeps working as long as Supabase
-//     captcha is off for that project.
+//   - The site key is public by design (it ships in the widget markup), so it
+//     lives here like the Supabase URL and anon key in
+//     integrations/supabase/client.ts. VITE_TURNSTILE_SITE_KEY overrides it,
+//     e.g. with Cloudflare's always-pass test key.
+//   - Local dev talks to the same Supabase project, so it needs the widget
+//     too; "localhost" is an allowed hostname on the Cloudflare widget.
 //   - Tokens are single-use. Callers must `reset()` after every attempt,
 //     successful or not, or the next submit fails with a stale token.
+//   - If the widget can't load (an ad blocker, a network filter) the submit
+//     button would sit disabled with no reason given, so we say what happened.
 //
-// The site key is public by design (it ships in the widget markup), which is
-// why it is allowed to be a VITE_ variable. The SECRET key never leaves the
-// Supabase dashboard.
+// The SECRET key never leaves the Cloudflare and Supabase dashboards.
 
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
-export const TURNSTILE_SITE_KEY = (
-  import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined
-)?.trim();
+/** The "faircopy" widget in Cloudflare (hostnames: faircopy.au, localhost). */
+const FAIRCOPY_SITE_KEY = "0x4AAAAAAFTng5JLfUNom6Xu";
+
+export const TURNSTILE_SITE_KEY =
+  (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined)?.trim() || FAIRCOPY_SITE_KEY;
 
 /** True when the widget is configured and callers must send a token. */
 export const captchaEnabled = Boolean(TURNSTILE_SITE_KEY);
@@ -44,6 +49,7 @@ interface CaptchaFieldProps {
 export const CaptchaField = forwardRef<CaptchaHandle, CaptchaFieldProps>(
   ({ onToken, action, className }, ref) => {
     const widget = useRef<TurnstileInstance | null>(null);
+    const [failed, setFailed] = useState(false);
 
     useImperativeHandle(
       ref,
@@ -58,16 +64,32 @@ export const CaptchaField = forwardRef<CaptchaHandle, CaptchaFieldProps>(
 
     if (!TURNSTILE_SITE_KEY) return null;
 
+    const fail = () => {
+      setFailed(true);
+      onToken(null);
+    };
+
     return (
       <div className={className}>
         <Turnstile
           ref={widget}
           siteKey={TURNSTILE_SITE_KEY}
           options={{ action, theme: "light", size: "flexible" }}
-          onSuccess={onToken}
+          scriptOptions={{ onError: fail }}
+          onSuccess={(token) => {
+            setFailed(false);
+            onToken(token);
+          }}
           onExpire={() => onToken(null)}
-          onError={() => onToken(null)}
+          onError={fail}
+          onUnsupported={fail}
         />
+        {failed && (
+          <p role="alert" className="mt-2 cc-font-sans text-[13px] leading-snug text-[#9C3424]">
+            The security check didn't load, so we can't sign you in yet. Refresh the page, or
+            pause your ad blocker for faircopy.au and try again.
+          </p>
+        )}
       </div>
     );
   },
