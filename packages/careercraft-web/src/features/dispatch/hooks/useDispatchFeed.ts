@@ -276,7 +276,7 @@ export function useDispatchFeed() {
     // Only surface an error when both sources were unreachable — one dead source
     // should degrade the feed, not blank it. Reachable-but-empty is not an error.
     if (news === null && found === null) {
-      setError("Couldn't reach the wire. Try again in a moment.");
+      setError("The news and jobs didn't load just now. Try again in a moment.");
     }
     setIsLoading(false);
   }, [loadArticles, loadRoles]);
@@ -337,7 +337,7 @@ export function useDispatchFeed() {
         url: j.canonical_url,
         relevance: {
           score,
-          reasons: tuned.reasons.length ? tuned.reasons : ["Open role on the wire"],
+          reasons: tuned.reasons.length ? tuned.reasons : ["Open now"],
           rank: score * decay + 10 * decay,
         },
       };

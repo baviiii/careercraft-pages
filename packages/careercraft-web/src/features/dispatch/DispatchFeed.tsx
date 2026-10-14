@@ -71,7 +71,7 @@ export const DispatchFeed = () => {
       ) : error ? (
         <EmptyState
           icon={<Radio className="h-5 w-5" />}
-          title="The wire is down"
+          title="We couldn't load your feed"
           body={error}
           actionLabel="Try again"
           onAction={refresh}
@@ -82,7 +82,7 @@ export const DispatchFeed = () => {
           title={hasPersonalizationData ? "Nothing cleared the bar" : "Nothing to tune yet"}
           body={
             hasPersonalizationData
-              ? "No stories or roles matched your profile this time. Loosen a signal below, or pull the wire again."
+              ? "No stories or roles matched your profile this time. Turn a filter off below, or refresh."
               : "Tell us the role you're chasing and this feed starts ranking against it."
           }
           actionLabel={hasPersonalizationData ? "Refresh" : "Complete your profile"}
@@ -112,6 +112,21 @@ export const DispatchFeed = () => {
             </div>
           )}
         </motion.div>
+      )}
+
+      {/* Adzuna's terms ask for this wherever their listings appear. */}
+      {!isLoading && [lead, ...rail].some((item) => item?.kind === "role") && (
+        <p className="mt-3 cc-font-sans text-xs text-[color:var(--cc-ash)]">
+          Jobs by{" "}
+          <a
+            href="https://www.adzuna.com.au"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-[color:var(--cc-ink)]"
+          >
+            Adzuna
+          </a>
+        </p>
       )}
 
       <TuningBar
