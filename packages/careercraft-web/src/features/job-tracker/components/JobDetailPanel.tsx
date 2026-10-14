@@ -114,17 +114,19 @@ export const JobDetailPanel = ({
   const [leaving, setLeaving] = useState<"back" | "close" | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Each time the pop-up opens (or moves to another job), start where asked.
+  // Start where asked each time the pop-up opens, moves to another job, or is
+  // asked for the other mode on the job already showing (view, then Edit on
+  // that same card). A save refreshes the row without changing any of these,
+  // so the form must not depend on `application` or it would throw the person
+  // back to where they started.
   useEffect(() => {
     if (!open || !application) return;
     setMode(initialMode);
     setFocus(undefined);
     setForm(appToForm(application));
     setLeaving(null);
-    // Only on open or a different job: a save refreshes the row, and that
-    // must not throw the person back to where they started.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, appId]);
+  }, [open, appId, initialMode]);
 
   // Land at the top of the new view, or on the field that was asked for.
   useEffect(() => {
