@@ -45,16 +45,16 @@ export function useResumeImport({
   } = useSecureResumeUpload({
     onValidationError: (errors) => {
       toast({
-        title: "Security check failed",
+        title: "Can't use that file",
         description: errors.join(", "),
         variant: "destructive",
       });
     },
     onSecurityThreat: (threats) => {
       toast({
-        title: "Security threat detected",
+        title: "That file was blocked",
         description:
-          "The file contains potentially malicious content and was blocked.",
+          "It contains something that looks unsafe. Try saving it again as a fresh PDF, or paste the text.",
         variant: "destructive",
       });
       console.error("Security threats:", threats);
@@ -78,8 +78,8 @@ export function useResumeImport({
         const aiParsed = await parseResumeTextWithAI(text, "pasted-resume.txt", "text/plain");
         const data = aiDataToResumeData(aiParsed);
         toast({
-          title: "AI reading complete",
-          description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
+          title: "Read your résumé",
+          description: `${data.experience.length} jobs · ${data.education.length} qualifications · ${data.skills.length} skills found.`,
         });
         setUploadProgress(100);
         setResumeData(data);
@@ -90,7 +90,7 @@ export function useResumeImport({
         console.error("AI text parsing failed, falling back to local parse:", error);
         setResumeData(parseTextToResumeData(text));
         toast({
-          title: "AI read unavailable",
+          title: "Couldn't read it properly",
           description:
             error instanceof Error && /rate limit/i.test(error.message)
               ? "Too many reads just now. Your text was sorted roughly on this device — check every field."
@@ -135,9 +135,9 @@ export function useResumeImport({
             securityResult.errors.join(", ")
           );
           toast({
-            title: "File rejected",
+            title: "Can't use that file",
             description:
-              securityResult.errors[0] || "File failed security validation",
+              securityResult.errors[0] || "It didn't pass our file check.",
             variant: "destructive",
           });
           setIsProcessing(false);
@@ -173,8 +173,8 @@ export function useResumeImport({
         const aiParsed = await extractResumeFromFile(file, (p) => setUploadProgress(p));
         const data = aiDataToResumeData(aiParsed);
         toast({
-          title: "AI reading complete",
-          description: `${data.experience.length} roles · ${data.education.length} schools · ${data.skills.length} skills pulled.`,
+          title: "Read your résumé",
+          description: `${data.experience.length} jobs · ${data.education.length} qualifications · ${data.skills.length} skills found.`,
         });
 
         setResumeData(data);
@@ -182,9 +182,9 @@ export function useResumeImport({
       } catch (error) {
         console.error("File processing error:", error);
         toast({
-          title: "Processing failed",
+          title: "Couldn't read that file",
           description:
-            error instanceof Error ? error.message : "Could not process the file",
+            error instanceof Error ? error.message : "Try another file, or paste the text instead.",
           variant: "destructive",
         });
       } finally {
@@ -209,7 +209,7 @@ export function useResumeImport({
       setCurrentStep(1);
       toast({
         title: "Draft imported",
-        description: "AI read your résumé. Review every line before filing.",
+        description: "We've filled in what we read. Check each section before you save.",
       });
     },
     [setResumeData, setCurrentStep, toast]

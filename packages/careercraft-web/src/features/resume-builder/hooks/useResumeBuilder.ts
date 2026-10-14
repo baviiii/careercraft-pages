@@ -51,38 +51,38 @@ import { CONTINUE_RETURN_PATH } from "../types";
 
 const ACCOUNT_GATE_COPY: Record<AccountGateReason, { title: string; description: string }> = {
   export: {
-    title: "Create a free account to download",
-    description: "Your résumé comes with you — it'll be waiting when you land back here.",
+    title: "Make a free account to download",
+    description: "Your résumé comes with you. It'll be waiting when you get back here.",
   },
   "ai-read-file": {
-    title: "Create a free account to read that file",
+    title: "Make a free account to read that file",
     description:
-      "AI reading works on PDFs, Word files and photos. Or paste your résumé text to keep going without an account.",
+      "Reading PDFs, Word files and photos needs an account. Or paste your résumé's text to keep going without one.",
   },
   "ai-smart-import": {
-    title: "Smart import needs a free account",
+    title: "Uploading needs a free account",
     description:
-      "AI reads the whole file and fills every field. Paste text instead to keep building without one.",
+      "Or paste your résumé's text instead to keep building without one.",
   },
   "ai-rewrite": {
-    title: "Create a free account to rewrite bullets",
-    description: "Your draft comes with you — nothing you've typed is lost.",
+    title: "Make a free account to rewrite points",
+    description: "Your draft comes with you. Nothing you've typed is lost.",
   },
   "continue-ats": {
-    title: "Create a free account for ATS check",
-    description: "Your draft comes with you — then score it against a job ad.",
+    title: "Make a free account for the ATS check",
+    description: "Your draft comes with you, ready to check against a job ad.",
   },
   "continue-jobs": {
-    title: "Create a free account to browse jobs",
-    description: "Your draft comes with you — then open roles across Australia.",
+    title: "Make a free account to browse jobs",
+    description: "Your draft comes with you while you look at openings across Australia.",
   },
   "continue-news": {
-    title: "Create a free account for market news",
-    description: "Your draft comes with you — then see hiring and pay by sector.",
+    title: "Make a free account for market news",
+    description: "Your draft comes with you while you look at hiring and pay by industry.",
   },
   "continue-chat": {
-    title: "Create a free account for career chat",
-    description: "Your draft comes with you — then ask with sources attached.",
+    title: "Make a free account for career chat",
+    description: "Your draft comes with you, so you can ask about it.",
   },
 };
 
@@ -292,9 +292,9 @@ export function useResumeBuilder(dialogs: {
 
     if (note.outcome === "claim-failed") {
       toast({
-        title: "Couldn't file your résumé automatically",
+        title: "Couldn't save your résumé to your account",
         description:
-          "It's still saved on this device and has been reopened here — save it when you're ready.",
+          "It's still saved on this device and open here. Save it when you're ready.",
         variant: "destructive",
       });
       return;
@@ -483,7 +483,7 @@ export function useResumeBuilder(dialogs: {
       toast({
         title: "Draft restored",
         description:
-          "Picking up where you left off. Saved on this device until you create an account.",
+          "Picking up where you left off. Saved on this device until you make an account.",
       });
       return;
     }
@@ -506,7 +506,7 @@ export function useResumeBuilder(dialogs: {
           if (!handoffAnnouncedRef.current) {
             toast({
               title: "Draft recovered",
-              description: "It didn't save the first time — it's filed under your account now.",
+              description: "It didn't save the first time. It's in your account now.",
             });
           }
         }
@@ -558,7 +558,7 @@ export function useResumeBuilder(dialogs: {
         sessionStorage.removeItem("rewriteTemplate");
         toast({
           title: "Optimised résumé loaded",
-          description: `${parsed.experience.length} roles · ${parsed.skills.length} skills ready to edit.`,
+          description: `${parsed.experience.length} jobs · ${parsed.skills.length} skills, ready to edit.`,
         });
         return;
       }
@@ -585,7 +585,7 @@ export function useResumeBuilder(dialogs: {
           sessionStorage.removeItem("rewriteTemplate");
           toast({
             title: "Résumé loaded",
-            description: `${parsed.experience?.length || 0} roles · ${
+            description: `${parsed.experience?.length || 0} jobs · ${
               parsed.skills?.length || 0
             } skills extracted. Ready to edit.`,
           });
@@ -648,7 +648,7 @@ export function useResumeBuilder(dialogs: {
           sessionStorage.removeItem("resumeBuilderData");
           toast({
             title: "Résumé loaded",
-            description: `Editing “${name}”. Review and choose a template.`,
+            description: `Editing “${name}”. Look it over, then pick a design.`,
           });
         }
       } catch (e) {
@@ -866,7 +866,7 @@ export function useResumeBuilder(dialogs: {
     if (!hasPersonalizationData) {
       toast({
         title: "Profile not set up",
-        description: "Complete your profile in Settings to use auto-fill.",
+        description: "Fill in your profile in Settings first.",
         variant: "destructive",
       });
       return;
@@ -904,7 +904,7 @@ export function useResumeBuilder(dialogs: {
     if (autoFillData.summary) filled.push("summary");
 
     toast({
-      title: "Profile imported",
+      title: "Filled from your profile",
       description: `Filled: ${filled.join(", ")}`,
     });
     setAutoSaveStatus("unsaved");
@@ -918,8 +918,8 @@ export function useResumeBuilder(dialogs: {
 
       if (!jobDescription.trim()) {
         toast({
-          title: "Target job needed",
-          description: "Paste a job description to tailor the rewrite.",
+          title: "Add the job ad first",
+          description: "The rewrite matches your point to what the ad asks for.",
         });
         openJobDescDialog();
         return;
@@ -941,12 +941,12 @@ export function useResumeBuilder(dialogs: {
           jobDescription
         );
         updateBullet(expId, bulletIndex, rewritten);
-        toast({ title: "Bullet rewritten" });
+        toast({ title: "Point rewritten" });
       } catch (error) {
         toast({
-          title: "Rewrite failed",
+          title: "Couldn't rewrite that point",
           description:
-            error instanceof Error ? error.message : "Could not rewrite",
+            error instanceof Error ? error.message : "Try again in a moment.",
           variant: "destructive",
         });
       } finally {

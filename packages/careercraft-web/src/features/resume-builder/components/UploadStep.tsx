@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────
-   01 · Import — drop a file, paste, start blank, or reopen.
+   Step 1 · Start — drop a file, paste, start blank, or reopen.
    One primary action (the dropzone); every alternative lives
    in the side panel so the step reads as a single decision.
    ─────────────────────────────────────────────────────────── */
@@ -9,13 +9,14 @@ import {
   ArrowUpRight,
   ClipboardPaste,
   FolderOpen,
-  Loader2,
+  ListChecks,
   Plus,
-  Sparkles,
   Upload,
   User,
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
+
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 
 interface UploadStepProps {
   isProcessing: boolean;
@@ -71,98 +72,84 @@ export const UploadStep = ({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
-      className="max-w-5xl mx-auto"
+      className="mx-auto max-w-5xl"
     >
-      {/* Heading */}
-      <div className="cc-label text-[color:var(--cc-rust)]">01 · Import</div>
-      <h2 className="mt-3 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight">
+      <h2 className="cc-font-display text-3xl leading-tight tracking-tight md:text-4xl">
         Add your résumé
       </h2>
       <p className="mt-2 text-[15px] text-[color:var(--cc-ink-soft)]">
-        Upload a file, paste the text, or start from a blank page.
+        Upload the one you have, paste its text, or start from a blank page.
       </p>
 
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 items-start">
+      <div className="mt-8 grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_340px]">
         {/* ── Primary: dropzone ── */}
         <div>
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed cursor-pointer transition-colors px-8 py-14 md:py-20 text-center ${
+            className={`cursor-pointer rounded-2xl border-2 border-dashed px-8 py-14 text-center transition-colors md:py-20 ${
               isDragActive
                 ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)]"
-                : "border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] hover:bg-[color:var(--cc-cream-2)]"
+                : "border-[color:var(--cc-hair-strong)] bg-white hover:border-[color:var(--cc-rust)]"
             }`}
           >
             <input {...getInputProps()} />
             {isProcessing ? (
               <div>
-                <Loader2 className="w-8 h-8 mx-auto animate-spin text-[color:var(--cc-rust)]" />
-                <p className="mt-4 cc-font-display text-2xl leading-tight">
-                  Reading your file…
-                </p>
+                <div className="flex justify-center">
+                  <CraftSpinner label="Reading your file" />
+                </div>
+                <p className="mt-4 cc-font-display text-2xl leading-tight">Reading your file…</p>
                 {uploadProgress > 0 && (
-                  <div className="mt-6 max-w-xs mx-auto">
-                    <div className="relative h-[2px] bg-[color:var(--cc-hair)]">
+                  <div className="mx-auto mt-6 max-w-xs">
+                    <div className="relative h-1.5 overflow-hidden rounded-full bg-[color:var(--cc-cream-2)]">
                       <div
-                        className="absolute inset-y-0 left-0 bg-[color:var(--cc-rust)] transition-all"
+                        className="absolute inset-y-0 left-0 rounded-full bg-[color:var(--cc-rust)] transition-all"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
-                    <div className="mt-2 cc-label text-[color:var(--cc-ash)] cc-tabular">
-                      {uploadProgress}%
-                    </div>
+                    <div className="mt-2 cc-tabular text-[13px] text-[color:var(--cc-ash)]">{uploadProgress}%</div>
                   </div>
                 )}
               </div>
             ) : (
               <>
-                <div className="w-12 h-12 mx-auto border border-[color:var(--cc-ink)] flex items-center justify-center">
-                  <Upload className="w-5 h-5" />
+                <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-[color:var(--cc-rust-soft)] text-[color:var(--cc-rust)]">
+                  <Upload className="h-5 w-5" />
                 </div>
-                <p className="mt-5 cc-font-display text-2xl md:text-3xl leading-tight tracking-tight">
-                  {isDragActive ? "Drop to upload" : "Drop your résumé here"}
+                <p className="mt-5 cc-font-display text-2xl leading-tight tracking-tight md:text-3xl">
+                  {isDragActive ? "Let go to upload" : "Drop your résumé here"}
                 </p>
                 <p className="mt-2 text-sm text-[color:var(--cc-ink-soft)]">
-                  or <span className="underline underline-offset-4">browse your files</span>
+                  or <span className="text-[color:var(--cc-rust)] underline underline-offset-4">choose a file</span>
                 </p>
-                <p className="mt-5 cc-label-sm text-[color:var(--cc-ash)]">
-                  PDF · DOCX · DOC · TXT · PNG · JPG
-                </p>
+                <p className="mt-5 text-[13px] text-[color:var(--cc-ash)]">PDF, Word, a photo or a text file</p>
               </>
             )}
           </div>
 
-          {/* The AI-extraction toggle is gone: every import path is read by
-              the model now, so there is nothing left to switch. Guests still
-              see the file gate, because only the text path takes anonymous
-              calls — page images are too expensive to leave unauthenticated. */}
-          {isGuest ? (
-            <p className="mt-3 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3 text-[13px] leading-snug text-[color:var(--cc-ash)]">
-              PDFs, Word files and photos are read by AI, which needs a free
-              account. Pasting your résumé text works right now without one —
-              AI reads that too.
-            </p>
-          ) : (
-            <p className="mt-3 border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-4 py-3 text-[13px] leading-snug text-[color:var(--cc-ash)]">
-              Everything you bring in — PDFs, Word files, photos, pasted text —
-              is read by AI and sorted into fields. Check them before you file.
-            </p>
-          )}
+          {/* Every import path is read by the model. Guests still see the file
+              gate, because only the text path takes anonymous calls — page
+              images are too expensive to leave unauthenticated. */}
+          <p className="mt-3 rounded-xl bg-[color:var(--cc-cream-2)] px-4 py-3 text-[13.5px] leading-snug text-[color:var(--cc-ink-soft)]">
+            {isGuest
+              ? "Reading a PDF, Word file or photo needs a free account. Pasting your résumé's text works right now without one."
+              : "We read what you bring in and sort it into the right fields. Have a quick look over them before you save."}
+          </p>
         </div>
 
         {/* ── Alternatives ── */}
-        <aside className="border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)]">
-          <div className="px-4 py-3 border-b border-[color:var(--cc-hair)] cc-label-sm text-[color:var(--cc-ash)]">
+        <aside className="overflow-hidden rounded-2xl border border-[color:var(--cc-hair)] bg-white">
+          <div className="border-b border-[color:var(--cc-hair)] px-4 py-3 text-[13px] font-medium text-[color:var(--cc-ash)]">
             Other ways to start
           </div>
 
           <OptionRow
-            icon={Sparkles}
-            title="Smart import"
+            icon={ListChecks}
+            title="Upload and review first"
             desc={
               isGuest
-                ? "AI reads your file and fills every field. Needs a free account."
-                : "AI reads your file and fills every field — review before applying."
+                ? "See what we read from your file before anything is filled in. Needs a free account."
+                : "See what we read from your file before anything is filled in."
             }
             onClick={onOpenAIImport}
             requiresAccount={isGuest}
@@ -171,8 +158,8 @@ export const UploadStep = ({
           {!isGuest && hasProfile && (
             <OptionRow
               icon={User}
-              title="Fill from profile"
-              desc={`Contact details and ${profileSkillCount} skills from Settings.`}
+              title="Fill from my profile"
+              desc={`Your contact details and ${profileSkillCount} skill${profileSkillCount === 1 ? "" : "s"} from Settings.`}
               onClick={onAutoFillAndStart}
             />
           )}
@@ -180,8 +167,8 @@ export const UploadStep = ({
           {!isGuest && (
             <OptionRow
               icon={FolderOpen}
-              title="My résumés"
-              desc="Reopen a saved résumé."
+              title="Open a saved résumé"
+              desc="Pick up where you left off."
               onClick={onOpenLoad}
               loading={isLoadingResumes}
             />
@@ -189,20 +176,10 @@ export const UploadStep = ({
           <OptionRow
             icon={ClipboardPaste}
             title="Paste text"
-            desc={
-              isGuest
-                ? "Paste from a document or email — no account needed."
-                : "Paste from a document or email."
-            }
+            desc={isGuest ? "From a document or email. No account needed." : "From a document or email."}
             onClick={onOpenPaste}
           />
-          <OptionRow
-            icon={Plus}
-            title="Start blank"
-            desc="Type everything yourself."
-            onClick={onStartFresh}
-            last
-          />
+          <OptionRow icon={Plus} title="Start blank" desc="Type it all in yourself." onClick={onStartFresh} last />
         </aside>
       </div>
     </motion.div>
@@ -234,53 +211,41 @@ const OptionRow = ({
   requiresAccount,
 }: OptionRowProps) => (
   <button
+    type="button"
     onClick={onClick}
     disabled={loading}
-    className={`group w-full flex items-start gap-3 px-4 py-3.5 text-left transition-colors disabled:opacity-60 ${
+    className={`group flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors disabled:opacity-60 ${
       last ? "" : "border-b border-[color:var(--cc-hair)]"
-    } ${
-      featured
-        ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)] hover:bg-[color:var(--cc-rust)]"
-        : "hover:bg-[color:var(--cc-cream-2)]"
-    }`}
+    } ${featured ? "bg-[color:var(--cc-rust-soft)] hover:bg-[rgba(42,82,204,0.16)]" : "hover:bg-[color:var(--cc-cream-2)]"}`}
   >
     {loading ? (
-      <Loader2 className="w-4 h-4 mt-0.5 shrink-0 animate-spin" />
+      <span className="mt-0.5">
+        <CraftSpinner size="sm" label="Loading" />
+      </span>
     ) : (
       <Icon
-        className={`w-4 h-4 mt-0.5 shrink-0 ${
-          featured ? "" : "text-[color:var(--cc-ink-soft)]"
-        }`}
+        className={`mt-0.5 h-4 w-4 shrink-0 ${featured ? "text-[color:var(--cc-rust)]" : "text-[color:var(--cc-ink-soft)]"}`}
       />
     )}
-    <span className="flex-1 min-w-0">
-      <span className="flex items-center gap-2 text-sm font-medium leading-tight">
+    <span className="min-w-0 flex-1">
+      <span
+        className={`flex items-center gap-2 text-sm font-semibold leading-tight ${
+          featured ? "text-[color:var(--cc-rust-deep)]" : "text-[color:var(--cc-ink)]"
+        }`}
+      >
         {title}
         {requiresAccount && (
-          <span
-            className={`shrink-0 border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
-              featured
-                ? "border-[color:var(--cc-cream)]/40 text-[color:var(--cc-cream)]/80"
-                : "border-[color:var(--cc-hair-strong)] text-[color:var(--cc-ash)]"
-            }`}
-          >
+          <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[color:var(--cc-ink-soft)]">
             Free account
           </span>
         )}
       </span>
-      <span
-        className={`mt-0.5 block text-[13px] leading-snug ${
-          featured ? "text-[color:var(--cc-cream)]/75" : "text-[color:var(--cc-ash)]"
-        }`}
-      >
-        {desc}
-      </span>
+      <span className="mt-0.5 block text-[13px] leading-snug text-[color:var(--cc-ink-soft)]">{desc}</span>
     </span>
     <ArrowUpRight
-      className={`w-4 h-4 mt-0.5 shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${
-        featured ? "" : "text-[color:var(--cc-ash)]"
+      className={`mt-0.5 h-4 w-4 shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${
+        featured ? "text-[color:var(--cc-rust)]" : "text-[color:var(--cc-ash)]"
       }`}
     />
   </button>
 );
-

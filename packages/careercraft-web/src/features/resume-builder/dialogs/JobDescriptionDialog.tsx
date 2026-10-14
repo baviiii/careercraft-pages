@@ -1,4 +1,5 @@
-/* Target-role dialog — paste the job description, unlock AI rewrite. */
+/* The job ad dialog. With an ad in, the pen on each point can rewrite it
+   to match what the ad asks for. */
 
 import { Check } from "lucide-react";
 
@@ -29,33 +30,22 @@ export const JobDescriptionDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker="§ Target role"
-      title={
-        <>
-          The <span className="cc-italic-wonk">brief</span>.
-        </>
-      }
-      description="Paste the job description. AI rewrite will lean into these keywords and priorities."
+      title="The job ad"
+      description="Paste the ad you're applying for. Rewrites of your points will use its words and priorities."
       maxWidth="max-w-2xl"
       footer={
         <>
-          <button
-            onClick={() => onOpenChange(false)}
-            className="cc-btn cc-btn-ghost"
-          >
+          <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
-          </button>
+          </CraftButton>
           {jobDescription && (
-            <button
-              onClick={() => onJobDescriptionChange("")}
-              className="cc-btn cc-btn-ghost"
-            >
+            <CraftButton variant="ghost" onClick={() => onJobDescriptionChange("")}>
               Clear
-            </button>
+            </CraftButton>
           )}
           <CraftButton onClick={onConfirm}>
-            <Check className="w-4 h-4" />
-            {jobDescription ? "File target" : "Close"}
+            <Check className="h-4 w-4" />
+            {jobDescription ? "Use this ad" : "Close"}
           </CraftButton>
         </>
       }
@@ -63,22 +53,21 @@ export const JobDescriptionDialog = ({
       <CraftTextarea
         value={jobDescription}
         onChange={(e) => onJobDescriptionChange(e.target.value)}
-        placeholder={`Paste the job description here…
+        placeholder={`Paste the job ad here, for example:
 
-We're hiring a Senior Engineer with experience in:
-· React, TypeScript, Node
-· Scaling web apps
-· Leading cross-functional teams
+Customer Service Officer, full time, Adelaide CBD
+About the role
+· Answer customer enquiries by phone and email
+· Keep accurate records in our CRM
 
-Requirements:
-· 5+ years of experience
-· BSc in CS or equivalent`}
-        className="min-h-[280px] font-mono text-sm"
+About you
+· 1+ years in a customer-facing role
+· Clear written and spoken English`}
+        aria-label="Job ad"
+        className="min-h-[280px] text-[14px]"
       />
-      <p className="mt-3 cc-font-editorial italic text-[color:var(--cc-ink-soft)] cc-tabular">
-        {words > 0
-          ? `${words} words on the brief.`
-          : "Paste anywhere — we'll match your bullets to the role."}
+      <p className="mt-2.5 cc-tabular text-[13px] text-[color:var(--cc-ash)]">
+        {words > 0 ? `${words} words.` : "The whole ad is best, including the 'About you' part."}
       </p>
     </CraftDialog>
   );

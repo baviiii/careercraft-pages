@@ -24,15 +24,10 @@ export const EducationForm = ({
   onUpdate,
 }: EducationFormProps) => (
   <CraftSection
-    kicker="§ Education"
-    title={
-      <>
-        The <span className="cc-italic-wonk">schooling</span>.
-      </>
-    }
-    sub="Degrees, institutions, and the occasional grade-point footnote."
+    title="Education"
+    sub="Degrees, TAFE courses and certificates. Most recent first."
   >
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AnimatePresence initial={false}>
         {education.map((edu, index) => (
           <motion.article
@@ -40,57 +35,56 @@ export const EducationForm = ({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
-            className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-5 md:p-6"
+            className="rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] p-4 md:p-5"
           >
-            <div className="flex items-center justify-between pb-4 border-b border-[color:var(--cc-hair)]">
-              <div className="cc-label text-[color:var(--cc-ash)]">
-                Entry Nº&nbsp;{String(index + 1).padStart(2, "0")}
+            <div className="flex items-center justify-between border-b border-[color:var(--cc-hair)] pb-3">
+              <div className="text-[13px] font-medium text-[color:var(--cc-ash)]">
+                {edu.degree || `Qualification ${index + 1}`}
               </div>
               <button
+                type="button"
                 onClick={() => onRemove(edu.id)}
-                className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-rust-deep)] hover:text-[color:var(--cc-rust)]"
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] text-[#9C3424] transition-colors hover:bg-[rgba(194,65,45,0.08)]"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                Strike
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-5">
-              <LabelledField label="Degree" className="md:col-span-2">
+            <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+              <LabelledField label="Qualification" className="md:col-span-2">
                 <CraftInput
                   value={edu.degree}
                   onChange={(e) => onUpdate(edu.id, "degree", e.target.value)}
-                  placeholder="Bachelor of Science in Computer Science"
+                  placeholder="e.g. Bachelor of Business (Marketing)"
                 />
               </LabelledField>
-              <LabelledField label="School">
+              <LabelledField label="Where you studied">
                 <CraftInput
                   value={edu.school}
                   onChange={(e) => onUpdate(edu.id, "school", e.target.value)}
-                  placeholder="University of California"
+                  placeholder="e.g. University of Adelaide"
                 />
               </LabelledField>
-              <LabelledField label="Graduation">
+              <LabelledField label="Finished">
                 <CraftInput
                   value={edu.graduationDate}
-                  onChange={(e) =>
-                    onUpdate(edu.id, "graduationDate", e.target.value)
-                  }
-                  placeholder="May 2020"
+                  onChange={(e) => onUpdate(edu.id, "graduationDate", e.target.value)}
+                  placeholder="e.g. Nov 2023, or Expected 2026"
                 />
               </LabelledField>
-              <LabelledField label="GPA (optional)">
+              <LabelledField label="GPA (optional)" hint="Only worth adding if it's strong.">
                 <CraftInput
                   value={edu.gpa || ""}
                   onChange={(e) => onUpdate(edu.id, "gpa", e.target.value)}
-                  placeholder="3.8/4.0"
+                  placeholder="e.g. 6.2/7"
                 />
               </LabelledField>
               <LabelledField label="Location">
                 <CraftInput
                   value={edu.location}
                   onChange={(e) => onUpdate(edu.id, "location", e.target.value)}
-                  placeholder="Berkeley, CA"
+                  placeholder="e.g. Adelaide SA"
                 />
               </LabelledField>
             </div>
@@ -99,8 +93,8 @@ export const EducationForm = ({
       </AnimatePresence>
 
       <CraftButton variant="ghost" onClick={onAdd} className="w-full">
-        <Plus className="w-4 h-4" />
-        Add entry
+        <Plus className="h-4 w-4" />
+        Add a qualification
       </CraftButton>
     </div>
   </CraftSection>

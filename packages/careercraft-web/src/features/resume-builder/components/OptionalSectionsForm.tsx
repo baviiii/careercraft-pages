@@ -1,7 +1,6 @@
-/* ───────────────────────────────────────────────────────────
-   Optional sections — projects, certifications, references,
-   languages, awards, volunteer work, publications.
-   ─────────────────────────────────────────────────────────── */
+/* Optional sections: projects, certificates and licences, referees,
+   languages, awards, volunteering, publications. Each one only shows on the
+   résumé once something is in it. */
 
 import { Plus, Trash2 } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
@@ -132,9 +131,8 @@ export const OptionalSectionsForm = ({
     <div className="space-y-6">
       {/* Projects */}
       <CraftSection
-        kicker="§ Projects"
-        title="Side works & shipped things."
-        sub="Greenfield builds, open-source, demos."
+        title="Projects"
+        sub="Uni projects, side projects, things you built or ran."
       >
         <SubList
           rows={projects}
@@ -142,20 +140,20 @@ export const OptionalSectionsForm = ({
           renderRow={(p: Project) => (
             <div key={p.id}>
               <SubHeader
-                label={`Project Nº ${String(projects.indexOf(p) + 1).padStart(2, "0")}`}
+                label={`Project ${projects.indexOf(p) + 1}`}
                 onRemove={() => removeItem("projects", p.id)}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 mt-4">
                 <LabelledField label="Name">
                   <CraftInput
                     value={p.name}
                     onChange={(e) =>
                       updateItem("projects", p.id, "name", e.target.value)
                     }
-                    placeholder="Project name"
+                    placeholder="e.g. Club membership app"
                   />
                 </LabelledField>
-                <LabelledField label="Technologies (comma-separated)">
+                <LabelledField label="Tools used" hint="Separate them with commas.">
                   <CraftInput
                     value={(p.technologies || []).join(", ")}
                     onChange={(e) =>
@@ -169,7 +167,7 @@ export const OptionalSectionsForm = ({
                           .filter(Boolean)
                       )
                     }
-                    placeholder="React, TypeScript, Postgres"
+                    placeholder="e.g. Excel, Canva, Python"
                   />
                 </LabelledField>
                 <LabelledField label="Description" className="md:col-span-2">
@@ -184,22 +182,21 @@ export const OptionalSectionsForm = ({
                       )
                     }
                     className="min-h-[100px]"
-                    placeholder="What it does, what you built, what the outcome was."
+                    placeholder="What it was, what you did, and how it turned out."
                   />
                 </LabelledField>
               </div>
             </div>
           )}
-          emptyText="No projects filed yet."
-          addLabel="Add project"
+          emptyText="No projects yet."
+          addLabel="Add a project"
         />
       </CraftSection>
 
       {/* Certifications */}
       <CraftSection
-        kicker="§ Certifications"
-        title="Papers & stamps."
-        sub="Third-party certificates, exams, memberships."
+        title="Certificates and licences"
+        sub="Courses, tickets and memberships, like a White Card, RSA or First Aid."
       >
         <SubList
           rows={certs}
@@ -207,20 +204,20 @@ export const OptionalSectionsForm = ({
           renderRow={(c: Certification) => (
             <div key={c.id}>
               <SubHeader
-                label={`Certificate Nº ${String(certs.indexOf(c) + 1).padStart(2, "0")}`}
+                label={`Certificate ${certs.indexOf(c) + 1}`}
                 onRemove={() => removeItem("certifications", c.id)}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 mt-4">
                 <LabelledField label="Name">
                   <CraftInput
                     value={c.name}
                     onChange={(e) =>
                       updateItem("certifications", c.id, "name", e.target.value)
                     }
-                    placeholder="AWS Solutions Architect"
+                    placeholder="e.g. Provide First Aid (HLTAID011)"
                   />
                 </LabelledField>
-                <LabelledField label="Issuer">
+                <LabelledField label="Given by">
                   <CraftInput
                     value={c.issuer || ""}
                     onChange={(e) =>
@@ -231,7 +228,7 @@ export const OptionalSectionsForm = ({
                         e.target.value
                       )
                     }
-                    placeholder="Amazon"
+                    placeholder="e.g. St John Ambulance"
                   />
                 </LabelledField>
                 <LabelledField label="Date">
@@ -240,10 +237,10 @@ export const OptionalSectionsForm = ({
                     onChange={(e) =>
                       updateItem("certifications", c.id, "date", e.target.value)
                     }
-                    placeholder="Mar 2024"
+                    placeholder="e.g. Mar 2024"
                   />
                 </LabelledField>
-                <LabelledField label="Expiry">
+                <LabelledField label="Expires (if it does)">
                   <CraftInput
                     value={c.expiryDate || ""}
                     onChange={(e) =>
@@ -254,21 +251,21 @@ export const OptionalSectionsForm = ({
                         e.target.value
                       )
                     }
-                    placeholder="Mar 2027"
+                    placeholder="e.g. Mar 2027"
                   />
                 </LabelledField>
               </div>
             </div>
           )}
-          emptyText="No certifications filed yet."
-          addLabel="Add certificate"
+          emptyText="No certificates or licences yet."
+          addLabel="Add a certificate or licence"
         />
       </CraftSection>
 
       {/* References */}
       <CraftSection
-        kicker="§ References"
-        title="Who vouches for the work."
+        title="Referees"
+        sub={'Optional. Many people write "Referees available on request" instead.'}
       >
         <SubList
           rows={refs}
@@ -276,38 +273,38 @@ export const OptionalSectionsForm = ({
           renderRow={(r: Reference) => (
             <div key={r.id}>
               <SubHeader
-                label={`Reference Nº ${String(refs.indexOf(r) + 1).padStart(2, "0")}`}
+                label={`Referee ${refs.indexOf(r) + 1}`}
                 onRemove={() => removeItem("references", r.id)}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 mt-4">
                 <LabelledField label="Name">
                   <CraftInput
                     value={r.name}
                     onChange={(e) =>
                       updateItem("references", r.id, "name", e.target.value)
                     }
-                    placeholder="Jane Manager"
+                    placeholder="e.g. Priya Shah"
                   />
                 </LabelledField>
-                <LabelledField label="Title">
+                <LabelledField label="Their job title">
                   <CraftInput
                     value={r.title || ""}
                     onChange={(e) =>
                       updateItem("references", r.id, "title", e.target.value)
                     }
-                    placeholder="Director of Engineering"
+                    placeholder="e.g. Store Manager"
                   />
                 </LabelledField>
-                <LabelledField label="Company">
+                <LabelledField label="Where they work">
                   <CraftInput
                     value={r.company || ""}
                     onChange={(e) =>
                       updateItem("references", r.id, "company", e.target.value)
                     }
-                    placeholder="Acme Co."
+                    placeholder="e.g. Coles"
                   />
                 </LabelledField>
-                <LabelledField label="Relationship">
+                <LabelledField label="How you know them">
                   <CraftInput
                     value={r.relationship || ""}
                     onChange={(e) =>
@@ -318,7 +315,7 @@ export const OptionalSectionsForm = ({
                         e.target.value
                       )
                     }
-                    placeholder="Former direct manager"
+                    placeholder="e.g. My manager at Coles"
                   />
                 </LabelledField>
                 <LabelledField label="Email">
@@ -327,7 +324,7 @@ export const OptionalSectionsForm = ({
                     onChange={(e) =>
                       updateItem("references", r.id, "email", e.target.value)
                     }
-                    placeholder="jane@acme.com"
+                    placeholder="name@example.com"
                   />
                 </LabelledField>
                 <LabelledField label="Phone">
@@ -336,39 +333,39 @@ export const OptionalSectionsForm = ({
                     onChange={(e) =>
                       updateItem("references", r.id, "phone", e.target.value)
                     }
-                    placeholder="+1 555-123-4567"
+                    placeholder="e.g. 0412 345 678"
                   />
                 </LabelledField>
               </div>
             </div>
           )}
-          emptyText="No references filed yet."
-          addLabel="Add reference"
+          emptyText="No referees yet."
+          addLabel="Add a referee"
         />
       </CraftSection>
 
       {/* Languages */}
-      <CraftSection kicker="§ Languages" title="Tongues held.">
+      <CraftSection title="Languages" sub="Languages other than English, and how well you speak them.">
         <SubList
           rows={langs}
           onAdd={() => addItem("languages")}
           renderRow={(l: Language) => (
             <div key={l.id}>
               <SubHeader
-                label={`Language Nº ${String(langs.indexOf(l) + 1).padStart(2, "0")}`}
+                label={`Language ${langs.indexOf(l) + 1}`}
                 onRemove={() => removeItem("languages", l.id)}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 mt-4">
                 <LabelledField label="Language">
                   <CraftInput
                     value={l.language}
                     onChange={(e) =>
                       updateItem("languages", l.id, "language", e.target.value)
                     }
-                    placeholder="Spanish"
+                    placeholder="e.g. Punjabi"
                   />
                 </LabelledField>
-                <LabelledField label="Proficiency">
+                <LabelledField label="How well">
                   <CraftInput
                     value={l.proficiency}
                     onChange={(e) =>
@@ -379,45 +376,45 @@ export const OptionalSectionsForm = ({
                         e.target.value
                       )
                     }
-                    placeholder="Native / Fluent / Professional"
+                    placeholder="e.g. Fluent, or Conversational"
                   />
                 </LabelledField>
               </div>
             </div>
           )}
-          emptyText="No languages filed yet."
-          addLabel="Add language"
+          emptyText="No languages yet."
+          addLabel="Add a language"
         />
       </CraftSection>
 
       {/* Awards */}
-      <CraftSection kicker="§ Awards" title="Honours & prizes.">
+      <CraftSection title="Awards" sub="Prizes, scholarships and recognition.">
         <SubList
           rows={awards}
           onAdd={() => addItem("awards")}
           renderRow={(a: Award) => (
             <div key={a.id}>
               <SubHeader
-                label={`Award Nº ${String(awards.indexOf(a) + 1).padStart(2, "0")}`}
+                label={`Award ${awards.indexOf(a) + 1}`}
                 onRemove={() => removeItem("awards", a.id)}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 mt-4">
                 <LabelledField label="Title">
                   <CraftInput
                     value={a.title}
                     onChange={(e) =>
                       updateItem("awards", a.id, "title", e.target.value)
                     }
-                    placeholder="Employee of the Year"
+                    placeholder="e.g. Dean's Merit List"
                   />
                 </LabelledField>
-                <LabelledField label="Issuer">
+                <LabelledField label="Given by">
                   <CraftInput
                     value={a.issuer || ""}
                     onChange={(e) =>
                       updateItem("awards", a.id, "issuer", e.target.value)
                     }
-                    placeholder="Acme Co."
+                    placeholder="e.g. Coles"
                   />
                 </LabelledField>
                 <LabelledField label="Date">
@@ -426,7 +423,7 @@ export const OptionalSectionsForm = ({
                     onChange={(e) =>
                       updateItem("awards", a.id, "date", e.target.value)
                     }
-                    placeholder="2023"
+                    placeholder="e.g. 2023"
                   />
                 </LabelledField>
                 <LabelledField label="Description" className="md:col-span-2">
@@ -441,22 +438,21 @@ export const OptionalSectionsForm = ({
                       )
                     }
                     className="min-h-[80px]"
-                    placeholder="Why, and for what."
+                    placeholder="What it was for, in a sentence."
                   />
                 </LabelledField>
               </div>
             </div>
           )}
-          emptyText="No awards filed yet."
-          addLabel="Add award"
+          emptyText="No awards yet."
+          addLabel="Add an award"
         />
       </CraftSection>
 
       {/* Volunteer */}
       <CraftSection
-        kicker="§ Volunteer"
-        title="Hours given."
-        sub="Work done outside the ledger."
+        title="Volunteering"
+        sub="Unpaid work counts. Clubs, charities, community groups."
       >
         <SubList
           rows={volunteer}
@@ -464,17 +460,17 @@ export const OptionalSectionsForm = ({
           renderRow={(v: Volunteer) => (
             <div key={v.id}>
               <SubHeader
-                label={`Volunteer Nº ${String(volunteer.indexOf(v) + 1).padStart(2, "0")}`}
+                label={`Role ${volunteer.indexOf(v) + 1}`}
                 onRemove={() => removeItem("volunteer", v.id)}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 mt-4">
                 <LabelledField label="Role">
                   <CraftInput
                     value={v.role}
                     onChange={(e) =>
                       updateItem("volunteer", v.id, "role", e.target.value)
                     }
-                    placeholder="Mentor"
+                    placeholder="e.g. Junior football coach"
                   />
                 </LabelledField>
                 <LabelledField label="Organisation">
@@ -488,19 +484,19 @@ export const OptionalSectionsForm = ({
                         e.target.value
                       )
                     }
-                    placeholder="Code for Good"
+                    placeholder="e.g. Foodbank SA"
                   />
                 </LabelledField>
-                <LabelledField label="Start">
+                <LabelledField label="Started">
                   <CraftInput
                     value={v.startDate || ""}
                     onChange={(e) =>
                       updateItem("volunteer", v.id, "startDate", e.target.value)
                     }
-                    placeholder="Jan 2022"
+                    placeholder="e.g. Jan 2022"
                   />
                 </LabelledField>
-                <LabelledField label="End">
+                <LabelledField label="Finished">
                   <CraftInput
                     value={v.endDate || ""}
                     onChange={(e) =>
@@ -521,21 +517,21 @@ export const OptionalSectionsForm = ({
                       )
                     }
                     className="min-h-[80px]"
-                    placeholder="What you helped with, and for whom."
+                    placeholder="What you did, and for whom."
                   />
                 </LabelledField>
               </div>
             </div>
           )}
-          emptyText="No volunteer work filed yet."
-          addLabel="Add volunteer entry"
+          emptyText="No volunteering yet."
+          addLabel="Add volunteering"
         />
       </CraftSection>
 
       {/* Publications */}
       <CraftSection
-        kicker="§ Publications"
-        title="Things written in ink."
+        title="Publications"
+        sub="Articles, papers or reports with your name on them."
       >
         <SubList
           rows={pubs}
@@ -543,10 +539,10 @@ export const OptionalSectionsForm = ({
           renderRow={(p: Publication) => (
             <div key={p.id}>
               <SubHeader
-                label={`Publication Nº ${String(pubs.indexOf(p) + 1).padStart(2, "0")}`}
+                label={`Publication ${pubs.indexOf(p) + 1}`}
                 onRemove={() => removeItem("publications", p.id)}
               />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4 mt-4">
                 <LabelledField label="Title">
                   <CraftInput
                     value={p.title}
@@ -558,7 +554,7 @@ export const OptionalSectionsForm = ({
                         e.target.value
                       )
                     }
-                    placeholder="The article title"
+                    placeholder="Title"
                   />
                 </LabelledField>
                 <LabelledField label="Publisher">
@@ -572,7 +568,7 @@ export const OptionalSectionsForm = ({
                         e.target.value
                       )
                     }
-                    placeholder="Journal or site"
+                    placeholder="e.g. a journal, newspaper or website"
                   />
                 </LabelledField>
                 <LabelledField label="Date">
@@ -581,10 +577,10 @@ export const OptionalSectionsForm = ({
                     onChange={(e) =>
                       updateItem("publications", p.id, "date", e.target.value)
                     }
-                    placeholder="2024"
+                    placeholder="e.g. 2024"
                   />
                 </LabelledField>
-                <LabelledField label="URL">
+                <LabelledField label="Link">
                   <CraftInput
                     value={p.url || ""}
                     onChange={(e) =>
@@ -605,14 +601,14 @@ export const OptionalSectionsForm = ({
                       )
                     }
                     className="min-h-[80px]"
-                    placeholder="A sentence about the piece."
+                    placeholder="One sentence on what it's about."
                   />
                 </LabelledField>
               </div>
             </div>
           )}
-          emptyText="No publications filed yet."
-          addLabel="Add publication"
+          emptyText="No publications yet."
+          addLabel="Add a publication"
         />
       </CraftSection>
     </div>
@@ -626,14 +622,15 @@ const SubHeader = ({
   label: string;
   onRemove: () => void;
 }) => (
-  <div className="flex items-center justify-between pb-3 border-b border-[color:var(--cc-hair)]">
-    <div className="cc-label text-[color:var(--cc-ash)]">{label}</div>
+  <div className="flex items-center justify-between border-b border-[color:var(--cc-hair)] pb-3">
+    <div className="text-[13px] font-medium text-[color:var(--cc-ash)]">{label}</div>
     <button
+      type="button"
       onClick={onRemove}
-      className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-rust-deep)] hover:text-[color:var(--cc-rust)]"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] text-[#9C3424] transition-colors hover:bg-[rgba(194,65,45,0.08)]"
     >
-      <Trash2 className="w-3.5 h-3.5" />
-      Strike
+      <Trash2 className="h-3.5 w-3.5" />
+      Remove
     </button>
   </div>
 );
@@ -652,23 +649,21 @@ function SubList<T>({
   emptyText: string;
 }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {rows.length === 0 ? (
-        <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-          {emptyText}
-        </p>
+        <p className="text-[14px] text-[color:var(--cc-ash)]">{emptyText}</p>
       ) : (
         rows.map((row) => (
           <div
             key={(row as any).id}
-            className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-5 md:p-6"
+            className="rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] p-4 md:p-5"
           >
             {renderRow(row)}
           </div>
         ))
       )}
       <CraftButton variant="ghost" onClick={onAdd} className="w-full">
-        <Plus className="w-4 h-4" />
+        <Plus className="h-4 w-4" />
         {addLabel}
       </CraftButton>
     </div>

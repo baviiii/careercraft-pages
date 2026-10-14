@@ -8,20 +8,15 @@ interface ContactFormProps {
 
 export const ContactForm = ({ contact, onChange }: ContactFormProps) => (
   <CraftSection
-    kicker="§ Contact"
-    title={
-      <>
-        The <span className="cc-italic-wonk">masthead</span>.
-      </>
-    }
-    sub="Where the reader finds you — name, wire, post."
+    title="Contact details"
+    sub="How an employer reaches you."
   >
     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
       <LabelledField label="Full name" required>
         <CraftInput
           value={contact.name}
           onChange={(e) => onChange("name", e.target.value)}
-          placeholder="Jane Doe"
+          placeholder="e.g. Sam Lee"
         />
       </LabelledField>
       <LabelledField label="Email" required>
@@ -29,35 +24,35 @@ export const ContactForm = ({ contact, onChange }: ContactFormProps) => (
           type="email"
           value={contact.email}
           onChange={(e) => onChange("email", e.target.value)}
-          placeholder="jane@example.com"
+          placeholder="you@example.com"
         />
       </LabelledField>
       <LabelledField label="Phone">
         <CraftInput
           value={contact.phone}
           onChange={(e) => onChange("phone", e.target.value)}
-          placeholder="+1 (555) 123-4567"
+          placeholder="e.g. 0412 345 678"
         />
       </LabelledField>
       <LabelledField label="Location">
         <CraftInput
           value={contact.location}
           onChange={(e) => onChange("location", e.target.value)}
-          placeholder="San Francisco, CA"
+          placeholder="e.g. Adelaide SA"
         />
       </LabelledField>
       <LabelledField label="LinkedIn">
         <CraftInput
           value={contact.linkedin || ""}
           onChange={(e) => onChange("linkedin", e.target.value)}
-          placeholder="linkedin.com/in/janedoe"
+          placeholder="linkedin.com/in/your-name"
         />
       </LabelledField>
       <LabelledField label="Website">
         <CraftInput
           value={contact.website || ""}
           onChange={(e) => onChange("website", e.target.value)}
-          placeholder="janedoe.com"
+          placeholder="your-site.com"
         />
       </LabelledField>
     </div>

@@ -83,7 +83,7 @@ export const CraftAppHeader = memo(function CraftAppHeader({
         <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-14 flex items-center justify-between gap-4">
           <button
             onClick={() => navigate(backTo)}
-            className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-ink)] cc-link"
+            className="inline-flex items-center gap-2 rounded-full px-2 py-1 -ml-2 cc-font-sans text-[14px] font-medium text-[color:var(--cc-ink-soft)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{backLabel}</span>
@@ -92,13 +92,9 @@ export const CraftAppHeader = memo(function CraftAppHeader({
           <div className="flex items-center gap-3">
             {rightSlot}
             {ctaLabel && onCta && (
-              <button
-                onClick={onCta}
-                className="cc-btn cc-btn-primary"
-                style={{ padding: "0.6rem 1rem" }}
-              >
+              <button type="button" onClick={onCta} className="cc-action cc-action--sm">
                 <span className="hidden sm:inline">{ctaLabel}</span>
-                <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+                <ArrowUpRight className="h-4 w-4" />
               </button>
             )}
           </div>
@@ -107,13 +103,13 @@ export const CraftAppHeader = memo(function CraftAppHeader({
 
       {/* Editorial masthead — scrolls away naturally so reading space isn't pinched */}
       {title && (
-        <header className="max-w-[1400px] mx-auto px-6 md:px-10 pt-8 md:pt-10 pb-10 md:pb-12">
-          {kicker && <div className="cc-label text-[color:var(--cc-rust)]">{kicker}</div>}
-          <h1 className="mt-4 cc-font-display text-4xl md:text-6xl lg:text-7xl leading-[0.92] tracking-tight">
+        <header className="max-w-[1400px] mx-auto px-6 md:px-10 pt-8 md:pt-10 pb-8">
+          {kicker && <div className="cc-kicker">{kicker}</div>}
+          <h1 className="mt-3 cc-font-display text-4xl md:text-5xl leading-[0.95] tracking-tight">
             {title}
           </h1>
           {sub && (
-            <p className="mt-6 cc-font-editorial text-xl md:text-2xl leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
+            <p className="mt-3 cc-font-sans text-base md:text-lg text-[color:var(--cc-ink-soft)] max-w-2xl">
               {sub}
             </p>
           )}

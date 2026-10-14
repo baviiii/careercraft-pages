@@ -51,7 +51,7 @@ export function useResumePersistence({
       } = await supabase.auth.getUser();
       if (!user) {
         toast({
-          title: "Sign in to open your saved resumes",
+          title: "Sign in to open your saved résumés",
           variant: "destructive",
         });
         return;
@@ -66,7 +66,7 @@ export function useResumePersistence({
       dialogs.setShowLoadResumeDialog(true);
     } catch (error) {
       console.error("Error loading resumes:", error);
-      toast({ title: "Couldn't load your resumes", variant: "destructive" });
+      toast({ title: "Couldn't load your résumés", variant: "destructive" });
     } finally {
       setIsLoadingResumes(false);
     }
@@ -100,7 +100,7 @@ export function useResumePersistence({
         });
       } catch (error) {
         console.error("Error parsing resume:", error);
-        toast({ title: "Failed to reopen draft", variant: "destructive" });
+        toast({ title: "Couldn't open that résumé", variant: "destructive" });
       }
     },
     [toast, dialogs, setResumeData, setCurrentResumeId, setResumeName, setSelectedTemplate, setCurrentStep]
@@ -116,7 +116,7 @@ export function useResumePersistence({
       if (!user) {
         toast({
           title: "Not signed in",
-          description: "Please sign in to file your draft.",
+          description: "Sign in to save your résumé.",
           variant: "destructive",
         });
         return;
@@ -149,7 +149,7 @@ export function useResumePersistence({
 
         toast({
           title: "Changes saved",
-          description: "Your updates were saved to this resume.",
+          description: "Your résumé is up to date.",
         });
       } else {
         const { data, error } = await supabase
@@ -167,8 +167,8 @@ export function useResumePersistence({
         if (data) setCurrentResumeId(data.id);
 
         toast({
-          title: "Resume saved",
-          description: "Added to your resumes — find it in My resumes.",
+          title: "Résumé saved",
+          description: "You'll find it in My Résumés.",
           action: undefined,
         });
       }
@@ -177,8 +177,8 @@ export function useResumePersistence({
     } catch (error) {
       console.error("Save error:", error);
       toast({
-        title: "Filing failed",
-        description: "Could not save the résumé.",
+        title: "Couldn't save",
+        description: "Your résumé wasn't saved. Try again in a moment.",
         variant: "destructive",
       });
       setAutoSaveStatus("unsaved");

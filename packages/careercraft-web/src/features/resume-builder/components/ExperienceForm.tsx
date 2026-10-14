@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { PenLine, Plus, Target, Trash2, X } from "lucide-react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 
 import type { Experience } from "../types";
 import { CraftInput, CraftSection, CraftTextarea, LabelledField } from "./FormField";
@@ -36,23 +37,18 @@ export const ExperienceForm = ({
   onRewriteBullet,
 }: ExperienceFormProps) => (
   <CraftSection
-    kicker="§ Experience"
-    title={
-      <>
-        The <span className="cc-italic-wonk">ledger</span> of roles.
-      </>
-    }
-    sub="Each chapter is a job. Short bullets, strong verbs, measured outcomes."
+    title="Work experience"
+    sub="Most recent first. A few short points per job: what you did, and what came of it."
     right={
       jobDescription ? (
-        <span className="cc-pill cc-pill-rust">
-          <Sparkles className="w-3 h-3" />
-          Targeting a role
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--cc-rust-soft)] px-2.5 py-1 text-[12.5px] font-medium text-[color:var(--cc-rust-deep)]">
+          <Target className="h-3.5 w-3.5" />
+          Tailoring to a job ad
         </span>
       ) : null
     }
   >
-    <div className="space-y-5">
+    <div className="space-y-4">
       <AnimatePresence initial={false}>
         {experience.map((exp, index) => (
           <motion.article
@@ -60,133 +56,118 @@ export const ExperienceForm = ({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, height: 0 }}
-            className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] p-5 md:p-6"
+            className="rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] p-4 md:p-5"
           >
-            <div className="flex items-center justify-between pb-4 border-b border-[color:var(--cc-hair)]">
-              <div className="cc-label text-[color:var(--cc-ash)]">
-                Position Nº&nbsp;{String(index + 1).padStart(2, "0")}
+            <div className="flex items-center justify-between border-b border-[color:var(--cc-hair)] pb-3">
+              <div className="text-[13px] font-medium text-[color:var(--cc-ash)]">
+                {exp.title ? `${exp.title}${exp.company ? ` · ${exp.company}` : ""}` : `Job ${index + 1}`}
               </div>
               <button
+                type="button"
                 onClick={() => onRemove(exp.id)}
-                className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-rust-deep)] hover:text-[color:var(--cc-rust)]"
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] text-[#9C3424] transition-colors hover:bg-[rgba(194,65,45,0.08)]"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                Strike
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mt-5">
+            <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
               <LabelledField label="Job title">
                 <CraftInput
                   value={exp.title}
                   onChange={(e) => onUpdate(exp.id, "title", e.target.value)}
-                  placeholder="Software Engineer"
+                  placeholder="e.g. Data Analyst"
                 />
               </LabelledField>
-              <LabelledField label="Company">
+              <LabelledField label="Employer">
                 <CraftInput
                   value={exp.company}
                   onChange={(e) => onUpdate(exp.id, "company", e.target.value)}
-                  placeholder="Tech Company Inc."
+                  placeholder="e.g. SA Health"
                 />
               </LabelledField>
               <LabelledField label="Location">
                 <CraftInput
                   value={exp.location}
                   onChange={(e) => onUpdate(exp.id, "location", e.target.value)}
-                  placeholder="San Francisco, CA"
+                  placeholder="e.g. Adelaide SA"
                 />
               </LabelledField>
               <div className="grid grid-cols-2 gap-3">
-                <LabelledField label="Start">
+                <LabelledField label="Started">
                   <CraftInput
                     value={exp.startDate}
-                    onChange={(e) =>
-                      onUpdate(exp.id, "startDate", e.target.value)
-                    }
-                    placeholder="Jan 2020"
+                    onChange={(e) => onUpdate(exp.id, "startDate", e.target.value)}
+                    placeholder="e.g. Mar 2022"
                   />
                 </LabelledField>
-                <LabelledField label="End">
+                <LabelledField label="Finished">
                   <CraftInput
                     value={exp.current ? "Present" : exp.endDate}
-                    onChange={(e) =>
-                      onUpdate(exp.id, "endDate", e.target.value)
-                    }
+                    onChange={(e) => onUpdate(exp.id, "endDate", e.target.value)}
                     placeholder="Present"
                   />
                 </LabelledField>
               </div>
             </div>
 
-            {/* Bullets */}
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <div className="cc-label text-[color:var(--cc-ash)]">
-                  Achievements
-                </div>
-                {jobDescription && (
-                  <span className="cc-pill cc-pill-rust">
-                    <Sparkles className="w-3 h-3" />
-                    AI rewrite available
-                  </span>
-                )}
+            {/* Points */}
+            <div className="mt-5">
+              <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[13px] font-medium text-[color:var(--cc-ink-soft)]">What you did</div>
+                <span className="text-[12.5px] text-[color:var(--cc-ash)]">
+                  {jobDescription ? "Tap the pen to tailor a point to the job ad." : "Add the job ad (top of the page) to tailor points to it."}
+                </span>
               </div>
-              <ol className="space-y-3" style={{ counterReset: "bullets" }}>
-                {exp.bullets.map((bullet, bulletIndex) => (
-                  <li
-                    key={bulletIndex}
-                    className="flex items-start gap-3 group"
-                    style={{ counterIncrement: "bullets" }}
-                  >
-                    <span className="cc-font-display italic text-[color:var(--cc-rust)] pt-2 cc-tabular text-lg w-8 flex-shrink-0">
-                      {romanise(bulletIndex + 1)}
-                    </span>
-                    <CraftTextarea
-                      value={bullet}
-                      onChange={(e) =>
-                        onUpdateBullet(exp.id, bulletIndex, e.target.value)
-                      }
-                      placeholder="What you shipped, who it helped, and by how much."
-                      className="flex-1 min-h-[76px]"
-                    />
-                    <div className="flex flex-col gap-1 pt-2">
-                      <button
-                        onClick={() => onRewriteBullet(exp.id, bulletIndex)}
-                        disabled={
-                          rewritingBulletId === `${exp.id}-${bulletIndex}` ||
-                          !bullet.trim()
-                        }
-                        title={
-                          jobDescription
-                            ? "AI rewrite"
-                            : "Add a target job first"
-                        }
-                        className="p-2 border border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-rust)] hover:text-[color:var(--cc-rust)] transition-colors disabled:opacity-40"
-                      >
-                        {rewritingBulletId === `${exp.id}-${bulletIndex}` ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => onRemoveBullet(exp.id, bulletIndex)}
-                        disabled={exp.bullets.length <= 1}
-                        className="p-2 border border-[color:var(--cc-hair-strong)] hover:border-[color:var(--cc-ink)] transition-colors disabled:opacity-40"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              <ul className="space-y-2.5">
+                {exp.bullets.map((bullet, bulletIndex) => {
+                  const rewriting = rewritingBulletId === `${exp.id}-${bulletIndex}`;
+                  return (
+                    <li key={bulletIndex} className="group flex items-start gap-2.5">
+                      <span className="w-3 flex-shrink-0 pt-3 text-center text-[color:var(--cc-ash)]" aria-hidden>
+                        •
+                      </span>
+                      <CraftTextarea
+                        value={bullet}
+                        onChange={(e) => onUpdateBullet(exp.id, bulletIndex, e.target.value)}
+                        placeholder="e.g. Cut weekly reporting time by 40% by automating the data pull."
+                        aria-label={`Point ${bulletIndex + 1}`}
+                        className="min-h-[72px] flex-1"
+                      />
+                      <div className="flex flex-col gap-1 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => onRewriteBullet(exp.id, bulletIndex)}
+                          disabled={rewriting || !bullet.trim()}
+                          title={jobDescription ? "Rewrite this point for the job ad" : "Add the job ad first"}
+                          aria-label="Rewrite this point for the job ad"
+                          className="grid h-8 w-8 place-items-center rounded-lg text-[color:var(--cc-ink-soft)] transition-colors hover:bg-[color:var(--cc-rust-soft)] hover:text-[color:var(--cc-rust)] disabled:opacity-40"
+                        >
+                          {rewriting ? <CraftSpinner size="sm" label="Rewriting" /> : <PenLine className="h-4 w-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveBullet(exp.id, bulletIndex)}
+                          disabled={exp.bullets.length <= 1}
+                          title="Remove this point"
+                          aria-label="Remove this point"
+                          className="grid h-8 w-8 place-items-center rounded-lg text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)] disabled:opacity-40"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
               <button
+                type="button"
                 onClick={() => onAddBullet(exp.id)}
-                className="mt-4 inline-flex items-center gap-2 cc-label text-[color:var(--cc-ink)] hover:text-[color:var(--cc-rust)]"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-medium text-[color:var(--cc-rust)] transition-colors hover:bg-[color:var(--cc-rust-soft)]"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Add another bullet
+                <Plus className="h-3.5 w-3.5" />
+                Add a point
               </button>
             </div>
           </motion.article>
@@ -194,28 +175,9 @@ export const ExperienceForm = ({
       </AnimatePresence>
 
       <CraftButton variant="ghost" onClick={onAdd} className="w-full">
-        <Plus className="w-4 h-4" />
-        Add position
+        <Plus className="h-4 w-4" />
+        Add a job
       </CraftButton>
     </div>
   </CraftSection>
 );
-
-function romanise(n: number): string {
-  const table: [number, string][] = [
-    [10, "x"],
-    [9, "ix"],
-    [5, "v"],
-    [4, "iv"],
-    [1, "i"],
-  ];
-  let out = "";
-  let remainder = n;
-  for (const [val, sym] of table) {
-    while (remainder >= val) {
-      out += sym;
-      remainder -= val;
-    }
-  }
-  return `${out}.`;
-}

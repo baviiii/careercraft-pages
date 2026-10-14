@@ -1,9 +1,10 @@
-/* Save a résumé to the cabinet — with category + tag metadata. */
+/* Save a résumé to My Résumés, with a category and tags. */
 
-import { Check, Loader2, Plus, X } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 
 import { CraftInput, LabelledField } from "../components/FormField";
 import { CATEGORIES, PRESET_TAGS } from "../types";
@@ -25,6 +26,8 @@ interface SaveResumeDialogProps {
   isUpdate: boolean;
   onSave: () => void;
 }
+
+const SUBLABEL = "mb-2 block text-[13px] font-medium text-[color:var(--cc-ink-soft)]";
 
 export const SaveResumeDialog = ({
   open,
@@ -61,68 +64,56 @@ export const SaveResumeDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker={isUpdate ? "§ Update resume" : "§ Save resume"}
-      title={
-        isUpdate ? (
-          <>
-            Update the <span className="cc-italic-wonk">entry</span>.
-          </>
-        ) : (
-          <>
-            Save this <span className="cc-italic-wonk">resume</span>.
-          </>
-        )
-      }
-      description="Name it, pick a category, and add tags so you can find it later."
+      title={isUpdate ? "Save changes" : "Save your résumé"}
+      description="Give it a name you'll recognise. A category and tags help you find it in My Résumés."
       maxWidth="max-w-lg"
       footer={
         <>
-          <button
-            onClick={() => onOpenChange(false)}
-            className="cc-btn cc-btn-ghost"
-          >
+          <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
-          </button>
+          </CraftButton>
           <CraftButton onClick={onSave} disabled={isSaving}>
             {isSaving ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <CraftSpinner size="sm" label="Saving" />
                 Saving…
               </>
             ) : (
               <>
-                <Check className="w-4 h-4" />
-                {isUpdate ? "Update" : "Save"}
+                <Check className="h-4 w-4" />
+                {isUpdate ? "Save changes" : "Save"}
               </>
             )}
           </CraftButton>
         </>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Name */}
-        <LabelledField label="Resume title" required>
+        <LabelledField label="Name" required>
           <CraftInput
             value={resumeName}
             onChange={(e) => onResumeNameChange(e.target.value)}
-            placeholder="Software Engineer — Google"
+            placeholder="e.g. Admin roles, SA Health"
           />
         </LabelledField>
 
         {/* Category */}
         <div>
-          <div className="cc-label text-[color:var(--cc-ash)]">Category</div>
-          <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
+          <span className={SUBLABEL}>Category</span>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Category">
             {CATEGORIES.map((cat) => {
               const active = category === cat.id;
               return (
                 <button
                   key={cat.id}
+                  type="button"
+                  aria-pressed={active}
                   onClick={() => onCategoryChange(cat.id)}
-                  className={`px-3 py-3 text-center transition-colors cc-label ${
+                  className={`rounded-full border px-3.5 py-1.5 text-[13.5px] transition-colors ${
                     active
-                      ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-                      : "bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)]"
+                      ? "border-[color:var(--cc-ink)] bg-[color:var(--cc-ink)] font-medium text-[color:var(--cc-cream)]"
+                      : "border-[color:var(--cc-hair)] bg-white text-[color:var(--cc-ink-soft)] hover:border-[color:var(--cc-ink)] hover:text-[color:var(--cc-ink)]"
                   }`}
                 >
                   {cat.label}
@@ -134,29 +125,31 @@ export const SaveResumeDialog = ({
 
         {/* Tags */}
         <div>
-          <div className="cc-label text-[color:var(--cc-ash)]">Tags</div>
-
-          <div className="mt-2 flex flex-wrap gap-1.5 min-h-[2rem]">
-            {tags.length === 0 ? (
-              <span className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-                None yet.
-              </span>
-            ) : (
-              tags.map((tag) => (
-                <button
+          <span className={SUBLABEL}>Tags</span>
+          {tags.length === 0 ? (
+            <p className="text-[14px] text-[color:var(--cc-ash)]">None yet. Add one below or pick a suggestion.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((tag) => (
+                <span
                   key={tag}
-                  type="button"
-                  onClick={() => removeTag(tag)}
-                  className="cc-pill cc-pill-filled group"
+                  className="inline-flex items-center gap-1 rounded-full bg-[color:var(--cc-ink)] py-1 pl-3 pr-1.5 text-[13px] text-[color:var(--cc-cream)]"
                 >
                   {tag}
-                  <X className="w-3 h-3 ml-1 opacity-60 group-hover:opacity-100" />
-                </button>
-              ))
-            )}
-          </div>
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="grid h-5 w-5 place-items-center rounded-full hover:bg-white/20"
+                    aria-label={`Remove ${tag}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
-          <div className="mt-3 flex items-end gap-2">
+          <div className="mt-3 flex items-center gap-2">
             <div className="flex-1">
               <CraftInput
                 value={draftTag}
@@ -167,40 +160,33 @@ export const SaveResumeDialog = ({
                     commitTag();
                   }
                 }}
-                placeholder="Custom tag…"
+                placeholder="Add your own tag"
+                aria-label="Add your own tag"
               />
             </div>
-            <button
-              type="button"
-              onClick={commitTag}
-              disabled={!draftTag.trim()}
-              className="cc-btn cc-btn-ghost"
-              style={{ padding: "0.8rem 1.1rem" }}
-            >
-              <Plus className="w-4 h-4" />
+            <CraftButton variant="ghost" size="sm" onClick={commitTag} disabled={!draftTag.trim()}>
+              <Plus className="h-3.5 w-3.5" />
               Add
-            </button>
+            </CraftButton>
           </div>
 
-          {/* Preset tags */}
+          {/* Suggestions */}
           <div className="mt-4">
-            <div className="cc-label text-[color:var(--cc-ash)] mb-2">
-              Quick-add
-            </div>
+            <span className={SUBLABEL}>Suggestions</span>
             <div className="flex flex-wrap gap-1.5">
-              {PRESET_TAGS.filter((t) => !tags.includes(t)).slice(0, 8).map(
-                (tag) => (
+              {PRESET_TAGS.filter((t) => !tags.includes(t))
+                .slice(0, 8)
+                .map((tag) => (
                   <button
                     key={tag}
                     type="button"
                     onClick={() => addPreset(tag)}
-                    className="cc-pill"
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-[color:var(--cc-hair-strong)] px-3 py-1 text-[13px] text-[color:var(--cc-ink-soft)] transition-colors hover:border-solid hover:border-[color:var(--cc-rust)] hover:text-[color:var(--cc-rust)]"
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="h-3 w-3" />
                     {tag}
                   </button>
-                )
-              )}
+                ))}
             </div>
           </div>
         </div>

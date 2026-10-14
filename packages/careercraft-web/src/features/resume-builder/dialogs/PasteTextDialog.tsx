@@ -1,8 +1,9 @@
-/* Paste-text dialog — editorial styling, not a shadcn panel. */
+/* Paste your résumé's text and have it sorted into the builder's fields. */
 
-import { Check, Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 
 import { CraftTextarea } from "../components/FormField";
 
@@ -31,38 +32,33 @@ export const PasteTextDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker="§ Paste"
-      title={
-        <>
-          Type it <span className="cc-italic-wonk">in</span>.
-        </>
-      }
-      description="AI reads the text and sorts it into fields — no account needed. Paste straight from a PDF; scrambled columns are fine."
+      title="Paste your résumé"
+      description="We'll sort the text into the right fields. No account needed. Copying straight out of a PDF is fine, even if the columns come out jumbled."
       maxWidth="max-w-2xl"
       footer={
         <>
-          <button
+          <CraftButton
+            variant="ghost"
             onClick={() => {
               onOpenChange(false);
               onPastedTextChange("");
             }}
-            className="cc-btn cc-btn-ghost"
           >
             Cancel
-          </button>
+          </CraftButton>
           <CraftButton
             onClick={onProcess}
             disabled={!pastedText.trim() || isProcessing}
           >
             {isProcessing ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <CraftSpinner size="sm" label="Reading" />
                 Reading…
               </>
             ) : (
               <>
-                <Check className="w-4 h-4" />
-                Read & compose
+                <Check className="h-4 w-4" />
+                Fill in my details
               </>
             )}
           </CraftButton>
@@ -72,35 +68,31 @@ export const PasteTextDialog = ({
       {/* The AI-parsing toggle that sat here is gone. Its "off" position
           selected a regex parser that cannot read a multi-column paste — a
           switch whose only function was to produce a worse result. */}
-      <div className="space-y-4">
-        <CraftTextarea
-          value={pastedText}
-          onChange={(e) => onPastedTextChange(e.target.value)}
-          placeholder={`Paste the résumé text here…
+      <CraftTextarea
+        value={pastedText}
+        onChange={(e) => onPastedTextChange(e.target.value)}
+        placeholder={`Paste your résumé text here, for example:
 
-Jane Doe
-jane@example.com · (555) 123-4567 · Adelaide, SA
+Sam Lee
+sam@example.com · 0412 345 678 · Adelaide SA
 
 EXPERIENCE
-Software Engineer at Acme
-Jan 2020 – Present
-· Shipped scalable APIs serving 1M+ users
-· Led team of five
+Customer Service Officer, SA Water
+Mar 2022 – Present
+· Handled 60+ customer calls a day
+· Trained four new starters
 
 EDUCATION
-BSc Computer Science, UoA, 2019
+Bachelor of Business, University of Adelaide, 2021
 
 SKILLS
-React, TypeScript, Postgres, AWS`}
-          className="min-h-[260px] font-mono text-sm"
-        />
-
-        <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)] cc-tabular">
-          {words > 0
-            ? `${words} words · ready to compose.`
-            : "Paste anything and we'll sort the stacks."}
-        </p>
-      </div>
+Excel, Salesforce, customer service`}
+        aria-label="Résumé text"
+        className="min-h-[260px] text-[14px]"
+      />
+      <p className="mt-2.5 cc-tabular text-[13px] text-[color:var(--cc-ash)]">
+        {words > 0 ? `${words} words.` : "Paste the whole thing. You can fix anything afterwards."}
+      </p>
     </CraftDialog>
   );
 };

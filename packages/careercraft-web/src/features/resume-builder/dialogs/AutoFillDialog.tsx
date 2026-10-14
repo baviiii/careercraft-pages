@@ -1,6 +1,6 @@
-/* Confirm auto-fill from the user's saved profile. */
+/* Confirm filling the builder from the user's saved profile. */
 
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, User } from "lucide-react";
 
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
 
@@ -22,44 +22,38 @@ export const AutoFillDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ Auto-fill"
-    title={
-      <>
-        Lift from the <span className="cc-italic-wonk">profile</span>.
-      </>
-    }
-    description="Fill empty fields with what's on file — nothing already written will be overwritten."
+    title="Fill from your profile"
+    description="Only empty fields get filled. Anything you've already typed stays as it is."
     footer={
       <>
-        <button
-          onClick={() => onOpenChange(false)}
-          className="cc-btn cc-btn-ghost"
-        >
-          <X className="w-4 h-4" />
+        <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
-        </button>
+        </CraftButton>
         <CraftButton onClick={onConfirm}>
-          <Check className="w-4 h-4" />
+          <Check className="h-4 w-4" />
           Fill it in
         </CraftButton>
       </>
     }
   >
-    <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-5">
-      <div className="flex items-start gap-3">
-        <Sparkles className="w-5 h-5 mt-0.5 text-[color:var(--cc-rust)]" />
-        <div>
-          <div className="cc-label text-[color:var(--cc-ink)]">
-            Lifting from {profileName || "your profile"}
-          </div>
-          <ul className="mt-3 space-y-1.5 cc-font-editorial text-[17px] text-[color:var(--cc-ink-soft)]">
-            <li>· Contact (name, email, phone, location, links)</li>
-            <li>· Professional summary</li>
-            <li>· {profileSkillCount} filed skills</li>
-            <li>· Career notes where available</li>
-          </ul>
-        </div>
+    <div className="rounded-xl bg-[color:var(--cc-cream-2)] p-4">
+      <div className="flex items-center gap-2 text-[14px] font-medium text-[color:var(--cc-ink)]">
+        <User className="h-4 w-4 text-[color:var(--cc-rust)]" />
+        From {profileName || "your profile"}
       </div>
+      <ul className="mt-2.5 space-y-1.5 text-[14.5px] text-[color:var(--cc-ink-soft)]">
+        {[
+          "Contact details: name, email, phone, location and links",
+          "Your summary",
+          `${profileSkillCount} skill${profileSkillCount === 1 ? "" : "s"}`,
+          "Work history, if your profile has it",
+        ].map((line) => (
+          <li key={line} className="flex gap-2">
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--cc-signal-deep)]" />
+            {line}
+          </li>
+        ))}
+      </ul>
     </div>
   </CraftDialog>
 );

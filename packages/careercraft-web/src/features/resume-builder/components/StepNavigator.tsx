@@ -1,7 +1,10 @@
 /* ───────────────────────────────────────────────────────────
-   The four-step progress rail.
-   01 Import / 02 Edit / 03 Template / 04 Export
+   The four steps: Start · Edit · Design · Download.
+   Steps you've reached can be tapped to go back; later ones wait.
    ─────────────────────────────────────────────────────────── */
+
+import { Check, ChevronRight } from "lucide-react";
+import { Fragment } from "react";
 
 import { STEPS } from "../types";
 
@@ -10,77 +13,56 @@ interface StepNavigatorProps {
   onStepClick: (index: number) => void;
 }
 
-export const StepNavigator = ({
-  currentStep,
-  onStepClick,
-}: StepNavigatorProps) => {
-  return (
-    <div className="border-t border-b border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)]">
-      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-5">
-        <div className="grid grid-cols-4 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
-          {STEPS.map((step, i) => {
-            const isActive = i === currentStep;
-            const isDone = i < currentStep;
-            const isReachable = i <= currentStep;
+export const StepNavigator = ({ currentStep, onStepClick }: StepNavigatorProps) => (
+  <nav aria-label="Steps" className="mx-auto max-w-[1400px] px-6 md:px-10">
+    <ol className="flex flex-wrap items-center gap-1 rounded-2xl border border-[color:var(--cc-hair)] bg-white p-1.5">
+      {STEPS.map((step, i) => {
+        const isActive = i === currentStep;
+        const isDone = i < currentStep;
+        const isReachable = i <= currentStep;
 
-            const state = isActive ? "active" : isDone ? "done" : "pending";
-
-            return (
+        return (
+          <Fragment key={step.id}>
+            {i > 0 && (
+              <ChevronRight className="hidden h-4 w-4 shrink-0 text-[color:var(--cc-hair-strong)] sm:block" aria-hidden />
+            )}
+            <li className="min-w-0 flex-1">
               <button
-                key={step.id}
+                type="button"
                 onClick={() => isReachable && onStepClick(i)}
                 disabled={!isReachable}
-                className={[
-                  "text-left p-4 md:p-5 transition-colors",
-                  state === "active"
-                    ? "bg-[color:var(--cc-cream)] shadow-[inset_0_3px_0_0_var(--cc-rust)]"
-                    : state === "done"
-                    ? "bg-[color:var(--cc-cream)]"
-                    : "bg-[color:var(--cc-cream-2)]",
-                  isReachable ? "cursor-pointer" : "cursor-not-allowed",
-                ].join(" ")}
+                aria-current={isActive ? "step" : undefined}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${
+                  isActive ? "bg-[color:var(--cc-cream-2)]" : isReachable ? "hover:bg-[color:var(--cc-cream-2)]" : "cursor-default"
+                }`}
               >
-                <div
-                  className={[
-                    "cc-label",
-                    state === "active"
-                      ? "text-[color:var(--cc-rust)]"
-                      : state === "done"
-                      ? "text-[color:var(--cc-ink)]"
-                      : "text-[color:var(--cc-ash)]",
-                  ].join(" ")}
+                <span
+                  className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[13px] font-semibold ${
+                    isActive
+                      ? "bg-[color:var(--cc-rust)] text-white"
+                      : isDone
+                        ? "bg-[rgba(63,122,92,0.14)] text-[color:var(--cc-signal-deep)]"
+                        : "border border-[color:var(--cc-hair-strong)] text-[color:var(--cc-ash)]"
+                  }`}
+                  aria-hidden
                 >
-                  {step.number}
-                  {state === "done" && <span className="ml-2">·&nbsp;done</span>}
-                  {state === "active" && <span className="ml-2">·&nbsp;current</span>}
-                </div>
-                <div
-                  className={[
-                    "mt-2 cc-font-display text-xl md:text-2xl leading-none tracking-tight",
-                    state === "active"
-                      ? "text-[color:var(--cc-rust)]"
-                      : state === "done"
-                      ? "text-[color:var(--cc-ink)]"
-                      : "text-[color:var(--cc-ash)]",
-                  ].join(" ")}
-                >
-                  {step.title}
-                </div>
-                <div
-                  className={[
-                    "mt-1.5 hidden md:block text-[13px] leading-snug",
-                    state === "pending"
-                      ? "text-[color:var(--cc-ash)]"
-                      : "text-[color:var(--cc-ink-soft)]",
-                  ].join(" ")}
-                >
-                  {step.sub}
-                </div>
+                  {isDone ? <Check className="h-3.5 w-3.5" /> : step.number}
+                </span>
+                <span className="min-w-0">
+                  <span
+                    className={`block cc-font-display text-[15px] font-semibold leading-tight ${
+                      isReachable ? "text-[color:var(--cc-ink)]" : "text-[color:var(--cc-ash)]"
+                    }`}
+                  >
+                    {step.title}
+                  </span>
+                  <span className="hidden truncate text-[12.5px] text-[color:var(--cc-ash)] lg:block">{step.sub}</span>
+                </span>
               </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
+            </li>
+          </Fragment>
+        );
+      })}
+    </ol>
+  </nav>
+);

@@ -1,11 +1,10 @@
 /* ───────────────────────────────────────────────────────────
-   ResumeBuilderPage — editorial orchestrator.
+   ResumeBuilderPage — routes the four steps.
    Thin shell: routes the four steps, owns dialog state,
    delegates all data/behaviour to useResumeBuilder.
    ─────────────────────────────────────────────────────────── */
 
 import { AnimatePresence } from "framer-motion";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -13,6 +12,7 @@ import {
   CraftAppHeader,
   CraftAppShell,
 } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 
 import { EditStep } from "./components/EditStep";
 import { PreviewExportStep } from "./components/PreviewExportStep";
@@ -126,10 +126,7 @@ export default function ResumeBuilderPage() {
     return (
       <CraftAppShell>
         <div className="flex min-h-[60vh] items-center justify-center">
-          <Loader2
-            className="h-6 w-6 animate-spin text-[color:var(--cc-ash)]"
-            aria-label="Loading the builder"
-          />
+          <CraftSpinner label="Loading the builder" />
         </div>
       </CraftAppShell>
     );
@@ -137,15 +134,12 @@ export default function ResumeBuilderPage() {
 
   return (
     <CraftAppShell>
-      {/* Editorial masthead */}
       <CraftAppHeader
         kicker="Résumé builder"
-        title={
-          <>
-            Build your résumé in <span className="cc-italic-wonk">four</span> steps.
-          </>
-        }
+        title="Build your résumé"
+        sub="Four short steps. You can go back to any of them."
         backTo={isGuest ? "/" : "/dashboard"}
+        backLabel={isGuest ? "Back to home" : "Back to dashboard"}
       />
 
       {/* Step rail */}

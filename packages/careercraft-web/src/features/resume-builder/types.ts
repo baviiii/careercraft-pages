@@ -139,7 +139,7 @@ export type UploadedFileType = "pdf" | "docx" | "image" | "txt" | null;
 
 export interface BuilderStep {
   id: "upload" | "edit" | "template" | "preview";
-  /** Kicker number e.g. "01". */
+  /** Step number, e.g. "1". */
   number: string;
   title: string;
   /** Short subtitle. */
@@ -148,30 +148,10 @@ export interface BuilderStep {
 
 /** The 4-step flow. */
 export const STEPS: BuilderStep[] = [
-  {
-    id: "upload",
-    number: "01",
-    title: "Import",
-    sub: "Upload, paste or start blank.",
-  },
-  {
-    id: "edit",
-    number: "02",
-    title: "Edit",
-    sub: "Fill in your details.",
-  },
-  {
-    id: "template",
-    number: "03",
-    title: "Template",
-    sub: "Choose a layout.",
-  },
-  {
-    id: "preview",
-    number: "04",
-    title: "Export",
-    sub: "Preview and download.",
-  },
+  { id: "upload", number: "1", title: "Start", sub: "Upload, paste or start blank." },
+  { id: "edit", number: "2", title: "Edit", sub: "Your details, section by section." },
+  { id: "template", number: "3", title: "Design", sub: "Pick how it looks." },
+  { id: "preview", number: "4", title: "Download", sub: "Check it and get the PDF." },
 ];
 
 export interface BuilderCategory {
@@ -212,31 +192,31 @@ export interface TemplateMeta {
 }
 
 export const TEMPLATE_META: TemplateMeta[] = [
-  { id: "modern1", title: "Modern Blue", category: "Modern", description: "Clean design with blue accents" },
-  { id: "modern2", title: "Modern Minimal", category: "Modern", description: "Elegant two-column layout" },
-  { id: "modern3", title: "Modern Gradient", category: "Modern", description: "Sleek gradient header design" },
-  { id: "modern4", title: "Modern Tech", category: "Modern", description: "Tech-focused modern layout" },
-  { id: "modern5", title: "Modern Split", category: "Modern", description: "Clean split-column design" },
-  { id: "modern6", title: "Modern Navy", category: "Modern", description: "Professional navy accent" },
-  { id: "modern7", title: "Modern Emerald", category: "Modern", description: "Fresh emerald styling" },
-  { id: "professional", title: "Professional Classic", category: "Professional", description: "Timeless traditional design" },
-  { id: "professional2", title: "Professional Executive", category: "Professional", description: "Executive-level formatting" },
-  { id: "professional3", title: "Professional Corporate", category: "Professional", description: "Corporate standard layout" },
-  { id: "professional4", title: "Professional Banking", category: "Professional", description: "Finance industry standard" },
-  { id: "professional5", title: "Professional Legal", category: "Professional", description: "Law firm approved style" },
-  { id: "professional6", title: "Professional Consulting", category: "Professional", description: "Consulting firm format" },
-  { id: "creative1", title: "Creative Bold", category: "Creative", description: "Bold gradients with flair" },
-  { id: "creative2", title: "Creative Dark", category: "Creative", description: "Dark theme with orange" },
-  { id: "creative3", title: "Creative Sunset", category: "Creative", description: "Warm sunset gradients" },
-  { id: "creative4", title: "Creative Retro", category: "Creative", description: "Retro vintage styling" },
-  { id: "creative5", title: "Creative Neon", category: "Creative", description: "Neon glow effects" },
-  { id: "creative6", title: "Creative Nature", category: "Creative", description: "Nature-inspired design" },
-  { id: "creative7", title: "Creative Geometric", category: "Creative", description: "Geometric patterns" },
-  { id: "minimal1", title: "Minimal Clean", category: "Minimal", description: "Ultra-clean simplicity" },
-  { id: "minimal2", title: "Minimal Centered", category: "Minimal", description: "Centered elegant layout" },
-  { id: "minimal3", title: "Minimal Sidebar", category: "Minimal", description: "Minimal with sidebar" },
-  { id: "minimal4", title: "Minimal Classic", category: "Minimal", description: "Classic minimal style" },
-  { id: "minimal5", title: "Minimal Swiss", category: "Minimal", description: "Swiss design inspired" },
+  { id: "modern1", title: "Modern Blue", category: "Modern", description: "One column, blue headings and skill tags." },
+  { id: "modern2", title: "Modern Minimal", category: "Modern", description: "Two columns, skills and education on the left." },
+  { id: "modern3", title: "Modern Gradient", category: "Modern", description: "A teal band across the top, one column." },
+  { id: "modern4", title: "Modern Tech", category: "Modern", description: "Purple accents, summary in a shaded box." },
+  { id: "modern5", title: "Modern Split", category: "Modern", description: "A green sidebar holds contact details and skills." },
+  { id: "modern6", title: "Modern Navy", category: "Modern", description: "Centred, with coloured section headings." },
+  { id: "modern7", title: "Modern Emerald", category: "Modern", description: "Each section in its own rounded box." },
+  { id: "professional", title: "Professional Classic", category: "Professional", description: "Traditional: serif name, ruled headings." },
+  { id: "professional2", title: "Professional Executive", category: "Professional", description: "Plain and traditional, nothing extra." },
+  { id: "professional3", title: "Professional Corporate", category: "Professional", description: "A dark band for your name, skills beside education." },
+  { id: "professional4", title: "Professional Banking", category: "Professional", description: "Centred serif name, one plain column." },
+  { id: "professional5", title: "Professional Legal", category: "Professional", description: "A dark rule down the left, small section markers." },
+  { id: "professional6", title: "Professional Consulting", category: "Professional", description: "Initials badge and numbered jobs." },
+  { id: "creative1", title: "Creative Bold", category: "Creative", description: "Purple, with skill bars in a side panel." },
+  { id: "creative2", title: "Creative Dark", category: "Creative", description: "Black page, orange accents, a job timeline." },
+  { id: "creative3", title: "Creative Sunset", category: "Creative", description: "Soft lavender cards with small icons." },
+  { id: "creative4", title: "Creative Retro", category: "Creative", description: "Warm cream page with amber boxes." },
+  { id: "creative5", title: "Creative Neon", category: "Creative", description: "Deep blue page with light text." },
+  { id: "creative6", title: "Creative Nature", category: "Creative", description: "A green sidebar with initials and skill bars." },
+  { id: "creative7", title: "Creative Geometric", category: "Creative", description: "Pink-to-yellow header, warm tinted boxes." },
+  { id: "minimal1", title: "Minimal Clean", category: "Minimal", description: "Light type and plenty of white space." },
+  { id: "minimal2", title: "Minimal Centered", category: "Minimal", description: "Centred, with sections in light boxes." },
+  { id: "minimal3", title: "Minimal Sidebar", category: "Minimal", description: "A narrow grey sidebar, light type." },
+  { id: "minimal4", title: "Minimal Classic", category: "Minimal", description: "Compact single column, very little decoration." },
+  { id: "minimal5", title: "Minimal Swiss", category: "Minimal", description: "Section names sit in a narrow left column." },
 ];
 
 export function getTemplateMeta(id: TemplateId | string): TemplateMeta | undefined {

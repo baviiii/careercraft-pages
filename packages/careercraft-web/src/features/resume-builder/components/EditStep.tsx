@@ -1,6 +1,6 @@
 /* ───────────────────────────────────────────────────────────
-   § 02 · Compose — the composition bench. Left: section rail.
-   Centre: form. Right: optional live preview.
+   Step 2 · Edit. Left: the sections. Centre: the form.
+   Right: an optional live preview.
    ─────────────────────────────────────────────────────────── */
 
 import { motion } from "framer-motion";
@@ -14,7 +14,6 @@ import {
   FileText,
   GraduationCap,
   Layers,
-  Loader2,
   Save,
   Target,
   User,
@@ -22,6 +21,7 @@ import {
 import { lazy, Suspense, useState, type ComponentType, type Dispatch, type SetStateAction } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 import { ScaledResumeFrame } from "@/components/templates/ScaledResumeFrame";
 import type { TemplateData } from "@/components/templates/types";
 import { getTemplate } from "@/lib/templateMap";
@@ -105,7 +105,7 @@ const SECTIONS: Array<{ id: string; label: string; icon: ComponentType<{ classNa
   { id: "experience", label: "Experience", icon: Briefcase },
   { id: "education", label: "Education", icon: GraduationCap },
   { id: "skills", label: "Skills", icon: Target },
-  { id: "optional", label: "More", icon: Layers },
+  { id: "optional", label: "Other sections", icon: Layers },
 ];
 
 export const EditStep = ({
@@ -168,9 +168,8 @@ export const EditStep = ({
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
         <div>
-          <div className="cc-label text-[color:var(--cc-rust)]">02 · Edit</div>
-          <h2 className="mt-3 cc-font-display text-3xl md:text-4xl leading-tight tracking-tight">
-            Fill in your details
+          <h2 className="cc-font-display text-3xl md:text-4xl leading-tight tracking-tight">
+            Your details
           </h2>
           {/* A guest's work lives in localStorage, which can refuse the write
               (private browsing, storage full). Say which of those is true —
@@ -186,26 +185,25 @@ export const EditStep = ({
             {!isGuest
               ? autoSaveStatusLabel(autoSaveStatus)
               : isDraftPersisted
-                ? "Saved on this device. Create a free account to keep it."
-                : "This browser is blocking storage, so nothing is being saved — create a free account to keep your work."}
+                ? "Saved on this device. Make a free account to keep it."
+                : "This browser is blocking storage, so nothing is being saved. Make a free account to keep your work."}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <button
+            type="button"
             onClick={onOpenJobDescDialog}
-            className={`cc-btn ${
-              jobDescription ? "cc-btn-primary" : "cc-btn-ghost"
-            }`}
-            style={{ padding: "0.8rem 1.1rem" }}
+            className={`cc-action cc-action--sm ${jobDescription ? "" : "cc-action--ghost"}`}
+            title="Paste the job ad so your points can be tailored to it"
           >
             <Target className="w-4 h-4" />
-            {jobDescription ? "Edit job description" : "Add job description"}
+            {jobDescription ? "Edit the job ad" : "Add the job ad"}
           </button>
           <button
+            type="button"
             onClick={() => setShowLivePreview(!showLivePreview)}
-            className="cc-btn cc-btn-ghost"
-            style={{ padding: "0.8rem 1.1rem" }}
+            className="cc-action cc-action--ghost cc-action--sm"
           >
             {showLivePreview ? (
               <EyeOff className="w-4 h-4" />
@@ -216,17 +214,13 @@ export const EditStep = ({
           </button>
           {!isGuest && (
             <button
+              type="button"
               onClick={onOpenSaveDialog}
               disabled={isSaving}
-              className="cc-btn cc-btn-ghost"
-              style={{ padding: "0.8rem 1.1rem" }}
+              className="cc-action cc-action--ghost cc-action--sm"
             >
-              {isSaving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              {currentResumeId ? "Update" : "Save resume"}
+              {isSaving ? <CraftSpinner size="sm" label="Saving" /> : <Save className="w-4 h-4" />}
+              {currentResumeId ? "Save changes" : "Save résumé"}
             </button>
           )}
         </div>
@@ -242,8 +236,8 @@ export const EditStep = ({
       >
         {/* Section rail */}
         <nav className="lg:sticky lg:top-20 lg:self-start">
-          <div className="cc-label text-[color:var(--cc-ash)] mb-3">Table of contents</div>
-          <ul className="space-y-px">
+          <div className="mb-2 px-1 text-[13px] font-medium text-[color:var(--cc-ash)]">Sections</div>
+          <ul className="space-y-1">
             {SECTIONS.map((section) => {
               const Icon = section.icon;
               const isActive = activeSection === section.id;
@@ -251,14 +245,15 @@ export const EditStep = ({
                 <li key={section.id}>
                   <button
                     onClick={() => setActiveSection(section.id)}
-                    className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors border-l-2 ${
+                    aria-current={isActive ? "true" : undefined}
+                    className={`w-full text-left rounded-xl px-3 py-2.5 flex items-center gap-3 transition-colors ${
                       isActive
-                        ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)]"
-                        : "border-transparent text-[color:var(--cc-ink-soft)] hover:bg-[color:var(--cc-cream)] hover:text-[color:var(--cc-ink)]"
+                        ? "bg-white text-[color:var(--cc-ink)] shadow-[0_1px_0_rgba(20,22,26,0.04),0_8px_18px_-14px_rgba(20,22,26,0.4)]"
+                        : "text-[color:var(--cc-ink-soft)] hover:bg-white/70 hover:text-[color:var(--cc-ink)]"
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span className="cc-label">{section.label}</span>
+                    <Icon className={`w-4 h-4 ${isActive ? "text-[color:var(--cc-rust)]" : ""}`} />
+                    <span className="text-[14px] font-medium">{section.label}</span>
                     {isActive && (
                       <ChevronRight className="w-3.5 h-3.5 ml-auto" />
                     )}
@@ -315,12 +310,12 @@ export const EditStep = ({
 
           {/* Step nav */}
           <div className="flex items-center justify-between pt-2">
-            <button onClick={onBack} className="cc-btn cc-btn-ghost">
+            <CraftButton variant="ghost" onClick={onBack}>
               <ArrowLeft className="w-4 h-4" />
               Back
-            </button>
+            </CraftButton>
             <CraftButton onClick={onNext}>
-              Choose template
+              Pick a design
               <ArrowRight className="w-4 h-4" />
             </CraftButton>
           </div>
@@ -330,42 +325,46 @@ export const EditStep = ({
             for page; "Layout" is the instant single-sheet template view. */}
         {showLivePreview && (
           <aside className="lg:sticky lg:top-20 lg:self-start hidden lg:block">
-            <div className="cc-label text-[color:var(--cc-ash)] mb-3 flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-2">
-                Live proof
+            <div className="mb-2 flex items-center justify-between gap-2 px-1">
+              <span className="inline-flex items-center gap-2 text-[13px] font-medium text-[color:var(--cc-ash)]">
+                Preview
                 {pagesOn &&
                   (isRendering ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <CraftSpinner size="sm" label="Updating the preview" />
                   ) : preview ? (
                     <span className="cc-tabular">
-                      {preview.pageCount} page{preview.pageCount > 1 ? "s" : ""}
+                      · {preview.pageCount} page{preview.pageCount > 1 ? "s" : ""}
                     </span>
                   ) : null)}
               </span>
-              <span className="flex gap-1">
-                <button
-                  onClick={() => setPreviewMode("pages")}
-                  className={`cc-pill ${previewMode === "pages" ? "cc-pill-filled" : ""}`}
-                >
-                  Pages
-                </button>
-                <button
-                  onClick={() => setPreviewMode("layout")}
-                  className={`cc-pill ${previewMode === "layout" ? "cc-pill-filled" : ""}`}
-                >
-                  Layout
-                </button>
+              <span className="flex gap-1" role="group" aria-label="Preview style">
+                {(["pages", "layout"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    aria-pressed={previewMode === m}
+                    onClick={() => setPreviewMode(m)}
+                    title={m === "pages" ? "The real PDF, page by page" : "A quick single-page view"}
+                    className={`rounded-full px-2.5 py-1 text-[12.5px] transition-colors ${
+                      previewMode === m
+                        ? "bg-[color:var(--cc-ink)] font-medium text-[color:var(--cc-cream)]"
+                        : "text-[color:var(--cc-ink-soft)] hover:bg-white"
+                    }`}
+                  >
+                    {m === "pages" ? "Pages" : "Quick view"}
+                  </button>
+                ))}
               </span>
             </div>
 
             {previewMode === "layout" ? (
-              <div className="border border-[color:var(--cc-hair-strong)] bg-white">
+              <div className="overflow-hidden rounded-xl border border-[color:var(--cc-hair)] bg-white">
                 <ScaledResumeFrame>
                   {Template && <Template data={templateData} />}
                 </ScaledResumeFrame>
               </div>
             ) : (
-              <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] p-3 max-h-[calc(100vh-10rem)] overflow-y-auto overscroll-contain">
+              <div className="rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)] p-3 max-h-[calc(100vh-10rem)] overflow-y-auto overscroll-contain">
                 {preview ? (
                   <div className={isRendering ? "opacity-60 transition-opacity" : "transition-opacity"}>
                     <Suspense fallback={<PagesPlaceholder />}>
@@ -373,8 +372,8 @@ export const EditStep = ({
                     </Suspense>
                   </div>
                 ) : renderFailed ? (
-                  <div className="p-8 text-center cc-font-editorial italic text-[15px] text-[color:var(--cc-ink-soft)]">
-                    Could not render the pages preview.
+                  <div className="p-8 text-center text-[14px] text-[color:var(--cc-ink-soft)]">
+                    The page preview didn't load. Try Quick view, or carry on editing.
                   </div>
                 ) : (
                   <PagesPlaceholder />
@@ -390,13 +389,13 @@ export const EditStep = ({
 
 const PagesPlaceholder = () => (
   <div
-    className="w-full bg-white animate-pulse"
+    className="w-full rounded-md bg-white animate-pulse motion-reduce:animate-none"
     style={{ aspectRatio: "794 / 1123" }}
   />
 );
 
 function autoSaveStatusLabel(status: AutoSaveStatus): string {
-  if (status === "saving") return "Filing edits…";
-  if (status === "unsaved") return "Unsaved changes — remember to file.";
-  return "All edits filed.";
+  if (status === "saving") return "Saving…";
+  if (status === "unsaved") return "Changes not saved yet.";
+  return "All changes saved.";
 }

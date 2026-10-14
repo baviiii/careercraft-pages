@@ -38,15 +38,15 @@ export function useResumeExport({
 
       toast({
         title: "PDF downloaded",
-        description: `High-quality export · ${pageCount} page${
+        description: `${pageCount} page${
           pageCount > 1 ? "s" : ""
         }.`,
       });
     } catch (error) {
       console.error("Export error:", error);
       toast({
-        title: "Export failed",
-        description: "Could not generate the PDF.",
+        title: "Couldn't make the PDF",
+        description: "Try again, or pick a different design.",
         variant: "destructive",
       });
     } finally {

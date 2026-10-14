@@ -1,9 +1,6 @@
-/* ───────────────────────────────────────────────────────────
-   AI Smart Import — the résumé upload path.
-   Two phases:
-     1. Upload    — drop any résumé, AI parses it
-     2. Review    — a terse editorial summary of what was read
-   ─────────────────────────────────────────────────────────── */
+/* Upload and review first. Two phases:
+     1. Upload: drop any résumé and it gets read.
+     2. Review: a short summary of what was found, before anything is filled in. */
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -12,18 +9,17 @@ import {
   Check,
   FileText,
   GraduationCap,
-  Loader2,
   Mail,
+  MapPin,
   Phone,
-  Sparkles,
   Target,
   Upload,
-  User,
 } from "lucide-react";
 import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 import { useToast } from "@/hooks/use-toast";
 import { type AIResumeData, parseResumeWithAI } from "@/lib/resumeParser";
 
@@ -67,16 +63,16 @@ export const AIImportDialog = ({
       setParsed(ai);
       setPhase("review");
       toast({
-        title: "AI reading complete",
-        description: `${ai.experience?.length ?? 0} roles · ${
+        title: "Read your résumé",
+        description: `${ai.experience?.length ?? 0} jobs · ${
           ai.education?.length ?? 0
-        } schools · ${ai.skills?.length ?? 0} skills extracted.`,
+        } qualifications · ${ai.skills?.length ?? 0} skills found.`,
       });
     } catch (error) {
       toast({
-        title: "AI read failed",
+        title: "Couldn't read that file",
         description:
-          error instanceof Error ? error.message : "Could not parse the file",
+          error instanceof Error ? error.message : "Try another file, or paste the text instead.",
         variant: "destructive",
       });
     } finally {
@@ -103,44 +99,30 @@ export const AIImportDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={handleClose}
-      kicker="§ Smart import"
-      title={
-        phase === "upload" ? (
-          <>
-            Hand the pages to the <span className="cc-italic-wonk">press-reader</span>.
-          </>
-        ) : (
-          <>
-            A <span className="cc-italic-wonk">précis</span> of what was read.
-          </>
-        )
-      }
+      title={phase === "upload" ? "Upload and review first" : "Here's what we found"}
       description={
         phase === "upload"
-          ? "Any résumé format. AI extracts contact, experience, education, skills, and more."
-          : "Check the count. You'll review every line in the next step."
+          ? "We'll show you what we read from your file before anything goes into the builder."
+          : "Check the numbers look right. You can change every line in the next step."
       }
       maxWidth="max-w-2xl"
       footer={
         phase === "upload" ? (
-          <button
-            onClick={() => handleClose(false)}
-            className="cc-btn cc-btn-ghost"
-          >
+          <CraftButton variant="ghost" onClick={() => handleClose(false)}>
             Cancel
-          </button>
+          </CraftButton>
         ) : (
           <>
-            <button
+            <CraftButton
+              variant="ghost"
               onClick={() => {
                 setPhase("upload");
                 setParsed(null);
               }}
-              className="cc-btn cc-btn-ghost"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Re-read another file
-            </button>
+              <ArrowLeft className="h-4 w-4" />
+              Try another file
+            </CraftButton>
             <CraftButton
               onClick={() => {
                 if (parsed) {
@@ -151,8 +133,8 @@ export const AIImportDialog = ({
               }}
               disabled={!parsed}
             >
-              <Check className="w-4 h-4" />
-              Apply to the draft
+              <Check className="h-4 w-4" />
+              Fill in the builder
             </CraftButton>
           </>
         )
@@ -168,66 +150,51 @@ export const AIImportDialog = ({
           >
             <div
               {...getRootProps()}
-              className={`border-2 border-dashed cursor-pointer transition-colors p-10 text-center ${
+              className={`cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
                 isDragActive
-                  ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-cream-2)]"
-                  : "border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] hover:bg-[color:var(--cc-cream-2)]"
+                  ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)]"
+                  : "border-[color:var(--cc-hair-strong)] bg-white hover:border-[color:var(--cc-rust)]"
               }`}
             >
               <input {...getInputProps()} />
               {isProcessing ? (
                 <div>
-                  <Loader2 className="w-10 h-10 mx-auto animate-spin text-[color:var(--cc-rust)]" />
-                  <p className="mt-4 cc-font-display italic text-2xl leading-tight">
-                    Reading the pages…
-                  </p>
+                  <div className="flex justify-center">
+                    <CraftSpinner size="lg" label="Reading your file" />
+                  </div>
+                  <p className="mt-4 cc-font-display text-2xl leading-tight">Reading your file…</p>
                   {progress > 0 && (
-                    <div className="mt-4 max-w-xs mx-auto">
-                      <div className="relative h-[2px] bg-[color:var(--cc-hair)]">
+                    <div className="mx-auto mt-5 max-w-xs">
+                      <div className="relative h-1.5 overflow-hidden rounded-full bg-[color:var(--cc-cream-2)]">
                         <div
-                          className="absolute inset-y-0 left-0 bg-[color:var(--cc-rust)] transition-all"
+                          className="absolute inset-y-0 left-0 rounded-full bg-[color:var(--cc-rust)] transition-all"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
-                      <div className="mt-2 cc-label text-[color:var(--cc-ash)] cc-tabular">
-                        {progress}%
-                      </div>
+                      <div className="mt-2 cc-tabular text-[13px] text-[color:var(--cc-ash)]">{progress}%</div>
                     </div>
                   )}
                 </div>
               ) : (
                 <>
-                  <div className="w-12 h-12 mx-auto border-2 border-[color:var(--cc-ink)] inline-flex items-center justify-center">
-                    <Upload className="w-5 h-5" />
+                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-[color:var(--cc-rust-soft)] text-[color:var(--cc-rust)]">
+                    <Upload className="h-5 w-5" />
                   </div>
-                  <p className="mt-4 cc-font-display text-2xl md:text-3xl leading-tight tracking-tight">
-                    {isDragActive ? (
-                      <>
-                        Drop it <span className="cc-italic-wonk">here</span>.
-                      </>
-                    ) : (
-                      <>Drag a résumé onto the page.</>
-                    )}
+                  <p className="mt-4 cc-font-display text-2xl leading-tight tracking-tight">
+                    {isDragActive ? "Let go to upload" : "Drop your résumé here"}
                   </p>
-                  <p className="mt-2 cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-                    PDF · Word · image · plain text
+                  <p className="mt-2 text-sm text-[color:var(--cc-ink-soft)]">
+                    or <span className="text-[color:var(--cc-rust)] underline underline-offset-4">choose a file</span>
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-1.5 justify-center">
-                    {["PDF", "DOCX", "DOC", "TXT", "PNG/JPG"].map((ext) => (
-                      <span key={ext} className="cc-pill">
-                        {ext}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="mt-4 text-[13px] text-[color:var(--cc-ash)]">PDF, Word, a photo or a text file</p>
                 </>
               )}
             </div>
 
-            <div className="mt-5 flex items-center gap-2 cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-              <Sparkles className="w-4 h-4 text-[color:var(--cc-rust)]" />
-              AI will pull contact, experience, education, skills, projects, certs,
-              and more.
-            </div>
+            <p className="mt-4 text-[13.5px] text-[color:var(--cc-ink-soft)]">
+              We look for your contact details, jobs, education and skills, plus projects, certificates and anything else
+              on the page.
+            </p>
           </motion.div>
         )}
 
@@ -243,12 +210,12 @@ const ReviewPanel = ({ parsed }: { parsed: AIResumeData }) => {
   const stats = [
     {
       icon: Briefcase,
-      label: "Roles",
+      label: "Jobs",
       count: parsed.experience?.length ?? 0,
     },
     {
       icon: GraduationCap,
-      label: "Schools",
+      label: "Qualifications",
       count: parsed.education?.length ?? 0,
     },
     {
@@ -258,7 +225,7 @@ const ReviewPanel = ({ parsed }: { parsed: AIResumeData }) => {
     },
     {
       icon: FileText,
-      label: "Extras",
+      label: "Other sections",
       count:
         (parsed.projects?.length ?? 0) +
         (parsed.certifications?.length ?? 0) +
@@ -276,30 +243,30 @@ const ReviewPanel = ({ parsed }: { parsed: AIResumeData }) => {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      className="space-y-6"
+      className="space-y-5"
     >
-      {/* Contact strip */}
-      <div className="border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] p-5">
-        <div className="cc-label text-[color:var(--cc-rust)]">§ Contact</div>
-        <div className="mt-3 cc-font-display text-2xl leading-tight tracking-tight">
-          {parsed.contact?.name || "—"}
+      {/* Contact */}
+      <div className="rounded-xl border border-[color:var(--cc-hair)] bg-white p-4">
+        <div className="text-[13px] font-medium text-[color:var(--cc-ash)]">Contact</div>
+        <div className="mt-1 cc-font-display text-xl font-semibold leading-tight tracking-tight">
+          {parsed.contact?.name || "No name found"}
         </div>
-        <div className="mt-3 flex flex-wrap gap-4 cc-font-editorial text-[15px] text-[color:var(--cc-ink-soft)]">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-[14px] text-[color:var(--cc-ink-soft)]">
           {parsed.contact?.email && (
-            <span className="inline-flex items-center gap-2">
-              <Mail className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" />
               {parsed.contact.email}
             </span>
           )}
           {parsed.contact?.phone && (
-            <span className="inline-flex items-center gap-2">
-              <Phone className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5" />
               {parsed.contact.phone}
             </span>
           )}
           {parsed.contact?.location && (
-            <span className="inline-flex items-center gap-2">
-              <User className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5" />
               {parsed.contact.location}
             </span>
           )}
@@ -309,37 +276,24 @@ const ReviewPanel = ({ parsed }: { parsed: AIResumeData }) => {
       {/* Summary */}
       {parsed.summary && (
         <div>
-          <div className="cc-label text-[color:var(--cc-ash)]">Opening line</div>
-          <p className="mt-2 cc-font-editorial text-[17px] leading-snug text-[color:var(--cc-ink)] italic">
-            &ldquo;{parsed.summary}&rdquo;
-          </p>
+          <div className="text-[13px] font-medium text-[color:var(--cc-ash)]">Summary</div>
+          <p className="mt-1 text-[14.5px] leading-snug text-[color:var(--cc-ink)]">{parsed.summary}</p>
         </div>
       )}
 
       {/* Counts */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[color:var(--cc-hair-strong)] border border-[color:var(--cc-hair-strong)]">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
-            <div
-              key={s.label}
-              className="bg-[color:var(--cc-cream)] p-4 text-left"
-            >
-              <Icon className="w-4 h-4 text-[color:var(--cc-rust)]" />
-              <div className="mt-3 cc-font-display text-3xl leading-none cc-tabular">
-                {String(s.count).padStart(2, "0")}
-              </div>
-              <div className="mt-2 cc-label text-[color:var(--cc-ink)]">
-                {s.label}
-              </div>
+            <div key={s.label} className="rounded-xl bg-[color:var(--cc-cream-2)] p-3.5">
+              <Icon className="h-4 w-4 text-[color:var(--cc-rust)]" />
+              <div className="mt-2 cc-font-display text-2xl font-semibold leading-none cc-tabular">{s.count}</div>
+              <div className="mt-1 text-[13px] text-[color:var(--cc-ink-soft)]">{s.label}</div>
             </div>
           );
         })}
       </div>
-
-      <p className="text-sm text-[color:var(--cc-ink-soft)]">
-        Apply when ready — you can still edit everything in the next step.
-      </p>
     </motion.div>
   );
 };

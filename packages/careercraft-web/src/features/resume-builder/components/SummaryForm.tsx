@@ -10,26 +10,21 @@ export const SummaryForm = ({ summary, onChange }: SummaryFormProps) => {
 
   return (
     <CraftSection
-      kicker="§ Summary"
-      title={
-        <>
-          The <span className="cc-italic-wonk">opening</span> line.
-        </>
-      }
-      sub="Two or three sentences — the headline before the lede."
+      title="Summary"
+      sub="Two or three sentences on who you are and what you're after."
     >
       <LabelledField
-        label="Professional summary"
+        label="Your summary"
         hint={
           <span className="cc-tabular">
-            {words} word{words === 1 ? "" : "s"} · aim for 50–150
+            {words} word{words === 1 ? "" : "s"} · 50 to 150 reads well
           </span>
         }
       >
         <CraftTextarea
           value={summary}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="A brief note on your background, the work you're proudest of, and the direction you're heading…"
+          placeholder="e.g. Data analyst with two years in health reporting. I turn messy data into clear dashboards, and I'm looking for a role in a public-sector team."
           className="min-h-[200px]"
         />
       </LabelledField>
