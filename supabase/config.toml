@@ -154,6 +154,10 @@ verify_jwt = true
 [functions.delete-account]
 verify_jwt = true
 
+# Daily from .github/workflows/horus-keepalive.yml, with the service role key.
+[functions.horus-keepalive]
+verify_jwt = true
+
 [functions.job-search]
 verify_jwt = true
 

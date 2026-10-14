@@ -30,42 +30,34 @@ jobs:
     name: Ping Horus
     runs-on: ubuntu-latest
     steps:
+      # The Horus key lives only in Supabase now. This calls the
+      # horus-keepalive edge function, which pings Horus with it, using the
+      # same service role key as the news refresh.
       - name: Check credentials
         env:
-          HORUS_INFER_URL: ${{ secrets.HORUS_INFER_URL }}
-          HORUS_API_KEY: ${{ secrets.HORUS_API_KEY }}
+          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          missing=0
-          for var in HORUS_INFER_URL HORUS_API_KEY; do
-            if [ -z "${!var}" ]; then
-              echo "::error::$var is not set in repository secrets."
-              missing=1
-            fi
-          done
-          [ "$missing" = "1" ] && { echo "Add under Settings → Secrets and variables → Actions."; exit 1; }
-          echo "Credentials present."
+          if [ -z "$SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY is not set in repository secrets."
+            echo "Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Service role key found."
 
       - name: Inference ping
         env:
-          HORUS_INFER_URL: ${{ secrets.HORUS_INFER_URL }}
-          HORUS_API_KEY: ${{ secrets.HORUS_API_KEY }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID || 'hfchxjytxhsiuwqaugmv' }}
+          SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           set -uo pipefail
 
-          # Body shape mirrors _shared/ai/horus.ts:103-113. maxTokens is kept
-          # tiny because the point is to touch the tenant row, not to generate.
-          response=$(curl -sS -m 60 -w '\n%{http_code}' -X POST "$HORUS_INFER_URL" \
+          response=$(curl -sS -m 60 -w '\n%{http_code}' -X POST \
+            "https://${PROJECT_REF}.supabase.co/functions/v1/horus-keepalive" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${HORUS_API_KEY}" \
-            -d '{
-              "task": "careercraft.keepalive",
-              "system": "Reply with the single word: ok",
-              "messages": [{"role": "user", "content": "ping"}],
-              "model": "fast",
-              "temperature": 0,
-              "maxTokens": 8
-            }') || {
-              echo "::error::curl could not reach Horus at all — gateway down or DNS failure."
+            -H "Authorization: Bearer ${SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SERVICE_ROLE_KEY}" \
+            -d '{}') || {
+              echo "::error::curl could not reach the keepalive function at all."
               exit 1
             }
 
@@ -75,7 +67,7 @@ jobs:
           echo "HTTP $status"
 
           if [ "$status" != "200" ]; then
-            echo "::error::Horus returned HTTP ${status}: ${body}"
+            echo "::error::Keepalive returned HTTP ${status}: ${body}"
             echo "## ❌ Horus keepalive failed" >> $GITHUB_STEP_SUMMARY
             echo "- Status: \`${status}\`" >> $GITHUB_STEP_SUMMARY
             echo "- Body: \`${body}\`" >> $GITHUB_STEP_SUMMARY
