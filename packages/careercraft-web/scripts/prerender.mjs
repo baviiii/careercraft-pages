@@ -1,0 +1,86 @@
+/**
+ * Runs after `vite build` and `vite build --ssr src/seo/prerender.tsx`.
+ * Writes dist/<path>/index.html for every page in src/seo/public-pages.json:
+ *
+ *   - <head>: the page's own <title>, description, canonical and Open Graph
+ *     tags, instead of the homepage's.
+ *   - <body>: the page itself, rendered to HTML by dist-ssr/prerender.js,
+ *     inside <div id="root">. Pages that can't render outside a browser
+ *     (see prerender.tsx) keep the empty root.
+ *
+ * The app is a single index.html built by JavaScript, so to anything that
+ * doesn't run JS — Bing (which feeds ChatGPT search), AI search bots, link
+ * previews — every URL read as the homepage with no text on it. vercel.json
+ * routes each of these paths to its file before the SPA fallback.
+ *
+ * Visitors are unaffected: main.tsx starts the app with createRoot, which
+ * replaces the static markup with the live page.
+ */
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const dist = join(root, "dist");
+const { site, pages } = JSON.parse(
+  readFileSync(join(root, "src/seo/public-pages.json"), "utf8"),
+);
+const shell = readFileSync(join(dist, "index.html"), "utf8");
+
+// The Supabase client touches localStorage as soon as it's imported. Node has
+// none, so give it an empty one; nothing is read or written during a render.
+function memoryStorage() {
+  const items = new Map();
+  return {
+    getItem: (k) => (items.has(k) ? items.get(k) : null),
+    setItem: (k, v) => void items.set(k, String(v)),
+    removeItem: (k) => void items.delete(k),
+    clear: () => items.clear(),
+    key: (i) => [...items.keys()][i] ?? null,
+    get length() {
+      return items.size;
+    },
+  };
+}
+globalThis.localStorage ??= memoryStorage();
+globalThis.sessionStorage ??= memoryStorage();
+
+const { render } = await import(pathToFileURL(join(root, "dist-ssr/prerender.js")).href);
+
+const attr = (s) =>
+  s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** Replace the one match of `re`, or stop the build — a silent miss would ship homepage tags. */
+function swap(html, re, value, what) {
+  if (!re.test(html)) throw new Error(`prerender: ${what} not found in dist/index.html`);
+  return html.replace(re, (_, before, after) => before + value + after);
+}
+
+function page(p) {
+  const url = site + p.path;
+  let html = shell;
+  html = swap(html, /(<title>)[^<]*(<\/title>)/, attr(p.title), "<title>");
+  html = swap(html, /(<meta name="description" content=")[^"]*(")/, attr(p.description), "description");
+  html = swap(html, /(<meta property="og:title" content=")[^"]*(")/, attr(p.title), "og:title");
+  html = swap(html, /(<meta property="og:description" content=")[^"]*(")/, attr(p.description), "og:description");
+  html = swap(html, /(<meta property="og:url" content=")[^"]*(")/, url, "og:url");
+  html = html.replace("</head>", `  <link rel="canonical" href="${url}" />\n  </head>`);
+
+  const body = render(p.path);
+  if (body) html = swap(html, /(<div id="root">)(<\/div>)/, body, '<div id="root">');
+  return { html, rendered: Boolean(body) };
+}
+
+for (const p of pages) {
+  const out = p.path === "/" ? join(dist, "index.html") : join(dist, p.path.slice(1), "index.html");
+  const { html, rendered } = page(p);
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, html);
+  console.log(
+    `prerender: ${p.path.padEnd(9)} → ${out.slice(root.length + 1)}${rendered ? "" : "  (head only)"}`,
+  );
+}
+
+// The Supabase client starts a token-refresh timer on import, which would
+// keep Node running after the work is done.
+process.exit(0);

@@ -2,7 +2,7 @@
  * Per-page <title>, description, canonical and noindex for the public pages.
  *
  * Public pages take their title and description from src/seo/public-pages.json.
- * The build (scripts/prerender-meta.mjs) writes the same values into a static
+ * The build (scripts/prerender.mjs) writes the same values into a static
  * HTML file per page, so crawlers that don't run JS — link previews, Bing, AI
  * search bots — see each page as itself rather than as the homepage. This hook
  * keeps the tags right as people move around the app.
