@@ -73,12 +73,6 @@ export interface ApplicationEvent {
   created_at: string;
 }
 
-export interface JobAutomationSettings {
-  email_sync_enabled: boolean;
-  confidence_threshold: number;
-  auto_apply_non_destructive: boolean;
-}
-
 export interface ResumeRef {
   id: string;
   name: string;

@@ -353,9 +353,7 @@ export default function JobTrackerPage() {
         onWriteCoverLetter={writeCoverLetter}
         onOpenCoverLetter={openCoverLetter}
         onLoadTimeline={(id) => automation.loadEvents(id).then(() => undefined)}
-        onClassifyEmail={(id, subject, body, requireConfirm) =>
-          automation.classifyEmail(id, subject, body, requireConfirm)
-        }
+        onClassifyEmail={(id, subject, body) => automation.classifyEmail(id, subject, body)}
         onConfirmStatusUpdate={async (id, status) => {
           // The move happens server-side; pull the board so the card follows.
           await automation.confirmStatusUpdate(id, status);

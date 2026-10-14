@@ -2,7 +2,7 @@ import { ArrowLeft, Bell, Brain, CalendarDays, Edit, ExternalLink, Loader2, Mail
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { NEXT_STEP, STAGE_HINT, avatarTone, followUpDue, followUpLabel, initials } from "../lib/cardBits";
@@ -17,7 +17,6 @@ import type {
   JobFormValues,
   ResumeRef,
 } from "../types";
-import { TrackerButton } from "./TrackerButton";
 
 interface JobDetailPanelProps {
   application: JobApplication | null;
@@ -46,7 +45,6 @@ interface JobDetailPanelProps {
     applicationId: string,
     subject: string,
     body: string,
-    requireConfirm?: boolean,
   ) => Promise<
     | {
         recommendation?: {
@@ -228,40 +226,40 @@ export const JobDetailPanel = ({
               <span className="self-center cc-font-sans text-[14px] text-[color:var(--cc-ink)] sm:mr-auto">
                 Discard your changes?
               </span>
-              <TrackerButton variant="ghost" onClick={() => setLeaving(null)}>
+              <CraftButton variant="ghost" onClick={() => setLeaving(null)}>
                 Keep editing
-              </TrackerButton>
-              <TrackerButton variant="danger" onClick={discard}>
+              </CraftButton>
+              <CraftButton variant="danger" onClick={discard}>
                 Discard
-              </TrackerButton>
+              </CraftButton>
             </>
           ) : (
             <>
-              <TrackerButton variant="ghost" className="sm:mr-auto" onClick={() => (dirty ? setLeaving("back") : backToJob())}>
+              <CraftButton variant="ghost" className="sm:mr-auto" onClick={() => (dirty ? setLeaving("back") : backToJob())}>
                 <ArrowLeft className="h-4 w-4" />
                 Back to the job
-              </TrackerButton>
-              <TrackerButton onClick={saveEdit} disabled={saving || !dirty}>
+              </CraftButton>
+              <CraftButton onClick={saveEdit} disabled={saving || !dirty}>
                 {saving && <Loader2 className="h-4 w-4 animate-spin motion-reduce:[animation-duration:1.8s]" />}
                 {saving ? "Saving…" : "Save changes"}
-              </TrackerButton>
+              </CraftButton>
             </>
           )
         ) : (
           <>
-            <TrackerButton variant="ghost" onClick={() => onOpenChange(false)}>
+            <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
               Close
-            </TrackerButton>
+            </CraftButton>
             {application.job_url && (
-              <TrackerButton variant="ghost" onClick={openAd}>
+              <CraftButton variant="ghost" onClick={openAd}>
                 <ExternalLink className="h-4 w-4" />
                 Open job ad
-              </TrackerButton>
+              </CraftButton>
             )}
-            <TrackerButton onClick={() => editIt()}>
+            <CraftButton onClick={() => editIt()}>
               <Edit className="h-4 w-4" />
               Edit
-            </TrackerButton>
+            </CraftButton>
           </>
         )
       }
@@ -377,16 +375,16 @@ export const JobDetailPanel = ({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {onAnalyse && (
-                    <TrackerButton size="sm" onClick={() => onAnalyse(application)}>
+                    <CraftButton size="sm" onClick={() => onAnalyse(application)}>
                       <Brain className="h-4 w-4" />
                       {hasFullDescription ? "Check my résumé" : "Paste the ad and check"}
-                    </TrackerButton>
+                    </CraftButton>
                   )}
                   {!hasFullDescription && application.job_url && (
-                    <TrackerButton size="sm" variant="ghost" onClick={openAd}>
+                    <CraftButton size="sm" variant="ghost" onClick={openAd}>
                       <ExternalLink className="h-4 w-4" />
                       Open the ad to copy
-                    </TrackerButton>
+                    </CraftButton>
                   )}
                 </div>
               </div>
@@ -413,19 +411,19 @@ export const JobDetailPanel = ({
                   )}
                   <div className="flex flex-wrap gap-2">
                     {coverLetter && onOpenCoverLetter && (
-                      <TrackerButton size="sm" onClick={() => onOpenCoverLetter(coverLetter.id)}>
+                      <CraftButton size="sm" onClick={() => onOpenCoverLetter(coverLetter.id)}>
                         <Mail className="h-4 w-4" />
                         Open letter
-                      </TrackerButton>
+                      </CraftButton>
                     )}
-                    <TrackerButton
+                    <CraftButton
                       size="sm"
                       variant={coverLetter ? "ghost" : "primary"}
                       onClick={() => onWriteCoverLetter(application)}
                     >
                       <PenLine className="h-4 w-4" />
                       {coverLetter ? "Write a new one" : "Write a cover letter"}
-                    </TrackerButton>
+                    </CraftButton>
                   </div>
                 </div>
               )}
@@ -512,7 +510,7 @@ export const JobDetailPanel = ({
                   className="cc-field cc-field-textarea min-h-[120px]"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <TrackerButton
+                  <CraftButton
                     size="sm"
                     variant="ghost"
                     disabled={!emailBody.trim() || classifying}
@@ -520,7 +518,7 @@ export const JobDetailPanel = ({
                       if (!onClassifyEmail || !emailBody.trim()) return;
                       setClassifying(true);
                       try {
-                        const result = await onClassifyEmail(application.id, emailSubject, emailBody, true);
+                        const result = await onClassifyEmail(application.id, emailSubject, emailBody);
                         const s = result?.recommendation?.targetStatus;
                         setSuggested(
                           s === "applied" || s === "interview" || s === "offer" || s === "rejected" ? s : null,
@@ -533,9 +531,9 @@ export const JobDetailPanel = ({
                   >
                     <Sparkles className="h-4 w-4" />
                     {classifying ? "Reading…" : "Suggest a stage"}
-                  </TrackerButton>
+                  </CraftButton>
                   {suggested && suggested !== status && onConfirmStatusUpdate && (
-                    <TrackerButton
+                    <CraftButton
                       size="sm"
                       onClick={async () => {
                         await onConfirmStatusUpdate(application.id, suggested);
@@ -544,7 +542,7 @@ export const JobDetailPanel = ({
                       }}
                     >
                       Move to {STATUS_META[suggested].label}
-                    </TrackerButton>
+                    </CraftButton>
                   )}
                   {suggested && suggested === status && (
                     <span className="text-[14px] text-[color:var(--cc-ink-soft)]">

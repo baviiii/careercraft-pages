@@ -11,45 +11,15 @@ serve(handler(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = body.action as string;
 
-  if (action === "get_settings") {
-    const { data, error } = await service
-      .from("job_automation_settings")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
-    if (error && error.code !== "PGRST116") throw error;
-    const defaults = {
-      user_id: userId,
-      email_sync_enabled: false,
-      confidence_threshold: 72,
-      auto_apply_non_destructive: true,
-    };
-    return json({ settings: data || defaults });
-  }
-
-  if (action === "save_settings") {
-    const settings = {
-      user_id: userId,
-      email_sync_enabled: Boolean(body.email_sync_enabled),
-      confidence_threshold: Math.max(0, Math.min(100, Number(body.confidence_threshold ?? 72))),
-      auto_apply_non_destructive: Boolean(body.auto_apply_non_destructive ?? true),
-    };
-
-    const { error } = await service
-      .from("job_automation_settings")
-      .upsert(settings, { onConflict: "user_id" });
-    if (error) throw error;
-
-    return json({ success: true, settings });
-  }
+  /* get_settings / save_settings used to live here, for an "email sync"
+     switch, a confidence threshold and auto-apply. Nothing ever read an
+     inbox, so they're gone; job_automation_settings is no longer used. */
 
   if (action === "classify_email") {
     const started = Date.now();
     const applicationId = body.applicationId as string | undefined;
     const emailBody = (body.emailBody as string | undefined)?.trim();
     const subject = (body.subject as string | undefined)?.trim() || "";
-    const requireConfirm = Boolean(body.requireConfirm ?? true);
     if (!applicationId || !emailBody) {
       throw new ValidationError("applicationId and emailBody are required");
     }
@@ -66,21 +36,9 @@ serve(handler(async (req) => {
     const { eventType, confidence, summary } = classifyEmail(`${subject}\n${emailBody}`);
     const targetStatus = statusFromEvent(eventType);
 
-    const { data: settings } = await service
-      .from("job_automation_settings")
-      .select("confidence_threshold, auto_apply_non_destructive, email_sync_enabled")
-      .eq("user_id", userId)
-      .single();
-
-    const threshold = Number(settings?.confidence_threshold ?? 72);
-    const autoApply = Boolean(settings?.auto_apply_non_destructive ?? true);
-    const isDestructive = targetStatus === "rejected";
-    const shouldApplyStatus =
-      Boolean(targetStatus) &&
-      confidence >= threshold &&
-      autoApply &&
-      !requireConfirm &&
-      !isDestructive;
+    /* Nothing moves without the person saying so: this suggests a stage and
+       confirm_status_update applies it once they agree. */
+    const shouldApplyStatus = false;
 
     const { data: eventInserted, error: eventErr } = await service
       .from("application_events")
@@ -102,13 +60,6 @@ serve(handler(async (req) => {
       .single();
     if (eventErr) throw eventErr;
 
-    if (shouldApplyStatus && targetStatus) {
-      await service
-        .from("job_applications")
-        .update({ status: targetStatus, last_status_change_at: new Date().toISOString() })
-        .eq("id", applicationId);
-    }
-
     await service.from("job_tracker_telemetry").insert({
       user_id: userId,
       metric_type: "email_classification",
@@ -129,8 +80,7 @@ serve(handler(async (req) => {
       recommendation: {
         targetStatus,
         shouldApplyStatus,
-        requiresUserConfirmation:
-          Boolean(targetStatus) && (!shouldApplyStatus || isDestructive || requireConfirm),
+        requiresUserConfirmation: Boolean(targetStatus),
       },
     });
   }
