@@ -358,3 +358,98 @@ gone; classify_email only ever suggests a stage now. The
 **Decide later:** drop the table in a migration (it holds only switch
 positions). If inbox sync is ever built (Gmail API, or a forwarding
 address), design its settings around what it really does.
+
+---
+
+## 12. Market News invents its trends, and isn't Australian-first
+
+**Found:** 2026-10-14, cleaning up the old job feed.
+
+The page (`/job-market-news`, pages/JobMarketNews.tsx) has three tabs:
+
+- **News** comes from Currents API, searched by keyword ("Australia recruitment
+  hiring", "Australia wages salary" and seven more topics), English only, cached
+  in `news_articles`. Keyword search means "articles mentioning Australia",
+  which can be overseas outlets; it's newest-first with no Australian-first
+  ordering. The 6-hourly refresh (`.github/workflows/news-refresh.yml`) has
+  been failing for lack of `SUPABASE_SERVICE_ROLE_KEY`, so news only refreshes
+  when someone opens the page on a stale cache.
+- **"Analytics"** (TrendsTab, job-news `fetch_trends`) shows growth figures
+  from a hard-coded table ("AI +85%", "Recruiter -15%"); any role not in the
+  table gets `Math.random() > 0.5 ? 5 : -3`. It also still pulls Arbeitnow
+  (European) and unfiltered Remotive listings into "Australian" counts.
+- **Insights** (InsightsTab, `fetch_insights`) gives skills a rule-made
+  "growth" (15/8/3%) and shows fixed sentences to everyone: "Tech sector
+  showing 12% growth in job postings this month", "Learn React & TypeScript".
+
+**Why it matters:** these are presented as market facts. Same honesty problem
+Browse Jobs had.
+
+**Not urgent because:** few people reach that page yet, and the fix is a page
+rebuild, not a patch. Deliberately out of scope while the current batch ships.
+
+**Decide later (proposed):**
+- News: keep world news but tag each article Australian or World and show
+  Australian first; check whether Currents can filter by country; add the
+  GitHub secret so the refresh runs.
+- Replace "Analytics" and "Insights" with one honest "What's in today's ads"
+  view from Australian Adzuna listings (counts, most-asked-for skills, pay
+  where listed), and start saving a daily snapshot so real, dated trends exist
+  after a few weeks.
+- Look at what articles actually come through (signed-in, read-only) before
+  designing.
+
+---
+
+## 13. No usage analytics or error monitoring
+
+**Found:** 2026-10-11 overnight review (FAIRCOPY-REVIEW.md, 3.2); discussed
+again 2026-10-14.
+
+Nothing records sign-ups, what people use, where they drop off, or when
+something breaks, in the browser or the edge functions.
+
+**Why it matters:** the soft launch exists to learn exactly this.
+
+**Not urgent because:** there are no users yet. Do it before the soft launch.
+
+**Decide later (proposed):**
+- PostHog for usage (free tier is plenty; session replay shows where people
+  get stuck) plus Sentry for errors (free tier). The user creates both
+  accounts and supplies the public project keys.
+- Track about ten moments: signed up, finished onboarding, built a résumé,
+  exported a PDF, ran an ATS check, wrote a cover letter, saved a job, moved
+  a job, started interview practice, used the coach.
+- Gotchas: allow their domains in the CSP in both vercel.json files or they're
+  silently blocked; say in the privacy policy that both store data in the US
+  or EU; mask résumé text and form inputs in session replays.
+- Roughly half a day to a day for both.
+
+---
+
+## 14. Email forwarding for the tracker (idea, parked)
+
+**Discussed:** 2026-10-14, after removing the email-automation settings (#11).
+
+Each user gets a private address (e.g. `jobs-<code>@faircopy.au`). When a
+recruiter replies to their own inbox, they can forward it there; Faircopy reads
+only that email, matches it to a tracked job and suggests the stage ("SA
+Health replied: looks like an interview invite. Move to Interview?").
+
+Nothing is tracked automatically: people apply and receive replies with their
+own email as now, and only what they choose to forward is read.
+
+**How it would work:** Cloudflare Email Routing (already handling faircopy.au)
+→ a free Cloudflare email worker → a Supabase function that reuses
+job-email-events' classifier → a suggestion in Up next. A private address per
+user, one line in the privacy policy. About 1-2 days; $0 to run. The fiddly
+part is matching an email to the right job (agencies, odd sender names), with
+"which job is this about?" as the fallback.
+
+**Not urgent because:** the "Got an email about this job?" paste box already
+does the useful part by hand, so forwarding adds little until people use the
+tracker weekly.
+
+**Decide later:** build it if soft-launch users use the tracker regularly and
+ask for it. The Gmail/Outlook "connect your inbox" route stays off the table
+for now (Google's security review for inbox access, and user trust).
