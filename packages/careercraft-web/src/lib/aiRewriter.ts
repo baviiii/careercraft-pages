@@ -75,10 +75,13 @@ export async function rewriteBullet(
   }
 }
 
+/** `job` is the role and company when the app knows them (a letter for a
+    tracked job), so the letter names them instead of leaving blanks. */
 export async function generateCoverLetter(
   resumeText: string,
   jobDescription: string,
-  tone: "professional" | "confident" | "casual"
+  tone: "professional" | "confident" | "casual",
+  job?: { role?: string; company?: string }
 ): Promise<string> {
   try {
     const response = await fetch(
@@ -91,6 +94,8 @@ export async function generateCoverLetter(
           jobDescription,
           type: "cover-letter",
           tone,
+          role: job?.role || undefined,
+          company: job?.company || undefined,
         }),
       }
     );

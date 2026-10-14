@@ -52,6 +52,9 @@ export const LetterSheet = ({
 
   const words = countWords(text);
   const empty = !text.trim();
+  /* Anything still in [square brackets] is a blank the letter can't be sent
+     with, whether the model left it or someone pasted a template. */
+  const blanks = [...new Set(text.match(/\[[^\]\n]{2,60}\]/g) ?? [])];
 
   return (
     <div>
@@ -98,6 +101,16 @@ export const LetterSheet = ({
           )}
         </div>
       </article>
+
+      {blanks.length > 0 && !generating && (
+        <p
+          role="status"
+          className="mt-4 rounded-xl bg-[color:var(--cc-wheat-soft)] px-4 py-3 cc-font-sans text-[14px] leading-snug text-[color:var(--cc-wheat-deep)]"
+        >
+          Fill in {blanks.length === 1 ? "this blank" : "these blanks"} before you send it:{" "}
+          <strong className="font-semibold">{blanks.join(", ")}</strong>
+        </p>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <div className="cc-label-sm cc-tabular text-[color:var(--cc-ash)]">

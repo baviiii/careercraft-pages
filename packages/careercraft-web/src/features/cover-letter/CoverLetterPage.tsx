@@ -149,7 +149,14 @@ export default function CoverLetterPage() {
     if (!resumeText.trim() || !ad.trim()) return;
     setGenerating(true);
     try {
-      setText(await generateCoverLetter(resumeText, ad, tone));
+      setText(
+        await generateCoverLetter(
+          resumeText,
+          ad,
+          tone,
+          forApp ? { role: forApp.job_title, company: forApp.company } : undefined,
+        ),
+      );
     } catch (error) {
       toast({
         title: "Couldn't write the letter",

@@ -25,6 +25,10 @@ const RequestSchema = z.object({
   tone: z
     .enum(["professional", "confident", "casual"])
     .default("professional"),
+  /* Cover letters only: what the app already knows about the job, so the
+     model names it instead of writing "[Position Title]". */
+  role: z.string().max(200).optional(),
+  company: z.string().max(200).optional(),
 });
 
 type RewriteRequest = z.infer<typeof RequestSchema>;
@@ -76,6 +80,9 @@ const COVER_LETTER_PROMPTS: Record<RewriteRequest["tone"], PromptBuilder> = {
 };
 
 function coverLetter(r: RewriteRequest, baseSystem: string, toneInstructions: string): PromptPair {
+  const known = r.role
+    ? `The role is "${r.role}"${r.company ? ` at ${r.company}` : ""}. Use these names exactly.`
+    : "Take the role and company names from the job description.";
   return {
     system: `${baseSystem}
 
@@ -90,9 +97,36 @@ Key requirements:
 - Include 3-4 paragraphs: opening, 2-3 achievement paragraphs, closing
 - Quantify impact wherever possible using resume data
 - Make it compelling and tailored to the specific role
-- ${toneInstructions}`,
+- ${toneInstructions}
+
+The letter is pasted straight into an application, so it must be complete:
+- Never write placeholders or anything in square brackets: no [Hiring Manager's Name], [Position Title], [Company Name], [Your Name], [Date] or [Address].
+- ${known} If the job description doesn't name the company, say "your team" rather than inventing one.
+- Open with "Dear Hiring Manager," unless the job description names the person to write to.
+- Start at the greeting: no address block, no date.
+- End with "Kind regards," and the candidate's name exactly as it appears at the top of the resume. If the resume has no name, end with "Kind regards," alone.`,
     user: `Resume:\n${r.text}\n\nJob Description:\n${r.jobDescription}\n\nWrite a tailored cover letter for this job application. Use specific achievements and metrics from the resume. Make it compelling and unique. Maximum 400 words.`,
   };
+}
+
+/**
+ * Belt and braces for the prompt's no-placeholder rule. Fills the common
+ * blanks the app can answer, drops lines that are nothing but a blank
+ * ("[Your Address]", "[Date]"), and leaves anything else for the page to
+ * point out, rather than guessing.
+ */
+function fillPlaceholders(letter: string, r: RewriteRequest): string {
+  let out = letter
+    .replace(/\[(?:the )?(?:hiring manager'?s?|recipient'?s?|employer'?s?)(?: full)? name\]/gi, "Hiring Manager")
+    .replace(/\[name of (?:the )?hiring manager\]/gi, "Hiring Manager");
+  if (r.role) out = out.replace(/\[(?:the )?(?:position|job|role)(?: title| name)?\]/gi, r.role);
+  if (r.company) out = out.replace(/\[(?:the )?(?:company|organi[sz]ation|employer|business)(?: name)?\]/gi, r.company);
+  return out
+    .split("\n")
+    .filter((line) => !/^\s*\[[^\]]{1,60}\]\s*$/.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 serve(handler(async (req) => {
@@ -121,7 +155,10 @@ serve(handler(async (req) => {
       meter,
     });
 
-    return json({ rewrittenText: text.trim() });
+    const out = parsed.data.type === "cover-letter"
+      ? fillPlaceholders(text.trim(), parsed.data)
+      : text.trim();
+    return json({ rewrittenText: out });
   } catch (err) {
     if (err instanceof ProviderError) throw err;
     const msg = err instanceof Error ? err.message : String(err);
