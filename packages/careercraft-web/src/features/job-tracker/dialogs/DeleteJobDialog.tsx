@@ -1,6 +1,5 @@
-import { CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
 
-import { TrackerButton } from "../components/TrackerButton";
 import type { JobApplication } from "../types";
 
 interface DeleteJobDialogProps {
@@ -28,12 +27,12 @@ export const DeleteJobDialog = ({
     }
     footer={
       <>
-        <TrackerButton variant="ghost" onClick={() => onOpenChange(false)}>
+        <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
           Cancel
-        </TrackerButton>
-        <TrackerButton variant="danger" onClick={onConfirm}>
+        </CraftButton>
+        <CraftButton variant="danger" onClick={onConfirm}>
           Delete
-        </TrackerButton>
+        </CraftButton>
       </>
     }
   />

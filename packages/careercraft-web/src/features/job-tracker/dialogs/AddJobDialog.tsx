@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { CraftDialog } from "@/components/craft/AppPrimitives";
+import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
 
-import { TrackerButton } from "../components/TrackerButton";
 import { EMPTY_FORM } from "../types";
 import type {
   CoverLetterRef,
@@ -76,12 +75,12 @@ export const AddJobDialog = ({
       maxWidth="max-w-2xl"
       footer={
         <>
-          <TrackerButton variant="ghost" onClick={() => onOpenChange(false)}>
+          <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
-          </TrackerButton>
-          <TrackerButton onClick={handleSubmit} disabled={saving}>
+          </CraftButton>
+          <CraftButton onClick={handleSubmit} disabled={saving}>
             {saving ? "Saving…" : "Add to board"}
-          </TrackerButton>
+          </CraftButton>
         </>
       }
     >

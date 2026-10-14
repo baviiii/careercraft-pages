@@ -1312,6 +1312,8 @@
   box-shadow: none;
 }
 .cc-action--ink:hover:not(:disabled) { background: var(--cc-rust); }
+.cc-action--danger { background: #9C3424; box-shadow: none; }
+.cc-action--danger:hover:not(:disabled) { background: #7F2A1D; }
 .cc-action--sm { padding: 0.5rem 1rem; font-size: 13px; }
 .cc-action--lg { padding: 0.85rem 1.6rem; font-size: 15px; }
 

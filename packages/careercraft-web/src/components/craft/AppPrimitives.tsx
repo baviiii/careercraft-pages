@@ -369,7 +369,7 @@ export const CraftDialog = ({
   </Dialog>
 );
 
-/* ─────────────────────────── Ink button ─────────────────────── */
+/* ─────────────────────────── Button ─────────────────────────── */
 
 interface CraftButtonProps {
   children: ReactNode;
@@ -381,7 +381,19 @@ interface CraftButtonProps {
   size?: "sm" | "md";
 }
 
-/** Thin convenience wrapper — picks cc-btn variants so pages don't inline. */
+/**
+ * The app's button: a cobalt pill in Inter, sentence case. It used to add
+ * ds-btn / ds-btn-primary, and design-system.css (loaded after craft.css)
+ * painted those as a purple-to-cyan gradient with spaced mono capitals, the
+ * Stripe-era look, in every dialog. Now it's the cc-action pill the board,
+ * Browse Jobs and the homepage use.
+ */
+const VARIANT: Record<NonNullable<CraftButtonProps["variant"]>, string> = {
+  primary: "",
+  ghost: "cc-action--ghost",
+  danger: "cc-action--danger",
+};
+
 export const CraftButton = ({
   children,
   onClick,
@@ -390,29 +402,16 @@ export const CraftButton = ({
   disabled,
   className = "",
   size = "md",
-}: CraftButtonProps) => {
-  const base = "cc-btn ds-btn";
-  const v =
-    variant === "primary"
-      ? "cc-btn-primary ds-btn-primary"
-      : variant === "danger"
-      ? "cc-btn-danger"
-      : "cc-btn-ghost";
-  const padding =
-    size === "sm" ? { padding: "0.65rem 0.95rem" } : { padding: "1rem 1.3rem" };
-
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className={`${base} ${v} ${className}`}
-      style={padding}
-    >
-      {children}
-    </button>
-  );
-};
+}: CraftButtonProps) => (
+  <button
+    type={type}
+    onClick={onClick}
+    disabled={disabled}
+    className={`cc-action ${size === "sm" ? "cc-action--sm" : ""} ${VARIANT[variant]} ${className}`}
+  >
+    {children}
+  </button>
+);
 
 /* ─────────────────────────── Row animator ────────────────────── */
 

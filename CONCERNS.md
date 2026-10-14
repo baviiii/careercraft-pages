@@ -318,28 +318,23 @@ it from `delete-account` before `delete_user_data()`. Then drop the
 
 ---
 
-## 10. Every CraftButton primary is a purple-to-cyan gradient
+## 10. Purple-to-cyan gradient buttons
 
-**Found:** 2026-10-11, rebuilding the job tracker.
+**Found:** 2026-10-11, rebuilding the job tracker. **Partly fixed 2026-10-14.**
 
-`CraftButton` (components/craft/AppPrimitives.tsx) renders
-`cc-btn ds-btn cc-btn-primary ds-btn-primary`. design-system.css loads after
-craft.css, so `.ds-btn-primary` wins: a #635bff → #14b8ff gradient pill with
-spaced mono capitals. That's the Stripe-era look, not paper/carbon/cobalt, and
-it shows in every Craft dialog's footer (cover letters, résumés, settings and
-so on). design-system.css even warns against restyling cc-* there; CraftButton
-opts in by adding the ds-* classes itself.
+`CraftButton` (components/craft/AppPrimitives.tsx) used to add `ds-btn
+ds-btn-primary`, which design-system.css (loaded after craft.css) painted as a
+#635bff → #14b8ff gradient pill with spaced mono capitals. It now renders the
+cobalt `cc-action` pill, so every Craft dialog matches the tracker and Browse
+Jobs. TrackerButton is gone.
 
-**Why it matters:** it's the most "AI template" thing left on the paper pages.
+**Still there:** the shadcn `Button` (components/ui/button.tsx) default and
+`hero` variants also use `ds-btn-primary`. About 30 files use it, mostly the
+older Career Insights, Market News and landing components with their own dark
+styling.
 
-**Not urgent because:** it's cosmetic and consistent. The tracker already
-avoids it (features/job-tracker/components/TrackerButton.tsx, the cobalt
-`cc-action` pill).
-
-**Decide later:** drop `ds-btn` / `ds-btn-primary` from CraftButton (and check
-the ghost and danger variants still read well), or point CraftButton at
-`cc-action` like TrackerButton, then delete TrackerButton. Check each dialog
-after, since padding and type change.
+**Decide later:** recolour those when each page gets its redesign, rather than
+changing the shared shadcn button blind.
 
 ---
 
@@ -355,6 +350,11 @@ strip and dialog are removed from the page; the settings table, the
 `get_settings` / `save_settings` actions in `job-email-events`, and
 `useJobAutomation`'s settings functions are still there, unused.
 
-**Decide later:** if inbox sync is ever built (Gmail API, or a forwarding
-address), bring back a settings dialog that matches what it really does.
-Otherwise drop `job_automation_settings` and the two actions.
+**Cleaned up 2026-10-14:** the get_settings / save_settings actions, the
+settings code in useJobAutomation and the JobAutomationSettings type are
+gone; classify_email only ever suggests a stage now. The
+`job_automation_settings` table is still in the database, unused.
+
+**Decide later:** drop the table in a migration (it holds only switch
+positions). If inbox sync is ever built (Gmail API, or a forwarding
+address), design its settings around what it really does.

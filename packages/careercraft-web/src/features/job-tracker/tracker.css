@@ -294,7 +294,3 @@
   .cc-nudge__bell { animation: none; }
   .cc-swap { animation: none; }
 }
-
-/* Delete, in the tracker's dialogs (TrackerButton variant="danger"). */
-.cc-action--danger { background: #9C3424; box-shadow: none; }
-.cc-action--danger:hover:not(:disabled) { background: #7F2A1D; }
