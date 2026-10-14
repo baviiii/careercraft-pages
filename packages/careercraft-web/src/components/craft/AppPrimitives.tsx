@@ -235,7 +235,7 @@ const StatValue = ({
 /* ─────────────────────────── Empty state ─────────────────────── */
 
 interface CraftEmptyProps {
-  kicker?: string; // § label
+  kicker?: string;
   title: ReactNode;
   body?: ReactNode;
   ctaLabel?: string;
@@ -243,7 +243,7 @@ interface CraftEmptyProps {
 }
 
 export const CraftEmpty = ({
-  kicker = "§ Nothing here yet",
+  kicker = "Nothing here yet",
   title,
   body,
   ctaLabel,
@@ -260,12 +260,9 @@ export const CraftEmpty = ({
       </p>
     )}
     {ctaLabel && onCta && (
-      <button
-        onClick={onCta}
-        className="mt-10 cc-btn cc-btn-primary"
-      >
+      <button type="button" onClick={onCta} className="mt-8 cc-action">
         {ctaLabel}
-        <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+        <ArrowUpRight className="h-4 w-4" />
       </button>
     )}
   </div>
@@ -313,7 +310,7 @@ export const CraftAppSection = ({
 interface CraftDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  kicker?: string; // § label
+  kicker?: string;
   title: ReactNode;
   description?: ReactNode;
   children?: ReactNode;

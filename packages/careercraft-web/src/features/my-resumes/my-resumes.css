@@ -1,0 +1,123 @@
+/* My résumés — imported by MyResumesPage.tsx and scoped under .cc-shelf,
+   beside the feature like tracker.css. Uses the --cc-* tokens from
+   styles/craft.css. Same paper, white cards and cobalt pills as the tracker
+   and Browse Jobs. */
+
+.cc-shelf .cc-rcard {
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  transition: translate .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s ease, border-color .25s ease;
+}
+@media (hover: hover) {
+  .cc-shelf .cc-rcard:hover {
+    translate: 0 -2px;
+    border-color: var(--cc-hair-strong);
+    box-shadow: 0 18px 32px -24px rgba(20, 22, 26, 0.45);
+  }
+}
+
+/* The little sheet of paper at the top of each card. */
+.cc-shelf .cc-rpaper {
+  position: relative;
+  display: block;
+  height: 150px;
+  margin: 0 14px;
+  border-radius: 12px;
+  background: var(--cc-cream-2);
+  overflow: hidden;
+}
+.cc-shelf .cc-rpaper__sheet {
+  position: absolute;
+  inset: 12px 18px -10px;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 8px 20px -12px rgba(20, 22, 26, 0.35);
+  padding: 10px 12px;
+  color: #333;
+  font-size: 6.5px;
+  line-height: 1.35;
+  transition: translate .3s cubic-bezier(.2, .8, .2, 1);
+}
+@media (hover: hover) {
+  .cc-shelf .cc-rpaper:hover .cc-rpaper__sheet { translate: 0 -4px; }
+}
+.cc-shelf .cc-rpaper__hint {
+  position: absolute;
+  inset: auto 10px 10px auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cc-ink);
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.cc-shelf .cc-rpaper:hover .cc-rpaper__hint,
+.cc-shelf .cc-rpaper:focus-visible .cc-rpaper__hint { opacity: 1; }
+
+.cc-shelf .cc-rchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  background: var(--cc-cream-2);
+  color: var(--cc-ink-soft);
+}
+.cc-shelf .cc-rchip[data-tone="good"] { background: rgba(63, 122, 92, 0.13); color: var(--cc-signal-deep); font-weight: 600; }
+.cc-shelf .cc-rchip[data-tone="fair"] { background: var(--cc-wheat-soft); color: var(--cc-wheat-deep); font-weight: 600; }
+.cc-shelf .cc-rchip[data-tone="low"] { background: rgba(194, 65, 45, 0.1); color: #9C3424; font-weight: 600; }
+.cc-shelf .cc-rchip--template { background: rgba(42, 82, 204, 0.09); color: var(--cc-rust-deep); }
+
+/* Favourite star: a small pop when it's switched on. */
+.cc-shelf .cc-rstar[aria-pressed="true"] svg { animation: cc-star-pop .35s cubic-bezier(.2, .8, .2, 1); }
+@keyframes cc-star-pop {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* Filter chips and the segmented toggles. */
+.cc-shelf .cc-rfilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-hair-strong);
+  background: #fff;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-ink-soft);
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+}
+.cc-shelf .cc-rfilter:hover { border-color: var(--cc-ink-soft); color: var(--cc-ink); }
+.cc-shelf .cc-rfilter[aria-pressed="true"] { background: var(--cc-ink); border-color: var(--cc-ink); color: var(--cc-cream); }
+
+.cc-shelf .cc-rselect {
+  border-radius: 12px;
+  border: 1px solid var(--cc-hair-strong);
+  background: #fff;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--cc-ink);
+  outline: none;
+}
+.cc-shelf .cc-rselect:focus { border-color: var(--cc-rust); box-shadow: 0 0 0 3px var(--cc-rust-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-shelf .cc-rcard,
+  .cc-shelf .cc-rpaper__sheet,
+  .cc-shelf .cc-rfilter { transition: none; }
+  .cc-shelf .cc-rcard:hover,
+  .cc-shelf .cc-rpaper:hover .cc-rpaper__sheet { translate: none; }
+  .cc-shelf .cc-rstar[aria-pressed="true"] svg { animation: none; }
+}

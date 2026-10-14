@@ -1,4 +1,4 @@
-import { Grid2X2, List, Search, SortAsc, SortDesc, Star } from "lucide-react";
+import { ArrowDown, ArrowUp, LayoutGrid, List, Search, Star, X } from "lucide-react";
 
 import { RESUME_CATEGORIES } from "../types";
 import type { SortKey, SortOrder, ViewMode } from "../types";
@@ -21,6 +21,13 @@ interface ResumeFilterBarProps {
   onViewModeChange: (v: ViewMode) => void;
 }
 
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "updated", label: "Last edited" },
+  { key: "date", label: "Created" },
+  { key: "name", label: "Name" },
+];
+
+/** Search, narrow and sort the shelf. */
 export const ResumeFilterBar = ({
   search,
   onSearchChange,
@@ -38,112 +45,99 @@ export const ResumeFilterBar = ({
   viewMode,
   onViewModeChange,
 }: ResumeFilterBarProps) => (
-  <div className="border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)]">
-    {/* Top: search + category + tag */}
-    <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr] divide-x divide-[color:var(--cc-hair-strong)]">
-      <label className="relative flex items-center px-4 py-3 border-b md:border-b-0 border-[color:var(--cc-hair-strong)]">
-        <Search className="w-4 h-4 text-[color:var(--cc-ash)] mr-3" />
+  <div className="space-y-3 cc-font-sans">
+    <div className="flex flex-col gap-3 md:flex-row md:items-center">
+      <label className="relative flex flex-1 items-center gap-3 rounded-xl border border-[color:var(--cc-hair-strong)] bg-white px-3 py-2 transition-all focus-within:border-[color:var(--cc-ink)] focus-within:shadow-[0_0_0_3px_var(--cc-rust-soft)] md:max-w-md">
+        <Search className="h-4 w-4 text-[color:var(--cc-ash)]" />
         <input
           type="text"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search resumes…"
-          className="flex-1 bg-transparent outline-none cc-font-sans text-[15px] text-[color:var(--cc-ink)] placeholder:italic placeholder:text-[color:var(--cc-ash)]"
+          placeholder="Search by name or job"
+          aria-label="Search your résumés"
+          className="flex-1 bg-transparent py-0.5 text-[15px] text-[color:var(--cc-ink)] outline-none placeholder:text-[color:var(--cc-ash)]"
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearchChange("")}
+            className="text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
+            aria-label="Clear search"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </label>
-
-      <select
-        value={category}
-        onChange={(e) => onCategoryChange(e.target.value)}
-        className="cc-select border-b-0 px-4"
-      >
-        <option value="all">All categories</option>
-        {RESUME_CATEGORIES.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.label}
-          </option>
-        ))}
-      </select>
-
-      <select
-        value={tag}
-        onChange={(e) => onTagChange(e.target.value)}
-        className="cc-select border-b-0 px-4"
-      >
-        <option value="all">All tags</option>
-        {allTags.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={category}
+          onChange={(e) => onCategoryChange(e.target.value)}
+          className="cc-rselect"
+          aria-label="Category"
+        >
+          <option value="all">Every category</option>
+          {RESUME_CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        {allTags.length > 0 && (
+          <select value={tag} onChange={(e) => onTagChange(e.target.value)} className="cc-rselect" aria-label="Tag">
+            <option value="all">Any tag</option>
+            {allTags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
     </div>
 
-    {/* Bottom: sort + favourites + view */}
-    <div className="flex flex-wrap items-stretch border-t border-[color:var(--cc-hair-strong)]">
-      <div className="flex items-center px-4 py-2">
-        <span className="cc-label text-[color:var(--cc-ash)] mr-3">Sort</span>
-        {(["updated", "date", "name"] as SortKey[]).map((k) => (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Sort">
+        <span className="mr-1 text-[13px] text-[color:var(--cc-ash)]">Sort</span>
+        {SORTS.map((s) => (
           <button
-            key={k}
-            onClick={() => onSortByChange(k)}
-            className={`cc-label px-2 py-1 ${
-              sortBy === k
-                ? "text-[color:var(--cc-rust)] underline underline-offset-4"
-                : "text-[color:var(--cc-ink)] hover:text-[color:var(--cc-rust)]"
-            }`}
+            key={s.key}
+            type="button"
+            className="cc-rfilter"
+            aria-pressed={sortBy === s.key}
+            onClick={() => (sortBy === s.key ? onSortOrderToggle() : onSortByChange(s.key))}
+            title={sortBy === s.key ? "Tap again to flip the order" : undefined}
           >
-            {k === "updated" ? "Updated" : k === "date" ? "Created" : "Name"}
+            {s.label}
+            {sortBy === s.key &&
+              (sortOrder === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />)}
           </button>
         ))}
-        <button
-          onClick={onSortOrderToggle}
-          className="inline-flex h-8 w-8 items-center justify-center border border-[color:var(--cc-ink)] ml-2 text-[color:var(--cc-ink)]"
-          aria-label="Toggle sort order"
-        >
-          {sortOrder === "asc" ? (
-            <SortAsc className="w-3.5 h-3.5" />
-          ) : (
-            <SortDesc className="w-3.5 h-3.5" />
-          )}
+        <button type="button" className="cc-rfilter ml-1" aria-pressed={favoritesOnly} onClick={onFavoritesOnlyToggle}>
+          <Star className={`h-3.5 w-3.5 ${favoritesOnly ? "fill-current" : ""}`} />
+          Favourites
         </button>
       </div>
 
-      <div className="ml-auto flex items-stretch border-l border-[color:var(--cc-hair-strong)]">
+      <div className="flex items-center gap-1" role="group" aria-label="View">
         <button
-          onClick={onFavoritesOnlyToggle}
-          className={`px-4 py-2 inline-flex items-center gap-2 cc-label border-r border-[color:var(--cc-hair-strong)] ${
-            favoritesOnly
-              ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-              : "text-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)]"
-          }`}
-        >
-          <Star
-            className={`w-3.5 h-3.5 ${favoritesOnly ? "fill-current" : ""}`}
-          />
-          Favourites
-        </button>
-        <button
+          type="button"
+          className="cc-rfilter !px-2.5"
+          aria-pressed={viewMode === "grid"}
+          aria-label="Cards"
+          title="Cards"
           onClick={() => onViewModeChange("grid")}
-          className={`w-10 inline-flex items-center justify-center ${
-            viewMode === "grid"
-              ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-              : "text-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)]"
-          }`}
-          aria-label="Grid view"
         >
-          <Grid2X2 className="w-4 h-4" />
+          <LayoutGrid className="h-4 w-4" />
         </button>
         <button
+          type="button"
+          className="cc-rfilter !px-2.5"
+          aria-pressed={viewMode === "list"}
+          aria-label="List"
+          title="List"
           onClick={() => onViewModeChange("list")}
-          className={`w-10 inline-flex items-center justify-center border-l border-[color:var(--cc-hair-strong)] ${
-            viewMode === "list"
-              ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-              : "text-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)]"
-          }`}
-          aria-label="List view"
         >
-          <List className="w-4 h-4" />
+          <List className="h-4 w-4" />
         </button>
       </div>
     </div>

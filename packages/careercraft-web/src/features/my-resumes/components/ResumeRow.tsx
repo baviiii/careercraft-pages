@@ -4,7 +4,7 @@ import { BarChart3, Edit, Eye, Star } from "lucide-react";
 import { formatTemplateName } from "@/lib/templateMap";
 
 import type { Resume } from "../types";
-import { formatDate, getCategory } from "../types";
+import { editedLabel, getCategory, scoreBand } from "../types";
 import { ResumeActionsMenu } from "./ResumeActionsMenu";
 
 interface ResumeRowProps {
@@ -21,7 +21,7 @@ interface ResumeRowProps {
   onDelete: (r: Resume) => void;
 }
 
-/** A single horizontal line in the list view — like an index entry. */
+/** One résumé as a line in the list view. */
 export const ResumeRow = ({
   resume,
   index,
@@ -36,83 +36,71 @@ export const ResumeRow = ({
   onDelete,
 }: ResumeRowProps) => {
   const category = getCategory(resume.category);
-  const score = resume.ats_score;
+  const band = scoreBand(resume.ats_score);
+  const subtitle = [resume.job_title, category.label].filter(Boolean).join(" · ");
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 10 }}
-      transition={{ delay: Math.min(index * 0.02, 0.15), duration: 0.3 }}
-      className="cc-row flex items-center gap-4 px-5 py-4"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ delay: Math.min(index * 0.02, 0.15), duration: 0.25 }}
+      className="flex items-center gap-3 border-b border-[color:var(--cc-hair)] px-4 py-3 last:border-b-0 cc-font-sans"
     >
-      {/* Folio */}
-      <div className="cc-label text-[color:var(--cc-ash)] w-14 shrink-0 cc-tabular">
-        {String(index + 1).padStart(3, "0")}
-      </div>
-
-      {/* Title + subtitle */}
       <button
-        onClick={() => onPreview(resume)}
-        className="flex-1 min-w-0 text-left"
+        type="button"
+        className="cc-rstar grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors hover:bg-[color:var(--cc-cream-2)]"
+        aria-pressed={Boolean(resume.is_favorite)}
+        aria-label={resume.is_favorite ? "Remove from favourites" : "Add to favourites"}
+        onClick={() => onToggleFavorite(resume)}
       >
-        <div className="flex items-center gap-2">
-          <h3 className="cc-font-display text-xl leading-tight tracking-tight text-[color:var(--cc-ink)] truncate">
-            {resume.name || "Untitled draft"}
-          </h3>
-          {resume.is_favorite && (
-            <Star className="w-3.5 h-3.5 text-[color:var(--cc-rust)] fill-[color:var(--cc-rust)]" />
-          )}
-        </div>
-        <p className="cc-font-editorial italic text-base text-[color:var(--cc-ink-soft)] truncate">
-          {resume.job_title} · {category.label}
-        </p>
+        <Star
+          className={`h-4 w-4 ${
+            resume.is_favorite
+              ? "fill-[color:var(--cc-wheat-deep)] text-[color:var(--cc-wheat-deep)]"
+              : "text-[color:var(--cc-ash)]"
+          }`}
+        />
       </button>
 
-      {/* Meta pills */}
-      <div className="hidden md:flex items-center gap-2 shrink-0">
+      <button type="button" onClick={() => onPreview(resume)} className="min-w-0 flex-1 text-left">
+        <span className="block truncate cc-font-display text-[16px] font-semibold text-[color:var(--cc-ink)]">
+          {resume.name || "Untitled résumé"}
+        </span>
+        <span className="block truncate text-[13px] text-[color:var(--cc-ink-soft)]">{subtitle}</span>
+      </button>
+
+      <div className="hidden shrink-0 items-center gap-1.5 md:flex">
+        {band && (
+          <span className="cc-rchip" data-tone={band.tone}>
+            {band.label}
+          </span>
+        )}
         {resume.template_id && (
-          <span className="cc-pill cc-pill-rust">
-            {formatTemplateName(resume.template_id)}
-          </span>
-        )}
-        {typeof score === "number" && (
-          <span
-            className={`cc-pill ${
-              score >= 80
-                ? "cc-pill-filled"
-                : score >= 60
-                ? "cc-pill-rust"
-                : ""
-            }`}
-          >
-            <span className="cc-tabular">{score}</span>/100
-          </span>
+          <span className="cc-rchip cc-rchip--template">{formatTemplateName(resume.template_id)}</span>
         )}
       </div>
 
-      {/* Date */}
-      <div className="hidden sm:block cc-font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--cc-ash)] w-24 text-right shrink-0">
-        {formatDate(resume.updated_at)}
-      </div>
+      <span className="hidden w-32 shrink-0 text-right text-[12.5px] text-[color:var(--cc-ash)] sm:block">
+        {editedLabel(resume.updated_at)}
+      </span>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex shrink-0 items-center">
         <IconBtn onClick={() => onPreview(resume)} label="Preview">
-          <Eye className="w-4 h-4" />
+          <Eye className="h-4 w-4" />
         </IconBtn>
         <IconBtn onClick={() => onEdit(resume)} label="Edit">
-          <Edit className="w-4 h-4" />
+          <Edit className="h-4 w-4" />
         </IconBtn>
-        <IconBtn onClick={() => onAnalyze(resume)} label="Analyse">
-          <BarChart3 className="w-4 h-4" />
+        <IconBtn onClick={() => onAnalyze(resume)} label="Check against a job">
+          <BarChart3 className="h-4 w-4" />
         </IconBtn>
         <ResumeActionsMenu
           resume={resume}
           onPreview={onPreview}
           onEdit={onEdit}
           onAnalyze={onAnalyze}
-            onCoverLetter={onCoverLetter}
+          onCoverLetter={onCoverLetter}
           onDownload={onDownload}
           onDuplicate={onDuplicate}
           onManageTags={onManageTags}
@@ -134,10 +122,11 @@ const IconBtn = ({
   children: React.ReactNode;
 }) => (
   <button
+    type="button"
     onClick={onClick}
     aria-label={label}
     title={label}
-    className="inline-flex h-8 w-8 items-center justify-center border border-transparent text-[color:var(--cc-ink)] hover:border-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)] transition-colors"
+    className="grid h-8 w-8 place-items-center rounded-lg text-[color:var(--cc-ink-soft)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
   >
     {children}
   </button>

@@ -5,7 +5,7 @@ import {
   Edit,
   Eye,
   Mail,
-  MoreVertical,
+  MoreHorizontal,
   Star,
   StarOff,
   Tag,
@@ -34,14 +34,14 @@ interface ResumeActionsMenuProps {
   onManageTags: (r: Resume) => void;
   onToggleFavorite: (r: Resume) => void;
   onDelete: (r: Resume) => void;
-  /** Extra className on the trigger button (e.g. "opacity-0 group-hover:…"). */
+  /** Extra className on the trigger button. */
   triggerClassName?: string;
 }
 
-/**
- * The canonical ⋮ menu for a resume. Was duplicated twice in MyResumes;
- * now there's exactly one.
- */
+const ITEM =
+  "cc-font-sans text-sm cursor-pointer px-3 py-2 rounded-md focus:bg-[color:var(--cc-cream-2)] focus:text-[color:var(--cc-ink)]";
+
+/** The ⋯ menu for a résumé, shared by the card and the list row. */
 export const ResumeActionsMenu = ({
   resume,
   onPreview,
@@ -61,64 +61,52 @@ export const ResumeActionsMenu = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className={`inline-flex h-8 w-8 items-center justify-center border border-transparent text-[color:var(--cc-ink)] hover:border-[color:var(--cc-ink)] transition-colors ${triggerClassName}`}
-          aria-label="Resume actions"
+          type="button"
+          className={`grid h-8 w-8 place-items-center rounded-lg text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)] ${triggerClassName}`}
+          aria-label={`More for ${resume.name || "this résumé"}`}
         >
-          <MoreVertical className="w-4 h-4" />
+          <MoreHorizontal className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="cc-root rounded-none border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] p-1 shadow-[4px_4px_0_0_var(--cc-ink)]"
+        className="cc-root w-56 rounded-xl border border-[color:var(--cc-hair)] bg-white p-1.5 text-[color:var(--cc-ink)] shadow-lg"
       >
-        <MenuRow icon={Eye} label="Preview" onSelect={() => onPreview(resume)} />
-        <MenuRow icon={Edit} label="Edit in builder" onSelect={() => onEdit(resume)} />
-        <MenuRow icon={BarChart3} label="Run ATS analysis" onSelect={() => onAnalyze(resume)} />
+        <DropdownMenuItem onSelect={() => onPreview(resume)} className={ITEM}>
+          <Eye className="mr-2 h-4 w-4" /> Preview
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEdit(resume)} className={ITEM}>
+          <Edit className="mr-2 h-4 w-4" /> Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onAnalyze(resume)} className={ITEM}>
+          <BarChart3 className="mr-2 h-4 w-4" /> Check against a job
+        </DropdownMenuItem>
         {onCoverLetter && (
-          <MenuRow icon={Mail} label="Write cover letter" onSelect={() => onCoverLetter(resume)} />
+          <DropdownMenuItem onSelect={() => onCoverLetter(resume)} className={ITEM}>
+            <Mail className="mr-2 h-4 w-4" /> Write a cover letter
+          </DropdownMenuItem>
         )}
         {hasTemplate && (
-          <MenuRow
-            icon={Download}
-            label="Download PDF"
-            onSelect={() => onDownload(resume)}
-          />
+          <DropdownMenuItem onSelect={() => onDownload(resume)} className={ITEM}>
+            <Download className="mr-2 h-4 w-4" /> Download PDF
+          </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator className="bg-[color:var(--cc-hair-strong)] my-1" />
-        <MenuRow icon={Copy} label="Duplicate" onSelect={() => onDuplicate(resume)} />
-        <MenuRow icon={Tag} label="Manage tags" onSelect={() => onManageTags(resume)} />
-        <MenuRow
-          icon={resume.is_favorite ? StarOff : Star}
-          label={resume.is_favorite ? "Remove favourite" : "Mark favourite"}
-          onSelect={() => onToggleFavorite(resume)}
-        />
-        <DropdownMenuSeparator className="bg-[color:var(--cc-hair-strong)] my-1" />
-        <MenuRow
-          icon={Trash2}
-          label="Delete"
-          danger
-          onSelect={() => onDelete(resume)}
-        />
+        <DropdownMenuSeparator className="my-1 bg-[color:var(--cc-hair)]" />
+        <DropdownMenuItem onSelect={() => onDuplicate(resume)} className={ITEM}>
+          <Copy className="mr-2 h-4 w-4" /> Make a copy
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onManageTags(resume)} className={ITEM}>
+          <Tag className="mr-2 h-4 w-4" /> Tags
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onToggleFavorite(resume)} className={ITEM}>
+          {resume.is_favorite ? <StarOff className="mr-2 h-4 w-4" /> : <Star className="mr-2 h-4 w-4" />}
+          {resume.is_favorite ? "Remove from favourites" : "Add to favourites"}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="my-1 bg-[color:var(--cc-hair)]" />
+        <DropdownMenuItem onSelect={() => onDelete(resume)} className={`${ITEM} text-[#9C3424] focus:text-[#9C3424]`}>
+          <Trash2 className="mr-2 h-4 w-4" /> Delete
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 };
-
-interface MenuRowProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  onSelect: () => void;
-  danger?: boolean;
-}
-
-const MenuRow = ({ icon: Icon, label, onSelect, danger }: MenuRowProps) => (
-  <DropdownMenuItem
-    onSelect={onSelect}
-    className={`rounded-none cc-font-sans text-sm cursor-pointer px-3 py-2 focus:bg-[color:var(--cc-ink)] focus:text-[color:var(--cc-cream)] ${
-      danger ? "text-[color:var(--cc-rust-deep)] focus:bg-[color:var(--cc-rust-deep)]" : ""
-    }`}
-  >
-    <Icon className="w-4 h-4 mr-2" />
-    {label}
-  </DropdownMenuItem>
-);

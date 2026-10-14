@@ -1,10 +1,11 @@
 import { AnimatePresence } from "framer-motion";
-import { ArrowUpRight } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
-import { CraftAppStats, CraftEmpty } from "@/components/craft/AppPrimitives";
+import { CraftEmpty } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
 import { useToast } from "@/hooks/use-toast";
 import { exportResumeToPdf } from "@/lib/pdfExport";
 
@@ -16,6 +17,8 @@ import { PreviewResumeDialog } from "./dialogs/PreviewResumeDialog";
 import { TagResumeDialog } from "./dialogs/TagResumeDialog";
 import { useResumes } from "./hooks/useResumes";
 import type { Resume, ViewMode } from "./types";
+import { editedLabel } from "./types";
+import "./my-resumes.css";
 
 export default function MyResumesPage() {
   const navigate = useNavigate();
@@ -58,20 +61,30 @@ export default function MyResumesPage() {
       const { pageCount } = await exportResumeToPdf({ resume: r });
       toast({
         title: "PDF downloaded",
-        description: `High-quality export · ${pageCount} page${
-          pageCount > 1 ? "s" : ""
-        }`,
+        description: `${pageCount} page${pageCount > 1 ? "s" : ""}.`,
       });
     } catch (e: any) {
       toast({
         title: "Export failed",
-        description: e?.message || "Open the builder to export instead.",
+        description: e?.message || "Try again, or download it from the builder.",
         variant: "destructive",
       });
     } finally {
       setIsExporting(false);
     }
   };
+
+  const lastEdited = resumes.reduce<string | null>(
+    (latest, r) => (!latest || r.updated_at > latest ? r.updated_at : latest),
+    null,
+  );
+  const headline = [
+    `${stats.total} résumé${stats.total === 1 ? "" : "s"}`,
+    stats.favorites > 0 && `${stats.favorites} favourite${stats.favorites === 1 ? "" : "s"}`,
+    lastEdited && `last ${editedLabel(lastEdited)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   /* ───── Loading state ─────────────────────────────────────── */
   if (loading) {
@@ -80,7 +93,9 @@ export default function MyResumesPage() {
         <div className="grid place-items-center py-32">
           <div className="text-center">
             <div className="cc-kicker mb-3">Loading your résumés</div>
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--cc-hair-strong)] border-t-[color:var(--cc-rust)]" />
+            <div className="flex justify-center">
+              <CraftSpinner label="Loading your résumés" />
+            </div>
           </div>
         </div>
       </CraftAppLayout>
@@ -94,32 +109,24 @@ export default function MyResumesPage() {
       }
       headerActions={
         <button onClick={() => goToBuilder()} className="cc-action cc-action--sm">
-          New résumé <ArrowUpRight className="h-3.5 w-3.5" />
+          <Plus className="h-3.5 w-3.5" /> New résumé
         </button>
       }
     >
-      <header className="mb-9">
+      <div className="cc-shelf">
+      <header className="mb-8">
         <div className="cc-kicker">My résumés</div>
         <h1 className="mt-3 cc-font-display text-4xl leading-[0.95] tracking-tight md:text-5xl">
-          Your <span className="cc-italic-wonk">saved</span> résumés.
+          Your résumés
         </h1>
-        <p className="mt-4 max-w-2xl cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] md:text-xl">
-          Every version of you — tagged, dated, ready to reopen.
-        </p>
+        {resumes.length > 0 && (
+          <p className="mt-3 cc-font-sans text-base text-[color:var(--cc-ink-soft)] md:text-lg">{headline}</p>
+        )}
       </header>
 
-      {/* Stats */}
-      <CraftAppStats
-          stats={[
-            { label: "Total resumes", value: stats.total, note: "saved" },
-            { label: "Favourites", value: stats.favorites, note: "starred" },
-            { label: "Tags used", value: stats.tags, note: "distinct" },
-            { label: "This week", value: stats.recent, note: "edited" },
-          ]}
-        />
-
         {/* Filters */}
-        <div className="mt-10">
+        {resumes.length > 0 && (
+        <div>
           <ResumeFilterBar
             search={filters.search}
             onSearchChange={(v) => setFilters((f) => ({ ...f, search: v }))}
@@ -133,7 +140,10 @@ export default function MyResumesPage() {
               setFilters((f) => ({ ...f, favoritesOnly: !f.favoritesOnly }))
             }
             sortBy={filters.sortBy}
-            onSortByChange={(v) => setFilters((f) => ({ ...f, sortBy: v }))}
+            // Each sort starts the natural way round: names A to Z, dates newest first.
+            onSortByChange={(v) =>
+              setFilters((f) => ({ ...f, sortBy: v, sortOrder: v === "name" ? "asc" : "desc" }))
+            }
             sortOrder={filters.sortOrder}
             onSortOrderToggle={() =>
               setFilters((f) => ({
@@ -145,34 +155,31 @@ export default function MyResumesPage() {
             onViewModeChange={setViewMode}
           />
         </div>
+        )}
 
         {/* List / grid */}
-        <section className="mt-10">
-          {filteredResumes.length === 0 ? (
+        <section className="mt-7">
+          {resumes.length === 0 ? (
             <CraftEmpty
-              kicker={
-                resumes.length === 0 ? "§ No resumes yet" : "§ Nothing found"
-              }
-              title={
-                resumes.length === 0 ? (
-                  <>
-                    Start with a <span className="cc-italic-wonk">clean</span>{" "}
-                    sheet.
-                  </>
-                ) : (
-                  <>No resumes match these filters.</>
-                )
-              }
-              body={
-                resumes.length === 0
-                  ? "One résumé per chapter. Keep drafts — you'll revise you as often as you revise them."
-                  : "Loosen the search, clear a filter, or pick another category."
-              }
-              ctaLabel={resumes.length === 0 ? "Draft the first one" : undefined}
-              onCta={resumes.length === 0 ? () => goToBuilder() : undefined}
+              kicker="My résumés"
+              title="No résumés yet."
+              body="Start from nothing, or upload the one you have and we'll lay it out for you."
+              ctaLabel="Start a résumé"
+              onCta={() => goToBuilder()}
             />
+          ) : filteredResumes.length === 0 ? (
+            <p className="rounded-2xl border border-[color:var(--cc-hair)] bg-white px-5 py-6 cc-font-sans text-[15px] text-[color:var(--cc-ink-soft)]">
+              Nothing matches that.{" "}
+              <button
+                type="button"
+                className="cc-link text-[color:var(--cc-ink)]"
+                onClick={() => setFilters((f) => ({ ...f, search: "", category: "all", tag: "all", favoritesOnly: false }))}
+              >
+                Show everything
+              </button>
+            </p>
           ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <AnimatePresence initial={false}>
                 {filteredResumes.map((r, i) => (
                   <ResumeCard
@@ -193,7 +200,7 @@ export default function MyResumesPage() {
               </AnimatePresence>
             </div>
           ) : (
-            <div className="border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)]">
+            <div className="overflow-hidden rounded-2xl border border-[color:var(--cc-hair)] bg-white">
               <AnimatePresence initial={false}>
                 {filteredResumes.map((r, i) => (
                   <ResumeRow
@@ -216,15 +223,12 @@ export default function MyResumesPage() {
           )}
         </section>
 
-        {/* Pagination hint / ruler */}
-        {filteredResumes.length > 0 && (
-          <div className="mt-12 cc-dot-rule">
-            <span>end of register</span>
-            <span className="cc-tabular">
-              {filteredResumes.length} of {resumes.length}
-            </span>
-          </div>
+        {filteredResumes.length > 0 && filteredResumes.length < resumes.length && (
+          <p className="mt-4 cc-font-sans text-[13px] text-[color:var(--cc-ash)]">
+            Showing {filteredResumes.length} of {resumes.length}.
+          </p>
         )}
+      </div>
 
       {/* Dialogs */}
       <DeleteResumeDialog

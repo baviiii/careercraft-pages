@@ -1,24 +1,13 @@
-import {
-  BarChart3,
-  Briefcase,
-  Download,
-  Edit,
-  FileText,
-  GraduationCap,
-  Layout,
-  Mail,
-  MapPin,
-  Phone,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
+import { BarChart3, Download, Edit, Mail, MapPin, Phone } from "lucide-react";
 import { useState } from "react";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { CraftButton } from "@/components/craft/AppPrimitives";
+import { CraftSpinner } from "@/components/craft/CraftSpinner";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { formatTemplateName, getTemplate, toTemplateData } from "@/lib/templateMap";
 
 import type { Resume } from "../types";
-import { formatDate } from "../types";
+import { editedLabel, scoreBand } from "../types";
 
 interface PreviewResumeDialogProps {
   resume: Resume | null;
@@ -32,6 +21,7 @@ interface PreviewResumeDialogProps {
 
 type PreviewMode = "template" | "text";
 
+/** The résumé as it will look, or as plain text, with what to do next. */
 export const PreviewResumeDialog = ({
   resume,
   open,
@@ -44,6 +34,7 @@ export const PreviewResumeDialog = ({
   const [mode, setMode] = useState<PreviewMode>("template");
   const Template = resume ? getTemplate(resume.template_id) : null;
   const canShowTemplate = Boolean(Template) && mode === "template";
+  const band = scoreBand(resume?.ats_score);
 
   return (
     <Dialog
@@ -53,67 +44,63 @@ export const PreviewResumeDialog = ({
         if (!v) setMode("template");
       }}
     >
-      <DialogContent className="cc-root max-w-[95vw] w-[960px] max-h-[95vh] p-0 gap-0 overflow-hidden rounded-none border-2 border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)]">
+      <DialogContent className="cc-root flex max-h-[95vh] w-[960px] max-w-[95vw] flex-col gap-0 overflow-hidden rounded-2xl border border-[color:var(--cc-hair)] bg-white p-0 text-[color:var(--cc-ink)] shadow-[0_20px_60px_-20px_rgba(14,12,10,0.35)]">
         {resume && (
           <>
-            {/* Header */}
-            <header className="px-6 py-5 border-b border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="cc-label text-[color:var(--cc-rust)]">
-                  § Proof sheet
-                </div>
-                <h2 className="mt-2 cc-font-display text-3xl leading-[1] tracking-tight">
-                  {resume.name || "Untitled draft"}
-                </h2>
-                <p className="mt-1 cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-                  Last filed {formatDate(resume.updated_at)}
-                </p>
+            <header className="flex flex-wrap items-start justify-between gap-4 border-b border-[color:var(--cc-hair)] px-6 py-5 pr-14">
+              <div className="min-w-0">
+                <DialogTitle className="cc-font-display text-2xl font-semibold leading-tight tracking-tight md:text-3xl">
+                  {resume.name || "Untitled résumé"}
+                </DialogTitle>
+                <DialogDescription className="mt-1 cc-font-sans text-[14px] text-[color:var(--cc-ink-soft)]">
+                  {[resume.job_title, editedLabel(resume.updated_at)].filter(Boolean).join(" · ")}
+                </DialogDescription>
               </div>
-
-              <div className="flex items-center gap-3">
-                {typeof resume.ats_score === "number" && (
-                  <div className="text-right">
-                    <div className="cc-font-display cc-tabular text-3xl leading-none">
-                      {resume.ats_score}
-                      <span className="text-lg text-[color:var(--cc-ash)]">
-                        /100
-                      </span>
-                    </div>
-                    <div className="cc-label text-[color:var(--cc-ash)]">
-                      ATS
-                    </div>
-                  </div>
+              <div className="flex flex-wrap items-center gap-1.5 cc-font-sans text-[12.5px]">
+                {band && (
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-semibold ${
+                      band.tone === "good"
+                        ? "bg-[rgba(63,122,92,0.13)] text-[color:var(--cc-signal-deep)]"
+                        : band.tone === "fair"
+                          ? "bg-[color:var(--cc-wheat-soft)] text-[color:var(--cc-wheat-deep)]"
+                          : "bg-[rgba(194,65,45,0.1)] text-[#9C3424]"
+                    }`}
+                  >
+                    {band.label}
+                  </span>
                 )}
                 {resume.template_id && (
-                  <span className="cc-pill cc-pill-rust">
+                  <span className="rounded-full bg-[rgba(42,82,204,0.09)] px-2.5 py-1 text-[color:var(--cc-rust-deep)]">
                     {formatTemplateName(resume.template_id)}
                   </span>
                 )}
               </div>
             </header>
 
-            {/* Mode toggle */}
-            <div className="flex items-stretch border-b border-[color:var(--cc-hair-strong)]">
-              <ModeTab
-                active={mode === "template"}
-                onClick={() => setMode("template")}
-                icon={Layout}
-                label="Template"
-              />
-              <ModeTab
-                active={mode === "text"}
-                onClick={() => setMode("text")}
-                icon={FileText}
-                label="Text"
-              />
+            <div className="flex items-center gap-1 border-b border-[color:var(--cc-hair)] px-6 py-2.5 cc-font-sans" role="group" aria-label="Show as">
+              {(["template", "text"] as PreviewMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={mode === m}
+                  onClick={() => setMode(m)}
+                  className={`rounded-full px-3 py-1 text-[13px] transition-colors ${
+                    mode === m
+                      ? "bg-[color:var(--cc-cream-2)] font-semibold text-[color:var(--cc-ink)]"
+                      : "text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]"
+                  }`}
+                >
+                  {m === "template" ? "As designed" : "Plain text"}
+                </button>
+              ))}
             </div>
 
-            {/* Preview body */}
-            <div className="h-[65vh] overflow-auto bg-[color:var(--cc-cream-2)]">
+            <div className="h-[62vh] overflow-auto bg-[color:var(--cc-cream-2)]">
               {canShowTemplate && Template ? (
-                <div className="p-6 flex justify-center" style={{ minWidth: "fit-content" }}>
+                <div className="flex justify-center p-6" style={{ minWidth: "fit-content" }}>
                   <div
-                    className="resume-paper bg-white shadow-[0_20px_60px_-20px_rgba(14,12,10,0.5)]"
+                    className="resume-paper bg-white shadow-[0_20px_60px_-20px_rgba(14,12,10,0.4)]"
                     style={{ width: 794, transform: "scale(0.75)", transformOrigin: "top center" }}
                   >
                     <Template data={toTemplateData(resume.content)} />
@@ -124,51 +111,33 @@ export const PreviewResumeDialog = ({
               )}
             </div>
 
-            {/* Footer actions */}
-            <footer className="px-6 py-4 border-t border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] flex flex-wrap items-center justify-between gap-3">
-              <button
-                onClick={() => onOpenChange(false)}
-                className="cc-btn cc-btn-ghost"
-                style={{ padding: "0.8rem 1.1rem" }}
-              >
+            <footer className="flex flex-col-reverse gap-3 border-t border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
                 Close
-              </button>
+              </CraftButton>
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => onAnalyze(resume)}
-                  className="cc-btn cc-btn-ghost"
-                  style={{ padding: "0.8rem 1.1rem" }}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Analyse
-                </button>
-                <button
-                  onClick={() => onEdit(resume)}
-                  className="cc-btn cc-btn-ghost"
-                  style={{ padding: "0.8rem 1.1rem" }}
-                >
-                  <Edit className="w-4 h-4" />
-                  Edit in builder
-                </button>
+                <CraftButton variant="ghost" onClick={() => onAnalyze(resume)}>
+                  <BarChart3 className="h-4 w-4" />
+                  Check against a job
+                </CraftButton>
+                <CraftButton variant="ghost" onClick={() => onEdit(resume)}>
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </CraftButton>
                 {Template && (
-                  <button
-                    onClick={() => onDownload(resume)}
-                    disabled={exporting}
-                    className="cc-btn cc-btn-primary"
-                    style={{ padding: "0.8rem 1.1rem" }}
-                  >
+                  <CraftButton onClick={() => onDownload(resume)} disabled={exporting}>
                     {exporting ? (
                       <>
-                        <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Exporting…
+                        <CraftSpinner size="sm" label="Making your PDF" />
+                        Making PDF…
                       </>
                     ) : (
                       <>
-                        <Download className="w-4 h-4" />
+                        <Download className="h-4 w-4" />
                         Download PDF
                       </>
                     )}
-                  </button>
+                  </CraftButton>
                 )}
               </div>
             </footer>
@@ -179,35 +148,34 @@ export const PreviewResumeDialog = ({
   );
 };
 
-/* ───────────────────────── Text fallback view ───────────────────────── */
+/* ───────────────────────── Plain-text view ───────────────────────── */
 
 const TextView = ({ resume }: { resume: Resume }) => {
   const c = resume.content || {};
   const hasStructured = Boolean(c?.contact?.name || c?.experience?.length);
 
   return (
-    <div className="max-w-[720px] mx-auto p-8 md:p-12 bg-[color:var(--cc-cream)] border border-[color:var(--cc-hair-strong)] my-6">
-      {/* Contact */}
-      <section className="pb-5 border-b border-[color:var(--cc-ink)]">
-        <h1 className="cc-font-display text-4xl leading-none tracking-tight">
+    <div className="mx-auto my-6 max-w-[720px] rounded-xl bg-white p-8 cc-font-sans shadow-[0_10px_30px_-20px_rgba(14,12,10,0.35)] md:p-10">
+      <section className="border-b border-[color:var(--cc-hair)] pb-5">
+        <h1 className="cc-font-display text-3xl font-semibold leading-tight tracking-tight">
           {c?.contact?.name || "Your name"}
         </h1>
-        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 cc-font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--cc-ink-soft)]">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-[color:var(--cc-ink-soft)]">
           {c?.contact?.email && (
             <span className="inline-flex items-center gap-1.5">
-              <Mail className="w-3 h-3" />
+              <Mail className="h-3.5 w-3.5" />
               {c.contact.email}
             </span>
           )}
           {c?.contact?.phone && (
             <span className="inline-flex items-center gap-1.5">
-              <Phone className="w-3 h-3" />
+              <Phone className="h-3.5 w-3.5" />
               {c.contact.phone}
             </span>
           )}
           {c?.contact?.location && (
             <span className="inline-flex items-center gap-1.5">
-              <MapPin className="w-3 h-3" />
+              <MapPin className="h-3.5 w-3.5" />
               {c.contact.location}
             </span>
           )}
@@ -215,43 +183,30 @@ const TextView = ({ resume }: { resume: Resume }) => {
       </section>
 
       {c?.summary && (
-        <SectionBlock icon={Sparkles} label="Summary">
-          <p className="cc-font-editorial text-lg leading-relaxed text-[color:var(--cc-ink-soft)]">
-            {c.summary}
-          </p>
+        <SectionBlock label="Summary">
+          <p className="text-[15px] leading-relaxed text-[color:var(--cc-ink-soft)]">{c.summary}</p>
         </SectionBlock>
       )}
 
       {c?.experience?.length > 0 && (
-        <SectionBlock icon={Briefcase} label="Experience">
+        <SectionBlock label="Experience">
           <div className="space-y-5">
             {c.experience.map((exp: any, i: number) => (
-              <div
-                key={i}
-                className="border-l-2 border-[color:var(--cc-rust)] pl-4"
-              >
+              <div key={i}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="cc-font-display text-xl leading-tight">
-                    {exp.title}
-                  </h3>
-                  <span className="cc-font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--cc-ash)]">
-                    {exp.startDate} — {exp.current ? "Present" : exp.endDate}
+                  <h3 className="cc-font-display text-[17px] font-semibold leading-tight">{exp.title}</h3>
+                  <span className="text-[12.5px] text-[color:var(--cc-ash)]">
+                    {exp.startDate} – {exp.current ? "now" : exp.endDate}
                   </span>
                 </div>
-                <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
+                <p className="text-[14px] text-[color:var(--cc-ink-soft)]">
                   {exp.company}
                   {exp.location ? ` · ${exp.location}` : ""}
                 </p>
                 {exp.bullets?.length > 0 && (
-                  <ul className="mt-2 space-y-1">
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-[14.5px] leading-relaxed text-[color:var(--cc-ink-soft)] marker:text-[color:var(--cc-ash)]">
                     {exp.bullets.map((b: string, j: number) => (
-                      <li
-                        key={j}
-                        className="flex gap-2 cc-font-sans text-[15px] leading-relaxed text-[color:var(--cc-ink-soft)]"
-                      >
-                        <span className="text-[color:var(--cc-rust)]">—</span>
-                        {b}
-                      </li>
+                      <li key={j}>{b}</li>
                     ))}
                   </ul>
                 )}
@@ -262,25 +217,18 @@ const TextView = ({ resume }: { resume: Resume }) => {
       )}
 
       {c?.education?.length > 0 && (
-        <SectionBlock icon={GraduationCap} label="Education">
+        <SectionBlock label="Education">
           <div className="space-y-3">
             {c.education.map((edu: any, i: number) => (
-              <div
-                key={i}
-                className="flex flex-wrap items-baseline justify-between gap-2"
-              >
+              <div key={i} className="flex flex-wrap items-baseline justify-between gap-2">
                 <div>
-                  <h3 className="cc-font-display text-lg leading-tight">
-                    {edu.degree}
-                  </h3>
-                  <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
+                  <h3 className="cc-font-display text-[16px] font-semibold leading-tight">{edu.degree}</h3>
+                  <p className="text-[14px] text-[color:var(--cc-ink-soft)]">
                     {edu.school}
                     {edu.location ? ` · ${edu.location}` : ""}
                   </p>
                 </div>
-                <span className="cc-font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--cc-ash)]">
-                  {edu.graduationDate}
-                </span>
+                <span className="text-[12.5px] text-[color:var(--cc-ash)]">{edu.graduationDate}</span>
               </div>
             ))}
           </div>
@@ -288,10 +236,10 @@ const TextView = ({ resume }: { resume: Resume }) => {
       )}
 
       {c?.skills?.length > 0 && (
-        <SectionBlock icon={TrendingUp} label="Skills">
+        <SectionBlock label="Skills">
           <div className="flex flex-wrap gap-1.5">
             {c.skills.map((s: string, i: number) => (
-              <span key={i} className="cc-pill">
+              <span key={i} className="rounded-full bg-[color:var(--cc-cream-2)] px-2.5 py-1 text-[13px] text-[color:var(--cc-ink-soft)]">
                 {s}
               </span>
             ))}
@@ -300,62 +248,23 @@ const TextView = ({ resume }: { resume: Resume }) => {
       )}
 
       {c?.rawText && !hasStructured && (
-        <SectionBlock icon={FileText} label="Raw text">
-          <pre className="cc-font-mono text-sm leading-relaxed whitespace-pre-wrap text-[color:var(--cc-ink-soft)]">
-            {c.rawText}
-          </pre>
+        <SectionBlock label="Text">
+          <pre className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">{c.rawText}</pre>
         </SectionBlock>
       )}
 
       {!resume.template_id && (
-        <div className="mt-8 border-l-4 border-[color:var(--cc-rust)] pl-4 py-2 cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-          This draft has no template assigned. Open it in the builder to choose
-          one.
-        </div>
+        <p className="mt-8 rounded-xl bg-[color:var(--cc-cream-2)] px-4 py-3 text-[14px] text-[color:var(--cc-ink-soft)]">
+          This one has no design picked yet. Open it in the builder to choose one.
+        </p>
       )}
     </div>
   );
 };
 
-const SectionBlock = ({
-  icon: Icon,
-  label,
-  children,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  children: React.ReactNode;
-}) => (
+const SectionBlock = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <section className="mt-6">
-    <div className="flex items-center gap-2 mb-3">
-      <Icon className="w-3.5 h-3.5 text-[color:var(--cc-rust)]" />
-      <span className="cc-label text-[color:var(--cc-rust)]">{label}</span>
-      <div className="flex-1 h-px bg-[color:var(--cc-hair)]" />
-    </div>
+    <h2 className="mb-2.5 text-[13px] font-semibold uppercase tracking-[0.08em] text-[color:var(--cc-rust)]">{label}</h2>
     {children}
   </section>
-);
-
-const ModeTab = ({
-  active,
-  onClick,
-  icon: Icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}) => (
-  <button
-    onClick={onClick}
-    className={`px-5 py-3 inline-flex items-center gap-2 cc-label border-r border-[color:var(--cc-hair-strong)] transition-colors ${
-      active
-        ? "bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
-        : "text-[color:var(--cc-ink)] hover:bg-[color:var(--cc-cream-2)]"
-    }`}
-  >
-    <Icon className="w-3.5 h-3.5" />
-    {label}
-  </button>
 );

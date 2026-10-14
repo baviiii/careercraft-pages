@@ -18,20 +18,12 @@ export const DeleteResumeDialog = ({
   <CraftDialog
     open={open}
     onOpenChange={onOpenChange}
-    kicker="§ Delete resume"
-    title="Delete this resume?"
-    description={
-      <>
-        <span className="cc-italic-wonk">
-          “{resume?.name || "Untitled"}”
-        </span>{" "}
-        will be permanently deleted. This cannot be undone.
-      </>
-    }
+    title="Delete this résumé?"
+    description={`“${resume?.name || "Untitled résumé"}” will be deleted for good. This can't be undone.`}
     footer={
       <>
         <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancel
+          Keep it
         </CraftButton>
         <CraftButton variant="danger" onClick={onConfirm}>
           Delete

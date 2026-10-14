@@ -40,9 +40,8 @@ export const TagResumeDialog = ({
     <CraftDialog
       open={open}
       onOpenChange={onOpenChange}
-      kicker="§ Catalogue"
-      title="Pin tags to this draft"
-      description="Labels for shelf organisation — roles, seniority, stage of life."
+      title="Tags"
+      description={`Short labels to find “${resume?.name || "this résumé"}” later, like Graduate, Remote or Final.`}
       maxWidth="max-w-lg"
       footer={
         <>
@@ -56,22 +55,24 @@ export const TagResumeDialog = ({
       <div className="space-y-5">
         {/* Current tags */}
         <div>
-          <div className="cc-label text-[color:var(--cc-ash)] mb-2">On file</div>
+          <div className="mb-2 cc-font-sans text-[13px] font-medium text-[color:var(--cc-ink-soft)]">On this résumé</div>
           {selected.length === 0 ? (
-            <p className="cc-font-editorial italic text-[color:var(--cc-ink-soft)]">
-              No tags yet — start typing below or pick from the suggestions.
-            </p>
+            <p className="cc-font-sans text-[14px] text-[color:var(--cc-ash)]">None yet. Add one below or pick a suggestion.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {selected.map((t) => (
-                <span key={t} className="cc-pill cc-pill-filled group">
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded-full bg-[color:var(--cc-ink)] py-1 pl-3 pr-1.5 cc-font-sans text-[13px] text-[color:var(--cc-cream)]"
+                >
                   {t}
                   <button
+                    type="button"
                     onClick={() => remove(t)}
-                    className="ml-1 hover:text-[color:var(--cc-rust)]"
+                    className="grid h-5 w-5 place-items-center rounded-full hover:bg-white/20"
                     aria-label={`Remove ${t}`}
                   >
-                    <X className="w-3 h-3" />
+                    <X className="h-3 w-3" />
                   </button>
                 </span>
               ))}
@@ -82,15 +83,13 @@ export const TagResumeDialog = ({
         {/* Add new */}
         <div className="flex items-end gap-2">
           <label className="flex-1">
-            <span className="cc-label text-[color:var(--cc-ash)] block mb-2">
-              Add a new tag
-            </span>
+            <span className="mb-2 block cc-font-sans text-[13px] font-medium text-[color:var(--cc-ink-soft)]">Add a tag</span>
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && add()}
-              className="cc-input w-full"
-              placeholder="e.g. Product, FAANG, Dream-job…"
+              className="cc-field"
+              placeholder="e.g. Hospital roles, Grad programs"
             />
           </label>
           <CraftButton
@@ -106,19 +105,18 @@ export const TagResumeDialog = ({
 
         {/* Suggestions */}
         <div>
-          <div className="cc-label text-[color:var(--cc-ash)] mb-2">
-            Suggestions
-          </div>
+          <div className="mb-2 cc-font-sans text-[13px] font-medium text-[color:var(--cc-ink-soft)]">Suggestions</div>
           <div className="flex flex-wrap gap-1.5">
             {PRESET_TAGS.filter((t) => !selected.includes(t))
               .slice(0, 10)
               .map((t) => (
                 <button
                   key={t}
+                  type="button"
                   onClick={() => setSelected((p) => [...p, t])}
-                  className="cc-pill hover:cc-pill-filled hover:bg-[color:var(--cc-ink)] hover:text-[color:var(--cc-cream)] transition-colors"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-[color:var(--cc-hair-strong)] px-3 py-1 cc-font-sans text-[13px] text-[color:var(--cc-ink-soft)] transition-colors hover:border-solid hover:border-[color:var(--cc-rust)] hover:text-[color:var(--cc-rust)]"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="h-3 w-3" />
                   {t}
                 </button>
               ))}
