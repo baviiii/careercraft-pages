@@ -450,6 +450,14 @@ part is matching an email to the right job (agencies, odd sender names), with
 does the useful part by hand, so forwarding adds little until people use the
 tracker weekly.
 
-**Decide later:** build it if soft-launch users use the tracker regularly and
-ask for it. The Gmail/Outlook "connect your inbox" route stays off the table
-for now (Google's security review for inbox access, and user trust).
+**Decided 2026-10-14: don't build it.** Forwarding a reply is about as much
+work as opening the tracker and tapping "Got an interview" on the card, so it
+moves the task rather than removing it; most people wouldn't bother. Only
+connecting the inbox (Gmail/Outlook) removes the work, and that needs
+Google's security review and a lot of user trust. Off the table for now.
+
+**Better direction, later:** keep the update one tap and let Faircopy do the
+remembering. Up next already nudges ("No word from Hays in 16 days"). A
+weekly "Any news on these 3 jobs?" email with one-tap buttons per job
+(Interview / No reply yet / Didn't work out) would update the tracker without
+opening the app. Needs faircopy.au mail to stop landing in spam first.
