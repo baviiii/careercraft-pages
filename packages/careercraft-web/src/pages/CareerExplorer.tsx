@@ -685,7 +685,7 @@ function SectorCard({
                     <div className="flex items-center gap-2">
                       <Zap className="w-3.5 h-3.5 text-emerald-300" />
                       <span className="text-xs font-semibold text-emerald-200">
-                        {liveJobCount.toLocaleString()} jobs available today
+                        {liveJobCount.toLocaleString()} ads in Adelaide on Adzuna
                       </span>
                     </div>
                     <ExternalLink className="w-3.5 h-3.5 text-emerald-300 opacity-0 group-hover:opacity-100 transition-opacity" />

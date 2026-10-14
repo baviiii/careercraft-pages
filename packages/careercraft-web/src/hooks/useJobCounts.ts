@@ -88,8 +88,10 @@ export function useJobCounts(sectors: string[] = []) {
 
             if (error) throw error;
             
+            /* Adzuna's own count of matching ads. The jobs array is one page
+               (at most 50), so its length undercounts every busy sector. */
             const jobs = data?.jobs || [];
-            const totalJobs = jobs.length;
+            const totalJobs: number = data?.stats?.boardTotal ?? jobs.length;
             
             // Find matching sectors for this industry
             const matchingSectors = sectors.filter(
@@ -97,7 +99,7 @@ export function useJobCounts(sectors: string[] = []) {
             );
 
             matchingSectors.forEach(sector => {
-              const url = `/au-jobs?query=${encodeURIComponent(sector.toLowerCase())}&location=adelaide&industry=${encodeURIComponent(industry)}`;
+              const url = `/au-jobs?query=${encodeURIComponent(industry.toLowerCase())}&location=Adelaide`;
               counts[sector] = {
                 count: totalJobs,
                 url,

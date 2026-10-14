@@ -183,7 +183,7 @@ serve(handler(async (req) => {
                   : null,
                 salaryMin: job.job_min_salary,
                 salaryMax: job.job_max_salary,
-                type: job.job_employment_type || "Full-time",
+                type: job.job_employment_type || null,
                 description: (job.job_description || "").substring(0, 300),
                 url: job.job_apply_link || job.job_google_link,
                 postedAt: job.job_posted_at_datetime_utc || new Date().toISOString(),
@@ -199,6 +199,9 @@ serve(handler(async (req) => {
       }
 
       // 2. Adzuna API - Get up to 50 AU jobs
+      /* Adzuna also reports how many ads match in total, which is the honest
+         number for "how many jobs" (this response holds at most 50). */
+      let boardTotal: number | null = null;
       if (ADZUNA_APP_ID && ADZUNA_APP_KEY) {
         const adzunaUrl = new URL(`https://api.adzuna.com/v1/api/jobs/au/search/${pageNum}`);
         adzunaUrl.searchParams.set("app_id", ADZUNA_APP_ID);
@@ -214,6 +217,7 @@ serve(handler(async (req) => {
             .then(res => res.json())
             .then(data => {
               console.log(`Adzuna returned ${data.results?.length || 0} jobs`);
+              if (Number.isFinite(data.count)) boardTotal = data.count;
               return (data.results || []).map((job: any) => ({
                 id: `adzuna-${job.id}`,
                 title: job.title,
@@ -228,13 +232,15 @@ serve(handler(async (req) => {
                 salary: job.salary_min && job.salary_max 
                   ? `$${Math.round(job.salary_min/1000)}k - $${Math.round(job.salary_max/1000)}k${String(job.salary_is_predicted ?? "") === "1" ? " (est.)" : ""}`
                   : null,
-                type: job.contract_time === "full_time" ? "Full-time" : 
-                      job.contract_time === "part_time" ? "Part-time" : 
-                      job.contract_time || "Full-time",
+                type: job.contract_time === "full_time" ? "Full-time" :
+                      job.contract_time === "part_time" ? "Part-time" :
+                      job.contract_time || null,
                 description: stripHtml(job.description || "").substring(0, 300),
                 url: job.redirect_url,
                 postedAt: job.created,
-                source: "SEEK/Adzuna",
+                /* Was "SEEK/Adzuna". Adzuna gathers ads from many places; we
+                   can't say which board an ad came from. */
+                source: "Adzuna",
                 isRemote: (job.title || "").toLowerCase().includes("remote") ||
                           (job.description || "").toLowerCase().includes("work from home"),
                 skills: extractSkillsFromText(job.description || "", skillVocabulary),
@@ -250,13 +256,18 @@ serve(handler(async (req) => {
         fetchWithTimeout(`${JOB_APIS.remotive}${searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : ""}`, {}, 4000)
           .then(res => res.json())
           .then(data => {
-            const remoteJobs = (data.jobs || []).map((job: any) => ({
+            /* Remotive is worldwide. Most of its roles are limited to the US or
+               Europe, which an "Australian jobs" list must not show. */
+            const OPEN_TO_AU = /australia|worldwide|anywhere|global|apac|asia[- ]?pacific|oceania|new zealand/i;
+            const remoteJobs = (data.jobs || [])
+              .filter((job: any) => OPEN_TO_AU.test(job.candidate_required_location || ""))
+              .map((job: any) => ({
               id: `remotive-${job.id}`,
               title: job.title,
               company: job.company_name,
               location: job.candidate_required_location || "Remote - Worldwide",
               salary: job.salary || null,
-              type: job.job_type || "Full-time",
+              type: job.job_type || null,
               description: stripHtml(job.description || "").substring(0, 300),
               url: job.url,
               postedAt: job.publication_date,
@@ -272,32 +283,8 @@ serve(handler(async (req) => {
           .catch(e => { console.log("Remotive error:", e); return []; })
       );
 
-      // 4. Arbeitnow API - Get ALL jobs (4s timeout)
-      fetchPromises.push(
-        fetchWithTimeout(`${JOB_APIS.arbeitnow}`, {}, 4000)
-          .then(res => res.json())
-          .then(data => {
-            const arbeitJobs = (data.data || []).map((job: any) => ({
-              id: `arbeitnow-${job.slug}`,
-              title: job.title,
-              company: job.company_name,
-              location: job.location || "Remote - EU",
-              salary: null,
-              type: job.remote ? "Remote" : "On-site",
-              description: stripHtml(job.description || "").substring(0, 300),
-              url: job.url,
-              postedAt: job.created_at,
-              source: "Arbeitnow",
-              logo: job.company_logo,
-              isRemote: job.remote || false,
-              skills: job.tags || [],
-              category: "technology",
-            }));
-            console.log(`Arbeitnow returned ${arbeitJobs.length} jobs`);
-            return arbeitJobs;
-          })
-          .catch(e => { console.log("Arbeitnow error:", e); return []; })
-      );
+      /* Arbeitnow used to be fetched here: European jobs, the same 100 on every
+         search, whatever was typed. Not Australian, so not listed. */
 
       // Wait for all APIs
       const results = await Promise.all(fetchPromises);
@@ -324,13 +311,17 @@ serve(handler(async (req) => {
 
       // Calculate real stats from fetched data
       const salaries = uniqueJobs.filter(j => j.salaryMin || j.salaryMax);
-      const avgSalary = salaries.length > 0 
+      /* Was `: 120`, so a search where no ad listed pay reported a "$120k"
+         average. Now there is simply no average. */
+      const avgSalary = salaries.length > 0
         ? Math.round(salaries.reduce((sum, j) => sum + ((j.salaryMin || 0) + (j.salaryMax || 0)) / 2, 0) / salaries.length / 1000)
-        : 120;
+        : null;
 
       const stats = {
         totalJobs: uniqueJobs.length,
-        avgSalary: `$${avgSalary}k`,
+        /** Adzuna's own count of matching ads; null when Adzuna didn't answer. */
+        boardTotal,
+        avgSalary: avgSalary === null ? null : `$${avgSalary}k`,
         topCompanies: [...new Set(uniqueJobs.map(j => j.company))].slice(0, 10),
         hotSkills: getTopSkills(uniqueJobs),
         sources: [...new Set(uniqueJobs.map(j => j.source))],

@@ -12,7 +12,7 @@
 
 import { AlertCircle, Briefcase, Loader2, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
 import type { JobCatalogJob } from "@/features/job-tracker/types";
@@ -55,6 +55,7 @@ const sentenceCase = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) 
 
 export default function BrowseJobsPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { toast } = useToast();
   const perso = usePersonalization();
   const { checkLimit } = useRateLimit({
@@ -185,8 +186,9 @@ export default function BrowseJobsPage() {
     [checkLimit, profileTerms, profileRole, profileText, toast],
   );
 
-  /* First search: once the profile has loaded, search the person's own role
-     where they want to work. No profile is a broad search, not a guess. */
+  /* First search: what a link asked for (Career Insights sends ?query= and
+     ?location=), otherwise the person's own role where they want to work.
+     No profile is a broad search, not a guess. */
   const started = useRef(false);
   useEffect(() => {
     if (started.current || perso.loading) return;
@@ -196,13 +198,13 @@ export default function BrowseJobsPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return; // CraftAppLayout sends them to sign in
-      const startRole = profileRole;
-      const startPlace = place || profileCity;
+      const startRole = params.get("query") ?? profileRole;
+      const startPlace = params.get("location") ?? (place || profileCity);
       setRole(startRole);
       setPlace(startPlace);
       void runSearch({ role: startRole, place: startPlace });
     })();
-  }, [perso.loading, profileRole, profileCity, place, runSearch]);
+  }, [perso.loading, profileRole, profileCity, place, runSearch, params]);
 
   const search = (next?: { role?: string; place?: string }) =>
     runSearch({ role: next?.role ?? role, place: next?.place ?? place });
