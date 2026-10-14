@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export interface JobCountsBySector {
   [sector: string]: {
     count: number;
+    /** The word that was counted: the sector's mapped industry, e.g. "legal". */
+    query: string;
     url: string;
     lastUpdated: Date;
   };
@@ -88,10 +90,11 @@ export function useJobCounts(sectors: string[] = []) {
 
             if (error) throw error;
             
-            /* Adzuna's own count of matching ads. The jobs array is one page
-               (at most 50), so its length undercounts every busy sector. */
-            const jobs = data?.jobs || [];
-            const totalJobs: number = data?.stats?.boardTotal ?? jobs.length;
+            /* Adzuna's own count of matching ads. Without it there's no honest
+               number: the jobs array is one capped page and can include other
+               boards, so show nothing rather than that. */
+            const totalJobs: number | null = data?.stats?.boardTotal ?? null;
+            if (totalJobs === null) return;
             
             // Find matching sectors for this industry
             const matchingSectors = sectors.filter(
@@ -102,6 +105,7 @@ export function useJobCounts(sectors: string[] = []) {
               const url = `/au-jobs?query=${encodeURIComponent(industry.toLowerCase())}&location=Adelaide`;
               counts[sector] = {
                 count: totalJobs,
+                query: industry.toLowerCase(),
                 url,
                 lastUpdated: new Date(),
               };
@@ -145,6 +149,9 @@ export function useJobCounts(sectors: string[] = []) {
     return jobCounts[sector]?.count || 0;
   };
 
+  /** The word a sector's count is for, so the label can say so. */
+  const getJobQuery = (sector: string): string => jobCounts[sector]?.query ?? sector.toLowerCase();
+
   const getJobUrl = (sector: string): string => {
     return jobCounts[sector]?.url || `/au-jobs?query=${encodeURIComponent(sector.toLowerCase())}&location=adelaide`;
   };
@@ -154,6 +161,7 @@ export function useJobCounts(sectors: string[] = []) {
     loading,
     error,
     getJobCount,
+    getJobQuery,
     getJobUrl,
   };
 }

@@ -38,10 +38,13 @@ const PLACE_KEY = "cc-browse-place";
 type Status = "idle" | "loading" | "ready" | "error";
 type Sort = "fit" | "newest" | "board";
 
-/* A job is "in the tracker" if its link, or its title and company, match a
-   row there. Saving from here doesn't dedupe server-side, so this is what
-   stops the same ad being saved twice. */
-const titleKey = (title: string, company: string) => `${title}|${company}`.trim().toLowerCase();
+/* A job is "in the tracker" if its link matches a row there, or its title,
+   company and place all do. Title and company alone isn't enough: SA Health
+   posts a dozen "Registered Nurse" ads at different hospitals. Saving from
+   here doesn't dedupe server-side, so this is what stops the same ad being
+   saved twice. */
+const titleKey = (title: string, company: string, location: string | null | undefined) =>
+  `${title}|${company}|${location ?? ""}`.trim().toLowerCase();
 
 function readLastPlace(): string {
   try {
@@ -55,7 +58,7 @@ const sentenceCase = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) 
 
 export default function BrowseJobsPage() {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const { toast } = useToast();
   const perso = usePersonalization();
   const { checkLimit } = useRateLimit({
@@ -100,10 +103,12 @@ export default function BrowseJobsPage() {
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const { data } = await supabase.from("job_applications").select("job_url, job_title, company, status");
+      const { data } = await supabase
+        .from("job_applications")
+        .select("job_url, job_title, company, location, status");
       if (!alive || !data) return;
       setTrackedUrls(new Set(data.map((r) => r.job_url).filter(Boolean) as string[]));
-      setTrackedTitles(new Set(data.map((r) => titleKey(r.job_title, r.company))));
+      setTrackedTitles(new Set(data.map((r) => titleKey(r.job_title, r.company, r.location))));
       setSavedCount(data.filter((r) => r.status === "saved").length);
     })();
     return () => {
@@ -113,7 +118,7 @@ export default function BrowseJobsPage() {
 
   const isTracked = useCallback(
     (j: JobCatalogJob) =>
-      (j.canonical_url ? trackedUrls.has(j.canonical_url) : false) || trackedTitles.has(titleKey(j.title, j.company)),
+      (j.canonical_url ? trackedUrls.has(j.canonical_url) : false) || trackedTitles.has(titleKey(j.title, j.company, j.location)),
     [trackedUrls, trackedTitles],
   );
 
@@ -123,7 +128,7 @@ export default function BrowseJobsPage() {
   const latest = useRef(0);
 
   const runSearch = useCallback(
-    async (opts: { role: string; place: string; page?: number; append?: boolean }) => {
+    async (opts: { role: string; place: string; page?: number; append?: boolean; remember?: boolean }) => {
       if (!checkLimit().allowed) return;
       const pageNo = opts.page ?? 1;
       const append = Boolean(opts.append);
@@ -131,8 +136,10 @@ export default function BrowseJobsPage() {
       if (append) setLoadingMore(true);
       else setStatus("loading");
 
-      const q = sanitize(opts.role.trim(), { maxLength: 200 });
-      const where = sanitize(opts.place.trim(), { maxLength: 120 });
+      // Text for a search box, not SQL: sanitize()'s default sqlSafe would
+      // double every apostrophe ("St Mary''s"), and again on each reuse.
+      const q = sanitize(opts.role.trim(), { maxLength: 200, sqlSafe: false });
+      const where = sanitize(opts.place.trim(), { maxLength: 120, sqlSafe: false });
       // The profile's phrasings only apply to the profile's own role.
       const terms =
         profileTerms.length > 0 && q && q.toLowerCase() === profileRole.toLowerCase() ? profileTerms : undefined;
@@ -160,7 +167,7 @@ export default function BrowseJobsPage() {
           console.log(`[similarity] ${data.similarityStatus}`);
         }
         try {
-          localStorage.setItem(PLACE_KEY, where);
+          if (opts.remember !== false) localStorage.setItem(PLACE_KEY, where);
         } catch {
           /* private mode: the place just isn't remembered */
         }
@@ -198,13 +205,17 @@ export default function BrowseJobsPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) return; // CraftAppLayout sends them to sign in
+      const fromLink = params.has("query") || params.has("location");
       const startRole = params.get("query") ?? profileRole;
       const startPlace = params.get("location") ?? (place || profileCity);
       setRole(startRole);
       setPlace(startPlace);
-      void runSearch({ role: startRole, place: startPlace });
+      // Used once: a refresh or Back after the person's own search must not
+      // bring the link's search back, and its place isn't theirs to remember.
+      if (fromLink) setParams({}, { replace: true });
+      void runSearch({ role: startRole, place: startPlace, remember: !fromLink });
     })();
-  }, [perso.loading, profileRole, profileCity, place, runSearch, params]);
+  }, [perso.loading, profileRole, profileCity, place, runSearch, params, setParams]);
 
   const search = (next?: { role?: string; place?: string }) =>
     runSearch({ role: next?.role ?? role, place: next?.place ?? place });
@@ -271,7 +282,7 @@ export default function BrowseJobsPage() {
       if (error) throw error;
       flyToTracker(from);
       if (job.canonical_url) setTrackedUrls((s) => new Set(s).add(job.canonical_url as string));
-      setTrackedTitles((s) => new Set(s).add(titleKey(job.title, job.company)));
+      setTrackedTitles((s) => new Set(s).add(titleKey(job.title, job.company, job.location)));
       setSavedCount((n) => n + 1);
       toast({ title: "Saved to your tracker", description: `${job.title} is in the Saved lane.` });
     } catch (e) {

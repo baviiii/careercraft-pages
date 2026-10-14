@@ -33,7 +33,11 @@ export const SearchSummary = ({ summary: s, onRefine }: SearchSummaryProps) => (
         </>
       ) : (
         <span className="text-[14px] text-[color:var(--cc-ink-soft)]">
-          {s.payStated === 0 ? "None of these ads list pay." : "Too few ads list pay to say."}
+          {s.payListed === 0
+            ? "None of these ads list pay."
+            : s.payStated === 0
+              ? `${s.payListed} list pay, as hourly or day rates rather than a yearly figure.`
+              : `${s.payListed} list pay, too few yearly figures to sum up.`}
         </span>
       )}
     </Fact>

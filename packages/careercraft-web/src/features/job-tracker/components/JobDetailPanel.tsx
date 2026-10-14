@@ -93,6 +93,8 @@ export const JobDetailPanel = ({
   const [emailBody, setEmailBody] = useState("");
   const [suggested, setSuggested] = useState<Suggested | null>(null);
   const [classifying, setClassifying] = useState(false);
+  /** What the last email check came to, when it wasn't a stage to suggest. */
+  const [checkNote, setCheckNote] = useState<string | null>(null);
 
   // A pasted email belongs to one job; don't carry it over to the next.
   const appId = application?.id;
@@ -100,6 +102,7 @@ export const JobDetailPanel = ({
     setEmailSubject("");
     setEmailBody("");
     setSuggested(null);
+    setCheckNote(null);
   }, [appId]);
 
   /* ── View / edit ── */
@@ -166,6 +169,8 @@ export const JobDetailPanel = ({
   /* Closing with unsaved edits asks first: the X, Escape and a click outside
      all come through here. */
   const requestOpenChange = (next: boolean) => {
+    // Mid-save there's nothing to discard: the save is already going through.
+    if (!next && saving) return;
     if (!next && dirty) {
       setLeaving("close");
       return;
@@ -235,7 +240,7 @@ export const JobDetailPanel = ({
             </>
           ) : (
             <>
-              <CraftButton variant="ghost" className="sm:mr-auto" onClick={() => (dirty ? setLeaving("back") : backToJob())}>
+              <CraftButton variant="ghost" className="sm:mr-auto" disabled={saving} onClick={() => (dirty ? setLeaving("back") : backToJob())}>
                 <ArrowLeft className="h-4 w-4" />
                 Back to the job
               </CraftButton>
@@ -517,13 +522,19 @@ export const JobDetailPanel = ({
                     onClick={async () => {
                       if (!onClassifyEmail || !emailBody.trim()) return;
                       setClassifying(true);
+                      setCheckNote(null);
                       try {
+                        // The hook reloads Activity itself once the check is logged.
                         const result = await onClassifyEmail(application.id, emailSubject, emailBody);
                         const s = result?.recommendation?.targetStatus;
-                        setSuggested(
-                          s === "applied" || s === "interview" || s === "offer" || s === "rejected" ? s : null,
-                        );
-                        onLoadTimeline?.(application.id);
+                        const stage =
+                          s === "applied" || s === "interview" || s === "offer" || s === "rejected" ? s : null;
+                        setSuggested(stage);
+                        if (!stage) {
+                          setCheckNote("That email doesn't clearly say interview, offer or rejection, so there's nothing to suggest.");
+                        }
+                      } catch {
+                        setCheckNote("Couldn't check that email just now. Try again in a moment.");
                       } finally {
                         setClassifying(false);
                       }
@@ -538,7 +549,6 @@ export const JobDetailPanel = ({
                       onClick={async () => {
                         await onConfirmStatusUpdate(application.id, suggested);
                         setSuggested(null);
-                        onLoadTimeline?.(application.id);
                       }}
                     >
                       Move to {STATUS_META[suggested].label}
@@ -550,6 +560,11 @@ export const JobDetailPanel = ({
                     </span>
                   )}
                 </div>
+                {checkNote && (
+                  <p role="status" className="text-[13.5px] text-[color:var(--cc-ink-soft)]">
+                    {checkNote}
+                  </p>
+                )}
               </div>
             </details>
           )}

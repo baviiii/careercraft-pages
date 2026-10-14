@@ -94,8 +94,9 @@ export async function generateCoverLetter(
           jobDescription,
           type: "cover-letter",
           tone,
-          role: job?.role || undefined,
-          company: job?.company || undefined,
+          // The function caps these; long tracker titles are trimmed, not refused.
+          role: job?.role?.slice(0, 200) || undefined,
+          company: job?.company?.slice(0, 200) || undefined,
         }),
       }
     );

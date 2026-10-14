@@ -461,3 +461,22 @@ remembering. Up next already nudges ("No word from Hays in 16 days"). A
 weekly "Any news on these 3 jobs?" email with one-tap buttons per job
 (Interview / No reply yet / Didn't work out) would update the tracker without
 opening the app. Needs faircopy.au mail to stop landing in spam first.
+
+---
+
+## 15. "Show more" skips results when a search uses profile phrasings
+
+**Found:** 2026-10-14, code review of the Browse Jobs rebuild.
+
+job-search runs up to three phrasings of the profile role (`terms`), merges
+them, and keeps the first page's worth (50). The rest of terms two and three
+on page 1 are dropped, and "Show more" asks every term for page 2, so up to
+~100 matching ads in the middle can never be reached. It affects Browse Jobs
+(only on the profile's own role) and the tracker's Find more jobs.
+
+**Not urgent because:** page 1 still shows the 50 best-merged results, and an
+explicit search (anything typed) uses one term and pages correctly.
+
+**Decide later:** return the whole merged set for page 1 when there are
+several terms, or page each term separately on the client. Check
+attachSimilarity's batch size before returning more than 50.

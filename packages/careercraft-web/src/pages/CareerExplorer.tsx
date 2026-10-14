@@ -601,6 +601,7 @@ function SectorCard({
   isSelected,
   onClick,
   getJobCount,
+  getJobQuery,
   getJobUrl,
   navigate,
 }: {
@@ -608,6 +609,7 @@ function SectorCard({
   isSelected: boolean;
   onClick: () => void;
   getJobCount: (sector: string) => number;
+  getJobQuery: (sector: string) => string;
   getJobUrl: (sector: string) => string;
   navigate: (url: string) => void;
 }) {
@@ -685,7 +687,7 @@ function SectorCard({
                     <div className="flex items-center gap-2">
                       <Zap className="w-3.5 h-3.5 text-emerald-300" />
                       <span className="text-xs font-semibold text-emerald-200">
-                        {liveJobCount.toLocaleString()} ads in Adelaide on Adzuna
+                        {liveJobCount.toLocaleString()} ads for “{getJobQuery(sector.name)}” in Adelaide
                       </span>
                     </div>
                     <ExternalLink className="w-3.5 h-3.5 text-emerald-300 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -904,7 +906,7 @@ function CareerExplorerContent() {
 
   // Fetch live job counts from AustralianJobs API
   const sectorNames = useMemo(() => dynamicSectors.map(s => s.name), [dynamicSectors]);
-  const { getJobCount, getJobUrl, loading: jobsLoading } = useJobCounts(sectorNames);
+  const { getJobCount, getJobQuery, getJobUrl, loading: jobsLoading } = useJobCounts(sectorNames);
 
   // Filter careers based on ALL active filters
   const filteredCareers = useMemo(() => {
@@ -1299,6 +1301,7 @@ function CareerExplorerContent() {
                       selectedSector === sector.id ? null : sector.id
                     )}
                     getJobCount={getJobCount}
+                    getJobQuery={getJobQuery}
                     getJobUrl={getJobUrl}
                     navigate={navigate}
                   />

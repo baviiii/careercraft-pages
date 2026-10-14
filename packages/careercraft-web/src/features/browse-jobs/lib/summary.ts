@@ -6,7 +6,9 @@ import type { JobCatalogJob } from "@/features/job-tracker/types";
 
 export interface SearchSummary {
   total: number;
-  /** Ads where the employer stated pay. */
+  /** Ads where the employer stated pay, at any rate (yearly, hourly, daily). */
+  payListed: number;
+  /** Of those, the ones giving a yearly figure. */
   payStated: number;
   /** Middle half of stated pay, annual, when at least 3 ads give a figure. */
   typicalPay: [number, number] | null;
@@ -29,8 +31,8 @@ function quantile(sorted: number[], q: number): number {
 }
 
 export function summarise(jobs: JobCatalogJob[]): SearchSummary {
-  const stated = jobs
-    .filter((j) => !j.salary_is_predicted && (j.salary_min || j.salary_max))
+  const listed = jobs.filter((j) => !j.salary_is_predicted && (j.salary_min || j.salary_max));
+  const stated = listed
     .map((j) => {
       const lo = j.salary_min ?? j.salary_max ?? 0;
       const hi = j.salary_max ?? j.salary_min ?? 0;
@@ -54,6 +56,7 @@ export function summarise(jobs: JobCatalogJob[]): SearchSummary {
   const now = Date.now();
   return {
     total: jobs.length,
+    payListed: listed.length,
     payStated: stated.length,
     typicalPay: stated.length >= 3 ? [quantile(stated, 0.25), quantile(stated, 0.75)] : null,
     topCompanies,
@@ -67,16 +70,18 @@ export function summarise(jobs: JobCatalogJob[]): SearchSummary {
 /** "$85k", rounded to the nearest thousand. */
 export const k = (n: number) => `$${Math.round(n / 1000)}k`;
 
-/** "$85k–$95k", "$35–$40 an hour", "$700 a day", or null. Some ads quote an
-    hourly or daily rate in the salary fields, so small figures keep their unit. */
+/** "$85k–$95k", "$35–$40 an hour", or the bare figures. Some ads quote an
+    hourly, daily or weekly rate in the salary fields; only an hourly rate is
+    obvious from the number, so anything else small shows without a unit
+    rather than guessing one. */
 export function payLabel(j: JobCatalogJob): string | null {
   const lo = j.salary_min || j.salary_max;
   const hi = j.salary_max || j.salary_min;
   if (!lo || !hi) return null;
   if (hi < 20_000) {
-    const unit = hi <= 250 ? "an hour" : "a day";
-    const $ = (n: number) => `$${Math.round(n)}`;
-    return `${lo === hi ? $(lo) : `${$(lo)}–${$(hi)}`} ${unit}`;
+    const $ = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;
+    const amount = lo === hi ? $(lo) : `${$(lo)}–${$(hi)}`;
+    return hi <= 200 ? `${amount} an hour` : amount;
   }
   return Math.round(lo / 1000) === Math.round(hi / 1000) ? k(lo) : `${k(lo)}–${k(hi)}`;
 }

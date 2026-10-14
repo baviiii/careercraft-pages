@@ -27,8 +27,8 @@ const RequestSchema = z.object({
     .default("professional"),
   /* Cover letters only: what the app already knows about the job, so the
      model names it instead of writing "[Position Title]". */
-  role: z.string().max(200).optional(),
-  company: z.string().max(200).optional(),
+  role: z.string().max(500).transform((s) => s.slice(0, 200)).optional(),
+  company: z.string().max(500).transform((s) => s.slice(0, 200)).optional(),
 });
 
 type RewriteRequest = z.infer<typeof RequestSchema>;
@@ -117,10 +117,12 @@ The letter is pasted straight into an application, so it must be complete:
  */
 function fillPlaceholders(letter: string, r: RewriteRequest): string {
   let out = letter
-    .replace(/\[(?:the )?(?:hiring manager'?s?|recipient'?s?|employer'?s?)(?: full)? name\]/gi, "Hiring Manager")
+    .replace(/\[(?:the )?(?:hiring manager'?s?|recipient'?s?)(?: full)? name\]/gi, "Hiring Manager")
     .replace(/\[name of (?:the )?hiring manager\]/gi, "Hiring Manager");
   if (r.role) out = out.replace(/\[(?:the )?(?:position|job|role)(?: title| name)?\]/gi, r.role);
-  if (r.company) out = out.replace(/\[(?:the )?(?:company|organi[sz]ation|employer|business)(?: name)?\]/gi, r.company);
+  if (r.company) {
+    out = out.replace(/\[(?:the )?(?:company|organi[sz]ation|employer|business)(?:'?s)?(?: name)?\]/gi, r.company);
+  }
   return out
     .split("\n")
     .filter((line) => !/^\s*\[[^\]]{1,60}\]\s*$/.test(line))
@@ -131,18 +133,18 @@ function fillPlaceholders(letter: string, r: RewriteRequest): string {
 
 serve(handler(async (req) => {
   const { userId } = await requireUser(req);
+  const raw = await req.json().catch(() => null);
+  const parsed = RequestSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ValidationError("Invalid request body", parsed.error.flatten());
+  }
+
   const quota = await enforcePlanQuota({
     userId,
     resource: "rewrite-resume",
     resourceLabel: "AI rewriting",
   });
   const meter = meterFromQuota(quota, userId);
-
-  const raw = await req.json().catch(() => null);
-  const parsed = RequestSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new ValidationError("Invalid request body", parsed.error.flatten());
-  }
 
   const prompts = buildPrompts(parsed.data);
 

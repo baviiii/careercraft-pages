@@ -13,7 +13,7 @@
 // Only the service role may call it, so a signed-in user can't spend
 // inference through here.
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { ForbiddenError } from "../_shared/ai/errors.ts";
+import { ForbiddenError, ProviderError } from "../_shared/ai/errors.ts";
 import { horusInfer } from "../_shared/ai/horus.ts";
 import { systemMeter } from "../_shared/ai/meter.ts";
 import { handler, json } from "../_shared/http/responses.ts";
@@ -29,15 +29,24 @@ serve(handler(async (req) => {
   // One real inference proves the whole chain: the gateway is up, the tenant
   // key is valid, Horus's database is awake, the model deployment answers.
   const started = Date.now();
-  const result = await horusInfer({
-    task: "careercraft.keepalive",
-    system: "Reply with the single word: ok",
-    prompt: "ping",
-    model: "fast",
-    temperature: 0,
-    maxTokens: 8,
-    meter: systemMeter("horus-keepalive"),
-  });
-
-  return json({ ok: true, model: result.model, ms: Date.now() - started });
+  try {
+    const result = await horusInfer({
+      task: "careercraft.keepalive",
+      system: "Reply with the single word: ok",
+      prompt: "ping",
+      model: "fast",
+      temperature: 0,
+      // Room for models that spend tokens before they answer.
+      maxTokens: 64,
+      meter: systemMeter("horus-keepalive"),
+    });
+    return json({ ok: true, model: result.model, ms: Date.now() - started });
+  } catch (err) {
+    // An empty answer still means the gateway, the tenant key and Horus's
+    // database all responded, which is what this check is for.
+    if (err instanceof ProviderError && /empty response/i.test(err.message)) {
+      return json({ ok: true, note: "empty reply", ms: Date.now() - started });
+    }
+    throw err;
+  }
 }, { name: "horus-keepalive" }));

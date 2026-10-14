@@ -72,7 +72,7 @@ function MarketTrendsContent() {
     return Array.from(sectors);
   }, [careerOpportunities]);
   
-  const { getJobCount, getJobUrl } = useJobCounts(emergingSectors);
+  const { getJobCount, getJobQuery, getJobUrl } = useJobCounts(emergingSectors);
 
   // ========================================================================
   // AGENTIC RAG - Graph connections, intersection reasoning, contradictions
@@ -651,7 +651,7 @@ function MarketTrendsContent() {
                                     <div className="flex items-center gap-2">
                                       <Zap className="w-3.5 h-3.5 text-emerald-300" />
                                       <span className="text-xs font-semibold text-emerald-200">
-                                        {liveJobCount.toLocaleString()} ads in Adelaide on Adzuna
+                                        {liveJobCount.toLocaleString()} ads for “{getJobQuery(role.category)}” in Adelaide
                                       </span>
                                     </div>
                                     <ArrowUpRight className="w-3.5 h-3.5 text-emerald-300 opacity-0 group-hover:opacity-100 transition-opacity" />

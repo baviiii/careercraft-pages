@@ -87,24 +87,35 @@ serve(handler(async (req) => {
 
   if (action === "confirm_status_update") {
     const applicationId = body.applicationId as string | undefined;
-    const status = body.status as "applied" | "interview" | "offer" | "rejected" | undefined;
+    const status = body.status as string | undefined;
     if (!applicationId || !status) {
       throw new ValidationError("applicationId and status are required");
+    }
+    if (!["applied", "interview", "offer", "rejected"].includes(status)) {
+      throw new ValidationError("status must be applied, interview, offer or rejected");
     }
 
     const { data: app, error: appErr } = await service
       .from("job_applications")
-      .select("id, user_id")
+      .select("id, user_id, status")
       .eq("id", applicationId)
       .single();
     if (appErr || !app || app.user_id !== userId) {
       throw new NotFoundError("Application not found");
     }
 
-    await service
+    const now = new Date().toISOString();
+    const { error: updateErr } = await service
       .from("job_applications")
-      .update({ status, last_status_change_at: new Date().toISOString() })
+      .update({
+        status,
+        last_status_change_at: now,
+        // A saved job that moves on has now been applied for; the board's
+        // own moves stamp this too (useJobTracker's leavingSaved).
+        ...(app.status === "saved" ? { applied_date: now } : {}),
+      })
       .eq("id", applicationId);
+    if (updateErr) throw updateErr;
 
     await service.from("application_events").insert({
       user_id: userId,

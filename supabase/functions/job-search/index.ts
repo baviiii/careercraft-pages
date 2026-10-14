@@ -104,6 +104,27 @@ const RequestSchema = z.discriminatedUnion("action", [
 
 type Job = z.infer<typeof JobSchema>;
 
+/**
+ * Pay as saved on the application. Some ads put an hourly or daily rate in
+ * the salary fields; "$35 - $40" must not become "$0k - $0k". Only an hourly
+ * rate is obvious from the number, so other small figures keep no unit.
+ * Adzuna's estimates stay marked, because a saved figure gets remembered as
+ * the employer's.
+ */
+function payRange(job: Job): string | null {
+  const lo = job.salary_min || job.salary_max;
+  const hi = job.salary_max || job.salary_min;
+  if (!lo || !hi) return null;
+  const est = job.salary_is_predicted ? " (est.)" : "";
+  if (hi < 20_000) {
+    const $ = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;
+    const amount = lo === hi ? $(lo) : `${$(lo)} - ${$(hi)}`;
+    return `${amount}${hi <= 200 ? " an hour" : ""}${est}`;
+  }
+  const k = (n: number) => `$${Math.round(n / 1000)}k`;
+  return `${lo === hi ? k(lo) : `${k(lo)} - ${k(hi)}`}${est}`;
+}
+
 async function sha256(input: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
   return Array.from(new Uint8Array(digest))
@@ -301,12 +322,7 @@ serve(handler(async (req) => {
          figure. This is saved onto the application and read back weeks later,
          by which point nobody remembers which ads quoted pay — so an
          unmarked estimate becomes a remembered fact. */
-      salary_range:
-        job.salary_min && job.salary_max
-          ? `$${Math.round(job.salary_min / 1000)}k - $${Math.round(job.salary_max / 1000)}k${
-              job.salary_is_predicted ? " (est.)" : ""
-            }`
-          : null,
+      salary_range: payRange(job),
       job_type: job.job_type ?? null,
       /* The extract, all we have. JobDetailPanel checks its length and tells
          the user to paste the real ad before running an ATS check. */
