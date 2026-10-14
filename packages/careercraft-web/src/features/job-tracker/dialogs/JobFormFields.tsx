@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import type { ReactNode } from "react";
 
 import {
   Select,
@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { letterLabel } from "@/features/cover-letter/lib/letterLabel";
+import { fieldId } from "../lib/formFocus";
 import {
   JOB_TYPE_OPTIONS,
   STATUS_META,
@@ -28,51 +29,43 @@ interface JobFormFieldsProps {
   coverLetters: CoverLetterRef[];
 }
 
-/** The shared form used by both Add and Edit dialogs. */
+const TRIGGER =
+  "cc-root h-auto w-full rounded-[0.85rem] border border-[color:var(--cc-hair-strong)] bg-white px-4 py-[0.8rem] cc-font-sans text-[15px] text-[color:var(--cc-ink)] hover:border-[color:var(--cc-ink)] focus:border-[color:var(--cc-rust)] focus:ring-0 focus:ring-offset-0";
+const CONTENT =
+  "cc-root rounded-xl border border-[color:var(--cc-hair)] bg-white text-[color:var(--cc-ink)] shadow-lg";
+
+/** The form behind "Add a job" and the job pop-up's edit view. */
 export const JobFormFields = ({
   values,
   onChange,
   resumes,
   coverLetters,
-}: JobFormFieldsProps) => {
-  const triggerCls =
-    "cc-root w-full rounded-none border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-[0.9rem] cc-font-sans text-[14px] text-[color:var(--cc-ink)] hover:border-[color:var(--cc-ink)] focus:ring-0 focus:border-[color:var(--cc-rust)] h-auto py-[0.75rem]";
-  const contentCls =
-    "cc-root rounded-none border border-[color:var(--cc-ink)] bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] shadow-[4px_4px_0_0_var(--cc-ink)]";
-
-  return (
-    <div className="space-y-6">
-      {/* Row: title + company */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <FieldLabel label="Role *">
+}: JobFormFieldsProps) => (
+  <div className="space-y-7 cc-font-sans">
+    <Group title="The job">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field label="Role" required>
           <input
             className="cc-field"
-            placeholder="e.g. Software Engineer"
+            placeholder="e.g. Graduate Data Analyst"
             value={values.jobTitle}
             onChange={(e) => onChange({ jobTitle: e.target.value })}
           />
-        </FieldLabel>
-        <FieldLabel label="Company *">
+        </Field>
+        <Field label="Company" required>
           <input
             className="cc-field"
-            placeholder="e.g. Canva"
+            placeholder="e.g. SA Health"
             value={values.company}
             onChange={(e) => onChange({ company: e.target.value })}
           />
-        </FieldLabel>
-      </div>
-
-      {/* Row: status + job type */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <FieldLabel label="Stage">
-          <Select
-            value={values.status}
-            onValueChange={(v: ApplicationStatus) => onChange({ status: v })}
-          >
-            <SelectTrigger className={triggerCls}>
+        </Field>
+        <Field label="Stage">
+          <Select value={values.status} onValueChange={(v: ApplicationStatus) => onChange({ status: v })}>
+            <SelectTrigger className={TRIGGER}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className={contentCls}>
+            <SelectContent className={CONTENT}>
               {STATUS_ORDER.map((s) => (
                 <SelectItem key={s} value={s}>
                   {STATUS_META[s].label}
@@ -80,20 +73,17 @@ export const JobFormFields = ({
               ))}
             </SelectContent>
           </Select>
-        </FieldLabel>
-
-        <FieldLabel label="Job type">
+        </Field>
+        <Field label="Work type">
           <Select
             value={values.jobType || "none"}
-            onValueChange={(v) =>
-              onChange({ jobType: v === "none" ? "" : (v as JobType) })
-            }
+            onValueChange={(v) => onChange({ jobType: v === "none" ? "" : (v as JobType) })}
           >
-            <SelectTrigger className={triggerCls}>
-              <SelectValue placeholder="Select type" />
+            <SelectTrigger className={TRIGGER}>
+              <SelectValue placeholder="Not set" />
             </SelectTrigger>
-            <SelectContent className={contentCls}>
-              <SelectItem value="none">None</SelectItem>
+            <SelectContent className={CONTENT}>
+              <SelectItem value="none">Not set</SelectItem>
               {JOB_TYPE_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
                   {o.label}
@@ -101,134 +91,138 @@ export const JobFormFields = ({
               ))}
             </SelectContent>
           </Select>
-        </FieldLabel>
-      </div>
-
-      {/* Row: location + salary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <FieldLabel label="Location">
+        </Field>
+        <Field label="Location">
           <input
             className="cc-field"
-            placeholder="e.g. Sydney, NSW"
+            placeholder="e.g. Adelaide SA"
             value={values.jobLocation}
             onChange={(e) => onChange({ jobLocation: e.target.value })}
           />
-        </FieldLabel>
-        <FieldLabel label="Salary range">
+        </Field>
+        <Field label="Pay">
           <input
             className="cc-field cc-tabular"
-            placeholder="e.g. $120k – $160k"
+            placeholder="e.g. $85k – $95k"
             value={values.salaryRange}
             onChange={(e) => onChange({ salaryRange: e.target.value })}
           />
-        </FieldLabel>
+        </Field>
       </div>
-
-      {/* Job URL */}
-      <FieldLabel label="Link to the ad">
+      <Field label="Link to the ad">
         <input
           className="cc-field"
+          type="url"
+          inputMode="url"
           placeholder="https://…"
           value={values.jobUrl}
           onChange={(e) => onChange({ jobUrl: e.target.value })}
         />
-      </FieldLabel>
+      </Field>
+    </Group>
 
-      {/* Linked documents */}
-      <div className="pt-4 border-t border-[color:var(--cc-hair-strong)]">
-        <div className="inline-flex items-center gap-2 cc-label text-[color:var(--cc-rust)] mb-3">
-          <FileText className="w-3.5 h-3.5" />
-          What you're sending
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <FieldLabel label="Résumé">
-            <Select
-              value={values.selectedResumeId || "none"}
-              onValueChange={(v) =>
-                onChange({ selectedResumeId: v === "none" ? "" : v })
-              }
-            >
-              <SelectTrigger className={triggerCls}>
-                <SelectValue placeholder="Select résumé" />
-              </SelectTrigger>
-              <SelectContent className={contentCls}>
-                <SelectItem value="none">None</SelectItem>
-                {resumes.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FieldLabel>
-
-          <FieldLabel label="Cover letter">
-            <Select
-              value={values.selectedCoverLetterId || "none"}
-              onValueChange={(v) =>
-                onChange({ selectedCoverLetterId: v === "none" ? "" : v })
-              }
-            >
-              <SelectTrigger className={triggerCls}>
-                <SelectValue placeholder="Select cover letter" />
-              </SelectTrigger>
-              <SelectContent className={contentCls}>
-                <SelectItem value="none">None</SelectItem>
-                {coverLetters.map((cl) => (
-                  <SelectItem key={cl.id} value={cl.id}>
-                    {letterLabel(cl)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FieldLabel>
-        </div>
+    <Group title="What you're sending">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field label="Résumé">
+          <Select
+            value={values.selectedResumeId || "none"}
+            onValueChange={(v) => onChange({ selectedResumeId: v === "none" ? "" : v })}
+          >
+            <SelectTrigger id={fieldId("resume")} className={TRIGGER}>
+              <SelectValue placeholder="None yet" />
+            </SelectTrigger>
+            <SelectContent className={CONTENT}>
+              <SelectItem value="none">None yet</SelectItem>
+              {resumes.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Cover letter">
+          <Select
+            value={values.selectedCoverLetterId || "none"}
+            onValueChange={(v) => onChange({ selectedCoverLetterId: v === "none" ? "" : v })}
+          >
+            <SelectTrigger className={TRIGGER}>
+              <SelectValue placeholder="None yet" />
+            </SelectTrigger>
+            <SelectContent className={CONTENT}>
+              <SelectItem value="none">None yet</SelectItem>
+              {coverLetters.map((cl) => (
+                <SelectItem key={cl.id} value={cl.id}>
+                  {letterLabel(cl)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
       </div>
+    </Group>
 
-      {/* Reminder */}
-      <FieldLabel label="Follow up on">
+    <Group title="Follow-up and notes">
+      <Field label="Follow up on" hint="Shows in Up next on the day.">
         <input
+          id={fieldId("reminder")}
           type="date"
-          className="cc-field"
+          className="cc-field md:max-w-[240px]"
           value={values.reminderDate}
           onChange={(e) => onChange({ reminderDate: e.target.value })}
         />
-      </FieldLabel>
-
-      {/* Job description */}
-      <FieldLabel label="Job ad">
+      </Field>
+      <Field label="Notes">
         <textarea
-          placeholder="Paste the whole ad. The résumé check and cover letter work from it."
-          value={values.jobDescription}
-          onChange={(e) => onChange({ jobDescription: e.target.value })}
-          className="cc-field cc-field-textarea min-h-[100px] placeholder:italic"
-        />
-      </FieldLabel>
-
-      {/* Notes */}
-      <FieldLabel label="Notes">
-        <textarea
+          id={fieldId("notes")}
           placeholder="Who you spoke to, what they asked, anything worth remembering. Only you see these."
           value={values.notes}
           onChange={(e) => onChange({ notes: e.target.value })}
-          className="cc-field cc-field-textarea min-h-[80px] placeholder:italic"
+          className="cc-field cc-field-textarea min-h-[90px]"
         />
-      </FieldLabel>
-    </div>
-  );
-};
+      </Field>
+    </Group>
 
-const FieldLabel = ({
+    <Group title="Job ad">
+      <Field label="The ad's text" hint="Paste the whole ad. The résumé check and cover letter work from it.">
+        <textarea
+          id={fieldId("ad")}
+          placeholder="Paste the job ad here"
+          value={values.jobDescription}
+          onChange={(e) => onChange({ jobDescription: e.target.value })}
+          className="cc-field cc-field-textarea min-h-[120px]"
+        />
+      </Field>
+    </Group>
+  </div>
+);
+
+const Group = ({ title, children }: { title: string; children: ReactNode }) => (
+  <section className="space-y-4">
+    <h3 className="border-b border-[color:var(--cc-hair)] pb-2 text-[14px] font-semibold text-[color:var(--cc-ink)]">
+      {title}
+    </h3>
+    {children}
+  </section>
+);
+
+const Field = ({
   label,
+  hint,
+  required,
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  hint?: string;
+  required?: boolean;
+  children: ReactNode;
 }) => (
   <label className="block">
-    <span className="cc-label text-[color:var(--cc-ash)] block mb-1">
+    <span className="mb-1.5 block text-[13px] font-medium text-[color:var(--cc-ink-soft)]">
       {label}
+      {required && <span className="ml-1 text-[color:var(--cc-ash)]">(needed)</span>}
     </span>
     {children}
+    {hint && <span className="mt-1.5 block text-[12.5px] text-[color:var(--cc-ash)]">{hint}</span>}
   </label>
 );

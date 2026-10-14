@@ -274,6 +274,13 @@
 .cc-fold[open] > summary::after { content: "–"; }
 .cc-fold > summary:focus-visible { outline: 2px solid var(--cc-rust); outline-offset: 2px; border-radius: 6px; }
 
+/* The job pop-up swapping between the job and its edit form. */
+.cc-swap { animation: cc-swap-in .22s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes cc-swap-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* ── Reduce motion: keep the information, drop the movement ─── */
 @media (prefers-reduced-motion: reduce) {
   .cc-ticket,
@@ -285,6 +292,7 @@
   .cc-ticket:hover .cc-ticket__stub { translate: none; rotate: none; }
   .cc-stamp { animation: none; }
   .cc-nudge__bell { animation: none; }
+  .cc-swap { animation: none; }
 }
 
 /* Delete, in the tracker's dialogs (TrackerButton variant="danger"). */

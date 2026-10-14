@@ -14,7 +14,6 @@ import { UpNext } from "./components/UpNext";
 import { WireDispatch } from "./components/WireDispatch";
 import { AddJobDialog } from "./dialogs/AddJobDialog";
 import { DeleteJobDialog } from "./dialogs/DeleteJobDialog";
-import { EditJobDialog } from "./dialogs/EditJobDialog";
 import { useJobAutomation } from "./hooks/useJobAutomation";
 import { useJobDiscovery } from "./hooks/useJobDiscovery";
 import { useJobTracker } from "./hooks/useJobTracker";
@@ -75,8 +74,14 @@ export default function JobTrackerPage() {
       setAddOpen(true);
     }
   }, [loading]);
-  const [editTarget, setEditTarget] = useState<JobApplication | null>(null);
   const [viewTarget, setViewTarget] = useState<JobApplication | null>(null);
+  /* The job pop-up opens on the job, or straight on its edit form (the card
+     menu's "Edit"). Editing never leaves the pop-up. */
+  const [panelMode, setPanelMode] = useState<"view" | "edit">("view");
+  const openJob = useCallback((app: JobApplication, mode: "view" | "edit" = "view") => {
+    setPanelMode(mode);
+    setViewTarget(app);
+  }, []);
   const [deleteTarget, setDeleteTarget] = useState<JobApplication | null>(null);
 
   const searchFilteredApplications = useMemo(() => {
@@ -262,7 +267,7 @@ export default function JobTrackerPage() {
           <>
             <UpNext
               applications={applications}
-              onOpen={setViewTarget}
+              onOpen={(app) => openJob(app)}
               onShowSaved={() => setFilters((f) => ({ ...f, status: "saved" }))}
             />
 
@@ -289,8 +294,8 @@ export default function JobTrackerPage() {
                 <TrackerBoard
                   lanes={lanes}
                   getResumeName={getResumeName}
-                  onView={setViewTarget}
-                  onEdit={setEditTarget}
+                  onView={(app) => openJob(app)}
+                  onEdit={(app) => openJob(app, "edit")}
                   onDelete={setDeleteTarget}
                   onMove={(id, status) => void moveTo(id, status)}
                 />
@@ -331,15 +336,6 @@ export default function JobTrackerPage() {
         sourceLabel={captured?.source}
       />
 
-      <EditJobDialog
-        application={editTarget}
-        open={!!editTarget}
-        onOpenChange={(o) => !o && setEditTarget(null)}
-        resumes={resumes}
-        coverLetters={coverLetters}
-        onSubmit={mutations.updateApplication}
-      />
-
       <JobDetailPanel
         application={viewing}
         open={!!viewing}
@@ -347,7 +343,10 @@ export default function JobTrackerPage() {
         resumeName={viewing ? getResumeName(viewing.resume_id) : null}
         hasCoverLetter={Boolean(viewing?.cover_letter_id)}
         coverLetter={viewLetter}
-        onEdit={setEditTarget}
+        initialMode={panelMode}
+        resumes={resumes}
+        coverLetters={coverLetters}
+        onSaveEdit={mutations.updateApplication}
         onStatusChange={(id, status) => void moveTo(id, status)}
         events={viewing ? automation.eventsByApplication[viewing.id] || [] : []}
         onAnalyse={analyseApplication}
