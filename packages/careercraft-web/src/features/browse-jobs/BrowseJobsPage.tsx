@@ -18,6 +18,7 @@ import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
 import type { JobCatalogJob } from "@/features/job-tracker/types";
 import { useToast } from "@/hooks/use-toast";
 import { usePersonalization } from "@/hooks/usePersonalization";
+import { useTargetRole } from "@/hooks/useTargetRole";
 import { useRateLimit } from "@/hooks/useSecurity";
 import { supabase } from "@/integrations/supabase/client";
 import { auditLog } from "@/lib/security/auditLog";
@@ -34,6 +35,18 @@ import "./browse-jobs.css";
 
 const PAGE_SIZE = 50;
 const PLACE_KEY = "cc-browse-place";
+
+/* Where to start when there's no profile: a spread of common Australian jobs
+   (from lib/careerFields' POPULAR_ROLES) and "graduate", which the board
+   matches as a keyword. */
+const STARTERS = [
+  "Registered Nurse",
+  "Electrician",
+  "Retail Assistant",
+  "Administration Officer",
+  "Early Childhood Educator",
+  "Graduate",
+];
 
 type Status = "idle" | "loading" | "ready" | "error";
 type Sort = "fit" | "newest" | "board";
@@ -61,6 +74,8 @@ export default function BrowseJobsPage() {
   const [params, setParams] = useSearchParams();
   const { toast } = useToast();
   const perso = usePersonalization();
+  const { saveRole } = useTargetRole();
+  const [adopting, setAdopting] = useState(false);
   const { checkLimit } = useRateLimit({
     key: "au-jobs-search",
     config: RATE_LIMITS.SEARCH,
@@ -141,8 +156,9 @@ export default function BrowseJobsPage() {
       const q = sanitize(opts.role.trim(), { maxLength: 200, sqlSafe: false });
       const where = sanitize(opts.place.trim(), { maxLength: 120, sqlSafe: false });
       // The profile's phrasings only apply to the profile's own role.
+      const termsFitRole = profileTerms.some((t) => t.toLowerCase() === profileRole.toLowerCase());
       const terms =
-        profileTerms.length > 0 && q && q.toLowerCase() === profileRole.toLowerCase() ? profileTerms : undefined;
+        termsFitRole && q && q.toLowerCase() === profileRole.toLowerCase() ? profileTerms : undefined;
 
       try {
         const { data, error } = await supabase.functions.invoke("job-search", {
@@ -272,6 +288,26 @@ export default function BrowseJobsPage() {
     });
   const turnOn = (key: RefineKey) => setActive((prev) => new Set(prev).add(key));
 
+  /* ───── Make a searched role the target ───── */
+  const adoptRole = async (title: string) => {
+    const role = sentenceCase(title.trim());
+    setAdopting(true);
+    try {
+      await saveRole(role);
+      await perso.refetch();
+      setSort("fit");
+      toast({ title: `Going for: ${role}`, description: "Saved to your profile. These jobs are now sorted by fit for it." });
+    } catch (e) {
+      toast({
+        title: "Couldn't save your role",
+        description: e instanceof Error ? e.message : "Try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setAdopting(false);
+    }
+  };
+
   /* ───── Save to tracker ───── */
   const save = async (job: JobCatalogJob, from: HTMLElement | null) => {
     setSavingId(job.id);
@@ -358,21 +394,49 @@ export default function BrowseJobsPage() {
           onSearch={search}
           searching={status === "loading"}
           suggestions={suggestions}
+          starters={canFit ? [] : STARTERS.filter((r) => r.toLowerCase() !== (searched?.role ?? "").toLowerCase())}
         />
 
-        {!perso.loading && !canFit && (
+        {/* Fit is measured against the profile's role. When someone searches a
+            different one (thinking of switching, or no role saved yet), offer
+            to make it theirs. Nothing changes unless they tap. */}
+        {!perso.loading && status === "ready" && searched?.role && searched.role.toLowerCase() !== profileRole.toLowerCase() ? (
           <div className="flex flex-col gap-3 rounded-2xl border border-[color:var(--cc-hair)] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="cc-font-sans text-[15px] text-[color:var(--cc-ink-soft)]">
-              Want these sorted by how well they suit you? Tell us the role you're after and where.
+              {canFit && profileRole ? (
+                <>
+                  Fit is measured against <strong className="font-semibold text-[color:var(--cc-ink)]">{profileRole}</strong>.
+                  Thinking of {searched.role.toLowerCase()} instead?
+                </>
+              ) : (
+                "Want these sorted by how well they suit you?"
+              )}
             </p>
             <button
               type="button"
-              onClick={() => navigate("/settings")}
+              disabled={adopting}
+              onClick={() => void adoptRole(searched.role)}
               className="cc-action cc-action--ghost cc-action--sm shrink-0"
             >
-              Add your target role
+              {adopting ? "Saving…" : `Make “${sentenceCase(searched.role)}” my target role`}
             </button>
           </div>
+        ) : (
+          !perso.loading &&
+          !canFit && (
+            <div className="flex flex-col gap-3 rounded-2xl border border-[color:var(--cc-hair)] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="cc-font-sans text-[15px] text-[color:var(--cc-ink-soft)]">
+                Want these sorted by how well they suit you? Search a role, or tell us the one you're after.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/settings")}
+                className="cc-action cc-action--ghost cc-action--sm shrink-0"
+              >
+                Add your target role
+              </button>
+            </div>
+          )
         )}
 
         <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_290px]">
