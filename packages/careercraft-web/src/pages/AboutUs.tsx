@@ -10,19 +10,19 @@ import {
 import { publicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
 
 const values = [
-  { n: "i.", title: "Mission", body: "Give every Australian the market intelligence a top recruiter has — sourced, cited, and free to start." },
-  { n: "ii.", title: "Vision", body: "Career decisions made on evidence: where the funding flows, which skills it pays for, who is actually hiring." },
-  { n: "iii.", title: "Values", body: "Every claim cited. Australian conventions, never imported defaults. Built for the person, not the platform." },
+  { n: "i.", title: "Mission", body: "One workspace for the Australian search, from finding a fit to walking into the interview. Free to start." },
+  { n: "ii.", title: "Vision", body: "Someone can go from “I’m not sure what I want” to a sent application without picking up another product." },
+  { n: "iii.", title: "Values", body: "Australian hiring conventions. A source when we state a fact. Built for the person using it." },
 ];
 
 const pillars = [
   { k: "Built in", v: "Adelaide, SA" },
-  { k: "Grounded in", v: "Official gov documents" },
   { k: "Written for", v: "Australian hiring" },
-  /* Was "Monthly, ongoing". There is no ingest function and no scheduled job
-     — the corpus is a fixed set of published papers, loaded once. A cadence
-     nobody runs is the kind of detail a reader would reasonably rely on. */
-  { k: "Sourced from", v: "Published SA papers" },
+  { k: "Grounded in", v: "Government publications" },
+  /* Was "Published SA papers". The corpus is still mostly those papers, but
+     the workspace is for the Australian search, so the pillar names the
+     source type rather than one state. */
+  { k: "Covers", v: "The whole search" },
 ];
 
 export default function AboutUs() {
@@ -45,13 +45,13 @@ export default function AboutUs() {
 
           <div className="cc-label text-[color:var(--cc-rust)]">§ 00 · About</div>
           <h1 className="mt-4 cc-font-display text-5xl md:text-7xl lg:text-8xl leading-[0.9] tracking-tight text-[color:var(--cc-ink)]">
-            Career tools with<br />
-            an <span className="cc-italic-wonk">Australian accent.</span>
+            Everything for<br />
+            <span className="cc-italic-wonk">the search.</span>
           </h1>
           <p className="mt-8 cc-font-editorial text-2xl md:text-[28px] leading-[1.35] text-[color:var(--cc-ink-soft)] max-w-2xl">
-            Faircopy is a career workspace built in Adelaide for the Australian
-            job market — government data underneath, Australian conventions
-            throughout, and nothing we can't cite.
+            Faircopy is a career workspace built in Adelaide. Work out what fits,
+            see what it would take to get there, write the application, and
+            prepare for the interview. Or just read the market until you know more.
           </p>
         </div>
       </section>
@@ -91,27 +91,28 @@ export default function AboutUs() {
             </div>
             <div className="col-span-12 md:col-span-8 cc-font-editorial text-xl md:text-[22px] leading-[1.5] text-[color:var(--cc-ink-soft)] space-y-6">
               <p className="cc-dropcap">
-                Every career tool we tried had the same accent — American.
-                Cut your résumé to one page. Drop your referees. Explain your
-                Cert III like it needs apologising for. Advice that quietly
-                costs Australians interviews, dressed up as best practice.
+                Some people know the job they want. Some are changing fields.
+                Some only want to understand what is out there. Faircopy is the
+                same place either way. You can look at roles, see the skills they
+                ask for, build a résumé, write the letter, keep track of who you
+                have contacted, and practise the interview.
               </p>
               <p>
-                So we built the opposite. Faircopy reads what actually drives
-                hiring here — state budgets, sector plans, skills shortage
-                lists, funded training programs — parsed, indexed, and cited
-                down to the page number. And the writing tools speak
-                Australian: two to three pages, referees where they belong,
-                AQF qualifications by their proper names, and organised spelt
-                with an s.
+                The tools we tried before this one assumed an American search.
+                Cut the résumé to one page. Leave off your referees. Explain a
+                Cert III as if it needs translating. That advice costs Australians
+                interviews, and it gets called best practice. Faircopy writes the
+                way hiring works here. Two to three pages. Referees on the page.
+                AQF qualifications under their real names. Organised spelt with an s.
               </p>
               <p>
-                When Faircopy says a sector is growing, it can show you the
-                budget line that says so. That is the whole idea: not louder
-                advice — evidence.
+                Where a figure comes from a government publication, you can open
+                that publication. The rest of the workspace is there so you can
+                act on it: learn the role, write the application, prepare for the
+                conversation.
               </p>
               <p className="cc-font-display italic text-2xl text-[color:var(--cc-ink)]">
-                We build for the person using the tool — not the platform.
+                Built for the person using it.
               </p>
             </div>
           </div>
