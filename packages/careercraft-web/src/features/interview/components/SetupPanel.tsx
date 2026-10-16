@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Briefcase,
+  Check,
   ChevronDown,
   Loader2,
   Map,
@@ -42,7 +43,7 @@ const SITUATIONS: Array<{
 }> = [
   {
     id: "behavioral",
-    title: "Behavioral",
+    title: "Behavioural",
     sub: "STAR stories, conflict, impact",
     icon: MessageSquare,
     tone: "cobalt",
@@ -229,6 +230,7 @@ export function SetupPanel({ role, level }: { role?: string; level?: string }) {
   };
 
   const recommendedTitle = field || "your target role";
+  const picked = SITUATIONS.find((s) => s.id === situation);
 
   return (
     <div className="space-y-5">
@@ -260,7 +262,7 @@ export function SetupPanel({ role, level }: { role?: string; level?: string }) {
           <div className="cc-kicker">Full loop</div>
           <p className="mt-2 cc-font-display text-xl text-[color:var(--cc-ink)]">Full mock</p>
           <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
-            {questionCount} questions for {recommendedTitle} — then a full debrief.
+            {questionCount} {picked ? `${picked.title.toLowerCase()} ` : ""}questions for {recommendedTitle} — then a full debrief.
           </p>
           <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--cc-signal-deep)]">
             Start mock <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
@@ -270,22 +272,35 @@ export function SetupPanel({ role, level }: { role?: string; level?: string }) {
 
       {/* Situation cards */}
       <div>
-        <p className="cc-field-label mb-3">What are you practicing for?</p>
+        <p className="cc-field-label mb-3">What are you practising for?</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {SITUATIONS.map((s) => {
             const Icon = s.icon;
             const active = situation === s.id;
+            /* .cc-surface sets its own border, background and box-shadow, and
+               craft.css loads after Tailwind, so the picked state needs `!`
+               utilities and an outline (a ring is a box-shadow and loses). */
             return (
               <button
                 key={s.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => pickSituation(s.id)}
-                className={`cc-surface cc-lift cc-tone-${s.tone} p-4 text-left transition-shadow ${
-                  active ? "ring-2 ring-[color:var(--cc-rust)]" : ""
+                className={`cc-surface cc-lift cc-tone-${s.tone} relative p-4 text-left transition-colors ${
+                  active
+                    ? "!border-[color:var(--cc-t)] !bg-[color:var(--cc-t-soft)] outline outline-1 outline-[color:var(--cc-t)]"
+                    : "hover:!border-[color:var(--cc-t-border)]"
                 }`}
               >
+                {active && (
+                  <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-[color:var(--cc-t)] text-white">
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  </span>
+                )}
                 <Icon className="h-4 w-4 text-[color:var(--cc-t,var(--cc-rust))]" />
-                <p className="mt-3 font-semibold text-[color:var(--cc-ink)]">{s.title}</p>
+                <p className={`mt-3 font-semibold ${active ? "text-[color:var(--cc-t-deep)]" : "text-[color:var(--cc-ink)]"}`}>
+                  {s.title}
+                </p>
                 <p className="mt-1 text-xs leading-relaxed text-[color:var(--cc-ink-soft)]">
                   {s.sub}
                 </p>
