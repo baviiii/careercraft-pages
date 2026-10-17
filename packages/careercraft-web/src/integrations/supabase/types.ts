@@ -413,11 +413,13 @@ export type Database = {
         Row: {
           answer_text: string
           answered_at: string
+          attempt: number
           best_answer: string | null
           clarity_score: number | null
           confidence_score: number | null
           correct_points: string[] | null
           depth_score: number | null
+          evaluation: Json | null
           id: string
           improvement_tips: string[] | null
           missing_points: string[] | null
@@ -436,11 +438,13 @@ export type Database = {
         Insert: {
           answer_text: string
           answered_at?: string
+          attempt?: number
           best_answer?: string | null
           clarity_score?: number | null
           confidence_score?: number | null
           correct_points?: string[] | null
           depth_score?: number | null
+          evaluation?: Json | null
           id?: string
           improvement_tips?: string[] | null
           missing_points?: string[] | null
@@ -459,11 +463,13 @@ export type Database = {
         Update: {
           answer_text?: string
           answered_at?: string
+          attempt?: number
           best_answer?: string | null
           clarity_score?: number | null
           confidence_score?: number | null
           correct_points?: string[] | null
           depth_score?: number | null
+          evaluation?: Json | null
           id?: string
           improvement_tips?: string[] | null
           missing_points?: string[] | null
@@ -614,11 +620,14 @@ export type Database = {
           duration_seconds: number | null
           field: string
           final_evaluation: Json | null
+          framework: string | null
           id: string
+          job_application_id: string | null
           job_description: string | null
           question_count: number | null
           questions: Json | null
           role_id: string | null
+          round_type: string | null
           scores: Json | null
           seniority: string | null
           skill_breakdown: Json | null
@@ -636,11 +645,14 @@ export type Database = {
           duration_seconds?: number | null
           field: string
           final_evaluation?: Json | null
+          framework?: string | null
           id?: string
+          job_application_id?: string | null
           job_description?: string | null
           question_count?: number | null
           questions?: Json | null
           role_id?: string | null
+          round_type?: string | null
           scores?: Json | null
           seniority?: string | null
           skill_breakdown?: Json | null
@@ -658,11 +670,14 @@ export type Database = {
           duration_seconds?: number | null
           field?: string
           final_evaluation?: Json | null
+          framework?: string | null
           id?: string
+          job_application_id?: string | null
           job_description?: string | null
           question_count?: number | null
           questions?: Json | null
           role_id?: string | null
+          round_type?: string | null
           scores?: Json | null
           seniority?: string | null
           skill_breakdown?: Json | null
@@ -687,6 +702,59 @@ export type Database = {
           },
         ]
       }
+      interview_stories: {
+        Row: {
+          best_answer: string
+          best_score: number | null
+          competency: string
+          created_at: string
+          id: string
+          last_practised_at: string
+          source_session_id: string | null
+          star: Json | null
+          times_practised: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          best_answer: string
+          best_score?: number | null
+          competency: string
+          created_at?: string
+          id?: string
+          last_practised_at?: string
+          source_session_id?: string | null
+          star?: Json | null
+          times_practised?: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          best_answer?: string
+          best_score?: number | null
+          competency?: string
+          created_at?: string
+          id?: string
+          last_practised_at?: string
+          source_session_id?: string | null
+          star?: Json | null
+          times_practised?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_stories_source_session_id_fkey"
+            columns: ["source_session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_applications: {
         Row: {
           applied_date: string
@@ -695,6 +763,7 @@ export type Database = {
           created_at: string
           fit_score_latest: number | null
           id: string
+          interview_date: string | null
           job_description: string | null
           job_title: string
           job_type: string | null
@@ -716,6 +785,7 @@ export type Database = {
           created_at?: string
           fit_score_latest?: number | null
           id?: string
+          interview_date?: string | null
           job_description?: string | null
           job_title: string
           job_type?: string | null
@@ -737,6 +807,7 @@ export type Database = {
           created_at?: string
           fit_score_latest?: number | null
           id?: string
+          interview_date?: string | null
           job_description?: string | null
           job_title?: string
           job_type?: string | null
