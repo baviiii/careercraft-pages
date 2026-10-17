@@ -14,6 +14,8 @@ export interface JobApplication {
   status: ApplicationStatus;
   notes: string | null;
   reminder_date: string | null;
+  /** When the interview is booked; Interview Prep counts down to it. Absent before its migration. */
+  interview_date?: string | null;
   applied_date: string;
   created_at: string;
   updated_at: string;
@@ -124,6 +126,7 @@ export interface JobFormValues {
   status: ApplicationStatus;
   notes: string;
   reminderDate: string;
+  interviewDate: string;
   jobDescription: string;
   jobUrl: string;
   salaryRange: string;
@@ -139,6 +142,7 @@ export const EMPTY_FORM: JobFormValues = {
   status: "applied",
   notes: "",
   reminderDate: "",
+  interviewDate: "",
   jobDescription: "",
   jobUrl: "",
   salaryRange: "",
@@ -155,6 +159,7 @@ export function appToForm(app: JobApplication): JobFormValues {
     status: app.status,
     notes: app.notes || "",
     reminderDate: app.reminder_date ? app.reminder_date.split("T")[0] : "",
+    interviewDate: app.interview_date ? app.interview_date.split("T")[0] : "",
     jobDescription: app.job_description || "",
     jobUrl: app.job_url || "",
     salaryRange: app.salary_range || "",

@@ -60,12 +60,24 @@ interface WireQuestion {
   whyThisQuestion?: string;
   followUps?: string[];
   signalsSought?: string[];
+  /** Healthy answer length in words, set by the coach when length is judged. */
+  targetWords?: { min?: unknown; max?: unknown };
+  /** Story questions: the competency key and name the question tests. */
+  competency?: unknown;
+  competencyLabel?: unknown;
 }
 
 interface WireStart {
   sessionId?: string | null;
   analysis?: unknown;
   questions?: WireQuestion[];
+}
+
+interface WireLengthCheck {
+  words?: unknown;
+  spokenSeconds?: unknown;
+  target?: { min?: unknown; max?: unknown };
+  verdict?: unknown;
 }
 
 interface WireRound {
@@ -108,7 +120,27 @@ interface WireStarBreakdown {
   task?: string;
   action?: string;
   result?: string;
+  /** STARR: what they learned. Absent on answers scored before STARR. */
+  reflection?: string;
   note?: string;
+}
+
+/** How the coach built the overall score (domain/scoring.ts in interview-coach-mcp). */
+interface WireScoring {
+  dimensions?: Array<{ key?: unknown; label?: unknown; weight?: unknown; score?: unknown; note?: unknown }>;
+  weighted?: unknown;
+  cap?: { max?: unknown; reason?: unknown } | null;
+  final?: unknown;
+  fellBack?: unknown;
+}
+
+interface WireStory {
+  competency?: unknown;
+  label?: unknown;
+  title?: unknown;
+  outcome?: unknown;
+  bestScore?: unknown;
+  previousBest?: unknown;
 }
 
 interface WireEvaluation {
@@ -135,6 +167,13 @@ interface WireEvaluation {
 interface WireAnswer {
   evaluation?: WireEvaluation;
   proof?: Proof | null;
+  /** Counted by the coach, not the model. Absent when length isn't judged. */
+  lengthCheck?: WireLengthCheck | null;
+  scoring?: WireScoring | null;
+  highlights?: Array<{ part?: unknown; start?: unknown; end?: unknown }>;
+  ownership?: { i?: unknown; we?: unknown } | null;
+  story?: WireStory | null;
+  improvement?: { from?: unknown; to?: unknown; attempt?: unknown } | null;
 }
 
 interface WireFinal {
@@ -145,6 +184,14 @@ interface WireFinal {
   strengths?: { top?: string[]; notable?: string[]; potential?: string[] };
   developmentAreas?: { critical?: string[]; important?: string[]; minor?: string[] };
   improvementPlan?: { immediate?: Array<{ area: string; action: string; timeline: string }> };
+  /** Behavioural rounds. */
+  storyBank?: Array<{ competency?: unknown; story?: unknown; verdict?: unknown }>;
+  missingStories?: string[];
+  /** Technical rounds. */
+  depthMap?: Array<{ topic?: unknown; verdict?: unknown; evidence?: unknown }>;
+  /** Phone screens. */
+  screenVerdict?: unknown;
+  recruiterNote?: unknown;
 }
 
 /** finish_interview wraps the final evaluation. */
@@ -184,8 +231,38 @@ interface WireProvenTips {
 
 /* ── UI-facing shapes (consumed by InterviewPrep.tsx / dashboard) ─────────── */
 
+/**
+ * The kinds of round the coach runs (its `roundType`). The ids are the coach's
+ * and are stored on interview_sessions.round_type; features/interview/lib/
+ * roundTypes.ts gives them labels, icons and colours.
+ */
+export type RoundType = "screen" | "behavioral" | "technical" | "full";
+
+/** Public-sector capability frameworks the coach can mark against. */
+export type Framework = "aps" | "nsw";
+
+/** NSW capability levels (they describe complexity, not grades). */
+export const NSW_LEVELS = ["Foundational", "Intermediate", "Adept", "Advanced", "Highly Advanced"] as const;
+
+/** A question asked exactly as given — practising one again. */
+export interface FixedQuestion {
+  question: string;
+  stage?: string;
+  type?: string;
+  difficulty?: "easy" | "medium" | "hard" | "expert";
+  expectedTopics?: string[];
+  competency?: string;
+}
+
+/**
+ * Spoken answers need Horus voice switched on end to end (Horus, the coach,
+ * Azure). Until it is, the flag keeps the microphone button out of the room
+ * rather than showing one that can only fail.
+ */
+export const VOICE_ENABLED = COACH_AVAILABLE && import.meta.env.VITE_INTERVIEW_VOICE === "1";
+
 /** The stages of the MCP's deterministic interview blueprint, in loop order. */
-export type InterviewStage = "warmup" | "behavioral" | "domain" | "situational" | "closing";
+export type InterviewStage = "warmup" | "behavioral" | "domain" | "situational" | "closing" | "screen";
 
 export const INTERVIEW_STAGES: InterviewStage[] = [
   "warmup",
@@ -193,7 +270,23 @@ export const INTERVIEW_STAGES: InterviewStage[] = [
   "domain",
   "situational",
   "closing",
+  "screen",
 ];
+
+/** A healthy answer length, in words (the coach works it out from speaking time). */
+export interface WordBand {
+  min: number;
+  max: number;
+}
+
+/** The coach's count of an answer's length against its band. */
+export interface LengthCheck {
+  words: number;
+  /** What the answer would take to say out loud, at ~150 words a minute. */
+  spokenSeconds: number;
+  target: WordBand;
+  verdict: "short" | "ok" | "long";
+}
 
 export interface CoachQuestion {
   id: number;
@@ -211,6 +304,11 @@ export interface CoachQuestion {
   /** Probes the interviewer would push with if the answer stays shallow. */
   followUps: string[];
   signalsSought: string[];
+  /** Healthy answer length, when length is part of what's judged (screens, stories). */
+  targetWords: WordBand | null;
+  /** Story questions: the competency it tests (a coach key) and its name. */
+  competency?: string;
+  competencyLabel?: string;
 }
 
 export interface StartSessionResult {
@@ -259,7 +357,48 @@ export interface StarBreakdown {
   task: StarCoverage;
   action: StarCoverage;
   result: StarCoverage;
+  /** STARR's fifth part. Null on answers scored before STARR. */
+  reflection: StarCoverage | null;
   note: string;
+}
+
+export const STAR_PARTS = ["situation", "task", "action", "result", "reflection"] as const;
+export type StarPart = (typeof STAR_PARTS)[number];
+
+/** Where one STAR part sits in the answer, as character offsets [start, end). */
+export interface StarHighlight {
+  part: StarPart;
+  start: number;
+  end: number;
+}
+
+export interface ScoreDimension {
+  key: string;
+  label: string;
+  /** 0–1. */
+  weight: number;
+  /** 0–10. */
+  score: number;
+  note: string;
+}
+
+/** How the overall score was made: weighted dimensions, then any cap. */
+export interface ScoreBuild {
+  dimensions: ScoreDimension[];
+  weighted: number;
+  cap: { max: number; reason: string } | null;
+  final: number;
+  fellBack: boolean;
+}
+
+/** What happened to the story library when this answer was scored. */
+export interface StoryOutcome {
+  competency: string;
+  label: string;
+  title: string;
+  outcome: "new" | "improved" | "kept";
+  bestScore: number;
+  previousBest: number | null;
 }
 
 export interface CoachAnswerEvaluation {
@@ -280,7 +419,22 @@ export interface CoachAnswerEvaluation {
   starBreakdown: StarBreakdown | null;
   /** What a real interviewer would ask next, given this answer. */
   followUpQuestion: string;
+  /** Counted answer length vs its band — null when length isn't judged. */
+  lengthCheck: LengthCheck | null;
+  /** How the score was made. Null on answers scored before the score showed its working. */
+  scoring: ScoreBuild | null;
+  /** Story answers: each STAR part located in their own words. */
+  highlights: StarHighlight[];
+  /** Story answers: "I/me/my" vs "we/us/our", counted. */
+  ownership: { i: number; we: number } | null;
+  /** Story answers: what this did to the story library. */
+  story: StoryOutcome | null;
+  /** A retry: the score before and now. */
+  retryChange: { from: number; to: number; attempt: number } | null;
 }
+
+export type StoryVerdict = "strong" | "usable" | "weak";
+export type DepthVerdict = "solid" | "shaky" | "gap";
 
 export interface CoachFinalEvaluation {
   overallScore: number;
@@ -291,6 +445,16 @@ export interface CoachFinalEvaluation {
   weaknesses: string[];
   mustFix: string[];
   improvementPlan: Array<{ area: string; action: string; timeline: string }>;
+  /** Behavioural rounds: one entry per story told. Empty otherwise. */
+  storyBank: Array<{ competency: string; story: string; verdict: StoryVerdict }>;
+  /** Behavioural rounds: competencies with no story yet. */
+  missingStories: string[];
+  /** Technical rounds: what held up and what broke. Empty otherwise. */
+  depthMap: Array<{ topic: string; verdict: DepthVerdict; evidence: string }>;
+  /** Phone screens: the recruiter's call, e.g. "Put forward with a note". */
+  screenVerdict: string;
+  /** Phone screens: what the recruiter would tell the hiring manager. */
+  recruiterNote: string;
 }
 
 export interface CoachResource {
@@ -324,6 +488,31 @@ export interface PatternAnalysis {
     suggestedPractice?: string;
     expectedTimeToImprove?: string;
   }>;
+}
+
+interface WireSelectionDraft {
+  draft?: unknown;
+  wordCount?: unknown;
+  wordLimit?: unknown;
+  overLimit?: unknown;
+  storyUsed?: { competency?: unknown; label?: unknown; title?: unknown } | null;
+  starCoverage?: WireStarBreakdown | null;
+  gaps?: string[];
+  tips?: string[];
+  storiesAvailable?: unknown;
+}
+
+export interface SelectionDraft {
+  /** Empty when none of their stories fits the criterion — `gaps` says what's needed. */
+  draft: string;
+  wordCount: number;
+  wordLimit: number;
+  overLimit: boolean;
+  storyUsed: { competency: string; label: string; title: string } | null;
+  starCoverage: StarBreakdown | null;
+  gaps: string[];
+  tips: string[];
+  storiesAvailable: number;
 }
 
 export interface WeeklyInsight {
@@ -395,6 +584,22 @@ function cleanList(raw: string[] | undefined, max: number): string[] {
     .slice(0, max);
 }
 
+function adaptBand(raw: { min?: unknown; max?: unknown } | undefined): WordBand | null {
+  const min = raw?.min;
+  const max = raw?.max;
+  return typeof min === "number" && typeof max === "number" && min >= 0 && max > min ? { min, max } : null;
+}
+
+const LENGTH_VERDICTS: LengthCheck["verdict"][] = ["short", "ok", "long"];
+
+function adaptLengthCheck(raw: WireLengthCheck | null | undefined): LengthCheck | null {
+  if (!raw || typeof raw !== "object") return null;
+  const target = adaptBand(raw.target);
+  const verdict = LENGTH_VERDICTS.find((v) => v === raw.verdict);
+  if (!target || !verdict || typeof raw.words !== "number" || typeof raw.spokenSeconds !== "number") return null;
+  return { words: raw.words, spokenSeconds: raw.spokenSeconds, target, verdict };
+}
+
 function adaptQuestions(qs: WireQuestion[]): CoachQuestion[] {
   return qs.map((q, i) => ({
     id: typeof q.id === "number" ? q.id : i + 1,
@@ -412,6 +617,9 @@ function adaptQuestions(qs: WireQuestion[]): CoachQuestion[] {
     whyThisQuestion: (q.whyThisQuestion ?? "").trim(),
     followUps: cleanList(q.followUps, 3),
     signalsSought: cleanList(q.signalsSought, 4),
+    targetWords: adaptBand(q.targetWords),
+    competency: text(q.competency) || undefined,
+    competencyLabel: text(q.competencyLabel) || undefined,
   }));
 }
 
@@ -440,11 +648,89 @@ function adaptStar(raw: WireStarBreakdown | undefined): StarBreakdown | null {
     task: starPart(raw.task),
     action: starPart(raw.action),
     result: starPart(raw.result),
+    reflection: raw.reflection === undefined ? null : starPart(raw.reflection),
     note: (raw.note ?? "").trim(),
   };
 }
 
-function adaptEvaluation(ev: WireEvaluation, proof: Proof | null | undefined): CoachAnswerEvaluation {
+const finite = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+function adaptScoring(raw: WireScoring | null | undefined): ScoreBuild | null {
+  if (!raw || !Array.isArray(raw.dimensions)) return null;
+  const dimensions = raw.dimensions
+    .map((d) => ({
+      key: text(d?.key),
+      label: text(d?.label),
+      weight: finite(d?.weight) ?? 0,
+      score: finite(d?.score) ?? 0,
+      note: text(d?.note),
+    }))
+    .filter((d) => d.key && d.weight > 0);
+  const final = finite(raw.final);
+  if (!dimensions.length || final === null) return null;
+  const capMax = finite(raw.cap?.max);
+  const capReason = text(raw.cap?.reason);
+  return {
+    dimensions,
+    weighted: finite(raw.weighted) ?? final,
+    cap: capMax !== null && capReason ? { max: capMax, reason: capReason } : null,
+    final,
+    fellBack: raw.fellBack === true,
+  };
+}
+
+function adaptHighlights(raw: WireAnswer["highlights"], answerLength?: number): StarHighlight[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((h) => ({ part: STAR_PARTS.find((p) => p === h?.part), start: finite(h?.start), end: finite(h?.end) }))
+    .filter(
+      (h): h is StarHighlight =>
+        h.part !== undefined &&
+        h.start !== null &&
+        h.end !== null &&
+        h.start >= 0 &&
+        h.end > h.start &&
+        (answerLength === undefined || h.end <= answerLength),
+    )
+    .sort((a, b) => a.start - b.start);
+}
+
+const STORY_OUTCOMES: StoryOutcome["outcome"][] = ["new", "improved", "kept"];
+
+function adaptStory(raw: WireStory | null | undefined): StoryOutcome | null {
+  const outcome = STORY_OUTCOMES.find((o) => o === raw?.outcome);
+  const bestScore = finite(raw?.bestScore);
+  if (!raw || !outcome || bestScore === null || !text(raw.competency)) return null;
+  return {
+    competency: text(raw.competency),
+    label: text(raw.label) || text(raw.competency),
+    title: text(raw.title),
+    outcome,
+    bestScore,
+    previousBest: finite(raw.previousBest),
+  };
+}
+
+/** Everything around the model's evaluation that the coach computed or saved. */
+interface EvaluationExtras {
+  proof?: Proof | null;
+  lengthCheck?: WireLengthCheck | null;
+  scoring?: WireScoring | null;
+  highlights?: WireAnswer["highlights"];
+  ownership?: WireAnswer["ownership"];
+  story?: WireStory | null;
+  improvement?: WireAnswer["improvement"];
+  /** Guards highlight offsets against the answer they point into. */
+  answerLength?: number;
+}
+
+function adaptEvaluation(ev: WireEvaluation, extras: EvaluationExtras = {}): CoachAnswerEvaluation {
+  const { proof, lengthCheck } = extras;
+  const scoring = adaptScoring(extras.scoring);
+  const ownI = finite(extras.ownership?.i);
+  const ownWe = finite(extras.ownership?.we);
+  const from = finite(extras.improvement?.from);
+  const to = finite(extras.improvement?.to);
   const breakdown: Record<string, number> = {};
   const notes: Record<string, string> = {};
   for (const [k, v] of Object.entries(ev.scoreBreakdown ?? {})) {
@@ -452,7 +738,8 @@ function adaptEvaluation(ev: WireEvaluation, proof: Proof | null | undefined): C
     const note = breakdownNote(v);
     if (note) notes[k] = note;
   }
-  const score = typeof ev.score === "number" ? ev.score : 0;
+  // The built score is the one to show: it's the sum of the bars on screen.
+  const score = scoring?.final ?? (typeof ev.score === "number" ? ev.score : 0);
   // The MCP evaluator returns no explicit confidence; derive it from the score.
   const confidence = Math.max(0, Math.min(100, Math.round(score * 10)));
   return {
@@ -475,8 +762,40 @@ function adaptEvaluation(ev: WireEvaluation, proof: Proof | null | undefined): C
     // The real interviewer's next move is the better line to show; the older
     // suggestedFollowup stays as the fallback for pre-blueprint sessions.
     followUpQuestion: (ev.followUpQuestion ?? ev.suggestedFollowup ?? "").trim(),
+    lengthCheck: adaptLengthCheck(lengthCheck),
+    scoring,
+    highlights: adaptHighlights(extras.highlights, extras.answerLength),
+    ownership: ownI !== null && ownWe !== null ? { i: ownI, we: ownWe } : null,
+    story: adaptStory(extras.story),
+    retryChange:
+      from !== null && to !== null ? { from, to, attempt: finite(extras.improvement?.attempt) ?? 2 } : null,
   };
 }
+
+/**
+ * An answer's evaluation as saved in interview_answers.evaluation — the same
+ * shape the coach returned, with its scoring, highlights and counts inside.
+ * Null for answers saved before evaluations were stored.
+ */
+export function adaptStoredEvaluation(raw: unknown, answerLength?: number): CoachAnswerEvaluation | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as WireEvaluation & EvaluationExtras;
+  return adaptEvaluation(r, {
+    lengthCheck: r.lengthCheck,
+    scoring: r.scoring,
+    highlights: r.highlights,
+    ownership: r.ownership,
+    answerLength,
+  });
+}
+
+/** A model-written string field, trimmed; anything else is empty. */
+function text(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+const STORY_VERDICTS: StoryVerdict[] = ["strong", "usable", "weak"];
+const DEPTH_VERDICTS: DepthVerdict[] = ["solid", "shaky", "gap"];
 
 /**
  * Also used by the History surface to re-open a completed session's debrief
@@ -496,6 +815,28 @@ function adaptFinal(ev: WireFinal): CoachFinalEvaluation {
     weaknesses: ev.developmentAreas?.important ?? [],
     mustFix: ev.developmentAreas?.critical ?? [],
     improvementPlan: ev.improvementPlan?.immediate ?? [],
+    // Model-authored lists: an entry missing its name or an unrecognised
+    // verdict is dropped, not shown half-filled. An unknown story verdict is
+    // not credited as strong.
+    storyBank: (Array.isArray(ev.storyBank) ? ev.storyBank : [])
+      .map((s) => ({
+        competency: text(s?.competency),
+        story: text(s?.story),
+        verdict: STORY_VERDICTS.find((v) => v === text(s?.verdict).toLowerCase()) ?? "weak",
+      }))
+      .filter((s) => s.competency)
+      .slice(0, 10),
+    missingStories: cleanList(ev.missingStories, 6),
+    depthMap: (Array.isArray(ev.depthMap) ? ev.depthMap : [])
+      .map((d) => ({
+        topic: text(d?.topic),
+        verdict: DEPTH_VERDICTS.find((v) => v === text(d?.verdict).toLowerCase()),
+        evidence: text(d?.evidence),
+      }))
+      .filter((d): d is { topic: string; verdict: DepthVerdict; evidence: string } => Boolean(d.topic && d.verdict))
+      .slice(0, 10),
+    screenVerdict: text(ev.screenVerdict),
+    recruiterNote: text(ev.recruiterNote),
   };
 }
 
@@ -596,16 +937,35 @@ export const interviewCoach = {
   async startSession(input: {
     field: string;
     seniority?: string;
+    /** How many questions to generate now. */
     questionCount?: number;
+    /** The whole round's length, when only the opener is generated now. */
+    plannedCount?: number;
     jobDescription?: string;
     focusAreas?: string[];
+    roundType?: RoundType;
+    framework?: Framework;
+    frameworkLevel?: string;
+    /** Put this competency's story first (practising one story). */
+    competency?: string;
+    /** Ask these exact questions instead (practising one question again). */
+    fixedQuestions?: FixedQuestion[];
+    /** The tracker job this is practice for; the coach reads its ad. */
+    jobId?: string;
   }): Promise<StartSessionResult> {
     const raw = await post<WireStart>("/api/interview/start", {
       field: input.field,
       seniority: input.seniority,
       questionCount: input.questionCount,
+      plannedCount: input.plannedCount,
       jobDescription: input.jobDescription,
       focusAreas: input.focusAreas?.length ? input.focusAreas : undefined,
+      roundType: input.roundType,
+      framework: input.framework,
+      frameworkLevel: input.framework === "nsw" ? input.frameworkLevel : undefined,
+      competency: input.competency,
+      fixedQuestions: input.fixedQuestions?.length ? input.fixedQuestions : undefined,
+      jobId: input.jobId,
     });
     // The MCP opens the session row (RLS-scoped) and returns its id. We need a
     // real id to tie answers + the final debrief to; without it, evaluation and
@@ -624,6 +984,13 @@ export const interviewCoach = {
     field: string;
     seniority?: string;
     expectedTopics?: string[];
+    roundType?: RoundType;
+    framework?: Framework;
+    timeTakenSeconds?: number;
+    /** A retry: which attempt this is, and the last attempt to compare against. */
+    attempt?: number;
+    previousAnswer?: string;
+    previousScore?: number;
   }): Promise<CoachAnswerEvaluation> {
     const raw = await post<WireAnswer>("/api/interview/answer", {
       sessionId: input.sessionId,
@@ -633,8 +1000,16 @@ export const interviewCoach = {
       field: input.field,
       seniority: input.seniority,
       expectedTopics: input.expectedTopics,
+      roundType: input.roundType,
+      framework: input.framework,
+      timeTakenSeconds:
+        typeof input.timeTakenSeconds === "number" ? Math.max(0, Math.round(input.timeTakenSeconds)) : undefined,
+      attempt: input.attempt,
+      previousAnswer: input.previousAnswer,
+      previousScore:
+        typeof input.previousScore === "number" ? Math.max(0, Math.min(10, input.previousScore)) : undefined,
     });
-    return adaptEvaluation(raw.evaluation ?? {}, raw.proof);
+    return adaptEvaluation(raw.evaluation ?? {}, { ...raw, answerLength: input.answerText.length });
   },
 
   /**
@@ -647,12 +1022,21 @@ export const interviewCoach = {
     field: string;
     seniority?: string;
     focusAreas?: string[];
+    /** The round's planned length, so the coach picks the slot actually planned next. */
+    plannedCount?: number;
+    roundType?: RoundType;
+    framework?: Framework;
+    frameworkLevel?: string;
   }): Promise<NextQuestionResult> {
     const raw = await post<WireNext>("/api/interview/next", {
       sessionId: input.sessionId,
       field: input.field,
       seniority: input.seniority,
       focusAreas: input.focusAreas?.length ? input.focusAreas : undefined,
+      plannedCount: input.plannedCount,
+      roundType: input.roundType,
+      framework: input.framework,
+      frameworkLevel: input.framework === "nsw" ? input.frameworkLevel : undefined,
     });
     if (!raw.question?.question) {
       throw new CoachUnavailableError("Could not get the next question.");
@@ -686,17 +1070,25 @@ export const interviewCoach = {
     sessionId: string;
     field: string;
     seniority?: string;
-    questions?: Array<{ question: string; type: string; difficulty: string }>;
-    answers?: string[];
-    evaluations?: Array<{ score: number }>;
+    roundType?: RoundType;
+    framework?: Framework;
+    plannedCount?: number;
     durationSeconds?: number;
   }): Promise<CoachFinalEvaluation> {
     // The MCP rebuilds the transcript from the persisted answers and closes the
-    // session (score history, ai_insights, avg_score), so it only needs the id.
+    // session (score history, ai_insights, avg_score, duration), so beyond the
+    // id it only needs what shapes the debrief: the round and its length.
     const raw = await post<WireFinish>("/api/interview/finish", {
       sessionId: input.sessionId,
       field: input.field,
       seniority: input.seniority,
+      roundType: input.roundType,
+      framework: input.framework,
+      plannedCount: input.plannedCount,
+      durationSeconds:
+        typeof input.durationSeconds === "number" && input.durationSeconds >= 0
+          ? Math.round(input.durationSeconds)
+          : undefined,
     });
     return adaptFinal(raw.evaluation ?? {});
   },
@@ -744,6 +1136,50 @@ export const interviewCoach = {
       field: input.field,
       seniority: input.seniority,
     });
+  },
+
+  /**
+   * A written response to one key selection criterion, drafted from the
+   * learner's own saved stories. The coach counts the words.
+   */
+  async draftSelectionCriterion(input: {
+    criterion: string;
+    wordLimit?: number;
+    jobDescription?: string;
+    framework?: Framework;
+    frameworkLevel?: string;
+    competency?: string;
+  }): Promise<SelectionDraft> {
+    const raw = await post<WireSelectionDraft>("/api/interview/selection-criterion", {
+      criterion: input.criterion,
+      wordLimit: input.wordLimit,
+      jobDescription: input.jobDescription?.trim() || undefined,
+      framework: input.framework,
+      frameworkLevel: input.framework === "nsw" ? input.frameworkLevel : undefined,
+      competency: input.competency,
+    });
+    const used = raw.storyUsed;
+    return {
+      draft: text(raw.draft),
+      wordCount: finite(raw.wordCount) ?? 0,
+      wordLimit: finite(raw.wordLimit) ?? input.wordLimit ?? 300,
+      overLimit: raw.overLimit === true,
+      storyUsed:
+        used && typeof used === "object" && text(used.competency)
+          ? { competency: text(used.competency), label: text(used.label), title: text(used.title) }
+          : null,
+      starCoverage: adaptStar(raw.starCoverage ?? undefined),
+      gaps: cleanList(raw.gaps, 5),
+      tips: cleanList(raw.tips, 5),
+      storiesAvailable: finite(raw.storiesAvailable) ?? 0,
+    };
+  },
+
+  /** A short-lived key for one spoken answer (Horus voice, via the coach). */
+  async voiceSession(): Promise<{ ephemeralKey: string; webrtcUrl: string }> {
+    const raw = await post<{ ephemeralKey?: string; webrtcUrl?: string }>("/api/voice/session", {});
+    if (!raw.ephemeralKey || !raw.webrtcUrl) throw new CoachUnavailableError("Couldn't start a spoken answer.");
+    return { ephemeralKey: raw.ephemeralKey, webrtcUrl: raw.webrtcUrl };
   },
 
   async weeklyInsight(input: {

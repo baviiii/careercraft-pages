@@ -1,288 +1,322 @@
 /**
- * Interview Home — progress strip below practice setup.
- * Real DB queries only; weekly insight from MCP when connected.
+ * Interview Home — the practice record below the setup panel.
+ *
+ * Everything is coloured by round type, the same colours as the round picker,
+ * so "what have I practised" reads at a glance: a cell per type with its
+ * latest score and trend, a week of sessions as coloured segments, and recent
+ * sessions tagged by type. Scores are numbers, never colours, and a type is
+ * never colour alone. Real DB rows only; the weekly note comes from the coach.
  */
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowRight, RotateCcw } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, ArrowUpRight, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRateLimit } from "@/hooks/useSecurity";
 import { RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { auditLog } from "@/lib/security/auditLog";
 import { interviewCoach, COACH_AVAILABLE, type WeeklyInsight } from "@/lib/interviewCoach";
-import { normalizeScore100, sessionOverallScore } from "@/features/interview/lib/sessions";
-
-interface DashboardStats {
-  totalSessions: number;
-  completedSessions: number;
-  totalQuestions: number;
-  avgScore: number;
-  currentStreak: number;
-  longestStreak: number;
-  lastPracticeDate: string | null;
-  weeklySessionCount: number;
-}
-
-interface RecentSession {
-  id: string;
-  field: string;
-  seniority: string | null;
-  score: number | null;
-  questionsCount: number;
-  createdAt: string;
-  status: string;
-}
-
-interface WeeklyActivity {
-  day: string;
-  practiced: boolean;
-  sessionCount: number;
-}
-
-const DEFAULT_STATS: DashboardStats = {
-  totalSessions: 0,
-  completedSessions: 0,
-  totalQuestions: 0,
-  avgScore: 0,
-  currentStreak: 0,
-  longestStreak: 0,
-  lastPracticeDate: null,
-  weeklySessionCount: 0,
-};
+import { RoundDot, RoundTag } from "@/features/interview/components/RoundMarks";
+import { StarHabits } from "@/features/interview/components/StarHabits";
+import {
+  lastSevenDays,
+  overallAverage,
+  practiceStreak,
+  progressByType,
+  relativeDay,
+  rowScore,
+  scoreChange,
+  sessionsThisWeek,
+  shortDate,
+  signed,
+  type DaySessions,
+  type TypeProgress,
+} from "@/features/interview/lib/progress";
+import { ROUND_TYPES, roundClass, roundMeta, type RoundType } from "@/features/interview/lib/roundTypes";
+import { useInterviewSessions, useSessionTotal, type SessionRow } from "@/features/interview/lib/sessions";
+import "@/features/interview/interview.css";
 
 interface InterviewHomeProps {
+  field?: string;
+  seniority?: string;
   onOpenHistory: (sessionId?: string) => void;
   onStartPractice: () => void;
+  /** Pick a round type in the setup panel and scroll up to it. */
+  onPracticeType: (type: RoundType) => void;
 }
 
-export default function InterviewHome({ onOpenHistory, onStartPractice }: InterviewHomeProps) {
-  const navigate = useNavigate();
+/* ── By type ────────────────────────────────────────────────────────────── */
+
+/**
+ * Finished scores, oldest to newest, as a small line. The y range fits the
+ * scores (at least 20 points tall, so a 2-point wobble doesn't look like a
+ * cliff); on a fixed 0–100 range every line came out flat. The end dot is
+ * HTML over the stretched SVG, so it stays round at any width.
+ */
+function Sparkline({ scores, label }: { scores: number[]; label: string }) {
+  if (scores.length < 2) return <div className="h-[28px]" aria-hidden />;
+  const lo = Math.min(...scores);
+  const hi = Math.max(...scores);
+  const span = Math.max(20, hi - lo);
+  const floor = Math.max(0, Math.min(lo - (span - (hi - lo)) / 2, 100 - span));
+  const xPct = (i: number) => 4 + (i / (scores.length - 1)) * 92;
+  const yPct = (s: number) => 88 - ((s - floor) / span) * 76;
+  const last = scores.length - 1;
+  return (
+    <div
+      className="relative h-[28px]"
+      role="img"
+      aria-label={`${label} scores, oldest to newest: ${scores.join(", ")}`}
+    >
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="cc-iv-spark absolute inset-0 h-full" aria-hidden>
+        <polyline points={scores.map((s, i) => `${xPct(i)},${yPct(s)}`).join(" ")} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span
+        aria-hidden
+        className="cc-iv-spark-dot"
+        style={{ left: `${xPct(last)}%`, top: `${yPct(scores[last]!)}%` }}
+      />
+    </div>
+  );
+}
+
+function TypeCell({ p, onPractice }: { p: TypeProgress; onPractice: () => void }) {
+  const meta = roundMeta(p.type);
+  const Icon = meta.icon;
+  const change = p.latest !== null && p.previous !== null ? p.latest - p.previous : null;
+  return (
+    <button
+      type="button"
+      onClick={onPractice}
+      className={`cc-iv-typecell ${roundClass(p.type)}`}
+      aria-label={`${meta.label}: ${
+        p.latest !== null ? `latest score ${p.latest} out of 100` : p.count ? `${p.count} started, none finished` : "not tried yet"
+      }. Practise a ${meta.noun}.`}
+    >
+      <span className="flex items-center gap-2 text-sm font-semibold text-[color:var(--cc-ink)]">
+        <Icon className="h-3.5 w-3.5 text-[color:var(--cc-iv)]" aria-hidden />
+        {meta.label}
+      </span>
+
+      {p.latest !== null ? (
+        <span className="flex items-baseline gap-2">
+          <span className="cc-font-display text-3xl tracking-tight cc-tabular text-[color:var(--cc-ink)]">
+            {p.latest}
+            <span className="ml-0.5 text-sm text-[color:var(--cc-ash)]">/100</span>
+          </span>
+          <span className="cc-font-mono text-xs cc-tabular text-[color:var(--cc-ink-soft)]">
+            {change !== null ? `${signed(change)} since last` : "first score"}
+          </span>
+        </span>
+      ) : (
+        <span className="cc-font-display text-3xl tracking-tight text-[color:var(--cc-ash)]">—</span>
+      )}
+
+      <Sparkline scores={p.scores} label={meta.label} />
+
+      <span className="flex items-center justify-between gap-2 text-xs text-[color:var(--cc-ink-soft)]">
+        <span>
+          {p.count === 0
+            ? "Not tried yet"
+            : `${p.finished} done${p.average !== null ? ` · avg ${p.average}` : ""}`}
+        </span>
+        <span className="inline-flex items-center gap-0.5 font-semibold text-[color:var(--cc-ink)]">
+          {p.count === 0 ? "Try it" : "Practise"}
+          <ArrowRight className="h-3 w-3" aria-hidden />
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/* ── Last 7 days ────────────────────────────────────────────────────────── */
+
+const MAX_SEGMENTS = 8;
+
+function dayName(d: Date, style: "short" | "long") {
+  return d.toLocaleDateString("en-AU", { weekday: style });
+}
+
+function sessionWord(s: DaySessions["sessions"][number]): string {
+  return s.score !== null ? `${s.score}/100` : s.finished ? "done" : "unfinished";
+}
+
+function WeekChart({ days }: { days: DaySessions[] }) {
+  return (
+    <div className="cc-iv-week" role="list" aria-label="Sessions in the last seven days, by type">
+      {days.map((day) => {
+        const long = `${dayName(day.date, "long")} ${shortDate(day.date)}`;
+        const shown = day.sessions.slice(-MAX_SEGMENTS);
+        const summary = day.sessions.length
+          ? day.sessions.map((s) => `${roundMeta(s.type).label} ${sessionWord(s)}`).join(", ")
+          : "no practice";
+        return (
+          <div
+            key={day.date.getTime()}
+            role="listitem"
+            // Focusable so keyboard users get the same detail as the hover.
+            tabIndex={0}
+            aria-label={`${long}: ${summary}`}
+            className="cc-iv-day"
+            data-today={day.isToday || undefined}
+          >
+            <div className="cc-iv-stack" data-empty={day.sessions.length === 0}>
+              {shown.map((s) => (
+                <span
+                  key={s.id}
+                  className={`cc-iv-seg ${roundClass(s.type)}`}
+                  data-open={!s.finished || undefined}
+                />
+              ))}
+            </div>
+            <span className="cc-iv-daylabel flex flex-col items-center leading-tight text-[color:var(--cc-ash)]">
+              <span className="cc-label-sm">{dayName(day.date, "short")}</span>
+              <span className="text-xs cc-tabular">{day.date.getDate()}</span>
+            </span>
+            <span className="cc-iv-tip" aria-hidden>
+              <span className="block font-semibold">{long}</span>
+              {day.sessions.length ? (
+                <span className="mt-1 block space-y-0.5">
+                  {day.sessions.map((s) => (
+                    <span key={s.id} className={`flex items-center gap-1.5 ${roundClass(s.type)}`}>
+                      <span className="cc-iv-dot" />
+                      <span className="flex-1">{roundMeta(s.type).label}</span>
+                      <span className="cc-tabular opacity-80">{sessionWord(s)}</span>
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <span className="mt-0.5 block opacity-75">No practice</span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Legend() {
+  return (
+    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5" aria-label="Round types">
+      {ROUND_TYPES.map((t) => (
+        <li key={t.id} className="flex items-center gap-1.5 text-xs text-[color:var(--cc-ink-soft)]">
+          <RoundDot type={t.id} />
+          {t.label}
+        </li>
+      ))}
+      <li className="flex items-center gap-1.5 text-xs text-[color:var(--cc-ash)]">
+        {/* Neutral, so the key for "unfinished" doesn't look like one type. */}
+        <span
+          aria-hidden
+          className="cc-iv-seg inline-block h-2 w-3"
+          data-open
+          style={{ ["--cc-iv" as string]: "var(--cc-ash)", ["--cc-iv-wash" as string]: "transparent" }}
+        />
+        Unfinished
+      </li>
+    </ul>
+  );
+}
+
+/* ── Recent sessions ────────────────────────────────────────────────────── */
+
+function RecentRow({ row, all, onOpen }: { row: SessionRow; all: SessionRow[]; onOpen: () => void }) {
+  const score = rowScore(row);
+  const change = scoreChange(all, row);
+  const finished = row.status === "completed";
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`cc-iv-row ${roundClass(row.round_type)} flex w-full items-center justify-between gap-3 bg-white py-3 pl-5 pr-4 text-left transition-colors hover:bg-[color:var(--cc-cream-2)]`}
+    >
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-2">
+          <RoundTag type={row.round_type} className="shrink-0" />
+          <span className="truncate text-sm font-medium text-[color:var(--cc-ink)]">
+            {row.field}
+            {row.seniority ? ` · ${row.seniority}` : ""}
+          </span>
+        </span>
+        <span className="cc-label-sm mt-1 block text-[color:var(--cc-ash)]">
+          {row.question_count ? `${row.question_count} q · ` : ""}
+          {relativeDay(row.created_at)}
+        </span>
+      </span>
+      {score !== null ? (
+        <span className="shrink-0 text-right">
+          <span className="cc-font-mono block text-sm cc-tabular text-[color:var(--cc-ink)]">
+            {score}
+            <span className="text-xs text-[color:var(--cc-ash)]">/100</span>
+          </span>
+          {change !== null && (
+            <span className="cc-font-mono block text-[11px] cc-tabular text-[color:var(--cc-ink-soft)]">
+              {signed(change)}
+            </span>
+          )}
+        </span>
+      ) : (
+        <span className="cc-label-sm shrink-0 text-[color:var(--cc-ash)]">{finished ? "Done" : "Unfinished"}</span>
+      )}
+    </button>
+  );
+}
+
+/* ── The panel ──────────────────────────────────────────────────────────── */
+
+export default function InterviewHome({
+  field,
+  seniority,
+  onOpenHistory,
+  onStartPractice,
+  onPracticeType,
+}: InterviewHomeProps) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<DashboardStats>(DEFAULT_STATS);
-  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
-  const [weeklyActivity, setWeeklyActivity] = useState<WeeklyActivity[]>([]);
+  const { data: rows, isLoading, isError, refetch } = useInterviewSessions();
+  const total = useSessionTotal();
   const [weeklyInsight, setWeeklyInsight] = useState<WeeklyInsight | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+  const audited = useRef(false);
 
   const { checkLimit, isLimited } = useRateLimit({
     key: "interview-dashboard",
     config: RATE_LIMITS.API,
     onLimitExceeded: () => {
       toast({
-        title: "Too Many Requests",
-        description: "Please wait before refreshing again.",
+        title: "Too many requests",
+        description: "Please wait a moment before trying again.",
         variant: "destructive",
       });
     },
   });
 
-  const rootRef = useRef<HTMLDivElement>(null);
-  const toastRef = useRef(toast);
-  toastRef.current = toast;
-
-  const calculateStreak = (sessions: Array<{ created_at: string }>) => {
-    if (sessions.length === 0) return { currentStreak: 0, longestStreak: 0 };
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const practiceDates = new Set(
-      sessions.map((s) => {
-        const date = new Date(s.created_at);
-        date.setHours(0, 0, 0, 0);
-        return date.getTime();
-      }),
-    );
-
-    const sortedDates = Array.from(practiceDates).sort((a, b) => b - a);
-
-    let currentStreak = 0;
-    let checkDate = today.getTime();
-    const oneDay = 24 * 60 * 60 * 1000;
-
-    if (practiceDates.has(checkDate) || practiceDates.has(checkDate - oneDay)) {
-      if (!practiceDates.has(checkDate)) checkDate -= oneDay;
-      while (practiceDates.has(checkDate)) {
-        currentStreak++;
-        checkDate -= oneDay;
-      }
-    }
-
-    let longestStreak = 0;
-    let tempStreak = 1;
-    for (let i = 0; i < sortedDates.length - 1; i++) {
-      if (sortedDates[i] - sortedDates[i + 1] === oneDay) tempStreak++;
-      else {
-        longestStreak = Math.max(longestStreak, tempStreak);
-        tempStreak = 1;
-      }
-    }
-    longestStreak = Math.max(longestStreak, tempStreak, currentStreak);
-
-    return { currentStreak, longestStreak };
-  };
-
-  const calculateWeeklyActivity = (sessions: Array<{ created_at: string }>) => {
-    const today = new Date();
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const activity: WeeklyActivity[] = [];
-    let weeklyCount = 0;
-
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-
-      const nextDate = new Date(date);
-      nextDate.setDate(nextDate.getDate() + 1);
-
-      const sessionsOnDay = sessions.filter((s) => {
-        const sessionDate = new Date(s.created_at);
-        return sessionDate >= date && sessionDate < nextDate;
-      });
-
-      const sessionCount = sessionsOnDay.length;
-      weeklyCount += sessionCount;
-
-      activity.push({
-        day: dayNames[date.getDay()],
-        practiced: sessionCount > 0,
-        sessionCount,
-      });
-    }
-
-    return { activity, count: weeklyCount };
-  };
-
-  const fetchDashboardData = useCallback(async () => {
-    const rateLimitResult = checkLimit();
-    if (!rateLimitResult.allowed) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const {
-        data: { session },
-        error: authError,
-      } = await supabase.auth.getSession();
-
-      if (authError) throw new Error("Authentication error. Please sign in again.");
-      if (!session?.user?.id) {
-        navigate("/auth");
-        return;
-      }
-
-      const userId = session.user.id;
-
-      const { data: sessions, error: sessionsError } = await supabase
-        .from("interview_sessions")
-        .select(
-          "id, field, seniority, questions, scores, final_evaluation, ai_insights, avg_score, status, created_at, updated_at",
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (sessionsError) {
-        throw new Error("Failed to load your interview data.");
-      }
-
-      const sessionsList = sessions || [];
-      const completedSessions = sessionsList.filter((s) => s.status === "completed");
-
-      const totalQuestions = sessionsList.reduce((acc, s) => {
-        const questions = Array.isArray(s.questions) ? s.questions : [];
-        return acc + questions.length;
-      }, 0);
-
-      const scores = completedSessions
-        .map((s) => normalizeScore100(sessionOverallScore(s)))
-        .filter((score): score is number => score !== null && score > 0);
-
-      const avgScore =
-        scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-
-      const { currentStreak, longestStreak } = calculateStreak(sessionsList);
-      const weeklyData = calculateWeeklyActivity(sessionsList);
-      setWeeklyActivity(weeklyData.activity);
-
-      const lastSession = sessionsList[0];
-      const lastPracticeDate = lastSession
-        ? new Date(lastSession.created_at).toLocaleDateString()
-        : null;
-
-      setStats({
-        totalSessions: sessionsList.length,
-        completedSessions: completedSessions.length,
-        totalQuestions,
-        avgScore,
-        currentStreak,
-        longestStreak,
-        lastPracticeDate,
-        weeklySessionCount: weeklyData.count,
-      });
-
-      setRecentSessions(
-        sessionsList.slice(0, 5).map((s) => {
-          const questions = Array.isArray(s.questions) ? s.questions : [];
-          return {
-            id: s.id,
-            field: s.field || "Unknown",
-            seniority: s.seniority || null,
-            score: normalizeScore100(sessionOverallScore(s)),
-            questionsCount: questions.length,
-            createdAt: s.created_at,
-            status: s.status || "in_progress",
-          };
-        }),
-      );
-
-      auditLog({
-        type: "DATA_ACCESS",
-        action: "interview_dashboard_view",
-        success: true,
-        resource: "interview_sessions",
-        details: { sessionsCount: sessionsList.length },
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred.";
-      setError(errorMessage);
-      toastRef.current({
-        title: "Error Loading Dashboard",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [checkLimit, navigate]);
+  const sessions = useMemo(() => rows ?? [], [rows]);
+  const byType = useMemo(() => progressByType(sessions), [sessions]);
+  const days = useMemo(() => lastSevenDays(sessions), [sessions]);
+  const streak = useMemo(() => practiceStreak(sessions), [sessions]);
+  const average = useMemo(() => overallAverage(sessions), [sessions]);
+  const thisWeek = useMemo(() => sessionsThisWeek(sessions), [sessions]);
+  const newestId = sessions[0]?.id;
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    if (!rows || audited.current) return;
+    audited.current = true;
+    auditLog({
+      type: "DATA_ACCESS",
+      action: "interview_dashboard_view",
+      success: true,
+      resource: "interview_sessions",
+      details: { sessionsCount: rows.length },
+    });
+  }, [rows]);
 
+  // The coach reads the learner's own records server-side (including the mix
+  // of round types), so it only needs to know which job this is for.
   useEffect(() => {
-    if (!COACH_AVAILABLE || loading) return;
-    if (stats.totalSessions === 0) return;
+    if (!COACH_AVAILABLE || !newestId) return;
     let cancelled = false;
     setLoadingInsight(true);
     interviewCoach
-      .weeklyInsight({
-        weekData: {
-          sessionsCompleted: stats.completedSessions,
-          questionsAnswered: stats.totalQuestions,
-          avgScore: stats.avgScore,
-          previousWeekAvgScore: 0,
-          topSkills: [],
-          weakSkills: [],
-          streakDays: stats.currentStreak,
-          totalPracticeMinutes: 0,
-        },
-      })
+      .weeklyInsight({ field, seniority })
       .then((insight) => {
         if (!cancelled) setWeeklyInsight(insight);
       })
@@ -295,28 +329,15 @@ export default function InterviewHome({ onOpenHistory, onStartPractice }: Interv
     return () => {
       cancelled = true;
     };
-  }, [
-    loading,
-    stats.totalSessions,
-    stats.completedSessions,
-    stats.totalQuestions,
-    stats.avgScore,
-    stats.currentStreak,
-  ]);
+    // Keyed on the newest session, not the rows: re-ask when a session is
+    // added, not on every background refetch that returns the same sessions.
+    // (Not the count either: the history read is capped, so past the cap the
+    // count stops changing.)
+  }, [newestId, field, seniority]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4" aria-busy="true" aria-label="Loading your practice record">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <div
@@ -325,18 +346,21 @@ export default function InterviewHome({ onOpenHistory, onStartPractice }: Interv
             />
           ))}
         </div>
+        <div className="h-40 animate-pulse rounded-[1.25rem] border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]" />
       </div>
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="cc-surface p-10 text-center">
-        <p className="cc-kicker mb-2">Couldn't load the record</p>
-        <p className="text-sm text-[color:var(--cc-ink-soft)]">{error}</p>
+        <p className="cc-kicker mb-2">Couldn't load your practice record</p>
+        <p className="text-sm text-[color:var(--cc-ink-soft)]">Check your connection and try again.</p>
         <button
           type="button"
-          onClick={fetchDashboardData}
+          onClick={() => {
+            if (checkLimit().allowed) void refetch();
+          }}
           disabled={isLimited}
           className="cc-action cc-action--ghost mt-5"
         >
@@ -347,132 +371,112 @@ export default function InterviewHome({ onOpenHistory, onStartPractice }: Interv
     );
   }
 
-  if (stats.totalSessions === 0) {
+  if (sessions.length === 0) {
     return (
-      <div className="cc-tint cc-tone-cobalt px-6 py-10 text-center md:px-10">
+      <div className="cc-surface px-6 py-10 text-center md:px-10">
         <p className="cc-kicker">Your record</p>
-        <p className="mt-3 cc-font-display text-2xl text-[color:var(--cc-ink)]">
-          Quiet so far — your first debrief starts the story.
-        </p>
+        <p className="mt-3 cc-font-display text-2xl text-[color:var(--cc-ink)]">No sessions yet.</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-[color:var(--cc-ink-soft)]">
-          Pick a situation above and run a quick drill. History and coach notes will appear here.
+          Pick a type above and start. Your scores show up here, by type, in the same colours.
         </p>
+        <div className="mt-5 flex justify-center">
+          <Legend />
+        </div>
         <button type="button" onClick={onStartPractice} className="cc-action mt-6">
-          Practice your first interview
+          Practise your first interview
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>
     );
   }
 
+  const lastPractised = sessions[0]?.created_at;
+
   return (
-    <div ref={rootRef} className="space-y-5">
+    <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
+          { label: "Sessions", value: String(Math.max(total ?? 0, sessions.length)), sub: `${byType.filter((p) => p.count).length} of 4 types tried` },
+          { label: "Last 7 days", value: String(thisWeek), sub: thisWeek === 1 ? "session" : "sessions" },
           {
-            label: "Sessions",
-            value: String(stats.totalSessions),
-            onClick: () => onOpenHistory(),
+            label: "Average",
+            value: average.average !== null ? String(average.average) : "—",
+            hint: average.average !== null ? "/100" : undefined,
+            sub: average.from ? `from ${average.from} finished` : "finish one to score",
           },
-          {
-            label: "This week",
-            value: String(stats.weeklySessionCount),
-            onClick: () => onOpenHistory(),
-          },
-          {
-            label: "Avg score",
-            value: stats.avgScore ? `${stats.avgScore}` : "—",
-            hint: stats.avgScore ? "/100" : undefined,
-            onClick: () => onOpenHistory(),
-          },
-          {
-            label: "Streak",
-            value: `${stats.currentStreak}d`,
-            onClick: onStartPractice,
-          },
+          { label: "Streak", value: `${streak.current}d`, sub: streak.longest > streak.current ? `best ${streak.longest}d` : "days in a row" },
         ].map((stat) => (
           <button
             key={stat.label}
             type="button"
-            onClick={stat.onClick}
+            onClick={() => onOpenHistory()}
             className="cc-surface cc-lift p-5 text-left"
           >
             <p className="cc-label-sm text-[color:var(--cc-ash)]">{stat.label}</p>
             <p className="mt-1.5 cc-font-display text-2xl tracking-tight cc-tabular text-[color:var(--cc-ink)]">
               {stat.value}
-              {stat.hint && (
-                <span className="ml-1 text-sm text-[color:var(--cc-ash)]">{stat.hint}</span>
-              )}
+              {stat.hint && <span className="ml-1 text-sm text-[color:var(--cc-ash)]">{stat.hint}</span>}
             </p>
+            <p className="mt-0.5 text-xs text-[color:var(--cc-ink-soft)]">{stat.sub}</p>
           </button>
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="cc-surface p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="cc-kicker">This week</p>
-            <p className="cc-label-sm text-[color:var(--cc-ash)]">
-              {stats.lastPracticeDate ? `Last ${stats.lastPracticeDate}` : ""}
+      <section aria-labelledby="iv-by-type">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <p id="iv-by-type" className="cc-kicker">
+            By type
+          </p>
+          <p className="text-xs text-[color:var(--cc-ash)]">Latest score, and the change since your last one of the same type</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {byType.map((p) => (
+            <TypeCell key={p.type} p={p} onPractice={() => onPracticeType(p.type)} />
+          ))}
+        </div>
+      </section>
+
+      <StarHabits />
+
+      {/* grid-cols-1 (minmax(0,1fr)) on small screens: an implicit auto
+          column grows to the week chart's content and pushes off the screen. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className="cc-surface min-w-0 p-5 lg:col-span-2" aria-labelledby="iv-week">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p id="iv-week" className="cc-kicker">
+              Last 7 days
             </p>
+            {lastPractised && (
+              <p className="cc-label-sm text-[color:var(--cc-ash)]">Last practised {shortDate(lastPractised)}</p>
+            )}
           </div>
 
-          <div className="mb-6 grid grid-cols-7 gap-1.5">
-            {weeklyActivity.map((day, i) => (
-              <div key={i} className="text-center">
-                <div
-                  className={[
-                    "aspect-square w-full rounded-md border",
-                    day.practiced
-                      ? day.sessionCount > 1
-                        ? "border-[color:var(--cc-rust)] bg-[color:var(--cc-rust)]"
-                        : "border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)]"
-                      : "border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]",
-                  ].join(" ")}
-                  title={day.practiced ? `${day.sessionCount} session(s)` : "No practice"}
-                />
-                <span className="cc-label-sm text-[color:var(--cc-ash)]">{day.day}</span>
-              </div>
-            ))}
+          <WeekChart days={days} />
+          <div className="mt-4">
+            <Legend />
           </div>
 
-          <p className="cc-field-label mb-2">Recent sessions</p>
+          <div className="mb-2 mt-6 flex items-center justify-between">
+            <p className="cc-field-label !mb-0">Recent sessions</p>
+            <button
+              type="button"
+              onClick={() => onOpenHistory()}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]"
+            >
+              All history <ArrowUpRight className="h-3 w-3" aria-hidden />
+            </button>
+          </div>
           <div className="divide-y divide-[color:var(--cc-hair)] overflow-hidden rounded-xl border border-[color:var(--cc-hair)]">
-            {recentSessions.slice(0, 4).map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => onOpenHistory(session.id)}
-                className="flex w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition-colors hover:bg-[color:var(--cc-cream-2)]"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-[color:var(--cc-ink)]">
-                    {session.field}
-                    {session.seniority ? ` · ${session.seniority}` : ""}
-                  </p>
-                  <p className="cc-label-sm mt-0.5 text-[color:var(--cc-ash)]">
-                    {session.questionsCount} q · {formatDate(session.createdAt)}
-                  </p>
-                </div>
-                {session.status === "completed" && session.score !== null ? (
-                  <span className="cc-font-mono shrink-0 text-sm tabular-nums text-[color:var(--cc-ink)]">
-                    {session.score}
-                    <span className="text-xs text-[color:var(--cc-ash)]">/100</span>
-                  </span>
-                ) : session.status === "completed" ? (
-                  <span className="cc-label-sm shrink-0 text-[color:var(--cc-signal-deep)]">done</span>
-                ) : (
-                  <span className="cc-label-sm shrink-0 text-[color:var(--cc-wheat-deep)]">open</span>
-                )}
-              </button>
+            {sessions.slice(0, 5).map((row) => (
+              <RecentRow key={row.id} row={row} all={sessions} onOpen={() => onOpenHistory(row.id)} />
             ))}
           </div>
         </section>
 
-        <section className="cc-tint cc-tone-wheat p-5">
+        <section className="cc-tint cc-tone-wheat self-start p-5">
           <p className="cc-kicker">Coach's note</p>
           {loadingInsight ? (
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-2" aria-busy="true">
               <div className="h-5 w-2/3 animate-pulse bg-[color:var(--cc-cream-3)]" />
               <div className="h-4 w-full animate-pulse bg-[color:var(--cc-cream-3)]" />
             </div>
@@ -482,15 +486,10 @@ export default function InterviewHome({ onOpenHistory, onStartPractice }: Interv
                 {weeklyInsight.headline}
               </p>
               {weeklyInsight.summary && (
-                <p className="text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
-                  {weeklyInsight.summary}
-                </p>
+                <p className="text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">{weeklyInsight.summary}</p>
               )}
               {(weeklyInsight.weeklyGoals ?? []).slice(0, 2).map((g, i) => (
-                <p
-                  key={i}
-                  className="border-l-2 border-[color:var(--cc-rust)] pl-3 text-sm text-[color:var(--cc-ink-soft)]"
-                >
+                <p key={i} className="border-l-2 border-[color:var(--cc-ink)] pl-3 text-sm text-[color:var(--cc-ink-soft)]">
                   {g.goal}
                 </p>
               ))}
@@ -498,7 +497,7 @@ export default function InterviewHome({ onOpenHistory, onStartPractice }: Interv
           ) : (
             <p className="mt-3 text-sm leading-relaxed text-[color:var(--cc-ash)]">
               {COACH_AVAILABLE
-                ? "No note this week — keep practicing and patterns will show up here."
+                ? "No note this week. Keep practising and patterns will show up here."
                 : "Coach is offline, so weekly notes are paused. History still works."}
             </p>
           )}

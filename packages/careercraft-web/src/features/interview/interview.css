@@ -1,0 +1,431 @@
+/* Interview Prep — round-type colour and the pieces built on it. Imported by
+   the hub, the room and the progress panel; beside the feature like
+   tracker.css. Uses the --cc-* tokens from styles/craft.css.
+
+   ROUND-TYPE COLOURS
+   One categorical set, checked with the data-viz palette validator on every
+   surface these sit on (paper #F7F7F4, white, cream-2), all pairs, since any
+   two types can sit side by side in the week chart:
+     worst colour-blind separation ΔE 12.7 (target 8), worst normal-vision
+     ΔE 18.2 (floor 15), every hue ≥ 3:1 against the surface.
+   Fixed hexes on purpose. Persona accents re-tint --cc-rust, and the "sage"
+   accent would paint Behavioural the same green as Technical.
+   Teal sits near the app's "done" green and orange near its amber, so type
+   colour never carries status here: status is always words. And a type is
+   never colour alone: it always comes with its name or its icon. */
+
+:root {
+  --cc-iv-screen-c: #CF5604;
+  --cc-iv-behavioral-c: #2A52CC;
+  --cc-iv-technical-c: #11957C;
+  --cc-iv-full-c: #853E80;
+}
+
+/* Each sets the round's colour, a faint wash for fills behind ink text, and a
+   mid edge for borders. Components read --cc-iv / --cc-iv-wash / --cc-iv-edge. */
+.cc-iv-screen     { --cc-iv: var(--cc-iv-screen-c);     --cc-iv-wash: rgba(207, 86, 4, 0.07);   --cc-iv-edge: rgba(207, 86, 4, 0.34); }
+.cc-iv-behavioral { --cc-iv: var(--cc-iv-behavioral-c); --cc-iv-wash: rgba(42, 82, 204, 0.07);  --cc-iv-edge: rgba(42, 82, 204, 0.34); }
+.cc-iv-technical  { --cc-iv: var(--cc-iv-technical-c);  --cc-iv-wash: rgba(17, 149, 124, 0.08); --cc-iv-edge: rgba(17, 149, 124, 0.36); }
+.cc-iv-full       { --cc-iv: var(--cc-iv-full-c);       --cc-iv-wash: rgba(133, 62, 128, 0.07); --cc-iv-edge: rgba(133, 62, 128, 0.34); }
+
+/* ── Type mark and tag ─────────────────────────────────────────────────── */
+
+.cc-iv-dot {
+  display: inline-block;
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--cc-iv);
+}
+
+/* Text stays ink; the dot carries the identity. */
+.cc-iv-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem 0.2rem 0.5rem;
+  border: 1px solid var(--cc-iv-edge);
+  border-radius: 999px;
+  background: var(--cc-iv-wash);
+  color: var(--cc-ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* On a dark (selected) chip the dot needs a paper ring to read. */
+.cc-iv-filter[aria-pressed="true"] .cc-iv-dot {
+  box-shadow: 0 0 0 1.5px var(--cc-cream);
+}
+
+/* ── Round picker ──────────────────────────────────────────────────────── */
+
+.cc-iv-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 1.25rem 1.1rem 1rem;
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 18px 44px -38px rgba(20, 22, 26, 0.3);
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, border-color 0.2s, background-color 0.2s;
+}
+/* The round's colour runs along the top of every card, picked or not. */
+.cc-iv-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--cc-iv);
+}
+.cc-iv-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--cc-iv-edge);
+  box-shadow: 0 22px 48px -32px rgba(20, 22, 26, 0.35);
+}
+.cc-iv-card:focus-visible {
+  outline: 2px solid var(--cc-ink);
+  outline-offset: 3px;
+}
+.cc-iv-card[aria-checked="true"] {
+  border-color: var(--cc-iv);
+  background: var(--cc-iv-wash);
+  box-shadow: inset 0 0 0 1px var(--cc-iv), 0 22px 48px -34px rgba(20, 22, 26, 0.32);
+}
+.cc-iv-card-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  background: var(--cc-iv-wash);
+  color: var(--cc-iv);
+}
+.cc-iv-card[aria-checked="true"] .cc-iv-card-icon {
+  background: var(--cc-iv);
+  color: #fff;
+}
+.cc-iv-check {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: var(--cc-iv);
+  color: #fff;
+}
+
+/* ── Week chart ────────────────────────────────────────────────────────── */
+
+.cc-iv-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: clamp(0.25rem, 1.2vw, 0.5rem);
+}
+.cc-iv-day {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: center;
+  cursor: default;
+}
+.cc-iv-day:focus-visible {
+  outline: 2px solid var(--cc-ink);
+  outline-offset: 3px;
+  border-radius: 0.6rem;
+}
+/* One segment per session, newest on top, 2px of paper between them. */
+.cc-iv-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  height: 4.25rem;
+  padding: 2px;
+  border-radius: 0.6rem;
+  background: var(--cc-cream-2);
+}
+.cc-iv-stack[data-empty="true"] {
+  background: transparent;
+  border: 1px dashed var(--cc-hair-strong);
+}
+.cc-iv-seg {
+  flex: 1 1 0;
+  min-height: 6px;
+  border-radius: 4px;
+  background: var(--cc-iv);
+}
+/* An unfinished session is drawn hollow: same colour, no fill. */
+.cc-iv-seg[data-open="true"] {
+  background: repeating-linear-gradient(135deg, var(--cc-iv-edge) 0 2px, transparent 2px 6px);
+  box-shadow: inset 0 0 0 2px var(--cc-iv);
+}
+.cc-iv-day[data-today="true"] .cc-iv-daylabel {
+  color: var(--cc-ink);
+  font-weight: 700;
+}
+.cc-iv-tip {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 50%;
+  z-index: 20;
+  min-width: 11rem;
+  max-width: 15rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.6rem;
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  text-align: left;
+  box-shadow: 0 12px 30px -12px rgba(20, 22, 26, 0.45);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+}
+.cc-iv-day:first-child .cc-iv-tip { left: 0; transform: none; }
+.cc-iv-day:last-child .cc-iv-tip { left: auto; right: 0; transform: none; }
+.cc-iv-day:hover .cc-iv-tip,
+.cc-iv-day:focus-visible .cc-iv-tip {
+  opacity: 1;
+  visibility: visible;
+}
+/* Inside the dark tooltip the dot needs a paper ring to read. */
+.cc-iv-tip .cc-iv-dot { box-shadow: 0 0 0 1.5px var(--cc-cream); }
+
+/* ── By-type progress ──────────────────────────────────────────────────── */
+
+.cc-iv-typecell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1rem 0.9rem;
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.1rem;
+  background: #fff;
+  text-align: left;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cc-iv-typecell::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--cc-iv);
+}
+.cc-iv-typecell:hover {
+  border-color: var(--cc-iv-edge);
+  transform: translateY(-1px);
+  box-shadow: 0 18px 40px -30px rgba(20, 22, 26, 0.35);
+}
+.cc-iv-typecell:focus-visible {
+  outline: 2px solid var(--cc-ink);
+  outline-offset: 3px;
+}
+.cc-iv-spark {
+  display: block;
+  width: 100%;
+  height: 28px;
+  overflow: visible;
+}
+.cc-iv-spark polyline {
+  fill: none;
+  stroke: var(--cc-iv);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.cc-iv-spark-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--cc-iv);
+  box-shadow: 0 0 0 2px #fff;
+  transform: translate(-50%, -50%);
+}
+
+/* ── Session rows (recent sessions, history) ───────────────────────────── */
+
+.cc-iv-row {
+  position: relative;
+}
+.cc-iv-row::before {
+  content: "";
+  position: absolute;
+  inset: 0.65rem auto 0.65rem 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--cc-iv);
+}
+
+/* ── Answer feedback (components/AnswerFeedback.tsx) ───────────────────── */
+
+/* One bar per scoring dimension: the fill is the score out of 10. */
+.cc-iv-scorebar {
+  position: relative;
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--cc-cream-2);
+  overflow: hidden;
+}
+.cc-iv-scorebar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--cc-iv, var(--cc-ink));
+}
+
+/* A STAR part in their own words: a highlighter stroke in the round's colour,
+   with the part's name riding at its start. */
+.cc-iv-mark {
+  padding: 0.1rem 0.15rem;
+  border-radius: 0.25rem;
+  background: var(--cc-iv-wash, rgba(20, 22, 26, 0.06));
+  box-shadow: inset 0 -2px 0 var(--cc-iv, var(--cc-ink));
+  color: var(--cc-ink);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.cc-iv-mark-label {
+  display: inline-block;
+  margin-right: 0.3rem;
+  padding: 0 0.3rem;
+  border-radius: 0.2rem;
+  background: var(--cc-ink);
+  color: var(--cc-cream);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  vertical-align: 0.15em;
+}
+
+/* "I" against "we": the ink share is "I". */
+.cc-iv-split {
+  position: relative;
+  display: inline-block;
+  width: 5rem;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cc-hair-strong);
+  overflow: hidden;
+}
+.cc-iv-split > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--cc-ink);
+}
+
+/* STAR habits: present / thin / missing as one ink ramp (ordinal, so no hues),
+   2px of surface between segments, counts written beside every bar. */
+.cc-iv-habit {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+}
+.cc-iv-habit > span {
+  flex-basis: 0;
+  min-width: 0;
+  border-radius: 3px;
+}
+.cc-iv-habit > span[style*="flex-grow: 0"] {
+  display: none;
+}
+.cc-iv-habit [data-c="present"],
+.cc-iv-habit-key[data-c="present"] { background: var(--cc-ink); }
+.cc-iv-habit [data-c="thin"],
+.cc-iv-habit-key[data-c="thin"] { background: #8E9199; }
+.cc-iv-habit [data-c="missing"],
+.cc-iv-habit-key[data-c="missing"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--cc-hair-strong); }
+.cc-iv-habit-key {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.5rem;
+  border-radius: 2px;
+}
+
+/* ── Answer length meter (the room) ────────────────────────────────────── */
+
+.cc-iv-meter {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cc-cream-2);
+}
+/* The healthy range, in the round's colour. */
+.cc-iv-meter-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--cc-iv-edge);
+}
+.cc-iv-meter-mark {
+  position: absolute;
+  top: -3px;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--cc-ink);
+  transform: translateX(-50%);
+  transition: left 0.2s ease-out;
+}
+
+/* Listening: a small live dot. Red-pen red is fine here — it means "recording". */
+.cc-iv-live {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #C2412D;
+  animation: cc-iv-pulse 1.4s ease-in-out infinite;
+}
+@keyframes cc-iv-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-iv-live { animation: none; }
+  .cc-iv-card,
+  .cc-iv-typecell,
+  .cc-iv-meter-mark {
+    transition: none;
+  }
+  .cc-iv-card:hover,
+  .cc-iv-typecell:hover {
+    transform: none;
+  }
+}
+
+/* Forced colours: the type survives as the tag's text and the icons. */
+@media (forced-colors: active) {
+  .cc-iv-card[aria-checked="true"] {
+    outline: 3px solid CanvasText;
+  }
+  .cc-iv-seg {
+    border: 1px solid CanvasText;
+  }
+}

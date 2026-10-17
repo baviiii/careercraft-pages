@@ -4,6 +4,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { isMissingColumn } from "@/lib/schemaLag";
 
 import type {
   ApplicationStatus,
@@ -24,6 +25,18 @@ interface Filters {
    the turnaround figure mean what they say. */
 const leavingSaved = (from: ApplicationStatus | undefined, to: ApplicationStatus) =>
   from === "saved" && to !== "saved" ? { applied_date: new Date().toISOString() } : {};
+
+/* interview_date comes with a migration that can land a few minutes after the
+   site does. Until it has, a save goes through without that one field rather
+   than failing the whole job. */
+async function writeJob<T extends Record<string, unknown>>(
+  write: (payload: T) => PromiseLike<{ error: { code?: string; message?: string } | null }>,
+  payload: T,
+) {
+  const first = await write(payload);
+  if (!isMissingColumn(first.error, "interview_date")) return first;
+  return write(Object.fromEntries(Object.entries(payload).filter(([k]) => k !== "interview_date")) as T);
+}
 
 /**
  * Owns all job-tracker state: session guard, fetch, filters, and CRUD mutations.
@@ -159,6 +172,7 @@ export function useJobTracker() {
     status: form.status,
     notes: form.notes || null,
     reminder_date: form.reminderDate || null,
+    interview_date: form.interviewDate || null,
     job_description: form.jobDescription || null,
     job_url: form.jobUrl || null,
     salary_range: form.salaryRange || null,
@@ -178,10 +192,10 @@ export function useJobTracker() {
       return false;
     }
     try {
-      const { error } = await supabase.from("job_applications").insert({
-        user_id: session?.user?.id,
-        ...buildPayload(form),
-      });
+      const { error } = await writeJob(
+        (payload) => supabase.from("job_applications").insert({ user_id: session?.user?.id, ...payload }),
+        buildPayload(form),
+      );
       if (error) throw error;
       toast({
         title: "Application saved",
@@ -213,10 +227,10 @@ export function useJobTracker() {
     }
     try {
       const prev = applications.find((a) => a.id === id)?.status;
-      const { error } = await supabase
-        .from("job_applications")
-        .update({ ...buildPayload(form), ...leavingSaved(prev, form.status) })
-        .eq("id", id);
+      const { error } = await writeJob(
+        (payload) => supabase.from("job_applications").update(payload).eq("id", id),
+        { ...buildPayload(form), ...leavingSaved(prev, form.status) },
+      );
       if (error) throw error;
       toast({
         title: "Changes saved",

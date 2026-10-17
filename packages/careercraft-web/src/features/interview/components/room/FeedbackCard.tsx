@@ -1,11 +1,18 @@
-import { ArrowRight } from "lucide-react";
-import type { CoachAnswerEvaluation, StarBreakdown, StarCoverage } from "@/lib/interviewCoach";
+import { ArrowRight, RotateCcw } from "lucide-react";
+import type { CoachAnswerEvaluation } from "@/lib/interviewCoach";
+import type { DeliveryMetrics } from "../../types";
+import { AnswerWorking } from "../AnswerFeedback";
 import { ProofChip } from "../ProofChip";
 
 interface FeedbackCardProps {
   evaluation: CoachAnswerEvaluation;
+  /** The answer this feedback is about — the markup highlights it. */
+  answer: string;
+  delivery?: DeliveryMetrics | null;
   isLast: boolean;
   onContinue: () => void;
+  /** Answer the same question again, scored against this attempt. */
+  onRetry?: () => void;
 }
 
 function PointList({
@@ -48,48 +55,12 @@ function PointList({
   );
 }
 
-const STAR_TONE: Record<StarCoverage, string> = {
-  present: "var(--cc-signal-deep)",
-  thin: "var(--cc-wheat-deep)",
-  missing: "var(--cc-rust-deep)",
-};
-
 /**
- * STAR completeness, shown only for behavioral answers (the MCP omits the block
- * entirely for technical ones). This is the thing that makes behavioral practice
- * actionable — "missing result" is a concrete fix in a way a score isn't.
+ * Coached-mode verdict on one answer — shown before moving on. Leads with how
+ * the score was made and where the answer stands against STAR, then what to
+ * change, then the two ways forward: try it again, or the next question.
  */
-function StarRow({ star }: { star: StarBreakdown }) {
-  const parts: Array<[string, StarCoverage]> = [
-    ["Situation", star.situation],
-    ["Task", star.task],
-    ["Action", star.action],
-    ["Result", star.result],
-  ];
-  return (
-    <div>
-      <p className="cc-label-sm mb-2 text-[color:var(--cc-ink)]">STAR coverage</p>
-      <div className="flex flex-wrap gap-2">
-        {parts.map(([label, coverage]) => (
-          <span
-            key={label}
-            className="cc-label-sm border bg-[color:var(--cc-cream)] px-2.5 py-1.5"
-            style={{ color: STAR_TONE[coverage], borderColor: STAR_TONE[coverage] }}
-          >
-            {label} · {coverage}
-          </span>
-        ))}
-      </div>
-      {star.note && (
-        <p className="mt-2 text-xs leading-relaxed text-[color:var(--cc-ash)]">{star.note}</p>
-      )}
-    </div>
-  );
-}
-
-/** Coached-mode verdict on one answer — shown before moving on. */
-export function FeedbackCard({ evaluation, isLast, onContinue }: FeedbackCardProps) {
-  const breakdown = Object.entries(evaluation.scoreBreakdown ?? {});
+export function FeedbackCard({ evaluation, answer, delivery, isLast, onContinue, onRetry }: FeedbackCardProps) {
   const followUp = evaluation.followUpQuestion || evaluation.improvement;
 
   return (
@@ -103,29 +74,11 @@ export function FeedbackCard({ evaluation, isLast, onContinue }: FeedbackCardPro
       </div>
 
       <div className="space-y-6 p-5">
-        {breakdown.length > 0 && (
-          <div>
-            <div className="flex flex-wrap gap-2">
-              {breakdown.map(([key, value]) => (
-                <span
-                  key={key}
-                  // The evaluator's justification for this criterion, when it gave one.
-                  title={evaluation.scoreNotes?.[key] || undefined}
-                  className="cc-label-sm border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)] px-2.5 py-1.5 text-[color:var(--cc-ink-soft)]"
-                >
-                  {key.replace(/([a-z])([A-Z])/g, "$1 $2")} · {value}
-                </span>
-              ))}
-            </div>
-            {evaluation.rubricApplied && (
-              <p className="mt-2 text-xs leading-relaxed text-[color:var(--cc-ash)]">
-                {evaluation.rubricApplied}
-              </p>
-            )}
-          </div>
-        )}
+        <AnswerWorking evaluation={evaluation} answer={answer} delivery={delivery} />
 
-        {evaluation.starBreakdown && <StarRow star={evaluation.starBreakdown} />}
+        {evaluation.rubricApplied && (
+          <p className="text-xs leading-relaxed text-[color:var(--cc-ash)]">{evaluation.rubricApplied}</p>
+        )}
 
         <div className="grid gap-6 md:grid-cols-3">
           <PointList title="What landed" items={evaluation.validation.correct} tone="signal" />
@@ -141,7 +94,7 @@ export function FeedbackCard({ evaluation, isLast, onContinue }: FeedbackCardPro
         {evaluation.bestAnswer && (
           <div>
             <p className="cc-label-sm mb-2 text-[color:var(--cc-ink)]">A stronger answer</p>
-            <blockquote className="border-l-2 border-[color:var(--cc-rust)] bg-[color:var(--cc-cream)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
+            <blockquote className="border-l-2 border-[color:var(--cc-iv,var(--cc-rust))] bg-[color:var(--cc-cream)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
               {evaluation.bestAnswer}
             </blockquote>
             {evaluation.faangAnswer && (
@@ -178,10 +131,18 @@ export function FeedbackCard({ evaluation, isLast, onContinue }: FeedbackCardPro
 
         {evaluation.proof && <ProofChip proof={evaluation.proof} />}
 
-        <button onClick={onContinue} className="cc-btn cc-btn-primary w-full">
-          {isLast ? "Finish & get your debrief" : "Next question"}
-          <ArrowRight className="cc-arrow-right h-3.5 w-3.5" />
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {onRetry && (
+            <button onClick={onRetry} className="cc-btn cc-btn-ghost sm:flex-1" type="button">
+              <RotateCcw className="h-3.5 w-3.5" />
+              Try this answer again
+            </button>
+          )}
+          <button onClick={onContinue} className="cc-btn cc-btn-primary sm:flex-1" type="button">
+            {isLast ? "Finish & get your debrief" : "Next question"}
+            <ArrowRight className="cc-arrow-right h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </section>
   );

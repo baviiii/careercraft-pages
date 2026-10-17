@@ -3,11 +3,15 @@
  * Overall scores display as /100; per-question as /10.
  */
 import { ArrowRight, BookOpen, RotateCcw } from "lucide-react";
-import type { CoachFinalEvaluation } from "@/lib/interviewCoach";
+import type { CoachFinalEvaluation, CoachQuestion } from "@/lib/interviewCoach";
 import { normalizeScore100 } from "../../lib/sessions";
 import { formatClock } from "../../lib/format";
+import { parseRoundType, roundMeta } from "../../lib/roundTypes";
 import type { AnswerRecord, SessionConfig } from "../../types";
 import { ProofChip } from "../ProofChip";
+import { RoundDebriefExtras } from "../RoundDebriefExtras";
+import { RoundTag } from "../RoundMarks";
+import { AnswerWorking } from "../AnswerFeedback";
 
 interface DebriefProps {
   config: SessionConfig;
@@ -15,6 +19,8 @@ interface DebriefProps {
   evaluation: CoachFinalEvaluation;
   totalSeconds: number;
   onPracticeWeakAreas: (focusAreas: string[]) => void;
+  /** Ask one question from this session again, on its own, coached. */
+  onPracticeQuestion: (question: CoachQuestion) => void;
   onResources: () => void;
   onExit: () => void;
 }
@@ -65,10 +71,11 @@ function Trajectory({ records }: { records: AnswerRecord[] }) {
           stroke="var(--cc-hair)"
           strokeDasharray="3 4"
         />
-        <polyline points={points} fill="none" stroke="var(--cc-rust)" strokeWidth="1.5" />
+        {/* The round's colour (set on the room), falling back to the accent. */}
+        <polyline points={points} fill="none" stroke="var(--cc-iv, var(--cc-rust))" strokeWidth="2" />
         {scored.map((p) => (
           <g key={p.i}>
-            <circle cx={x(p.i)} cy={y(p.score)} r="3" fill="var(--cc-rust)" />
+            <circle cx={x(p.i)} cy={y(p.score)} r="4" fill="var(--cc-iv, var(--cc-rust))" stroke="var(--cc-cream)" strokeWidth="2" />
             <text
               x={x(p.i)}
               y={H - 1}
@@ -123,8 +130,19 @@ function AssessmentColumn({
   );
 }
 
-function TranscriptEntry({ record, index }: { record: AnswerRecord; index: number }) {
+function TranscriptEntry({
+  record,
+  index,
+  onPracticeQuestion,
+}: {
+  record: AnswerRecord;
+  index: number;
+  onPracticeQuestion: (question: CoachQuestion) => void;
+}) {
   const ev = record.evaluation;
+  const attemptScores = [...record.attempts.map((a) => a.evaluation?.score), ev?.score].filter(
+    (s): s is number => typeof s === "number",
+  );
   const over =
     record.question.timeAllocationMinutes &&
     record.timeTakenSeconds > record.question.timeAllocationMinutes * 60;
@@ -166,11 +184,13 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
               {record.hintsUsed} hint{record.hintsUsed === 1 ? "" : "s"}
             </span>
           )}
+          {attemptScores.length > 1 && <span>attempts {attemptScores.join(" → ")}</span>}
         </div>
 
         {record.skipped ? (
           <p className="text-sm italic text-[color:var(--cc-ash)]">You skipped this question.</p>
-        ) : (
+        ) : ev?.highlights.length ? null : (
+          // With highlights, the marked-up answer below shows it instead.
           <blockquote className="rounded-xl border-l-2 border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
             {record.answerText || "(no answer recorded)"}
           </blockquote>
@@ -178,7 +198,9 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
 
         {ev ? (
           <>
-            {Object.keys(ev.scoreBreakdown ?? {}).length > 0 && (
+            <AnswerWorking evaluation={ev} answer={record.answerText} delivery={record.delivery} compact />
+
+            {!ev.scoring && Object.keys(ev.scoreBreakdown ?? {}).length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {Object.entries(ev.scoreBreakdown).map(([key, value]) => (
                   <span
@@ -252,6 +274,15 @@ function TranscriptEntry({ record, index }: { record: AnswerRecord; index: numbe
             Evaluation unavailable for this answer — its score still counts toward your history.
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={() => onPracticeQuestion(record.question)}
+          className="cc-action cc-action--ghost cc-action--sm"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Practise this question again
+        </button>
       </div>
     </details>
   );
@@ -263,6 +294,7 @@ export function Debrief({
   evaluation,
   totalSeconds,
   onPracticeWeakAreas,
+  onPracticeQuestion,
   onResources,
   onExit,
 }: DebriefProps) {
@@ -273,9 +305,11 @@ export function Debrief({
   const improveItems = [...evaluation.mustFix, ...evaluation.weaknesses];
   const weakFocus = improveItems.slice(0, 6);
   const overall = normalizeScore100(evaluation.overallScore) ?? evaluation.overallScore;
+  const roundType = parseRoundType(config.roundType);
+  const meta = roundMeta(roundType);
 
   const metaLine = [
-    config.roundName,
+    config.roundName && config.roundName !== meta.label ? config.roundName : null,
     config.field,
     config.seniority,
     config.mode === "realistic" ? "Realistic mode" : "Coached mode",
@@ -288,9 +322,12 @@ export function Debrief({
   return (
     <div className="mx-auto max-w-[900px] px-5 py-10 md:px-8 md:py-14">
       <div className="mb-8">
-        <p className="cc-eyebrow cc-tone-cobalt">The debrief</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="cc-eyebrow cc-tone-cobalt">The debrief</p>
+          <RoundTag type={roundType} />
+        </div>
         <h1 className="mt-4 cc-font-display text-4xl tracking-tight text-[color:var(--cc-ink)] md:text-5xl">
-          How you interviewed
+          {roundType === "screen" ? "How the call went" : "How you interviewed"}
         </h1>
         <p className="cc-label-sm mt-3 text-[color:var(--cc-ash)]">{metaLine}</p>
       </div>
@@ -315,7 +352,9 @@ export function Debrief({
           </div>
         </div>
         <div className="bg-[color:var(--cc-cream)] p-6">
-          <p className="cc-label-sm mb-2 text-[color:var(--cc-ash)]">Committee summary</p>
+          <p className="cc-label-sm mb-2 text-[color:var(--cc-ash)]">
+            {roundType === "screen" ? "Recruiter's summary" : "Committee summary"}
+          </p>
           <p className="text-[15px] leading-relaxed text-[color:var(--cc-ink)]">
             {evaluation.summary || "No summary was produced for this session."}
           </p>
@@ -323,6 +362,10 @@ export function Debrief({
       </div>
 
       <div className="space-y-6">
+        {/* What only this kind of round produces: the recruiter's call, the
+            story bank, or the depth map. */}
+        <RoundDebriefExtras roundType={roundType} evaluation={evaluation} />
+
         {/* Scorecard first */}
         <div>
           <p className="cc-kicker mb-3">Scorecard</p>
@@ -345,9 +388,9 @@ export function Debrief({
         {weakFocus.length > 0 && (
           <div className="flex flex-col gap-3 rounded-[1.25rem] border border-[color:var(--cc-rust)] bg-[color:var(--cc-rust-soft)] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-semibold text-[color:var(--cc-rust-deep)]">Practice your weak areas</p>
+              <p className="font-semibold text-[color:var(--cc-rust-deep)]">Practise your weak areas</p>
               <p className="mt-1 text-sm text-[color:var(--cc-ink-soft)]">
-                Run a short coached drill focused on what the committee flagged.
+                A short coached {meta.noun} aimed at what was flagged.
               </p>
             </div>
             <button
@@ -418,7 +461,7 @@ export function Debrief({
           <p className="cc-kicker mb-3">The transcript, annotated</p>
           <div className="space-y-3">
             {records.map((record, i) => (
-              <TranscriptEntry key={i} record={record} index={i} />
+              <TranscriptEntry key={i} record={record} index={i} onPracticeQuestion={onPracticeQuestion} />
             ))}
           </div>
         </div>

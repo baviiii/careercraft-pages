@@ -2,6 +2,16 @@ import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import type { CoachQuestion } from "@/lib/interviewCoach";
 
+/** The parts of a recruiter phone screen, as the meta line names them. */
+const SCREEN_PARTS: Record<string, string> = {
+  pitch: "your pitch",
+  motivation: "why this role",
+  experience: "experience check",
+  salary: "salary",
+  logistics: "notice and logistics",
+  questions: "your questions",
+};
+
 interface QuestionStageProps {
   question: CoachQuestion;
   questionNumber: number;
@@ -31,8 +41,12 @@ export function QuestionStage({ question, questionNumber, advancing }: QuestionS
   }, [question.question, advancing]);
 
   // stage and type often agree ("behavioral"/"behavioral") — dedupe so the meta
-  // line reads as a description rather than a stutter.
-  const descriptors = [...new Set([question.stage, question.type?.replace(/_/g, " ")].filter(Boolean))];
+  // line reads as a description rather than a stutter. In a phone screen the
+  // stage is always "screen" (the header already says so); the part is news.
+  const descriptors =
+    question.stage === "screen"
+      ? [SCREEN_PARTS[question.type] ?? question.type]
+      : [...new Set([question.stage, question.type?.replace(/_/g, " ")].filter(Boolean))];
 
   const meta = [
     `Question ${String(questionNumber).padStart(2, "0")}`,

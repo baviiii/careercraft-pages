@@ -162,16 +162,29 @@ export const JobFormFields = ({
       </div>
     </Group>
 
-    <Group title="Follow-up and notes">
-      <Field label="Follow up on" hint="Shows in Up next on the day.">
-        <input
-          id={fieldId("reminder")}
-          type="date"
-          className="cc-field md:max-w-[240px]"
-          value={values.reminderDate}
-          onChange={(e) => onChange({ reminderDate: e.target.value })}
-        />
-      </Field>
+    <Group title={showInterviewDate(values) ? "Dates and notes" : "Follow-up and notes"}>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {showInterviewDate(values) && (
+          <Field label="Interview on" hint="Interview Prep plans your practice to the day.">
+            <input
+              id={fieldId("interview")}
+              type="date"
+              className="cc-field md:max-w-[240px]"
+              value={values.interviewDate}
+              onChange={(e) => onChange({ interviewDate: e.target.value })}
+            />
+          </Field>
+        )}
+        <Field label="Follow up on" hint="Shows in Up next on the day.">
+          <input
+            id={fieldId("reminder")}
+            type="date"
+            className="cc-field md:max-w-[240px]"
+            value={values.reminderDate}
+            onChange={(e) => onChange({ reminderDate: e.target.value })}
+          />
+        </Field>
+      </div>
       <Field label="Notes">
         <textarea
           id={fieldId("notes")}
@@ -196,6 +209,9 @@ export const JobFormFields = ({
     </Group>
   </div>
 );
+
+/** The interview date matters once there's an interview (or one is already set). */
+const showInterviewDate = (values: JobFormValues) => values.status === "interview" || Boolean(values.interviewDate);
 
 const Group = ({ title, children }: { title: string; children: ReactNode }) => (
   <section className="space-y-4">

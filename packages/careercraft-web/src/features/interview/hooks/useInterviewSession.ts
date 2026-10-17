@@ -17,16 +17,49 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   interviewCoach,
   CoachUnavailableError,
+  type CoachAnswerEvaluation,
   type CoachFinalEvaluation,
   type CoachHint,
   type CoachQuestion,
 } from "@/lib/interviewCoach";
+import { parseRoundType } from "../lib/roundTypes";
 import {
   makeRecord,
   type AnswerRecord,
+  type DeliveryMetrics,
   type RoomPhase,
   type SessionConfig,
 } from "../types";
+
+/**
+ * An evaluation restored from sessionStorage may predate the fields the
+ * feedback now reads (a tab left open across a deploy). Fill them the way
+ * adaptEvaluation in lib/interviewCoach does, so the feedback card never
+ * reads undefined.
+ */
+function evaluationDefaults(e: CoachAnswerEvaluation | null | undefined): CoachAnswerEvaluation | null {
+  if (!e) return null;
+  return {
+    ...e,
+    lengthCheck: e.lengthCheck ?? null,
+    scoring: e.scoring ?? null,
+    highlights: e.highlights ?? [],
+    ownership: e.ownership ?? null,
+    story: e.story ?? null,
+    retryChange: e.retryChange ?? null,
+    starBreakdown: e.starBreakdown ? { ...e.starBreakdown, reflection: e.starBreakdown.reflection ?? null } : null,
+  };
+}
+
+/** Records restored from a session saved before attempts, delivery or the newer evaluation fields existed. */
+function withDefaults(r: AnswerRecord): AnswerRecord {
+  return {
+    ...r,
+    evaluation: evaluationDefaults(r.evaluation),
+    attempts: (r.attempts ?? []).map((a) => ({ ...a, evaluation: evaluationDefaults(a.evaluation) })),
+    delivery: r.delivery ?? null,
+  };
+}
 
 const PENDING_KEY = "cc-interview-pending";
 const ACTIVE_KEY = "cc-interview-active";
@@ -110,8 +143,10 @@ export interface InterviewSession {
   totalSeconds: number;
   error: string | null;
 
-  submit: (answerText: string) => Promise<void>;
+  submit: (answerText: string, delivery?: DeliveryMetrics | null) => Promise<void>;
   continueAfterFeedback: () => void;
+  /** Coached mode, after feedback: answer the same question again. */
+  retry: () => void;
   skip: () => void;
   requestHint: (draft: string) => Promise<void>;
   wrapUp: () => void;
@@ -164,8 +199,16 @@ export function useInterviewSession(): InterviewSession {
           seniority: cfg.seniority,
           jobDescription: cfg.jobDescription,
           focusAreas: cfg.focusAreas,
-          // Realistic mode goes adaptive after Q1 — only seed the opener.
-          questionCount: cfg.mode === "realistic" ? 1 : cfg.questionCount,
+          roundType: parseRoundType(cfg.roundType),
+          // Realistic mode goes adaptive after Q1 — only seed the opener, but
+          // as slot 1 of the round actually planned.
+          questionCount: cfg.mode === "realistic" && !cfg.fixedQuestions?.length ? 1 : cfg.questionCount,
+          plannedCount: cfg.questionCount,
+          framework: cfg.framework,
+          frameworkLevel: cfg.frameworkLevel,
+          competency: cfg.competency,
+          fixedQuestions: cfg.fixedQuestions,
+          jobId: cfg.jobId,
         });
         if (!questions.length) throw new CoachUnavailableError("No questions were returned.");
         sessionIdRef.current = sessionId;
@@ -189,7 +232,7 @@ export function useInterviewSession(): InterviewSession {
     const debrief = readJson<DebriefSnapshot>(DEBRIEF_KEY);
     if (debrief) {
       setConfig(debrief.config);
-      setRecords(debrief.records);
+      setRecords(debrief.records.map(withDefaults));
       setFinalEvaluation(debrief.finalEvaluation);
       setTotalSeconds(debrief.totalSeconds);
       setPhase("debrief");
@@ -200,7 +243,7 @@ export function useInterviewSession(): InterviewSession {
     if (active && active.sessionId && active.records.length) {
       // Evaluations that were mid-flight when the page unloaded are gone;
       // their scores are persisted server-side, but the feedback text isn't.
-      const restored = active.records.map((r) =>
+      const restored = active.records.map(withDefaults).map((r) =>
         r.evaluationPending
           ? { ...r, evaluationPending: false, evaluationFailed: !r.evaluation }
           : r,
@@ -256,6 +299,9 @@ export function useInterviewSession(): InterviewSession {
         sessionId,
         field: cfg.field,
         seniority: cfg.seniority,
+        roundType: parseRoundType(cfg.roundType),
+        framework: cfg.framework,
+        plannedCount: cfg.questionCount,
         durationSeconds: seconds,
       });
       setFinalEvaluation(evaluation);
@@ -295,6 +341,10 @@ export function useInterviewSession(): InterviewSession {
         field: cfg.field,
         seniority: cfg.seniority,
         focusAreas: cfg.focusAreas,
+        plannedCount: cfg.questionCount,
+        roundType: parseRoundType(cfg.roundType),
+        framework: cfg.framework,
+        frameworkLevel: cfg.frameworkLevel,
       });
       openQuestion(question);
       setPhase("active");
@@ -309,7 +359,7 @@ export function useInterviewSession(): InterviewSession {
   }, [finish, openQuestion]);
 
   const submit = useCallback(
-    async (answerText: string) => {
+    async (answerText: string, delivery: DeliveryMetrics | null = null) => {
       const cfg = configRef.current;
       const index = recordsRef.current.length - 1;
       const record = recordsRef.current[index];
@@ -318,6 +368,9 @@ export function useInterviewSession(): InterviewSession {
       if (!text) return;
 
       const timeTaken = Math.max(1, Math.round((Date.now() - questionStartedAt) / 1000));
+      // A retry tells the coach what they said last time, so feedback can say
+      // what changed — and the score change is shown, not guessed.
+      const previous = record.attempts[record.attempts.length - 1];
       const call = () =>
         interviewCoach.submitAnswer({
           sessionId: sessionIdRef.current ?? "",
@@ -327,10 +380,16 @@ export function useInterviewSession(): InterviewSession {
           field: cfg.field,
           seniority: cfg.seniority,
           expectedTopics: record.question.expectedTopics,
+          roundType: parseRoundType(cfg.roundType),
+          framework: cfg.framework,
+          timeTakenSeconds: timeTaken,
+          attempt: record.attempts.length + 1,
+          previousAnswer: previous?.answerText,
+          previousScore: previous?.evaluation?.score,
         });
 
       if (cfg.mode === "coached") {
-        patchRecord(index, { answerText: text, timeTakenSeconds: timeTaken });
+        patchRecord(index, { answerText: text, timeTakenSeconds: timeTaken, delivery });
         setEvaluating(true);
         try {
           const evaluation = await call();
@@ -350,6 +409,7 @@ export function useInterviewSession(): InterviewSession {
         answerText: text,
         timeTakenSeconds: timeTaken,
         evaluationPending: true,
+        delivery,
       });
       evalQueueRef.current.push(
         call()
@@ -367,13 +427,59 @@ export function useInterviewSession(): InterviewSession {
     void advance();
   }, [advance]);
 
+  /**
+   * Answer the same question again, straight after its feedback. The attempt
+   * just scored is kept (attempts), the composer reopens empty, and the next
+   * submit is scored against it. Coached mode only: Realistic hides feedback,
+   * so there's nothing yet to retry against.
+   */
+  const retry = useCallback(() => {
+    const cfg = configRef.current;
+    const index = recordsRef.current.length - 1;
+    const record = recordsRef.current[index];
+    if (!cfg || cfg.mode !== "coached" || !record?.evaluation || !awaitingContinue) return;
+    patchRecord(index, {
+      attempts: [
+        ...record.attempts,
+        {
+          answerText: record.answerText,
+          evaluation: record.evaluation,
+          timeTakenSeconds: record.timeTakenSeconds,
+          delivery: record.delivery,
+        },
+      ],
+      answerText: "",
+      evaluation: null,
+      evaluationFailed: false,
+      delivery: null,
+    });
+    setAwaitingContinue(false);
+    setHint(null);
+    setError(null);
+    setQuestionStartedAt(Date.now());
+  }, [awaitingContinue, patchRecord]);
+
   const skip = useCallback(() => {
     if (phase !== "active") return;
     const index = recordsRef.current.length - 1;
-    patchRecord(index, {
-      skipped: true,
-      timeTakenSeconds: Math.round((Date.now() - questionStartedAt) / 1000),
-    });
+    const record = recordsRef.current[index];
+    const last = record?.attempts[record.attempts.length - 1];
+    if (record && last && !record.answerText) {
+      // Skipping a retry isn't skipping the question: the answer they already
+      // gave (and its score) stands.
+      patchRecord(index, {
+        answerText: last.answerText,
+        evaluation: last.evaluation,
+        timeTakenSeconds: last.timeTakenSeconds,
+        delivery: last.delivery ?? null,
+        attempts: record.attempts.slice(0, -1),
+      });
+    } else {
+      patchRecord(index, {
+        skipped: true,
+        timeTakenSeconds: Math.round((Date.now() - questionStartedAt) / 1000),
+      });
+    }
     setAwaitingContinue(false);
     void advance();
   }, [phase, questionStartedAt, advance, patchRecord]);
@@ -447,6 +553,7 @@ export function useInterviewSession(): InterviewSession {
     error,
     submit,
     continueAfterFeedback,
+    retry,
     skip,
     requestHint,
     wrapUp,

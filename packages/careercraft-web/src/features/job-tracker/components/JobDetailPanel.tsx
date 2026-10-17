@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
+import { usePracticeCount } from "@/features/interview/lib/practiceData";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { NEXT_STEP, STAGE_HINT, avatarTone, followUpDue, followUpLabel, initials } from "../lib/cardBits";
@@ -98,6 +99,7 @@ export const JobDetailPanel = ({
 
   // A pasted email belongs to one job; don't carry it over to the next.
   const appId = application?.id;
+  const practiceCount = usePracticeCount(appId ?? null);
   useEffect(() => {
     setEmailSubject("");
     setEmailBody("");
@@ -301,13 +303,40 @@ export const JobDetailPanel = ({
                     {application.reminder_date ? "Change follow-up" : "Set a follow-up"}
                   </button>
                 )}
-                {status === "interview" && (
-                  <button type="button" className="cc-next-btn cc-next-btn--quiet" onClick={() => navigate("/interview-prep")}>
+                {/* Interview Prep opens with this job picked, so the questions
+                    aim at its ad and the session counts here. */}
+                {status === "applied" && (
+                  <button
+                    type="button"
+                    className="cc-next-btn cc-next-btn--quiet"
+                    onClick={() => navigate(`/interview-prep?job=${application.id}&type=screen`)}
+                  >
                     <CalendarDays className="h-3.5 w-3.5" />
-                    Prep for it
+                    Practise the phone screen
+                  </button>
+                )}
+                {status === "interview" && (
+                  <button
+                    type="button"
+                    className="cc-next-btn cc-next-btn--quiet"
+                    onClick={() => navigate(`/interview-prep?job=${application.id}`)}
+                  >
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    Practise for this interview
+                  </button>
+                )}
+                {status === "interview" && (
+                  <button type="button" className="cc-next-btn cc-next-btn--quiet" onClick={() => editIt("interview")}>
+                    <Bell className="h-3.5 w-3.5" />
+                    {application.interview_date ? "Change the interview date" : "Set the interview date"}
                   </button>
                 )}
               </div>
+            )}
+            {(status === "applied" || status === "interview") && practiceCount > 0 && (
+              <p className="mt-2 text-xs text-[color:var(--cc-ink-soft)]">
+                {practiceCount} practice {practiceCount === 1 ? "session" : "sessions"} for this job so far.
+              </p>
             )}
           </section>
 
@@ -320,6 +349,9 @@ export const JobDetailPanel = ({
               </Fact>
             )}
             {application.salary_range && <Fact label="Salary"><span className="cc-tabular">{application.salary_range}</span></Fact>}
+            {application.interview_date && status === "interview" && (
+              <Fact label="Interview">{formatAppliedDate(application.interview_date)}</Fact>
+            )}
             {followUp && status !== "rejected" && (
               <Fact label="Follow-up">
                 <span className={due ? "text-[color:var(--cc-wheat-deep)]" : undefined}>

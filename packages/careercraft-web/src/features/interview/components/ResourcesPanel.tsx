@@ -14,7 +14,7 @@ import { CoachOfflineBanner } from "./CoachOfflineBanner";
 
 const FILTERS = [
   { id: "all", label: "All" },
-  { id: "behavioral", label: "Behavioral" },
+  { id: "behavioral", label: "Behavioural" },
   { id: "communication", label: "Communication" },
   { id: "technical", label: "Technical" },
   { id: "system design", label: "System design" },

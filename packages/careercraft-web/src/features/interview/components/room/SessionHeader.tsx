@@ -1,6 +1,8 @@
 import { Flag, X } from "lucide-react";
 import { formatClock, useElapsedSeconds } from "../../lib/format";
+import { parseRoundType, roundMeta } from "../../lib/roundTypes";
 import type { SessionConfig } from "../../types";
+import { RoundTag } from "../RoundMarks";
 
 interface SessionHeaderProps {
   config: SessionConfig;
@@ -20,14 +22,18 @@ export function SessionHeader({
   onQuit,
 }: SessionHeaderProps) {
   const elapsed = useElapsedSeconds(sessionStartedAt);
+  const type = parseRoundType(config.roundType);
+  // The tag already names the type; only say more when the round has its own
+  // name (a plan round, a quick drill, a weak-area drill).
+  const extra = config.roundName && config.roundName !== roundMeta(type).label ? config.roundName : null;
 
   return (
     <header className="sticky top-0 z-30 border-b border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-[1100px] items-center justify-between px-5 md:px-8">
-        <div className="flex min-w-0 items-baseline gap-4">
-          <span className="cc-label text-[color:var(--cc-rust)]">Interview room</span>
+        <div className="flex min-w-0 items-center gap-3">
+          <RoundTag type={type} className="shrink-0" />
           <span className="hidden truncate text-sm text-[color:var(--cc-ink-soft)] sm:block">
-            {config.roundName ? `${config.roundName} · ` : ""}
+            {extra ? `${extra} · ` : ""}
             {config.field}
             {config.seniority ? ` · ${config.seniority}` : ""}
           </span>

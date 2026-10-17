@@ -28,7 +28,7 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "geolocation=(self), microphone=(), camera=(), payment=(), usb=(), bluetooth=(), magnetometer=(), gyroscope=(), accelerometer=()"
+          "value": "geolocation=(self), microphone=(self), camera=(), payment=(), usb=(), bluetooth=(), magnetometer=(), gyroscope=(), accelerometer=()"
         },
         {
           "key": "Content-Security-Policy",

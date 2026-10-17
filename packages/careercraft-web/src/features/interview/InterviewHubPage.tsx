@@ -1,14 +1,16 @@
 /**
  * Interview Prep hub — practice-only.
- * Home (hero + start) · History · Resources. Career lives at /career-coach.
+ * Home (your interviews + setup + progress) · History · Stories · Resources.
+ * Career lives at /career-coach.
  * Live session: /interview-prep/room
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowUpRight,
   Award,
+  BookMarked,
   BookOpen,
   Compass,
   History,
@@ -25,6 +27,10 @@ import InterviewHome from "@/components/interview/InterviewDashboard";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { ResourcesPanel } from "./components/ResourcesPanel";
 import { SetupPanel } from "./components/SetupPanel";
+import { StoriesPanel } from "./components/StoriesPanel";
+import { UpcomingInterviews } from "./components/UpcomingInterviews";
+import { DEFAULT_ROUND, parseRoundType, type RoundType } from "./lib/roundTypes";
+import type { SetupChoice } from "./types";
 import CareerProfilePanel from "@/components/career-dev/CareerProfilePanel";
 import CareerGuidancePanel from "@/components/career-dev/CareerGuidancePanel";
 import CertificationsPanel from "@/components/career-dev/CertificationsPanel";
@@ -33,6 +39,7 @@ import StudyPanel from "@/components/career-dev/StudyPanel";
 type HubTab =
   | "home"
   | "history"
+  | "stories"
   | "resources"
   | "profile"
   | "guidance"
@@ -48,6 +55,7 @@ type HubTab =
 const TABS: Array<{ id: HubTab; label: string; icon: typeof Home }> = [
   { id: "home", label: "Home", icon: Home },
   { id: "history", label: "History", icon: History },
+  { id: "stories", label: "Stories", icon: BookMarked },
   { id: "resources", label: "Resources", icon: Library },
   { id: "profile", label: "Profile", icon: UserCircle },
   { id: "guidance", label: "Guidance", icon: Compass },
@@ -98,6 +106,20 @@ function InterviewHub() {
   // rebuilds them when it changes, so neither old results nor a request still
   // in flight for the old job can land under the new one.
   const roleKey = `${field ?? ""}|${seniority ?? ""}`;
+  // What is being set up. Held here, not in the setup panel, so the panels
+  // around it can fill it in: "Practise this" on a round type, a step in an
+  // upcoming interview's plan. ?type= and ?job= deep-link into it (the job
+  // tracker links here with ?job= to practise for one application).
+  const [choice, setChoice] = useState<SetupChoice>(() => {
+    const type = searchParams.get("type");
+    return {
+      roundType: type ? parseRoundType(type) : DEFAULT_ROUND,
+      jobId: searchParams.get("job"),
+      framework: null,
+      frameworkLevel: "Adept",
+    };
+  });
+  const updateChoice = (patch: Partial<SetupChoice>) => setChoice((c) => ({ ...c, ...patch }));
 
   // Normalize legacy tab params in the URL.
   useEffect(() => {
@@ -125,6 +147,18 @@ function InterviewHub() {
     });
   };
 
+  /** Pick a round type from anywhere on the page and bring the setup into view. */
+  const practiseType = (type: RoundType) => {
+    updateChoice({ roundType: type });
+    scrollToSetup();
+  };
+
+  /** A step from an upcoming interview's plan: that job, that round. */
+  const prepareFor = (jobId: string, type: RoundType) => {
+    updateChoice({ jobId, roundType: type });
+    scrollToSetup();
+  };
+
   return (
     <CraftAppLayout
       topBarLeft={<div className="cc-label-sm text-[color:var(--cc-ash)]">Interview prep</div>}
@@ -147,7 +181,7 @@ function InterviewHub() {
             <span className="cc-italic-wonk text-[color:var(--cc-rust)]">counts.</span>
           </h1>
           <p className="mt-4 max-w-lg cc-font-editorial text-lg leading-snug text-[color:var(--cc-ink-soft)]">
-            Pick a situation, sit the loop, then read a debrief that tells you exactly what to fix.
+            Pick the kind of interview, answer the questions, then read a debrief that tells you exactly what to fix.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <button type="button" onClick={scrollToSetup} className="cc-action">
@@ -170,7 +204,9 @@ function InterviewHub() {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as HubTab)} className="mt-6 pb-16">
-        <TabsList className="cc-tabs sticky top-2 z-20 h-auto justify-start p-[0.35rem]">
+        {/* Eight tabs don't fit a phone: scroll them sideways rather than
+            clipping the last ones off the screen where they can't be reached. */}
+        <TabsList className="cc-tabs sticky top-2 z-20 h-auto max-w-full justify-start overflow-x-auto p-[0.35rem] [scrollbar-width:none]">
           {TABS.map(({ id, label, icon: Icon }) => (
             <TabsTrigger
               key={id}
@@ -184,16 +220,26 @@ function InterviewHub() {
         </TabsList>
 
         <TabsContent value="home" className="cc-tabs-panel mt-6 space-y-8 focus-visible:ring-0">
+          <UpcomingInterviews onPrepare={prepareFor} />
           <div id="interview-setup">
-            <SetupPanel key={roleKey} role={field} level={seniority} />
+            <SetupPanel
+              key={roleKey}
+              role={field}
+              level={seniority}
+              choice={choice}
+              onChange={updateChoice}
+            />
           </div>
           <InterviewHome
+            field={field}
+            seniority={seniority}
             onOpenHistory={(id) => {
               const params = new URLSearchParams({ tab: "history" });
               if (id) params.set("session", id);
               setSearchParams(params);
             }}
             onStartPractice={scrollToSetup}
+            onPracticeType={practiseType}
           />
         </TabsContent>
 
@@ -201,7 +247,12 @@ function InterviewHub() {
           <HistoryPanel
             highlightId={sessionId}
             onStartPractice={scrollToSetup}
+            onPracticeType={practiseType}
           />
+        </TabsContent>
+
+        <TabsContent value="stories" className="cc-tabs-panel mt-6 focus-visible:ring-0">
+          <StoriesPanel key={roleKey} field={field} seniority={seniority} initialFramework={choice.framework} />
         </TabsContent>
 
         <TabsContent value="resources" className="cc-tabs-panel mt-6 focus-visible:ring-0">

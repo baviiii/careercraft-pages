@@ -27,14 +27,15 @@ export function ProgressRail({ records, totalPlanned, mode }: ProgressRailProps)
               key={i}
               className={[
                 "flex h-10 flex-1 items-center justify-center gap-1.5 border-r border-[color:var(--cc-hair)] last:border-r-0",
-                isCurrent ? "shadow-[inset_0_-2px_0_0_var(--cc-rust)]" : "",
+                // The round's colour (set on the room) marks where you are.
+                isCurrent ? "shadow-[inset_0_-3px_0_0_var(--cc-iv,var(--cc-rust))]" : "",
               ].join(" ")}
             >
               <span
                 className={[
                   "cc-label-sm",
                   isCurrent
-                    ? "text-[color:var(--cc-rust)]"
+                    ? "font-bold text-[color:var(--cc-ink)]"
                     : isDone
                       ? "text-[color:var(--cc-ink)]"
                       : "text-[color:var(--cc-ash)]",

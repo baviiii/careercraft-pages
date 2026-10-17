@@ -15,6 +15,8 @@ import { ProgressRail } from "./components/room/ProgressRail";
 import { QuestionStage } from "./components/room/QuestionStage";
 import { SessionHeader } from "./components/room/SessionHeader";
 import { WrapUpDialog } from "./components/room/WrapUpDialog";
+import { parseRoundType, roundClass, roundMeta } from "./lib/roundTypes";
+import "./interview.css";
 
 function Overlay({
   label,
@@ -83,9 +85,14 @@ export default function InterviewRoomPage() {
   const answeredCount = records.filter((r) => r.answerText || r.skipped).length;
   const lastRecord = records[records.length - 1] ?? null;
   const isLastQuestion = config ? questionNumber >= config.questionCount : false;
+  // Everything in the room wears the round's colour (header tag, progress
+  // rail, length meter) through the --cc-iv variables this class sets.
+  const roundType = parseRoundType(config?.roundType);
 
   return (
-    <main className="cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased">
+    <main
+      className={`cc-root cc-font-sans min-h-screen bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)] antialiased ${roundClass(roundType)}`}
+    >
       <div className="cc-grain pointer-events-none fixed inset-0 z-0" />
 
       <div className="relative z-10">
@@ -94,7 +101,7 @@ export default function InterviewRoomPage() {
             label="Preparing your interview"
             sub={
               config
-                ? `Researching how ${config.field} interviews and drafting your questions. This can take a moment.`
+                ? `Researching how ${config.field} interviews and drafting your ${roundMeta(roundType).noun}. This can take a moment.`
                 : "Getting the room ready…"
             }
             onBack={() => exitToHub()}
@@ -142,9 +149,36 @@ export default function InterviewRoomPage() {
             onPracticeWeakAreas={(focusAreas) =>
               session.beginNew({
                 ...config,
+                // Same kind of round: drilling a phone screen's weak spots
+                // means more recruiter questions, not a technical loop.
+                roundType,
                 focusAreas,
-                roundName: "Weak-area drill",
-                questionCount: Math.min(config.questionCount, 4),
+                // A drill asks new questions, even after practising one fixed question.
+                fixedQuestions: undefined,
+                competency: undefined,
+                roundName: `${roundMeta(roundType).label} · weak-area drill`,
+                questionCount: Math.min(config.questionCount, roundMeta(roundType).lengths[0]),
+                mode: "coached",
+              })
+            }
+            onPracticeQuestion={(q) =>
+              session.beginNew({
+                ...config,
+                roundType,
+                fixedQuestions: [
+                  {
+                    question: q.question,
+                    stage: q.stage ?? undefined,
+                    type: q.type,
+                    expectedTopics: q.expectedTopics,
+                    competency: q.competency,
+                  },
+                ],
+                focusAreas: undefined,
+                // The question carries its own competency.
+                competency: undefined,
+                roundName: "Practising one question",
+                questionCount: 1,
                 mode: "coached",
               })
             }
@@ -183,18 +217,24 @@ export default function InterviewRoomPage() {
               {awaitingContinue && lastRecord?.evaluation ? (
                 <FeedbackCard
                   evaluation={lastRecord.evaluation}
+                  answer={lastRecord.answerText}
+                  delivery={lastRecord.delivery}
                   isLast={isLastQuestion}
                   onContinue={session.continueAfterFeedback}
+                  onRetry={session.retry}
                 />
               ) : (
                 <AnswerComposer
                   key={questionNumber}
                   questionStartedAt={questionStartedAt}
                   allottedMinutes={current.question.timeAllocationMinutes}
+                  targetWords={current.question.targetWords}
+                  placeholder={roundMeta(roundType).answerPrompt}
+                  questionText={current.question.question}
                   disabled={phase !== "active"}
                   evaluating={evaluating}
                   hintLoading={hintLoading}
-                  onSubmit={(text) => void session.submit(text)}
+                  onSubmit={(text, delivery) => void session.submit(text, delivery)}
                   onSkip={session.skip}
                   onHint={(draft) => void session.requestHint(draft)}
                 />
