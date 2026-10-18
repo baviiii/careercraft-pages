@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { applyAccent, resolveAccent } from '@/lib/personaTheme';
 import type { AIPersona } from '@/hooks/useUserProfile';
+import { containsTerm } from '@/lib/containsTerm';
 
 // Types for personalization
 export interface PersonalizedProfile {
@@ -164,6 +165,27 @@ function industryMatches(
      that send no category at all. */
   const haystack = industryTokens(`${category ?? ''} ${title ?? ''}`);
   return wanted.some((w) => haystack.includes(w));
+}
+
+/** Synonyms too common in news to mean the sector ("training", "care"). */
+const ARTICLE_SYNONYM_SKIP = new Set(['care', 'community', 'creative', 'training', 'engineering', 'academic']);
+
+/**
+ * Whether an article is about one of our industries. Job scoring compares
+ * single words against a board's category, which is safe there; over a whole
+ * article "Real Estate" would split into "real" and match every "real wages"
+ * story. So here an industry is matched as the phrases it is made of
+ * ("Finance & Banking" is "finance" or "banking") plus its synonyms, each
+ * as a whole phrase.
+ */
+function articleMentionsIndustry(industry: string, text: string): boolean {
+  const phrases = [
+    ...industry.split(/\s*(?:&|\/|,|\band\b)\s*/i),
+    ...(INDUSTRY_SYNONYMS[industry.toLowerCase()] ?? []).filter((s) => !ARTICLE_SYNONYM_SKIP.has(s)),
+  ]
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 4 && !INDUSTRY_STOP_WORDS.has(p.toLowerCase()));
+  return phrases.some((p) => containsTerm(text, p, { plural: true }));
 }
 
 /* The window raw cosine is mapped through, and the most it can contribute.
@@ -586,18 +608,7 @@ export function usePersonalization() {
     const matchedSkills = haystack
       ? profile.skills
           .map(s => s.name)
-          .filter(name => {
-            const n = name.trim().toLowerCase();
-            if (!n) return false;
-            const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            /* `+`, `#` and `&` are excluded from the boundary classes, which
-               is what makes one-character skills safe to match:
-                 - "C++" and "C#" match as themselves, and a bare "C" does not
-                   match the C inside them
-                 - "R" matches "Excel, R and SQL" but not "our R&D team"
-               Verified against those cases before shipping. */
-            return new RegExp(`(^|[^a-z0-9+#&])${escaped}([^a-z0-9+#&]|$)`, "i").test(haystack);
-          })
+          .filter(name => containsTerm(haystack, name))
       : [];
     if (matchedSkills.length > 0) {
       const counted = Math.min(matchedSkills.length, 4);
@@ -702,35 +713,40 @@ export function usePersonalization() {
     let score = 0;
     const reasons: string[] = [];
 
+    /* Whole words throughout (plurals allowed), and industries as whole
+       phrases: a profile industry of "Other" used to be found in nearly every
+       article, and "Finance & Banking" in none. Skills need three letters, or
+       a + or #, because in prose "Go" and "R" are just words. */
     const industries = [
       profile.industry,
       ...profile.jobPreferences.industries,
       ...profile.newsPreferences.followedIndustries,
     ].filter(Boolean) as string[];
-    if (industries.some((i) => text.includes(i.toLowerCase()))) {
+    if (industries.some((i) => articleMentionsIndustry(i, text))) {
       score += 25;
       reasons.push('Your industry');
     }
 
-    if (profile.targetJobTitles.some((t) => t && text.includes(t.toLowerCase()))) {
+    if (profile.targetJobTitles.some((t) => t && containsTerm(text, t, { plural: true }))) {
       score += 20;
       reasons.push('Your target role');
     }
 
     const companies = [...profile.targetCompanies, ...profile.newsPreferences.followedCompanies].filter(Boolean);
-    if (companies.some((c) => text.includes(c.toLowerCase()))) {
+    if (companies.some((c) => containsTerm(text, c))) {
       score += 18;
       reasons.push('A company you follow');
     }
 
-    const skillNames = profile.skills.map((s) => s.name.toLowerCase()).filter((n) => n.length > 2);
-    const matched = skillNames.filter((s) => text.includes(s));
+    const matched = profile.skills
+      .map((s) => s.name.trim())
+      .filter((n) => (n.length >= 3 || /[+#]/.test(n)) && containsTerm(text, n));
     if (matched.length) {
       score += Math.min(matched.length * 8, 24);
       reasons.push(`${matched.length} skill${matched.length > 1 ? 's' : ''} mentioned`);
     }
 
-    if (profile.currentJobTitle && text.includes(profile.currentJobTitle.toLowerCase())) {
+    if (profile.currentJobTitle && containsTerm(text, profile.currentJobTitle, { plural: true })) {
       score += 12;
       reasons.push('Your current role');
     }

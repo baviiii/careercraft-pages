@@ -26,7 +26,7 @@ const MyResumes = lazy(() => import("./features/my-resumes/MyResumesPage"));
 const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
 const InterviewRoom = lazy(() => import("./features/interview/InterviewRoomPage"));
 const BrowseJobs = lazy(() => import("./features/browse-jobs/BrowseJobsPage"));
-const JobMarketNews = lazy(() => import("./pages/JobMarketNews"));
+const MarketNews = lazy(() => import("./features/market-news/MarketNewsPage"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Playground = lazy(() => import("./pages/Playground"));
 const IntelligenceOverview = lazy(() => import("./pages/IntelligenceOverview"));
@@ -148,7 +148,7 @@ const App = () => (
               <Route path="/interview-prep" element={<InterviewPrep />} />
               <Route path="/interview-prep/room" element={<InterviewRoom />} />
               <Route path="/au-jobs" element={<BrowseJobs />} />
-              <Route path="/job-market-news" element={<JobMarketNews />} />
+              <Route path="/job-market-news" element={<MarketNews />} />
               <Route path="/playground" element={<Playground />} />
               <Route path="/intelligence" element={<IntelligenceOverview />} />
               <Route path="/career-coach" element={<CareerCoachPage />} />

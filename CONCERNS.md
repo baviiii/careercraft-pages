@@ -363,6 +363,12 @@ address), design its settings around what it really does.
 
 ## 12. Market News invents its trends, and isn't Australian-first
 
+**Resolved 2026-10-18:** page rebuilt as `features/market-news/`. News now
+comes from Australian publishers' RSS feeds (`job-news/feeds.ts`; the Currents
+key had been dead since April), and Analytics/Insights became one "Your
+market" tab of Adzuna's own AU figures (`job-news/market.ts`). Leftovers are
+in #16. Original note kept below.
+
 **Found:** 2026-10-14, cleaning up the old job feed.
 
 The page (`/job-market-news`, pages/JobMarketNews.tsx) has three tabs:
@@ -480,3 +486,35 @@ explicit search (anything typed) uses one term and pages correctly.
 **Decide later:** return the whole merged set for page 1 when there are
 several terms, or page each term separately on the client. Check
 attachSimilarity's batch size before returning more than 50.
+
+---
+
+## 16. Leftovers from the Market News rebuild
+
+**Found:** 2026-10-18, rebuilding Market News.
+
+- **`news-refresh.yml` is now redundant, and couldn't work anyway.** fetch_news
+  re-reads the feeds itself when stored news is over 3 hours old. The workflow
+  also sends the service-role key, which job-news' `requireUser` rejects with
+  401, so it would fail even with the secret set. Delete it, or give
+  prefetch_news a service-role path if a scheduled refresh is ever wanted.
+- **Adzuna's stats endpoints are untested against live keys.** histogram,
+  top_companies, geodata and history are parsed defensively (a block that
+  doesn't parse is hidden, not faked), but the local `.env` keys for Adzuna and
+  Currents both fail auth, so the shapes were never checked against a live
+  response. Open "Your market" once after deploying.
+- **102 old Currents rows in `news_articles`** (all April 2026, mostly
+  non-Australian). Hidden by fetch_news' 90-day window; safe to delete.
+- **Dead job-news actions:** `analyze_trends`, `fetch_jobs`,
+  `fetch_news_legacy`, `get_categories`, `get_salary_data` have no caller in the
+  web app. `fetch_au_jobs` still mixes Remotive/Arbeitnow listings and feeds
+  useJobCounts / CareerExplorer / MarketTrends.
+- **CSP `connect-src`** in vercel.json still lists currentsapi, remotive and
+  arbeitnow, which the browser no longer calls.
+- **Stories are re-embedded on every request.** fetch_news sends each page
+  of stories (30) to Horus for "closeness to you" every time, though stored
+  stories never change. Saving each story's embedding once, at refresh, would
+  cut that to the profile alone.
+
+**Not urgent because:** none of these show anything wrong to a user.
+

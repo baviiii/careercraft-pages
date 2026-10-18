@@ -1,0 +1,212 @@
+/* Market news — imported by MarketNewsPage.tsx and scoped under .cc-mnews,
+   beside the feature like browse-jobs.css. Uses the --cc-* tokens from
+   styles/craft.css. Names avoid the global .cc-chip / .cc-bar / .cc-meter /
+   .cc-gauge / .cc-select in craft.css.
+
+   Text-led: most feeds send no pictures, so a story is a headline, its
+   publisher's summary and why it's here. Motion only plays once as stories
+   arrive, and every bit of it has a still version under "reduce motion". */
+
+/* ── Topic chips ─────────────────────────────────────────────── */
+.cc-mnews .cc-topic {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--cc-hair-strong);
+  background: #fff;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-ink-soft);
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+}
+.cc-mnews .cc-topic:hover { border-color: var(--cc-ink-soft); color: var(--cc-ink); }
+.cc-mnews .cc-topic[aria-pressed="true"] { background: var(--cc-ink); border-color: var(--cc-ink); color: var(--cc-cream); }
+
+.cc-mnews .cc-window {
+  border-radius: 999px;
+  border: 1px solid var(--cc-hair-strong);
+  background: #fff;
+  padding: 6px 30px 6px 12px;
+  font-size: 13px;
+  color: var(--cc-ink);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2340454E' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+.cc-mnews .cc-window:hover { border-color: var(--cc-ink-soft); }
+
+/* ── A story ─────────────────────────────────────────────────── */
+.cc-mnews .cc-story {
+  position: relative;
+  display: flex;
+  gap: 20px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  padding: 18px 20px;
+  transition: border-color .25s ease, box-shadow .25s ease;
+  animation: cc-mnews-rise .45s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+@media (hover: hover) {
+  .cc-mnews .cc-story:hover {
+    border-color: var(--cc-hair-strong);
+    box-shadow: 0 18px 32px -26px rgba(20, 22, 26, 0.45);
+  }
+}
+@keyframes cc-mnews-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.cc-mnews .cc-story--lead { padding: 24px 26px; }
+.cc-mnews .cc-story--lead.has-image > :first-child { flex: 1 1 0; }
+
+.cc-mnews .cc-story__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
+  font-size: 12.5px;
+  color: var(--cc-ash);
+}
+.cc-mnews .cc-story__meta > * + *::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--cc-hair-strong);
+}
+.cc-mnews .cc-story__title {
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.cc-mnews .cc-story__title--lead {
+  margin-top: 8px;
+  font-size: clamp(22px, 2.6vw, 30px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.cc-mnews .cc-story__link { transition: color .18s ease; }
+.cc-mnews .cc-story__link:hover { color: var(--cc-rust); }
+.cc-mnews .cc-story__image {
+  display: none;
+  flex: 0 0 auto;
+  width: 240px;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--cc-cream-2);
+}
+@media (min-width: 768px) {
+  .cc-mnews .cc-story__image { display: block; }
+}
+
+/* A company from the tracker, named outright. */
+.cc-mnews .cc-tracked {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(63, 122, 92, 0.13);
+  color: var(--cc-signal-deep);
+}
+.cc-mnews .cc-tracked--sm { padding: 1px 7px; font-size: 11px; font-weight: 600; }
+
+/* ── Your market ─────────────────────────────────────────────── */
+.cc-mnews .cc-role-input {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--cc-rust);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--cc-hair-strong);
+  border-radius: 0;
+  padding: 2px 4px;
+  outline: none;
+  transition: border-color .2s ease, background-color .2s ease;
+}
+.cc-mnews .cc-role-input::placeholder { color: var(--cc-ash); opacity: 0.75; }
+.cc-mnews .cc-role-input:hover { border-bottom-color: var(--cc-ink-soft); }
+.cc-mnews .cc-role-input:focus { border-bottom-color: var(--cc-rust); background: rgba(42, 82, 204, 0.05); }
+.cc-mnews .cc-role-input::-webkit-calendar-picker-indicator { display: none !important; }
+
+/* The one number this tab leads with: sans, proportional figures. */
+.cc-mnews .cc-hero-figure {
+  font-size: clamp(48px, 6vw, 64px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--cc-ink);
+}
+
+/* Bar list: label, bar, value at the tip. Bars are thin, 4px round at the
+   data end and square at the baseline. */
+.cc-mnews .cc-bars { display: grid; gap: 9px; }
+.cc-mnews .cc-bars__row {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+}
+.cc-mnews .cc-bars__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--cc-ink-soft);
+}
+.cc-mnews .cc-bars__track { display: block; height: 10px; }
+.cc-mnews .cc-bars__bar {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: rgba(42, 82, 204, 0.75); /* 3.9:1 on white; the marked bar is the full colour */
+  transition: width .6s cubic-bezier(.2, .8, .2, 1), background-color .18s ease;
+}
+.cc-mnews .cc-bars__bar.is-marked { background: var(--cc-rust); }
+.cc-mnews .cc-bars__row:hover .cc-bars__bar { background: var(--cc-rust-deep); }
+.cc-mnews .cc-bars__value { color: var(--cc-ink); font-weight: 600; min-width: 3ch; text-align: right; }
+
+/* Line chart text and tooltip. */
+.cc-mnews .cc-axis { font-family: 'Inter', system-ui, sans-serif; font-size: 11.5px; fill: var(--cc-ash); font-variant-numeric: tabular-nums; }
+.cc-mnews .cc-axis--strong { fill: var(--cc-ink); font-weight: 600; font-size: 12.5px; }
+.cc-mnews .cc-tip {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+  border-radius: 10px;
+  border: 1px solid var(--cc-hair);
+  background: #fff;
+  padding: 6px 10px;
+  box-shadow: 0 10px 24px -14px rgba(20, 22, 26, 0.4);
+  white-space: nowrap;
+}
+
+/* ── Loading ─────────────────────────────────────────────────── */
+.cc-mnews .cc-skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--cc-cream-2) 0%, #fff 50%, var(--cc-cream-2) 100%) 0 0 / 200% 100%;
+  animation: cc-mnews-shimmer 1.4s linear infinite;
+}
+@keyframes cc-mnews-shimmer { to { background-position: -200% 0; } }
+
+/* ── Reduce motion: keep the information, drop the movement ─── */
+@media (prefers-reduced-motion: reduce) {
+  .cc-mnews .cc-story { animation: none; transition: none; }
+  .cc-mnews .cc-skel { animation: none; }
+  .cc-mnews .cc-bars__bar { transition: none; }
+  .cc-mnews .cc-topic,
+  .cc-mnews .cc-role-input,
+  .cc-mnews .cc-story__link { transition: none; }
+}
