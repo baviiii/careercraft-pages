@@ -172,8 +172,9 @@ verify_jwt = false
 [functions.infer]
 verify_jwt = false
 
-# Same caller as infer (the MCP, with its shared secret), so the gateway check
-# stays off. The function itself requires the secret AND the learner's own
-# token: every voice session is paid audio and must belong to a person.
+# Same caller as infer (the MCP, which sends its own key as the bearer), so the
+# gateway check stays off. The function itself requires the learner's own
+# token in x-user-token: every voice session is paid audio and must belong to
+# a person.
 [functions.voice-session]
 verify_jwt = false

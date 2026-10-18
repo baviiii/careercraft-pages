@@ -7,14 +7,15 @@
 // then streams the microphone to the speech service directly; no audio passes
 // through here.
 //
-// Auth is stricter than infer's: BOTH the MCP's shared secret and a verified
-// user token are required, with no legacy mode. Every session is paid audio,
-// so every one has to belong to a real person, and the per-person limit below
-// is enforced in the database (the MCP's and Horus's own limits are in memory,
-// per instance, so they reset on every deploy and don't add up across copies).
+// Auth: a verified user token is required, always — there is no shared-secret
+// -only mode as infer has. Every session is paid audio, so every one has to
+// belong to a real person, and the per-person limit below is kept in the
+// database (the MCP's and Horus's own limits are in memory, per instance, so
+// they reset on every deploy and don't add up across copies). The MCP's key
+// travels in Authorization as it does for infer; like infer's trusted mode,
+// the user token is what authorises, so the key is not checked here.
 //
 // Env (shared with infer):
-//   INFER_SHARED_SECRET — the MCP's service credential
 //   HORUS_INFER_URL     — Horus's gateway, e.g. https://horus.example.com/api/infer;
 //                         the voice route is on the same host
 //   HORUS_API_KEY       — CareerCraft tenant key (intelligence:infer)
@@ -45,22 +46,15 @@ function voiceUrl(): string | null {
 }
 
 serve(handler(async (req) => {
-  const sharedSecret = optEnv("INFER_SHARED_SECRET") ?? "";
   const apiKey = optEnv("HORUS_API_KEY") ?? "";
   const upstream = voiceUrl();
 
   // Health check: is it deployed and configured? No credential, no spend.
   if (req.method === "GET") {
-    return json({ ok: true, fn: RESOURCE, configured: Boolean(upstream && apiKey && sharedSecret) });
+    return json({ ok: true, fn: RESOURCE, configured: Boolean(upstream && apiKey) });
   }
 
-  // ── Who is calling, and for whom ───────────────────────────────────────
-  const presented =
-    (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() ||
-    (req.headers.get("x-functions-key") ?? "").trim();
-  if (!sharedSecret || presented !== sharedSecret) {
-    throw new UnauthorizedError("Service credential required");
-  }
+  // ── For whom ───────────────────────────────────────────────────────────
   const userToken = (req.headers.get("x-user-token") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!userToken) throw new UnauthorizedError("A user token is required for voice");
   const { userId } = await verifyUserToken(userToken);
