@@ -171,3 +171,9 @@ verify_jwt = false
 # a real user token is present, consumes that user's plan.
 [functions.infer]
 verify_jwt = false
+
+# Same caller as infer (the MCP, with its shared secret), so the gateway check
+# stays off. The function itself requires the secret AND the learner's own
+# token: every voice session is paid audio and must belong to a person.
+[functions.voice-session]
+verify_jwt = false
