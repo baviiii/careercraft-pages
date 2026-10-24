@@ -52,7 +52,7 @@ export const CraftNav = memo(({ variant = "cream", session = null, hideAuthCtas 
         </button>
 
         <div className="hidden md:flex items-center gap-10 cc-label">
-          <a className="cc-link" href="/#toolkit" onClick={(e) => { e.preventDefault(); navigate("/#toolkit"); }}>Toolkit</a>
+          <a className="cc-link" href="/tools" onClick={(e) => { e.preventDefault(); navigate("/tools"); }}>Tools</a>
           <a className="cc-link" href="/about" onClick={(e) => { e.preventDefault(); navigate("/about"); }}>About</a>
           <a className="cc-link" href="/contact" onClick={(e) => { e.preventDefault(); navigate("/contact"); }}>Contact</a>
         </div>
@@ -113,8 +113,9 @@ export const CraftFooter = memo(() => {
             <div className="cc-label-sm text-[color:var(--ds-fg-muted)] mb-5">Product</div>
             <ul className="space-y-3 cc-font-editorial text-lg">
               <li><a onClick={(e) => { e.preventDefault(); navigate("/auth"); }} href="/auth" className="cc-link">Get started</a></li>
-              <li><a onClick={(e) => { e.preventDefault(); navigate("/playground"); }} href="/playground" className="cc-link">Playground</a></li>
-              <li><a onClick={(e) => { e.preventDefault(); navigate("/intelligence"); }} href="/intelligence" className="cc-link">Dashboard</a></li>
+              <li><a onClick={(e) => { e.preventDefault(); navigate("/tools"); }} href="/tools" className="cc-link">All tools</a></li>
+              <li><a onClick={(e) => { e.preventDefault(); navigate("/builder"); }} href="/builder" className="cc-link">Résumé builder</a></li>
+              <li><a onClick={(e) => { e.preventDefault(); navigate("/tools/ats-checker"); }} href="/tools/ats-checker" className="cc-link">ATS checker</a></li>
             </ul>
           </div>
 
@@ -131,10 +132,7 @@ export const CraftFooter = memo(() => {
 
         <div className="mt-16 pt-6 border-t border-[color:var(--ds-border)] flex flex-col md:flex-row items-center justify-between gap-3 cc-label-sm text-[color:var(--ds-fg-muted)]">
           <div>© 2026 Faircopy — Adelaide, SA</div>
-          <div className="flex items-center gap-2">
-            <span className="cc-blink text-[color:var(--cc-rust)]">●</span>
-            <span>Live · Updated often</span>
-          </div>
+          <div>Free to start · No card needed</div>
         </div>
       </div>
     </footer>

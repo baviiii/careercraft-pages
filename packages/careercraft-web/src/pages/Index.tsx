@@ -1,5 +1,5 @@
 import { useEffect, useState, memo, useRef, ReactNode, lazy, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { resolvePostAuthDestination } from "@/lib/postAuthDestination";
 import { Session } from "@supabase/supabase-js";
@@ -11,7 +11,6 @@ import {
   CraftSectionHead,
   CraftFleuron,
 } from "@/components/landing/CraftShell";
-import { WordsPullUp } from "@/components/ui/prisma-hero";
 import { publicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
 
 /* The 3D meadow is heavy (three.js) — load it on demand so it never weighs
@@ -96,7 +95,74 @@ const SkySection = ({
   </section>
 );
 
+/* The meadow is three.js (~140 KB) far down the page. It loads when the
+   reader scrolls within a screen or so of it, not with the page. */
+const MEADOW_PLACEHOLDER = (
+  <div
+    style={{ height: "min(90vh, 860px)", minHeight: 540, background: "linear-gradient(180deg,#b9cdd6 0%,#f0e2c0 45%,#cdb86f 100%)" }}
+  />
+);
+
+const WhenNear = ({ children, placeholder }: { children: ReactNode; placeholder: ReactNode }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const near = useInView(ref, { once: true, margin: "900px 0px" });
+  return <div ref={ref}>{near ? children : placeholder}</div>;
+};
+
 /* ─────────────────────────── HERO ─────────────────────────── */
+
+/* The footage's first frame, painted straight away (it's in the prerendered
+   HTML), with the 10-second loop faded in over it once the page has finished
+   loading. The loop is ~340 KB, self-hosted; it used to be a 16 MB file on
+   the video tool's CDN, fetched on every visit, phones included. Phones,
+   data-saver connections and anyone who's asked for less motion keep the
+   still frame. */
+const HeroBackdrop = () => {
+  const [play, setPlay] = useState(false);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const lessMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const small = window.matchMedia("(max-width: 767px)").matches;
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+    if (lessMotion || small || saveData) return;
+    const start = () => setPlay(true);
+    if (document.readyState === "complete") {
+      const id = window.setTimeout(start, 200);
+      return () => window.clearTimeout(id);
+    }
+    window.addEventListener("load", start, { once: true });
+    return () => window.removeEventListener("load", start);
+  }, []);
+  return (
+    <>
+      <img
+        src="/media/hero-poster.webp"
+        srcSet="/media/hero-poster-800.webp 800w, /media/hero-poster.webp 1600w"
+        sizes="100vw"
+        alt=""
+        width={1600}
+        height={895}
+        decoding="async"
+        {...{ fetchpriority: "high" }}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      {play && (
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          aria-hidden
+          onCanPlay={() => setReady(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${ready ? "opacity-100" : "opacity-0"}`}
+        >
+          <source src="/media/hero.webm" type="video/webm" />
+          <source src="/media/hero.mp4" type="video/mp4" />
+        </video>
+      )}
+    </>
+  );
+};
 
 /* Cinematic, full-bleed opening — a centred statement over the live, painterly
    footage. The words pull up into place on load; layered ink washes keep the
@@ -106,15 +172,7 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
     <section className="relative h-[100svh] min-h-[640px] w-full bg-[color:var(--cc-ink)]">
       <div className="relative h-full w-full overflow-hidden">
 
-        {/* Live background video */}
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="absolute inset-0 h-full w-full object-cover"
-          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_170732_8a9ccda6-5cff-4628-b164-059c500a2b41.mp4"
-        />
+        <HeroBackdrop />
 
         {/* Legibility — vertical ink wash + soft centre veil */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#0E0C0A]/45 via-[#0E0C0A]/15 to-[#0E0C0A]/80" />
@@ -130,33 +188,27 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
             className="cc-font-display italic font-medium leading-[0.85] tracking-[-0.04em] text-[18vw] sm:text-[14vw] md:text-[12vw] lg:text-[10vw]"
             style={{ color: HERO_CREAM, textShadow: "0 2px 50px rgba(0,0,0,0.5)" }}
           >
-            <div className="flex justify-center"><WordsPullUp text="Faircopy" immediate /></div>
+            <div className="flex justify-center">Faircopy</div>
           </h1>
 
-          <motion.p
-            initial={{ y: 16, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          {/* No entrance fades in the hero: the text is the first thing anyone
+              sees, and it's already in the HTML. Fading it in made the page
+              look blank for three seconds and counted as a slow load. */}
+          <p
             className="mt-5 cc-font-display text-3xl sm:text-4xl md:text-5xl leading-[0.95] tracking-tight"
             style={{ color: HERO_CREAM, textShadow: "0 2px 36px rgba(0,0,0,0.45)" }}
           >
             Your next <span className="cc-italic-wonk">move.</span>
-          </motion.p>
+          </p>
 
-          <motion.p
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          <p
             className="mt-6 max-w-2xl cc-font-editorial text-xl leading-snug sm:text-2xl"
             style={{ color: "rgba(225, 224, 204, 0.92)", textShadow: "0 1px 24px rgba(0,0,0,0.6)" }}
           >
             Work out where you're headed, get ready for the market, then go for the role. One calm workspace for the Australian job market.
-          </motion.p>
+          </p>
 
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.75, ease: [0.16, 1, 0.3, 1] }}
+          <div
             className="mt-9 flex flex-col items-center gap-4 sm:flex-row"
           >
             {session ? (
@@ -192,7 +244,7 @@ const Hero = memo(({ session, navigate }: { session: Session | null; navigate: (
                 </button>
               </>
             )}
-          </motion.div>
+          </div>
 
         </div>
       </div>
@@ -479,7 +531,7 @@ const Toolkit = memo(() => (
     <div className="mt-16 md:mt-20 space-y-16 md:space-y-20">
       {stages.map((stage) => (
         <div key={stage.n}>
-          <h3 className="border-t border-[color:var(--cc-ink)]/40 pt-6 flex items-baseline gap-4">
+          <h3 className="border-t border-[rgba(20,22,26,0.4)] pt-6 flex items-baseline gap-4">
             <span className="cc-label-sm cc-tabular text-[color:var(--cc-rust)]">{stage.n}</span>
             <span className="cc-font-display text-2xl md:text-3xl tracking-tight text-[color:var(--cc-ink)]">{stage.name}</span>
           </h3>
@@ -490,6 +542,13 @@ const Toolkit = memo(() => (
           </div>
         </div>
       ))}
+    </div>
+
+    {/* Each tool has its own page: what it's for, how it works, its limits. */}
+    <div className="mt-14 md:mt-16">
+      <Link to="/tools" className="cc-btn cc-btn-ghost">
+        See how each tool works <ArrowUpRight className="w-4 h-4 cc-arrow-up" />
+      </Link>
     </div>
   </SkySection>
 ));
@@ -565,7 +624,7 @@ const Subjects = memo(() => (
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.7, delay: (i % 2) * 0.1, ease: [0.2, 0.8, 0.2, 1] }}
-          className="border-t border-[color:var(--cc-ink)]/40 pt-8 flex items-start gap-8"
+          className="border-t border-[rgba(20,22,26,0.4)] pt-8 flex items-start gap-8"
         >
           <div className="cc-font-display italic text-7xl md:text-8xl text-[color:var(--cc-rust)] leading-none shrink-0">
             {s.id}
@@ -589,13 +648,13 @@ const CTA = memo(({ session, navigate }: { session: Session | null; navigate: (t
   return (
     <section className="relative overflow-hidden py-28 md:py-36 border-y border-[color:var(--cc-hair)]">
       {/* A soft, faded echo of the hero footage to gently bookend the page */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
+      {/* The hero's first frame, faded: the same bookend without a second video. */}
+      <img
+        src="/media/hero-poster-800.webp"
+        alt=""
+        loading="lazy"
+        decoding="async"
         className="absolute inset-0 h-full w-full object-cover opacity-30"
-        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_170732_8a9ccda6-5cff-4628-b164-059c500a2b41.mp4"
       />
       <div
         className="absolute inset-0"
@@ -694,15 +753,11 @@ const Index = memo(() => {
       <Toolkit />
       <Method />
       <Subjects />
-      <Suspense
-        fallback={
-          <div
-            style={{ height: "min(90vh, 860px)", minHeight: 540, background: "linear-gradient(180deg,#b9cdd6 0%,#f0e2c0 45%,#cdb86f 100%)" }}
-          />
-        }
-      >
-        <MeadowInterlude />
-      </Suspense>
+      <WhenNear placeholder={MEADOW_PLACEHOLDER}>
+        <Suspense fallback={MEADOW_PLACEHOLDER}>
+          <MeadowInterlude />
+        </Suspense>
+      </WhenNear>
       <CTA session={session} navigate={navigate} />
       <CraftFooter />
     </main>

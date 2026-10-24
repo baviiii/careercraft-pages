@@ -1,4 +1,6 @@
-const MARK_SRC = "/brand/faircopy-mark.png";
+/* 128px: crisp up to the 56px it is shown at, on 2x screens. The 512px PNG stays for
+   structured data and anywhere it is shown large. */
+const MARK_SRC = "/brand/faircopy-mark-128.webp";
 
 type MarkProps = {
   className?: string;

@@ -92,7 +92,7 @@ export const UploadStep = ({
                 : "border-[color:var(--cc-hair-strong)] bg-white hover:border-[color:var(--cc-rust)]"
             }`}
           >
-            <input {...getInputProps()} />
+            <input {...getInputProps()} aria-label="Upload your résumé: PDF, Word, a photo or a text file" />
             {isProcessing ? (
               <div>
                 <div className="flex justify-center">

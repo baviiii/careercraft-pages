@@ -17,7 +17,7 @@ import { lazy, Suspense } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
 import { CraftSpinner } from "@/components/craft/CraftSpinner";
-import { PDF_DENSITIES, type PdfDensity } from "@/lib/pdfExport";
+import { PDF_DENSITIES, type PdfDensity } from "@/lib/pdfDensity";
 
 // pdfjs is heavy — load the viewer only when this step is reached.
 const PdfBlobViewer = lazy(() =>

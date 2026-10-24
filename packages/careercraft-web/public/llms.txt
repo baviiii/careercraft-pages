@@ -8,18 +8,28 @@ Faircopy reads résumés the Australian way: two pages and a referees section ar
 
 - Résumé builder: start from an existing résumé (PDF, Word or a photo) or from nothing, edit with a live preview, choose from 25 templates and export a print-ready PDF. No account is needed to start.
 - ATS check: paste a job ad and get a compatibility score with the reasoning shown — matched and missing keywords, which requirements are met, and red flags.
-- Bullet rewrite: rewrite résumé lines against a specific job; nothing changes until the user approves it.
+- Bullet rewrite: rewrite one résumé line at a time, steered by the job ad if given; the user checks and copies the result.
 - Cover letters: drafted from the user's résumé and the job ad, then edited and saved.
 - Job tracker: every application in one place, moved through stages.
-- Interview practice: role-specific questions, a practice room and a debrief.
+- Interview practice: phone screen, behavioural, technical or full interviews; each answer scored against STAR with the reasoning shown; story library with APS and NSW capability frameworks; a selection-criteria drafter.
 - Career coach: questions about roles, pathways and the market, answered with sources attached. Deepest on South Australia.
-- Browse jobs: live Australian listings with in-demand skills and pay.
-- Market news: hiring, pay and demand by sector.
+- Browse jobs: live Australian listings from Adzuna, sorted by fit to the user's profile, saved to the tracker in one tap.
+- Market news: work news from Australian outlets ranked for the user's role, plus live ad counts and advertised pay for any role from Adzuna.
 
 ## Pages
 
 - [Home](https://www.faircopy.au/)
 - [Résumé builder](https://www.faircopy.au/builder)
+- [All tools](https://www.faircopy.au/tools)
+- [Résumé builder: how it works](https://www.faircopy.au/tools/resume-builder)
+- [Bullet rewrite: how it works](https://www.faircopy.au/tools/bullet-rewrite)
+- [Cover letters: how it works](https://www.faircopy.au/tools/cover-letters)
+- [ATS checker: how it works](https://www.faircopy.au/tools/ats-checker)
+- [Job tracker: how it works](https://www.faircopy.au/tools/job-tracker)
+- [Interview practice: how it works](https://www.faircopy.au/tools/interview-practice)
+- [Career coach: how it works](https://www.faircopy.au/tools/career-coach)
+- [Market news: how it works](https://www.faircopy.au/tools/market-news)
+- [Browse jobs: how it works](https://www.faircopy.au/tools/browse-jobs)
 - [About](https://www.faircopy.au/about)
 - [Contact](https://www.faircopy.au/contact)
 - [Privacy policy](https://www.faircopy.au/privacy)

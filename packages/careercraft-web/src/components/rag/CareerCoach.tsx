@@ -15,7 +15,6 @@ import { supabase } from "@/integrations/supabase/client";
  * steps it actually took, and the answer streams in as it is written.
  */
 import { useCoachChat, type ThinkingStep } from "@/hooks/useCoachChat";
-import { exportConversationToPDF } from "@/lib/pdfExport";
 import {
   Send,
   Square,
@@ -46,6 +45,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 interface SuggestedQuestion {
   text: string;
@@ -594,7 +594,19 @@ export default function CareerCoach() {
     setTimeout(() => setCopiedId(null), 2000);
   }, []);
 
-  const handleExportPDF = useCallback(() => {
+  const handleExportPDF = useCallback(async () => {
+    // The PDF renderer is large; it loads only when someone exports.
+    let exportConversationToPDF: typeof import("@/lib/pdfExport").exportConversationToPDF;
+    try {
+      ({ exportConversationToPDF } = await import("@/lib/pdfExport"));
+    } catch {
+      toast({
+        title: "Couldn't export the conversation",
+        description: "Check your connection, or refresh the page and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     exportConversationToPDF(messages, {
       includeSources: true,
       includeMetadata: true,

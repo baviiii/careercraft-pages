@@ -21,15 +21,9 @@ import { setPdfDensityScale } from "./pdf/primitives";
 import { ResumeDocument } from "./pdf/ResumeDocument";
 import { hasPdfTemplate } from "./pdf/templates";
 
-/** Layout density — same paper, tighter type/spacing at each step down.
-    The lever for "this should fit on 2 pages". */
-export type PdfDensity = "normal" | "snug" | "compact";
+import type { PdfDensity } from "./pdfDensity";
 
-export const PDF_DENSITIES: Array<{ id: PdfDensity; label: string }> = [
-  { id: "normal", label: "Normal" },
-  { id: "snug", label: "Snug" },
-  { id: "compact", label: "Compact" },
-];
+export { PDF_DENSITIES, type PdfDensity } from "./pdfDensity";
 
 const DENSITY_SCALE: Record<PdfDensity, number> = {
   normal: 1,

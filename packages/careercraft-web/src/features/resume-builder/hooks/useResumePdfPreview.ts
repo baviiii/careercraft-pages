@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react";
 
-import { renderResumePdfBlob, type PdfDensity } from "@/lib/pdfExport";
+import type { PdfDensity } from "@/lib/pdfDensity";
 
 import type { ResumeData, TemplateId } from "../types";
 
@@ -47,6 +47,9 @@ export function useResumePdfPreview({
     // Debounce so typing doesn't queue a render per keystroke.
     const timer = setTimeout(async () => {
       try {
+        // Loaded on the first preview rather than with the builder, so the
+        // builder's first screen doesn't wait for the PDF renderer.
+        const { renderResumePdfBlob } = await import("@/lib/pdfExport");
         const { blob, pageCount, usedFallbackTemplate } = await renderResumePdfBlob({
           resume: {
             name: resumeDisplayName || "resume",

@@ -83,6 +83,7 @@ export const CraftAppHeader = memo(function CraftAppHeader({
         <div className="max-w-[1400px] mx-auto px-6 md:px-10 h-14 flex items-center justify-between gap-4">
           <button
             onClick={() => navigate(backTo)}
+            aria-label={backLabel}
             className="inline-flex items-center gap-2 rounded-full px-2 py-1 -ml-2 cc-font-sans text-[14px] font-medium text-[color:var(--cc-ink-soft)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -92,7 +93,7 @@ export const CraftAppHeader = memo(function CraftAppHeader({
           <div className="flex items-center gap-3">
             {rightSlot}
             {ctaLabel && onCta && (
-              <button type="button" onClick={onCta} className="cc-action cc-action--sm">
+              <button type="button" onClick={onCta} aria-label={ctaLabel} className="cc-action cc-action--sm">
                 <span className="hidden sm:inline">{ctaLabel}</span>
                 <ArrowUpRight className="h-4 w-4" />
               </button>

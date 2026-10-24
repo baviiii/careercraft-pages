@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { type Toast } from "@/hooks/use-toast";
-import { exportResumeToPdf, type PdfDensity } from "@/lib/pdfExport";
+import type { PdfDensity } from "@/lib/pdfDensity";
 
 import type { ResumeData, TemplateId } from "../types";
 
@@ -27,6 +27,8 @@ export function useResumeExport({
   const exportToPDF = useCallback(async () => {
     setIsExporting(true);
     try {
+      // The PDF renderer is large; it loads the first time someone downloads.
+      const { exportResumeToPdf } = await import("@/lib/pdfExport");
       const { pageCount } = await exportResumeToPdf({
         resume: {
           name: resumeDisplayName || "resume",

@@ -2,11 +2,7 @@ import { type Dispatch, type SetStateAction, useCallback, useState } from "react
 
 import { useSecureResumeUpload } from "@/hooks/useSecurity";
 import { type Toast } from "@/hooks/use-toast";
-import {
-  type AIResumeData,
-  extractResumeFromFile,
-  parseResumeTextWithAI,
-} from "@/lib/resumeParser";
+import type { AIResumeData } from "@/lib/resumeParseApi";
 import { auditFileOperation } from "@/lib/security/auditLog";
 
 import { aiDataToResumeData, parseTextToResumeData } from "../lib/resumeData";
@@ -75,6 +71,8 @@ export function useResumeImport({
       setUploadProgress(20);
       try {
         setUploadProgress(40);
+        // Text only: the small parse module, not the file readers (pdf.js, mammoth).
+        const { parseResumeTextWithAI } = await import("@/lib/resumeParseApi");
         const aiParsed = await parseResumeTextWithAI(text, "pasted-resume.txt", "text/plain");
         const data = aiDataToResumeData(aiParsed);
         toast({
@@ -170,6 +168,7 @@ export function useResumeImport({
           return;
         }
 
+        const { extractResumeFromFile } = await import("@/lib/resumeParser");
         const aiParsed = await extractResumeFromFile(file, (p) => setUploadProgress(p));
         const data = aiDataToResumeData(aiParsed);
         toast({

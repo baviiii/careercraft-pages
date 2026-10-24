@@ -25,7 +25,7 @@ import { CraftSpinner } from "@/components/craft/CraftSpinner";
 import { ScaledResumeFrame } from "@/components/templates/ScaledResumeFrame";
 import type { TemplateData } from "@/components/templates/types";
 import { getTemplate } from "@/lib/templateMap";
-import type { PdfDensity } from "@/lib/pdfExport";
+import type { PdfDensity } from "@/lib/pdfDensity";
 
 // pdfjs is heavy — load the viewer only when the "Pages" proof is used.
 const PdfBlobViewer = lazy(() =>

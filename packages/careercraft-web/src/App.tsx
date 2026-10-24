@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { AboutUs, ContactUs, Index, Privacy, ResumeBuilder, Terms, ToolRoute, ToolsIndex } from "./publicPages";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigationType } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { applyStoredAccent } from "@/lib/personaTheme";
 
@@ -12,7 +13,6 @@ import { applyStoredAccent } from "@/lib/personaTheme";
 applyStoredAccent();
 
 // Lazy load all pages for code splitting
-const Index = lazy(() => import("./pages/Index"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -21,7 +21,6 @@ const Analysis = lazy(() => import("./features/analysis/AnalysisPage"));
 const Rewrite = lazy(() => import("./pages/Rewrite"));
 const CoverLetter = lazy(() => import("./features/cover-letter/CoverLetterPage"));
 const JobTracker = lazy(() => import("./features/job-tracker/JobTrackerPage"));
-const ResumeBuilder = lazy(() => import("./features/resume-builder/ResumeBuilderPage"));
 const MyResumes = lazy(() => import("./features/my-resumes/MyResumesPage"));
 const InterviewPrep = lazy(() => import("./pages/InterviewPrep"));
 const InterviewRoom = lazy(() => import("./features/interview/InterviewRoomPage"));
@@ -34,10 +33,6 @@ const CareerExplorer = lazy(() => import("./pages/CareerExplorer"));
 const MarketTrends = lazy(() => import("./pages/MarketTrends"));
 const PolicyVisualizer = lazy(() => import("./pages/PolicyVisualizer"));
 const CareerCoachPage = lazy(() => import("./pages/CareerCoachPage"));
-const ContactUs = lazy(() => import("./pages/ContactUs"));
-const AboutUs = lazy(() => import("./pages/AboutUs"));
-const Privacy = lazy(() => import("./pages/Privacy"));
-const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const SaveJob = lazy(() => import("./pages/SaveJob"));
 const TryUs = lazy(() => import("./pages/TryUs"));
@@ -105,12 +100,26 @@ function ProtectedLayout() {
   );
 }
 
+/* A link to another page starts at its top. Without this the window kept its
+   old scroll position, so a link at the bottom of a long page landed at the
+   bottom of the next one. Back and forward (POP) are left to the browser, and
+   links to an #anchor scroll themselves. */
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+  const type = useNavigationType();
+  useEffect(() => {
+    if (type !== "POP" && !hash) window.scrollTo(0, 0);
+  }, [pathname, hash, type]);
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider delayDuration={0}>
       <Toaster />
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <ScrollToTop />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -122,6 +131,8 @@ const App = () => (
             <Route path="/about" element={<AboutUs />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/tools" element={<ToolsIndex />} />
+            <Route path="/tools/:slug" element={<ToolRoute />} />
             {/* Where the "Save to Faircopy" extension lands. Public so a signed-out
                 user keeps the job through sign-in; see pages/SaveJob.tsx. */}
             <Route path="/save-job" element={<SaveJob />} />

@@ -26,7 +26,9 @@ export const StepNavigator = ({ currentStep, onStepClick }: StepNavigatorProps) 
             {i > 0 && (
               <ChevronRight className="hidden h-4 w-4 shrink-0 text-[color:var(--cc-hair-strong)] sm:block" aria-hidden />
             )}
-            <li className="min-w-0 flex-1">
+            {/* On a phone four names don't fit, so only the current step
+                shows its name; the others keep theirs for screen readers. */}
+            <li className={`min-w-0 sm:flex-1 ${isActive ? "flex-[3]" : "flex-1"}`}>
               <button
                 type="button"
                 onClick={() => isReachable && onStepClick(i)}
@@ -50,9 +52,9 @@ export const StepNavigator = ({ currentStep, onStepClick }: StepNavigatorProps) 
                 </span>
                 <span className="min-w-0">
                   <span
-                    className={`block cc-font-display text-[15px] font-semibold leading-tight ${
-                      isReachable ? "text-[color:var(--cc-ink)]" : "text-[color:var(--cc-ash)]"
-                    }`}
+                    className={`cc-font-display text-[15px] font-semibold leading-tight ${
+                      isActive ? "block truncate" : "sr-only sm:not-sr-only sm:block"
+                    } ${isReachable ? "text-[color:var(--cc-ink)]" : "text-[color:var(--cc-ash)]"}`}
                   >
                     {step.title}
                   </span>

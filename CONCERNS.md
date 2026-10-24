@@ -518,3 +518,38 @@ attachSimilarity's batch size before returning more than 50.
 
 **Not urgent because:** none of these show anything wrong to a user.
 
+
+---
+
+## 17. Bullet rewrite can add a number that wasn't in the bullet
+
+**Found:** 2026-10-19, checking claims for the public tool pages.
+
+`supabase/functions/rewrite-resume/index.ts` (BULLET_SYSTEM) tells the model
+"Results can be approximate: '~20 users', 'around 30%'". Fed "Responsible for
+wound care", it may come back with a percentage the person never achieved.
+The tool page (/tools/bullet-rewrite) says so plainly and tells people to
+check every number, rather than claiming it never invents figures.
+
+**Not urgent because:** the person reviews and copies every rewrite by hand,
+and the page is honest about it.
+
+**Decide later:** drop the approximate-results line, or have the rewrite mark
+an invented figure (e.g. "[add your number]") instead of filling one in.
+
+---
+
+## 18. Signed-in pages still load the PDF renderer and pdf.js up front
+
+**Found:** 2026-10-21, speed pass on the public pages.
+
+The résumé builder now loads `lib/pdfExport` (~830 KB gzipped) and
+`lib/resumeParser` (pdf.js + mammoth, ~130 KB) only when they're used.
+AnalysisPage, CoverLetterPage, MyResumesPage and OnboardingPage still import
+them statically, so those pages download both on first open.
+
+**Not urgent because:** they're behind sign-in, so they don't affect search
+or first impressions, and the files are cached after the first visit.
+
+**Decide later:** the same change as the builder: `await import(...)` inside
+the upload, parse and export handlers.

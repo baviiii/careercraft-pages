@@ -30,6 +30,56 @@
       "path": "/terms",
       "title": "Terms of use · Faircopy",
       "description": "The agreement between you and Faircopy, in plain Australian English."
+    },
+    {
+      "path": "/tools",
+      "title": "Tools for the Australian job search · Faircopy",
+      "description": "Résumé builder, ATS checker, cover letters, job tracker, interview practice and more, written for how hiring works in Australia. See how each one works."
+    },
+    {
+      "path": "/tools/resume-builder",
+      "title": "Free résumé builder for Australian jobs · Faircopy",
+      "description": "Paste your résumé or start blank, edit with a live preview, pick from 25 templates and export a PDF. Written the Australian way. No account to start."
+    },
+    {
+      "path": "/tools/bullet-rewrite",
+      "title": "Résumé bullet point rewriter · Faircopy",
+      "description": "Paste a weak résumé bullet and get a plain, specific rewrite, steered by the job ad if you add one. Australian English, in the language of your field."
+    },
+    {
+      "path": "/tools/cover-letters",
+      "title": "Cover letter writer for Australian jobs · Faircopy",
+      "description": "Write a cover letter from your own résumé and the job ad, in Australian English. Pick a tone, edit every line, and save it to the job it's for."
+    },
+    {
+      "path": "/tools/ats-checker",
+      "title": "ATS résumé checker for Australian jobs · Faircopy",
+      "description": "Check your résumé against a job ad: a match score with reasons, keyword gaps, requirements met and missed, red flags and fixes. Built for Australian résumés."
+    },
+    {
+      "path": "/tools/job-tracker",
+      "title": "Job application tracker · Faircopy",
+      "description": "Keep every job application on one board, from saved to offer. See what's waiting on you and when to follow up, with the résumé check and letter one tap away."
+    },
+    {
+      "path": "/tools/interview-practice",
+      "title": "Interview practice with scored answers · Faircopy",
+      "description": "Practise phone screens, behavioural, technical and full interviews. See how each answer is scored against STAR, then try again. APS and NSW frameworks too."
+    },
+    {
+      "path": "/tools/career-coach",
+      "title": "Career coach with cited answers · Faircopy",
+      "description": "Ask about roles, pathways, qualifications and where the work is. Every answer shows the published documents behind it. Deepest on South Australia."
+    },
+    {
+      "path": "/tools/market-news",
+      "title": "Australian job market news, sorted for you · Faircopy",
+      "description": "Work news from Australian outlets, ranked by how close it is to your role, plus live ad numbers and advertised pay for any role across Australia."
+    },
+    {
+      "path": "/tools/browse-jobs",
+      "title": "Search Australian jobs by fit · Faircopy",
+      "description": "Search live Australian job ads, sorted by how well they fit your profile. Filter by hours, remote, pay listed or grad roles, and save to your tracker."
     }
   ]
 }

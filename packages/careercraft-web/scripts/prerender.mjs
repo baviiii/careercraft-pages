@@ -68,8 +68,21 @@ function page(p) {
 
   const body = render(p.path);
   if (body) html = swap(html, /(<div id="root">)(<\/div>)/, body, '<div id="root">');
+  // Tells main.tsx which address this HTML was rendered for, so it only
+  // waits to take over when the HTML on screen matches the URL.
+  html = html.replace('<div id="root">', `<div id="root" data-prerendered="${p.path}">`);
   return { html, rendered: Boolean(body) };
 }
+
+/* Every other address (the signed-in app, /upload, a mistyped link) is
+   served this: the bare shell, no page text, kept out of search. Before,
+   vercel.json fell back to index.html, which by then held the homepage, so
+   opening /dashboard showed the homepage until the app took over. */
+writeFileSync(
+  join(dist, "app.html"),
+  shell.replace("</head>", `  <meta name="robots" content="noindex" />
+  </head>`),
+);
 
 for (const p of pages) {
   const out = p.path === "/" ? join(dist, "index.html") : join(dist, p.path.slice(1), "index.html");

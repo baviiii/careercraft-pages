@@ -21,7 +21,7 @@ import { useDropzone } from "react-dropzone";
 import { CraftButton, CraftDialog } from "@/components/craft/AppPrimitives";
 import { CraftSpinner } from "@/components/craft/CraftSpinner";
 import { useToast } from "@/hooks/use-toast";
-import { type AIResumeData, parseResumeWithAI } from "@/lib/resumeParser";
+import type { AIResumeData } from "@/lib/resumeParser";
 
 interface AIImportDialogProps {
   open: boolean;
@@ -59,6 +59,7 @@ export const AIImportDialog = ({
     setIsProcessing(true);
     setProgress(0);
     try {
+      const { parseResumeWithAI } = await import("@/lib/resumeParser");
       const ai = await parseResumeWithAI(file, (p) => setProgress(p));
       setParsed(ai);
       setPhase("review");

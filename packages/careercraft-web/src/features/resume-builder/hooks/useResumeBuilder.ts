@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePersonalization } from "@/hooks/usePersonalization";
 import { supabase } from "@/integrations/supabase/client";
 import { rewriteBullet } from "@/lib/aiRewriter";
-import { type PdfDensity } from "@/lib/pdfExport";
+import { type PdfDensity } from "@/lib/pdfDensity";
 import { type AIResumeData } from "@/lib/resumeParser";
 
 import { claimGuestDraft } from "../lib/claimGuestDraft";
@@ -418,8 +418,14 @@ export function useResumeBuilder(dialogs: {
   // Layout density for the PDF (remembered across sessions — most users
   // settle on one that makes their resume fit and keep it).
   const [pdfDensity, setPdfDensityState] = useState<PdfDensity>(() => {
-    const stored = window.localStorage.getItem("cc-pdf-density");
-    return stored === "snug" || stored === "compact" ? stored : "normal";
+    // Guarded: storage can be blocked (some private modes), and the page is
+    // also rendered at build time, where there is no window at all.
+    try {
+      const stored = typeof window === "undefined" ? null : window.localStorage.getItem("cc-pdf-density");
+      return stored === "snug" || stored === "compact" ? stored : "normal";
+    } catch {
+      return "normal";
+    }
   });
   const setPdfDensity = useCallback((density: PdfDensity) => {
     setPdfDensityState(density);
