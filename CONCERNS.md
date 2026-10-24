@@ -426,7 +426,7 @@ something breaks, in the browser or the edge functions.
 - Track about ten moments: signed up, finished onboarding, built a résumé,
   exported a PDF, ran an ATS check, wrote a cover letter, saved a job, moved
   a job, started interview practice, used the coach.
-- Gotchas: allow their domains in the CSP in both vercel.json files or they're
+- Gotchas: allow their domains in the CSP in vercel.json (the root one; the package copy was removed 2026-10-24) or they're
   silently blocked; say in the privacy policy that both store data in the US
   or EU; mask résumé text and form inputs in session replays.
 - Roughly half a day to a day for both.
@@ -509,7 +509,7 @@ attachSimilarity's batch size before returning more than 50.
   `fetch_news_legacy`, `get_categories`, `get_salary_data` have no caller in the
   web app. `fetch_au_jobs` still mixes Remotive/Arbeitnow listings and feeds
   useJobCounts / CareerExplorer / MarketTrends.
-- **CSP `connect-src`** in vercel.json still lists currentsapi, remotive and
+- **CSP `connect-src`** in the root vercel.json still lists currentsapi, remotive and
   arbeitnow, which the browser no longer calls.
 - **Stories are re-embedded on every request.** fetch_news sends each page
   of stories (30) to Horus for "closeness to you" every time, though stored
