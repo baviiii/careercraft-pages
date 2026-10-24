@@ -2,10 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Check, FileText, Loader2, MessageSquare, Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import {
-  extractResumeFromFile,
-  formatResumeDataAsText,
-} from '@/lib/resumeParser';
+// The file readers (pdf.js, mammoth) load only when a file is dropped.
+import { formatResumeDataAsText } from '@/lib/resumeParseApi';
 import type { OnboardingMode } from './types';
 import { SectionIcon } from './ui';
 
@@ -36,6 +34,7 @@ export function ChoosePathStep({ onAnalyze, onSkip, busy = false }: Props) {
       setResumeFile(file);
       setExtracting(true);
       try {
+        const { extractResumeFromFile } = await import('@/lib/resumeParser');
         const aiData = await extractResumeFromFile(file, () => {});
         const extracted = formatResumeDataAsText(aiData);
         setResumeText(extracted);

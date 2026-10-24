@@ -14,12 +14,8 @@ import {
   runATSAIAnalysis,
   type ATSAIAnalysis,
 } from "@/lib/atsAIAnalyzer";
-import {
-  parseResumeTextWithAI,
-  parseResumeWithAI,
-  formatResumeDataAsText,
-  type AIResumeData,
-} from "@/lib/resumeParser";
+// Text helpers only; the file readers (pdf.js, mammoth) load on upload.
+import { formatResumeDataAsText, parseResumeTextWithAI, type AIResumeData } from "@/lib/resumeParseApi";
 
 import type {
   AnalysisStep,
@@ -234,6 +230,7 @@ export function useAnalysis() {
       setIsUploading(true);
       setResumeSource("upload");
       try {
+        const { parseResumeWithAI } = await import("@/lib/resumeParser");
         const aiData = await parseResumeWithAI(file);
         setParsedResumeData(aiData);
         const text = formatResumeDataAsText(aiData);

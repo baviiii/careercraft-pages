@@ -71,15 +71,7 @@
     { "source": "/privacy", "destination": "/privacy/index.html" },
     { "source": "/terms", "destination": "/terms/index.html" },
     { "source": "/tools", "destination": "/tools/index.html" },
-    { "source": "/tools/resume-builder", "destination": "/tools/resume-builder/index.html" },
-    { "source": "/tools/bullet-rewrite", "destination": "/tools/bullet-rewrite/index.html" },
-    { "source": "/tools/cover-letters", "destination": "/tools/cover-letters/index.html" },
-    { "source": "/tools/ats-checker", "destination": "/tools/ats-checker/index.html" },
-    { "source": "/tools/job-tracker", "destination": "/tools/job-tracker/index.html" },
-    { "source": "/tools/interview-practice", "destination": "/tools/interview-practice/index.html" },
-    { "source": "/tools/career-coach", "destination": "/tools/career-coach/index.html" },
-    { "source": "/tools/market-news", "destination": "/tools/market-news/index.html" },
-    { "source": "/tools/browse-jobs", "destination": "/tools/browse-jobs/index.html" },
+    { "source": "/tools/:slug", "destination": "/tools/:slug/index.html" },
     {
       "source": "/((?!api/).*)",
       "destination": "/app.html"

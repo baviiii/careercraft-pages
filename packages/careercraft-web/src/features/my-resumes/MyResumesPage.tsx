@@ -7,7 +7,6 @@ import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
 import { CraftEmpty } from "@/components/craft/AppPrimitives";
 import { CraftSpinner } from "@/components/craft/CraftSpinner";
 import { useToast } from "@/hooks/use-toast";
-import { exportResumeToPdf } from "@/lib/pdfExport";
 
 import { ResumeCard } from "./components/ResumeCard";
 import { ResumeFilterBar } from "./components/ResumeFilterBar";
@@ -58,6 +57,8 @@ export default function MyResumesPage() {
   const downloadPdf = async (r: Resume) => {
     setIsExporting(true);
     try {
+      // The PDF renderer (~830 KB) loads on the first download, not with the page.
+      const { exportResumeToPdf } = await import("@/lib/pdfExport");
       const { pageCount } = await exportResumeToPdf({ resume: r });
       toast({
         title: "PDF downloaded",

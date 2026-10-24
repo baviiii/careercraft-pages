@@ -1,4 +1,4 @@
-import { formatResumeDataAsText, type AIResumeData } from "@/lib/resumeParser";
+import { formatResumeDataAsText, type AIResumeData } from "@/lib/resumeParseApi";
 
 /* resumes.content is builder JSON for most rows, a JSON string for some, and
    plain text for old pasted ones. Same reading as the ATS page

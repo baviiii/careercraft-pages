@@ -1,6 +1,6 @@
 import { useInView } from "framer-motion";
 import { RotateCcw } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * A short recording of the tool in use, as an animated WebP that plays once
@@ -26,10 +26,30 @@ export const ToolClip = ({
 }) => {
   const frame = useRef<HTMLDivElement>(null);
   const seen = useInView(frame, { once: true, amount: 0.5 });
-  // A new URL makes the browser start the animation from the top.
   const [run, setRun] = useState(0);
+  const [replay, setReplay] = useState<string | null>(null);
+  const blobUrl = useRef<string | null>(null);
   const playing = seen || run > 0;
-  const clip = run ? `${src}?play=${run}` : src;
+  const clip = replay ?? src;
+
+  useEffect(() => () => {
+    if (blobUrl.current) URL.revokeObjectURL(blobUrl.current);
+  }, []);
+
+  /* A new URL makes the browser start the animation from the top. A blob URL
+     made from the cached file gives one without downloading it again (a
+     ?query would miss the cache and re-download the whole clip). */
+  const playAgain = async () => {
+    try {
+      const blob = await (await fetch(src)).blob();
+      if (blobUrl.current) URL.revokeObjectURL(blobUrl.current);
+      blobUrl.current = URL.createObjectURL(blob);
+      setReplay(blobUrl.current);
+    } catch {
+      /* the remount below still shows the clip */
+    }
+    setRun((n) => n + 1);
+  };
 
   return (
     <figure className="cc-tl-shot">
@@ -58,9 +78,11 @@ export const ToolClip = ({
       <figcaption className="cc-tl-shot__caption">
         <span className="cc-tl-shot__sample">Sample data</span>
         <span>{caption}</span>
-        <button type="button" onClick={() => setRun((n) => n + 1)} className="cc-tl-replay">
-          <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Play again
-        </button>
+        {playing && (
+          <button type="button" onClick={() => void playAgain()} className="cc-tl-replay">
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Play again
+          </button>
+        )}
       </figcaption>
     </figure>
   );

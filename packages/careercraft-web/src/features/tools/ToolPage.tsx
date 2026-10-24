@@ -6,35 +6,58 @@
    rendering. */
 
 import { ArrowLeft, ArrowRight, ArrowUpRight, Check, Minus } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
 import { CraftFleuron, CraftPageShell, CraftSectionHead } from "@/components/landing/CraftShell";
+import { setGuestReturnTo } from "@/features/resume-builder/lib/guestDraft";
 import { findPublicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
+import { supabase } from "@/integrations/supabase/client";
+import publicPages from "@/seo/public-pages.json";
 
 import { ToolClip } from "./components/ToolClip";
 import { ToolShot } from "./components/ToolShot";
-import { STAGES, TOOLS, toolBySlug, type Tool } from "./data/tools";
+import { STAGES, toolBySlug, type Tool } from "./data/tools";
 
-const SITE = "https://www.faircopy.au";
-
-/** Where each tool lives in the app, for the screenshot's address bar. */
-const APP_PATH: Record<string, string> = {
-  "resume-builder": "faircopy.au/builder",
-  "bullet-rewrite": "faircopy.au/rewrite",
-  "cover-letters": "faircopy.au/cover-letter",
-  "ats-checker": "faircopy.au/analysis",
-  "job-tracker": "faircopy.au/tracker",
-  "interview-practice": "faircopy.au/interview-prep",
-  "career-coach": "faircopy.au/career-coach",
-  "market-news": "faircopy.au/job-market-news",
-  "browse-jobs": "faircopy.au/au-jobs",
-};
+const SITE = publicPages.site;
+/** "faircopy.au", for the screenshot frame's address bar. */
+const HOST = SITE.replace(/^https?:\/\/(www\.)?/, "");
 
 const ACCOUNT_LINE: Record<Tool["account"], string> = {
-  none: "No account needed.",
   partial: "No account needed to start. A free account lets you download and keep it.",
   free: "Needs a free account. No card, no trial that runs out.",
 };
+
+/** Whether someone is signed in. False on the server and at first paint, so
+    the prerendered buttons are the signed-out ones. */
+function useSignedIn() {
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getSession().then(({ data }) => alive && setSignedIn(Boolean(data.session)));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => setSignedIn(Boolean(session)));
+    return () => {
+      alive = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+  return signedIn;
+}
+
+/** The "try it" button: straight to the tool when signed in (or when it needs
+    no account); otherwise to sign-up, which brings them back to the tool. */
+function StartLink({ tool, signedIn, className, children }: { tool: Tool; signedIn: boolean; className: string; children: ReactNode }) {
+  const direct = signedIn || tool.account === "partial";
+  return (
+    <Link
+      to={direct ? tool.appPath : "/auth"}
+      onClick={direct ? undefined : () => setGuestReturnTo(tool.appPath)}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
 
 /** Structured data: what the tool is, where the page sits, and its questions. */
 function jsonLd(tool: Tool, title: string, description: string) {
@@ -78,6 +101,7 @@ function jsonLd(tool: Tool, title: string, description: string) {
 export function ToolPage({ slug }: { slug: string }) {
   const tool = toolBySlug(slug);
   const meta = findPublicPageMeta(`/tools/${slug}`);
+  const signedIn = useSignedIn();
   usePageMeta(meta ?? { title: "Tools · Faircopy", noindex: true });
   if (!tool || !meta) return <Navigate to="/tools" replace />;
 
@@ -125,9 +149,9 @@ export function ToolPage({ slug }: { slug: string }) {
             </ul>
 
             <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-              <Link to={tool.cta.to} className="cc-btn cc-btn-primary">
+              <StartLink tool={tool} signedIn={signedIn} className="cc-btn cc-btn-primary">
                 {tool.cta.label} <ArrowUpRight className="h-4 w-4 cc-arrow-up" />
-              </Link>
+              </StartLink>
               <a href="#how" className="cc-link cc-label text-[color:var(--cc-ink)]">
                 How it works
               </a>
@@ -145,7 +169,7 @@ export function ToolPage({ slug }: { slug: string }) {
               src={tool.shot.src}
               alt={tool.shot.alt}
               caption={tool.shot.caption}
-              path={APP_PATH[tool.slug] ?? "faircopy.au"}
+              path={`${HOST}${tool.appPath}`}
               eager
             />
           </div>
@@ -171,7 +195,7 @@ export function ToolPage({ slug }: { slug: string }) {
           <section className="bg-[color:var(--cc-cream-2)] pb-20 md:pb-28">
             <div className="mx-auto max-w-[1200px] px-6 md:px-10">
               <div className="mb-6 cc-label text-[color:var(--cc-rust)]">Watch it work</div>
-              <ToolClip {...tool.clip} />
+              <ToolClip {...tool.clip} path={`${HOST}${tool.appPath}`} />
             </div>
           </section>
         )}
@@ -275,9 +299,9 @@ export function ToolPage({ slug }: { slug: string }) {
               <p className="mx-auto mt-5 max-w-xl cc-font-editorial text-lg text-[rgba(247,247,244,0.75)]">
                 {ACCOUNT_LINE[tool.account]} Everything else in Faircopy comes with it.
               </p>
-              <Link to={tool.cta.to} className="cc-btn cc-tl-cta-light mt-9">
+              <StartLink tool={tool} signedIn={signedIn} className="cc-btn cc-tl-cta-light mt-9">
                 {tool.cta.label} <ArrowUpRight className="h-4 w-4 cc-arrow-up" />
-              </Link>
+              </StartLink>
             </div>
           </div>
         </section>
@@ -286,9 +310,10 @@ export function ToolPage({ slug }: { slug: string }) {
   );
 }
 
-/** /tools/:slug in the app. Prerender renders ToolPage with the slug directly. */
+/** /tools/:slug in the app. Prerender renders ToolPage with the slug directly.
+    Keyed on the slug so moving between tool pages starts each one fresh
+    (the clip's played state, a failed screenshot) instead of carrying it over. */
 export default function ToolRoute() {
   const { slug = "" } = useParams();
-  if (!TOOLS.some((t) => t.slug === slug)) return <Navigate to="/tools" replace />;
-  return <ToolPage slug={slug} />;
+  return <ToolPage key={slug} slug={slug} />;
 }

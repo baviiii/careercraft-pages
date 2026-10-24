@@ -20,13 +20,23 @@ import "./features/tools/tools.css";
    code first, so React's first render is the page itself rather than the
    loading spinner. Capped, so a slow connection still gets a working app. */
 /* A tab left open across a deploy asks for code files the new deploy no
-   longer has (exporting a PDF, opening another page). The action that failed
-   shows its own error; this says why, once, and what fixes it. */
+   longer has (exporting a PDF, uploading a file). The action that failed
+   shows its own error toast straight after this event, and only one toast
+   shows at a time, so this waits a moment and replaces it with the reason
+   and the fix. Offline, the reason is the connection, not an update. A page
+   that fails this way is caught by RouteErrorBoundary instead. */
 let told = false;
 window.addEventListener("vite:preloadError", () => {
   if (told) return;
   told = true;
-  toast({ title: "Faircopy has just been updated", description: "Refresh the page to carry on with the new version." });
+  window.setTimeout(() => {
+    if (navigator.onLine === false) {
+      told = false; // say the real thing once they're back online
+      toast({ title: "You're offline", description: "Check your connection and try again." });
+      return;
+    }
+    toast({ title: "Faircopy has just been updated", description: "Refresh the page to carry on with the new version." });
+  }, 300);
 });
 
 const container = document.getElementById("root")!;

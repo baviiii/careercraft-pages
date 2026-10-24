@@ -18,7 +18,7 @@ import { usePersonalization } from "@/hooks/usePersonalization";
 import { supabase } from "@/integrations/supabase/client";
 import { rewriteBullet } from "@/lib/aiRewriter";
 import { type PdfDensity } from "@/lib/pdfDensity";
-import { type AIResumeData } from "@/lib/resumeParser";
+import type { AIResumeData } from "@/lib/resumeParseApi";
 
 import { claimGuestDraft } from "../lib/claimGuestDraft";
 import {

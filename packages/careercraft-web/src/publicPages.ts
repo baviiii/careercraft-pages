@@ -17,7 +17,7 @@ export function preloadPublicPage(pathname: string): Promise<unknown> {
   const path = pathname.replace(/\/+$/, "") || "/";
   const page =
     path === "/" ? Index
-    : path === "/builder" || path === "/upload" ? ResumeBuilder
+    : path === "/builder" ? ResumeBuilder
     : path === "/tools" ? ToolsIndex
     : path.startsWith("/tools/") ? ToolRoute
     : path === "/about" ? AboutUs

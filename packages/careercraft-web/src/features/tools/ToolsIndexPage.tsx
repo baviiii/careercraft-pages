@@ -6,10 +6,11 @@ import { Link } from "react-router-dom";
 
 import { CraftPageShell } from "@/components/landing/CraftShell";
 import { publicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
+import publicPages from "@/seo/public-pages.json";
 
 import { TOOLS, TOOLS_BY_STAGE } from "./data/tools";
 
-const SITE = "https://www.faircopy.au";
+const SITE = publicPages.site;
 
 const LD = {
   "@context": "https://schema.org",
@@ -85,7 +86,7 @@ export default function ToolsIndexPage() {
                       <img
                         src={t.shot.src.replace(/\.webp$/, "-thumb.webp")}
                         srcSet={`${t.shot.src.replace(/\.webp$/, "-thumb.webp")} 720w, ${t.shot.src.replace(/\.webp$/, "-thumb@2x.webp")} 1440w`}
-                        sizes="(min-width: 1024px) 420px, 92vw"
+                        sizes="(min-width: 1024px) 420px, (min-width: 768px) 46vw, 92vw"
                         alt=""
                         width={720}
                         height={450}

@@ -541,6 +541,10 @@ an invented figure (e.g. "[add your number]") instead of filling one in.
 
 ## 18. Signed-in pages still load the PDF renderer and pdf.js up front
 
+**Resolved 2026-10-24:** the ATS check, cover letters, My Résumés and
+onboarding now load them on demand too; text parsing moved to
+`lib/resumeParseApi.ts`. Original note kept below.
+
 **Found:** 2026-10-21, speed pass on the public pages.
 
 The résumé builder now loads `lib/pdfExport` (~830 KB gzipped) and

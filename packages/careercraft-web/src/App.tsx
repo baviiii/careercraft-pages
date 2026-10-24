@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { AboutUs, ContactUs, Index, Privacy, ResumeBuilder, Terms, ToolRoute, ToolsIndex } from "./publicPages";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigationType } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { applyStoredAccent } from "@/lib/personaTheme";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 // Re-apply the persona accent before first paint so returning users see
 // their palette immediately instead of a rust flash.
@@ -102,15 +103,26 @@ function ProtectedLayout() {
 
 /* A link to another page starts at its top. Without this the window kept its
    old scroll position, so a link at the bottom of a long page landed at the
-   bottom of the next one. Back and forward (POP) are left to the browser, and
-   links to an #anchor scroll themselves. */
+   bottom of the next one. Only a change of page counts: search-param updates
+   on the same page (saving a letter, switching a tab) leave the scroll alone.
+   Back and forward (POP) are left to the browser, and #anchors scroll
+   themselves. */
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
   const type = useNavigationType();
+  const last = useRef(pathname);
   useEffect(() => {
+    if (last.current === pathname) return;
+    last.current = pathname;
     if (type !== "POP" && !hash) window.scrollTo(0, 0);
   }, [pathname, hash, type]);
   return null;
+}
+
+/* One failed page shouldn't blank the app; moving to another page clears it. */
+function RouteBoundary({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return <RouteErrorBoundary resetKey={pathname}>{children}</RouteErrorBoundary>;
 }
 
 const App = () => (
@@ -120,6 +132,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ScrollToTop />
+        <RouteBoundary>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -190,6 +203,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
+        </RouteBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -25,14 +25,18 @@ export interface Tool {
   lede: string;
   /** Short facts under the heading. */
   facts: string[];
-  cta: { label: string; to: string };
+  /** Where the tool lives in the app. Signed-in visitors go straight there;
+      others sign up first and are brought back to it (setGuestReturnTo). */
+  appPath: string;
+  cta: { label: string };
   /** The closing panel's heading. */
   closing: string;
-  /** Whether trying it needs an account, said plainly on the page. */
-  account: "none" | "free" | "partial";
+  /** Whether trying it needs an account, said plainly on the page.
+      "partial": usable without one (the builder), so its button never detours via sign-up. */
+  account: "free" | "partial";
   shot: { src: string; alt: string; caption: string };
   /** A short recording, shown after "How it works". Plays once. */
-  clip?: { src: string; still: string; alt: string; caption: string; path: string };
+  clip?: { src: string; still: string; alt: string; caption: string };
   /** A second screenshot, shown after "How it works". */
   extraShot?: { src: string; alt: string; caption: string; path: string };
   steps: Array<{ title: string; body: string }>;
@@ -54,7 +58,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Paste the résumé you already have, or start from a blank page. Edit it with the finished page beside you, choose one of 25 templates, then download a print-ready PDF.",
     facts: ["Free", "No account to start", "25 templates", "PDF export"],
-    cta: { label: "Start building, no account needed", to: "/builder" },
+    appPath: "/builder",
+    cta: { label: "Start building, no account needed" },
     closing: "Start your résumé.",
     account: "partial",
     shot: {
@@ -67,7 +72,6 @@ export const TOOLS: Tool[] = [
       still: "/tools/resume-builder.webp",
       alt: "Typing a summary into the résumé builder while the page preview updates beside it",
       caption: "Type on the left, and the page on the right keeps up.",
-      path: "faircopy.au/builder",
     },
     steps: [
       {
@@ -136,7 +140,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Paste a line like 'Responsible for stock control'. Add the job ad if you have it. You get back a plain, specific rewrite that says what you did, with what, and what came of it.",
     facts: ["Free account", "One line at a time", "Steered by the job ad"],
-    cta: { label: "Try it free", to: "/auth" },
+    appPath: "/rewrite",
+    cta: { label: "Try it free" },
     closing: "Rewrite your first bullet.",
     account: "free",
     shot: {
@@ -197,7 +202,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Pick your résumé, paste the job ad, choose a tone. You get a letter drawn from your real experience, in Australian English, that you can edit line by line before it goes anywhere.",
     facts: ["Free account", "Three tones", "Saved to the application"],
-    cta: { label: "Write one free", to: "/auth" },
+    appPath: "/cover-letter",
+    cta: { label: "Write one free" },
     closing: "Write your next cover letter.",
     account: "free",
     shot: {
@@ -265,7 +271,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Paste the ad and choose your résumé. You get a match score with the reasoning shown: the keywords you're missing, the requirements you meet and the ones you don't, and what a recruiter would flag on a first read.",
     facts: ["Free account", "Score with reasons", "Built for Australian résumés"],
-    cta: { label: "Check my résumé free", to: "/auth" },
+    appPath: "/analysis",
+    cta: { label: "Check my résumé free" },
     closing: "Check your résumé against the ad.",
     account: "free",
     shot: {
@@ -278,7 +285,6 @@ export const TOOLS: Tool[] = [
       still: "/tools/ats-checker.webp",
       alt: "Running an ATS check: the résumé and job ad, the check running, then the scored report",
       caption: "Résumé and ad in, report out.",
-      path: "faircopy.au/analysis",
     },
     steps: [
       { title: "Choose your résumé", body: "Upload one or pick a résumé you've saved in Faircopy." },
@@ -340,7 +346,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Every application on one board, from saved to offer. Faircopy points out what's waiting on you, when it's worth following up, and how many of the employers you've applied to have got back to you.",
     facts: ["Free account", "Saved to offer", "Follow-up nudges"],
-    cta: { label: "Start tracking free", to: "/auth" },
+    appPath: "/tracker",
+    cta: { label: "Start tracking free" },
     closing: "Put your job hunt on one board.",
     account: "free",
     shot: {
@@ -400,7 +407,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Pick the kind of interview you've got coming: a phone screen, behavioural, technical or the full thing. Answer the questions properly, then see how each answer was scored, what it was missing, and try it again.",
     facts: ["Free account", "Four interview types", "STAR scoring shown"],
-    cta: { label: "Practise free", to: "/auth" },
+    appPath: "/interview-prep",
+    cta: { label: "Practise free" },
     closing: "Practise for your next interview.",
     account: "free",
     shot: {
@@ -471,7 +479,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Ask about roles, pathways, qualifications or where the work is, and follow up like a conversation. Each answer comes with the published documents behind it, so you can check the claim rather than take our word for it.",
     facts: ["Free account", "Cited answers", "Deepest on South Australia"],
-    cta: { label: "Ask the coach free", to: "/auth" },
+    appPath: "/career-coach",
+    cta: { label: "Ask the coach free" },
     closing: "Ask the coach your question.",
     account: "free",
     shot: {
@@ -484,7 +493,6 @@ export const TOOLS: Tool[] = [
       still: "/tools/career-coach.webp",
       alt: "Asking the career coach a question: it searches, then writes an answer with sources",
       caption: "The coach searches first, then answers with its sources underneath.",
-      path: "faircopy.au/career-coach",
     },
     steps: [
       { title: "Ask a question", body: "'How do I move from enrolled nurse to registered nurse?' or 'Where are the electrician jobs in SA?'" },
@@ -535,7 +543,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Work stories from Australian outlets, put in order of how close they are to the work you do, plus the live numbers for your role: how many ads, what they pay, where they are and who's hiring.",
     facts: ["Free account", "Australian sources", "Live ad numbers"],
-    cta: { label: "Read the market free", to: "/auth" },
+    appPath: "/job-market-news",
+    cta: { label: "Read the market free" },
     closing: "See what's moving in your field.",
     account: "free",
     shot: {
@@ -604,7 +613,8 @@ export const TOOLS: Tool[] = [
     lede:
       "Search live job ads by role and place. With a profile, they're sorted by fit, with the reasons in words. Narrow by hours, remote, pay listed or graduate roles, and save the ones you want to your tracker in a tap.",
     facts: ["Free account", "Live Australian ads", "One tap to your tracker"],
-    cta: { label: "Search jobs free", to: "/auth" },
+    appPath: "/au-jobs",
+    cta: { label: "Search jobs free" },
     closing: "Find your next role.",
     account: "free",
     shot: {

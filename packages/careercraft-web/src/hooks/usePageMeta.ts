@@ -23,14 +23,14 @@ const HOME = publicPages.pages.find((p) => p.path === "/")!;
 const DEFAULT_TITLE = HOME.title;
 const DEFAULT_DESCRIPTION = HOME.description;
 
-/** Title, description and path for a page listed in public-pages.json. */
-/** Like publicPageMeta, but undefined for a path that isn't listed. */
+/** Title, description and path for a page listed in public-pages.json, or undefined. */
 export function findPublicPageMeta(path: string): PageMeta | undefined {
   return publicPages.pages.find((p) => p.path === path);
 }
 
+/** As findPublicPageMeta, for pages that must be listed: throws if not. */
 export function publicPageMeta(path: string): PageMeta {
-  const page = publicPages.pages.find((p) => p.path === path);
+  const page = findPublicPageMeta(path);
   if (!page) throw new Error(`usePageMeta: ${path} is not in src/seo/public-pages.json`);
   return page;
 }

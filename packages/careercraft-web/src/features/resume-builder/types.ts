@@ -265,6 +265,10 @@ export const GUEST_RETURN_ALLOWLIST = [
   "/career-coach",
   // The browser extension's /save-job hands off here after sign-in.
   "/tracker",
+  // The public tool pages send new sign-ups back to the tool they picked.
+  "/rewrite",
+  "/cover-letter",
+  "/interview-prep",
 ] as const;
 
 export type GuestReturnPath = (typeof GUEST_RETURN_ALLOWLIST)[number];

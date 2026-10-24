@@ -384,14 +384,14 @@ const stages: { n: string; name: string; tools: Tool[] }[] = [
       {
         title: ["Market", "news"],
         face: "What's moving in your industry, without the doomscroll.",
-        back: "A running read on hiring, pay and demand in the sectors you care about — so you know whether it's you or the market.",
-        tags: ["Hiring", "Pay", "By sector"],
+        back: "Work news from Australian outlets, sorted by how close it is to your role, plus live ad numbers and advertised pay for any role. So you know whether it's you or the market.",
+        tags: ["Australian sources", "Sorted for you", "Live ad numbers"],
       },
       {
         title: ["Browse", "jobs"],
         face: "Openings across Australia, read for what the employer actually wants.",
-        back: "Search live listings, see which skills keep coming up and what they pay — then send the résumé you built here straight at them.",
-        tags: ["Live listings", "In-demand skills", "Salary"],
+        back: "Search live Australian ads, sorted by how well they fit you, with the reasons in words. Save the ones you want to your tracker in a tap.",
+        tags: ["Live listings", "Fit explained", "Straight to your tracker"],
       },
     ],
   },
@@ -402,14 +402,14 @@ const stages: { n: string; name: string; tools: Tool[] }[] = [
       {
         title: ["Résumé", "builder"],
         face: "Start from the résumé you already have, or from nothing at all. Watch it take shape as you type.",
-        back: "Drop in a PDF, Word file or a photo and Faircopy reads your history out of it. Edit with the page live beside you, choose from 25 templates across four styles, then export a print-ready PDF.",
+        back: "Paste what you have, or upload a PDF, Word file or photo with a free account, and Faircopy sorts it into sections. Edit with the page live beside you, choose from 25 templates, then export a print-ready PDF.",
         tags: ["Live preview", "25 templates", "PDF export"],
       },
       {
         title: ["Bullet", "rewrite"],
         face: "Turn “responsible for” into something a hiring manager actually remembers.",
-        back: "Point it at the role you're going for and rewrite any bullet against that job. You approve every line — nothing changes in your résumé until you say so.",
-        tags: ["Line by line", "Job-matched", "You approve"],
+        back: "Paste a line and the job you're going for, and get back a plain, specific rewrite. Check it says what really happened, then copy it into your résumé.",
+        tags: ["Line by line", "Job-matched", "Plain English"],
       },
       {
         title: ["Cover", "letters"],
