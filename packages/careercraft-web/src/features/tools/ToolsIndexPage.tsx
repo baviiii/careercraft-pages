@@ -1,16 +1,24 @@
 /* /tools: every tool, grouped by the stage of the search it helps with,
-   each linking to its own page. Prerendered like the tool pages. */
+   each linking to its own page. Prerendered like the tool pages.
 
-import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
+   It opens like the homepage, on the painted footage, then each stage
+   gets its own time of day. */
+
+import { ArrowDown, ArrowLeft, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { CraftPageShell } from "@/components/landing/CraftShell";
 import { publicPageMeta, usePageMeta } from "@/hooks/usePageMeta";
 import publicPages from "@/seo/public-pages.json";
 
+import { Footage } from "./components/Footage";
+import { SkySection, type Tone } from "./components/Sky";
+import { Strong, ToolCard } from "./components/ToolCard";
 import { TOOLS, TOOLS_BY_STAGE } from "./data/tools";
 
 const SITE = publicPages.site;
+const CREAM = "#E1E0CC";
+const STAGE_TONE: Tone[] = ["day", "dusk", "day"];
 
 const LD = {
   "@context": "https://schema.org",
@@ -34,85 +42,72 @@ export default function ToolsIndexPage() {
   usePageMeta(publicPageMeta("/tools"));
 
   return (
-    <CraftPageShell>
+    <CraftPageShell navVariant="ink">
       <div className="cc-tools">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(LD) }} />
 
-        <section className="bg-[color:var(--cc-cream)] pt-32 pb-14 md:pt-40 md:pb-20">
-          <div className="mx-auto max-w-[1400px] px-6 md:px-10">
-            <Link to="/" className="cc-link cc-label inline-flex items-center gap-2 text-[color:var(--cc-ink)]">
-              <ArrowLeft className="h-4 w-4" /> Back to home
+        {/* ── Opening: the homepage footage, the count, the way in ── */}
+        <section className="relative flex min-h-[640px] w-full flex-col overflow-hidden bg-[color:var(--cc-ink)] md:h-[88svh]">
+          <Footage priority />
+          <div className="relative z-10 mx-auto w-full max-w-[1400px] px-6 pt-24 md:px-10 md:pt-28">
+            <Link to="/" className="cc-link cc-label-sm inline-flex items-center gap-2" style={{ color: CREAM }}>
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to home
             </Link>
-            <div className="mt-10 cc-label text-[color:var(--cc-rust)]">§ Tools</div>
-            <h1 className="mt-4 max-w-5xl cc-font-display text-[2.6rem] leading-[0.95] tracking-tight text-[color:var(--cc-ink)] md:text-7xl lg:text-8xl">
-              Nine tools for the
-              <br />
-              <span className="cc-italic-wonk">Australian job search.</span>
+          </div>
+          <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-16 pt-10 text-center">
+            <div className="cc-label text-[rgba(225,224,204,0.85)]">The toolkit</div>
+            <h1 className="mt-5 [text-shadow:0_2px_50px_rgba(0,0,0,0.5)]" style={{ color: CREAM }}>
+              <span className="block cc-font-display font-medium leading-[0.85] tracking-[-0.04em] text-[20vw] sm:text-[15vw] md:text-[11vw] lg:text-[9.5vw]">
+                Nine <Strong>tools</Strong>
+              </span>{" "}
+              <span className="mt-5 block cc-font-display text-2xl tracking-tight sm:text-3xl md:text-4xl">for the Australian job search.</span>
             </h1>
-            <p className="mt-8 max-w-3xl cc-font-editorial text-xl leading-[1.45] text-[color:var(--cc-ink-soft)] md:text-2xl">
-              From working out what fits to the interview itself. Each page shows what the tool does, how it works, why
-              it exists and what it won't do. Most need a free account; the résumé builder doesn't.
+            <p className="mt-6 max-w-2xl cc-font-editorial text-xl leading-snug text-[rgba(225,224,204,0.92)] [text-shadow:0_1px_24px_rgba(0,0,0,0.6)]">
+              From working out what fits to the interview itself. Each one has its own page: what it does, how it works and what it won't
+              do. Most need a free account; the résumé builder doesn't.
             </p>
-            <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-              <Link to="/builder" className="cc-btn cc-btn-primary">
-                Build a résumé, no account needed <ArrowUpRight className="h-4 w-4 cc-arrow-up" />
+            <div className="mt-9 flex flex-col items-center gap-5 sm:flex-row">
+              <Link to="/builder" className="cc-tl-pill cc-tl-pill--cream">
+                Build a résumé, no account needed
+                <span className="cc-tl-pill__dot">
+                  <ArrowUpRight className="h-4 w-4" />
+                </span>
               </Link>
-              <Link to="/auth" className="cc-link cc-label text-[color:var(--cc-ink)]">
+              <Link to="/auth" className="cc-link text-[15px]" style={{ color: "rgba(225,224,204,0.88)" }}>
                 Make a free account
               </Link>
             </div>
+            <nav aria-label="Stages" className="mt-14 flex flex-wrap justify-center gap-x-8 gap-y-3">
+              {TOOLS_BY_STAGE.map((s) => (
+                <a key={s.stage} href={`#${s.stage}`} className="group inline-flex items-center gap-2 cc-label" style={{ color: "rgba(225,224,204,0.85)" }}>
+                  <span className="cc-tabular">{s.n}</span> {s.name}
+                  <ArrowDown className="h-3.5 w-3.5 transition-transform group-hover:translate-y-0.5" />
+                </a>
+              ))}
+            </nav>
           </div>
         </section>
 
+        {/* ── One stage per time of day ── */}
         {TOOLS_BY_STAGE.map((stage, si) => (
-          <section
-            key={stage.stage}
-            aria-labelledby={`stage-${stage.stage}`}
-            className={`${si % 2 === 0 ? "bg-[color:var(--cc-cream-2)]" : "bg-[color:var(--cc-cream)]"} py-16 md:py-24`}
-          >
-            <div className="mx-auto max-w-[1400px] px-6 md:px-10">
-              <div className="flex flex-col gap-2 border-t border-[rgba(20,22,26,0.4)] pt-6 md:flex-row md:items-baseline md:gap-6">
-                <span className="cc-label-sm cc-tabular text-[color:var(--cc-rust)]">{stage.n}</span>
-                <h2 id={`stage-${stage.stage}`} className="cc-font-display text-3xl tracking-tight text-[color:var(--cc-ink)] md:text-4xl">
+          <SkySection key={stage.stage} id={stage.stage} tone={STAGE_TONE[si] ?? "day"} labelledBy={`stage-${stage.stage}`} className="scroll-mt-16">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-8">
+              <span className="cc-font-display text-8xl leading-[0.8] text-[color:var(--cc-rust)] md:text-[9rem]" aria-hidden>
+                {Number(stage.n)}
+              </span>
+              <div className="md:pb-2">
+                <h2 id={`stage-${stage.stage}`} className="cc-font-display text-4xl tracking-tight text-[color:var(--cc-ink)] md:text-6xl">
                   {stage.name}
                 </h2>
-                <p className="cc-font-editorial text-[17px] text-[color:var(--cc-ink-soft)] md:ml-auto">{stage.line}</p>
-              </div>
-
-              <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {stage.tools.map((t) => (
-                  <Link key={t.slug} to={`/tools/${t.slug}`} className="cc-tl-card cc-tl-card--shot group">
-                    <span className="cc-tl-thumb">
-                      <img
-                        src={t.shot.src.replace(/\.webp$/, "-thumb.webp")}
-                        srcSet={`${t.shot.src.replace(/\.webp$/, "-thumb.webp")} 720w, ${t.shot.src.replace(/\.webp$/, "-thumb@2x.webp")} 1440w`}
-                        sizes="(min-width: 1024px) 420px, (min-width: 768px) 46vw, 92vw"
-                        alt=""
-                        width={720}
-                        height={450}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </span>
-                    <span className="block px-6 pb-6 pt-5">
-                      <span className="block cc-font-display text-2xl tracking-tight text-[color:var(--cc-ink)]">{t.name}</span>
-                      <span className="mt-2.5 block cc-font-editorial text-[16px] leading-snug text-[color:var(--cc-ink-soft)]">
-                        {t.h1}
-                      </span>
-                      <span className="mt-5 flex items-center justify-between gap-3">
-                        <span className="cc-label-sm text-[color:var(--cc-ash)]">
-                          {t.account === "free" ? "Free account" : "No account to start"}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 cc-label-sm text-[color:var(--cc-ink)]">
-                          How it works <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                        </span>
-                      </span>
-                    </span>
-                  </Link>
-                ))}
+                <p className="mt-2 cc-font-editorial text-lg text-[color:var(--cc-ink-soft)] md:text-xl">{stage.line}</p>
               </div>
             </div>
-          </section>
+            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {stage.tools.map((t) => (
+                <ToolCard key={t.slug} tool={t} big sizes="(min-width: 1024px) 420px, (min-width: 768px) 46vw, 92vw" />
+              ))}
+            </div>
+          </SkySection>
         ))}
       </div>
     </CraftPageShell>

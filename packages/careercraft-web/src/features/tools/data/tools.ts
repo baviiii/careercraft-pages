@@ -22,6 +22,8 @@ export interface Tool {
   stage: Stage;
   /** The page heading, written as the thing people search for. */
   h1: string;
+  /** The end of h1 that the layout picks out (must be its last words). */
+  accent?: string;
   lede: string;
   /** Short facts under the heading. */
   facts: string[];
@@ -35,6 +37,12 @@ export interface Tool {
       "partial": usable without one (the builder), so its button never detours via sign-up. */
   account: "free" | "partial";
   shot: { src: string; alt: string; caption: string };
+  /** Numbered notes pinned to the main screenshot. x and y are percentages
+      of the image, pointing at the thing the note describes. */
+  callouts?: Array<{ x: number; y: number; title: string; body: string }>;
+  /** Questions or jobs it's good for, in the visitor's words. `quotes`
+      when the items are things you'd type into the tool. */
+  goodFor?: { heading: string; items: string[]; quotes?: boolean };
   /** A short recording, shown after "How it works". Plays once. */
   clip?: { src: string; still: string; alt: string; caption: string };
   /** A second screenshot, shown after "How it works". */
@@ -55,6 +63,7 @@ export const TOOLS: Tool[] = [
     name: "Résumé builder",
     stage: "ready",
     h1: "A résumé builder that writes the Australian way",
+    accent: "writes the Australian way",
     lede:
       "Paste the résumé you already have, or start from a blank page. Edit it with the finished page beside you, choose one of 25 templates, then download a print-ready PDF.",
     facts: ["Free", "No account to start", "25 templates", "PDF export"],
@@ -72,6 +81,22 @@ export const TOOLS: Tool[] = [
       still: "/tools/resume-builder.webp",
       alt: "Typing a summary into the résumé builder while the page preview updates beside it",
       caption: "Type on the left, and the page on the right keeps up.",
+    },
+    callouts: [
+      { x: 4.3, y: 27.6, title: "Four steps", body: "Start, edit, design, download. You can go back to any of them." },
+      { x: 31.4, y: 46.6, title: "Saved as you go", body: "Your draft is kept in this browser until you make a free account, then it moves into your account." },
+      { x: 73.4, y: 46, title: "Tailor it to an ad", body: "Paste the job you're going for, so you can shape each point toward it." },
+      { x: 58.9, y: 56.9, title: "The page, live", body: "The preview updates as you type and shows how many pages it runs to." },
+    ],
+    goodFor: {
+      heading: "Good for",
+      items: [
+        "Turning an old Word résumé into something current",
+        "Writing your first résumé from a blank page",
+        "Reshaping an overseas CV for Australian employers",
+        "Trying a new design without retyping anything",
+        "Getting a draft together before you decide to sign up",
+      ],
     },
     steps: [
       {
@@ -137,6 +162,7 @@ export const TOOLS: Tool[] = [
     name: "Bullet rewrite",
     stage: "ready",
     h1: "Rewrite a weak résumé bullet into a strong one",
+    accent: "into a strong one",
     lede:
       "Paste a line like 'Responsible for stock control'. Add the job ad if you have it. You get back a plain, specific rewrite that says what you did, with what, and what came of it.",
     facts: ["Free account", "One line at a time", "Steered by the job ad"],
@@ -148,6 +174,22 @@ export const TOOLS: Tool[] = [
       src: "/tools/bullet-rewrite.webp",
       alt: "The bullet rewrite tool with an original bullet, a job ad and the rewritten line",
       caption: "A vague duty rewritten into something specific, steered by the job ad.",
+    },
+    callouts: [
+      { x: 57.5, y: 42, title: "One line in", body: "Paste a bullet that reads like a duty rather than something you did." },
+      { x: 57.5, y: 55.5, title: "The ad steers it", body: "Optional. With the job ad, the rewrite picks up the words that employer uses." },
+      { x: 57.5, y: 88.9, title: "Before and after", body: "The original is struck through above its rewrite. Copy the new line straight into your résumé." },
+    ],
+    goodFor: {
+      heading: "Lines worth rewriting",
+      quotes: true,
+      items: [
+        "Responsible for stock control and ordering",
+        "Duties included customer service",
+        "Assisted with patient care on the ward",
+        "Worked on the company website",
+        "Helped with end-of-month reporting",
+      ],
     },
     steps: [
       { title: "Paste one bullet", body: "Any line from your résumé that reads like a job description rather than something you did." },
@@ -199,6 +241,7 @@ export const TOOLS: Tool[] = [
     name: "Cover letters",
     stage: "ready",
     h1: "Write a cover letter for an Australian job, from your own résumé",
+    accent: "from your own résumé",
     lede:
       "Pick your résumé, paste the job ad, choose a tone. You get a letter drawn from your real experience, in Australian English, that you can edit line by line before it goes anywhere.",
     facts: ["Free account", "Three tones", "Saved to the application"],
@@ -210,6 +253,21 @@ export const TOOLS: Tool[] = [
       src: "/tools/cover-letters.webp",
       alt: "The cover letter desk: the brief on the left and the letter on a sheet of stationery on the right",
       caption: "The brief on the left, the letter on the right, saved letters underneath.",
+    },
+    callouts: [
+      { x: 39.3, y: 32.9, title: "Your résumé, your examples", body: "The letter draws on the résumé you pick, so its examples are things you've actually done." },
+      { x: 41.5, y: 23.6, title: "Tied to the application", body: "Started from a job in your tracker, the letter knows the role and company, and saves to that application." },
+      { x: 33.2, y: 69.4, title: "Three tones", body: "Professional, confident or casual. Try each and keep the one that sounds like you." },
+      { x: 45.2, y: 53.8, title: "Edit it on the page", body: "Change anything before you save it, copy it or download it." },
+    ],
+    goodFor: {
+      heading: "Good for",
+      items: [
+        "An application due tonight that asks for a letter",
+        "A role you really want, where a generic letter won't do",
+        "Trying three versions and keeping the best",
+        "Keeping each letter with the application it went to",
+      ],
     },
     steps: [
       { title: "Choose your résumé", body: "Use one you've built or saved in Faircopy, so the letter draws on what you've actually done." },
@@ -268,6 +326,7 @@ export const TOOLS: Tool[] = [
     name: "ATS checker",
     stage: "go",
     h1: "Check your résumé against the job ad before you apply",
+    accent: "before you apply",
     lede:
       "Paste the ad and choose your résumé. You get a match score with the reasoning shown: the keywords you're missing, the requirements you meet and the ones you don't, and what a recruiter would flag on a first read.",
     facts: ["Free account", "Score with reasons", "Built for Australian résumés"],
@@ -285,6 +344,21 @@ export const TOOLS: Tool[] = [
       still: "/tools/ats-checker.webp",
       alt: "Running an ATS check: the résumé and job ad, the check running, then the scored report",
       caption: "Résumé and ad in, report out.",
+    },
+    callouts: [
+      { x: 27.5, y: 22.8, title: "The overall score", body: "Built from the four part scores beside it. Use it to compare versions of your résumé for the same ad." },
+      { x: 53.6, y: 17, title: "What it's made of", body: "Skills, experience, keywords and format, each scored on its own." },
+      { x: 27.4, y: 50.6, title: "Where to look next", body: "Keywords matched and missing, red flags and quick fixes, each covered in detail further down." },
+      { x: 58.3, y: 67.8, title: "Fix these first", body: "The changes likely to matter most, in order." },
+    ],
+    goodFor: {
+      heading: "Run it when",
+      items: [
+        "You've tailored your résumé and want a second look before you apply",
+        "An ad lists a lot of requirements and you're not sure you cover them",
+        "You're changing fields and want to see which keywords you're missing",
+        "You want to compare two versions of your résumé for the same job",
+      ],
     },
     steps: [
       { title: "Choose your résumé", body: "Upload one or pick a résumé you've saved in Faircopy." },
@@ -343,6 +417,7 @@ export const TOOLS: Tool[] = [
     name: "Job tracker",
     stage: "go",
     h1: "A job application tracker that tells you what to do next",
+    accent: "tells you what to do next",
     lede:
       "Every application on one board, from saved to offer. Faircopy points out what's waiting on you, when it's worth following up, and how many of the employers you've applied to have got back to you.",
     facts: ["Free account", "Saved to offer", "Follow-up nudges"],
@@ -354,6 +429,22 @@ export const TOOLS: Tool[] = [
       src: "/tools/job-tracker.webp",
       alt: "The job tracker board with columns for saved, applied, interview and offer",
       caption: "A sample board, with what needs doing next at the top.",
+    },
+    callouts: [
+      { x: 65.2, y: 24.8, title: "Your search at a glance", body: "How many jobs are moving, interviews lined up, and how many employers have got back to you." },
+      { x: 86, y: 35.8, title: "Up next", body: "What needs you: an interview to prepare for, or an employer you haven't heard from in a while." },
+      { x: 38.1, y: 54.3, title: "Saved to offer", body: "Each job sits in a column. Tap 'I applied' or 'Got an interview' to move it on." },
+      { x: 71.6, y: 72, title: "What went with it", body: "Each card shows whether a résumé and a cover letter are attached to that application." },
+    ],
+    goodFor: {
+      heading: "Good for",
+      items: [
+        "Applying to more than a handful of jobs at once",
+        "Keeping the résumé and letter with each application",
+        "Knowing when it's reasonable to follow up",
+        "Seeing how many employers have actually got back to you",
+        "Keeping jobs you've saved apart from the ones you've applied for",
+      ],
     },
     steps: [
       { title: "Add a job", body: "Type in the details, or save one from Browse jobs in a tap." },
@@ -404,6 +495,7 @@ export const TOOLS: Tool[] = [
     name: "Interview practice",
     stage: "go",
     h1: "Practise job interviews and see how every answer is scored",
+    accent: "see how every answer is scored",
     lede:
       "Pick the kind of interview you've got coming: a phone screen, behavioural, technical or the full thing. Answer the questions properly, then see how each answer was scored, what it was missing, and try it again.",
     facts: ["Free account", "Four interview types", "STAR scoring shown"],
@@ -415,6 +507,21 @@ export const TOOLS: Tool[] = [
       src: "/tools/interview-practice.webp",
       alt: "The interview practice hub with the four interview types to choose from",
       caption: "Choose the kind of interview you're preparing for.",
+    },
+    callouts: [
+      { x: 35, y: 83, title: "From your tracker", body: "An interview date in your tracker shows up here with a countdown and the rounds to practise." },
+      { x: 41, y: 56.3, title: "Pitched at your level", body: "Questions follow the role and seniority you're going for. Change it any time." },
+      { x: 49.3, y: 67.9, title: "Your story library", body: "Keep your strongest answer for each competency, and look back at past sessions in History." },
+    ],
+    goodFor: {
+      heading: "Practise for",
+      items: [
+        "A recruiter phone screen next week",
+        "A behavioural panel: 'Tell me about a time when…'",
+        "A technical round in your field",
+        "A government role with selection criteria",
+        "Having your best stories ready before the day",
+      ],
     },
     steps: [
       {
@@ -476,6 +583,7 @@ export const TOOLS: Tool[] = [
     name: "Career coach",
     stage: "figure",
     h1: "A career coach that shows you its sources",
+    accent: "shows you its sources",
     lede:
       "Ask about roles, pathways, qualifications or where the work is, and follow up like a conversation. Each answer comes with the published documents behind it, so you can check the claim rather than take our word for it.",
     facts: ["Free account", "Cited answers", "Deepest on South Australia"],
@@ -487,6 +595,22 @@ export const TOOLS: Tool[] = [
       src: "/tools/career-coach.webp",
       alt: "The career coach answering a question about nursing pathways, with source chips under the answer",
       caption: "An answer with the documents it came from underneath.",
+    },
+    callouts: [
+      { x: 27.6, y: 26.6, title: "It looks things up first", body: "This bar shows how long it spent and how many searches it ran. Open it to see what it looked for." },
+      { x: 96.4, y: 35.2, title: "Claims are numbered", body: "A number in brackets points to the source behind that sentence." },
+      { x: 24.4, y: 79.3, title: "The documents behind it", body: "Every source is listed under the answer. Open one to check the detail yourself." },
+    ],
+    goodFor: {
+      heading: "Good questions to ask it",
+      quotes: true,
+      items: [
+        "How do I move from enrolled nurse to registered nurse?",
+        "Where are the electrician jobs in South Australia?",
+        "Which qualification do I need to start in aged care?",
+        "Which industries in SA are expected to need more workers?",
+        "Is a Certificate IV enough to start in IT support?",
+      ],
     },
     clip: {
       src: "/tools/career-coach-clip.webp",
@@ -540,6 +664,7 @@ export const TOOLS: Tool[] = [
     name: "Market news",
     stage: "figure",
     h1: "Australian job market news, sorted for your role",
+    accent: "sorted for your role",
     lede:
       "Work stories from Australian outlets, put in order of how close they are to the work you do, plus the live numbers for your role: how many ads, what they pay, where they are and who's hiring.",
     facts: ["Free account", "Australian sources", "Live ad numbers"],
@@ -557,6 +682,22 @@ export const TOOLS: Tool[] = [
       alt: "Your market: live ad count, salary bands and ads by state for clinical nurse roles",
       caption: "The 'Your market' tab: live ads, what they pay and where they are.",
       path: "faircopy.au/job-market-news?tab=market",
+    },
+    callouts: [
+      { x: 62.5, y: 36.1, title: "Read by topic", body: "Hiring, pay, job cuts, visas, AI, skills and study, or workplace." },
+      { x: 88.2, y: 41.6, title: "When it was checked", body: "The page reads Australian publishers' own feeds and says when it last looked." },
+      { x: 53.8, y: 46, title: "Sorted for you", body: "Stories closest to your role come first, and the page says so in plain words." },
+      { x: 30.8, y: 64.9, title: "Why it's there", body: "Each story says why it's near the top: your role, your industry, or a company in your tracker." },
+    ],
+    goodFor: {
+      heading: "Good for",
+      items: [
+        "Working out whether it's you or a slow month in your field",
+        "Checking what a role advertises before you name a salary",
+        "Seeing which states have the most ads for your role",
+        "Keeping up with visa and skilled-migration news",
+        "Spotting news about employers you've applied to",
+      ],
     },
     steps: [
       {
@@ -610,6 +751,7 @@ export const TOOLS: Tool[] = [
     name: "Browse jobs",
     stage: "figure",
     h1: "Search Australian jobs, sorted by how well they fit you",
+    accent: "sorted by how well they fit you",
     lede:
       "Search live job ads by role and place. With a profile, they're sorted by fit, with the reasons in words. Narrow by hours, remote, pay listed or graduate roles, and save the ones you want to your tracker in a tap.",
     facts: ["Free account", "Live Australian ads", "One tap to your tracker"],
@@ -621,6 +763,22 @@ export const TOOLS: Tool[] = [
       src: "/tools/browse-jobs.webp",
       alt: "Browse jobs: a search for registered nurse roles, with job cards showing pay, hours and fit",
       caption: "A sample search, with fit, pay and hours on every ad.",
+    },
+    callouts: [
+      { x: 70.8, y: 35.6, title: "Search like a sentence", body: "Type a role and a place, or start from the role in your profile." },
+      { x: 20.6, y: 53.7, title: "Filters that count", body: "Each filter shows how many of the ads found match it, before you tap it." },
+      { x: 77.2, y: 52.2, title: "This search in numbers", body: "Typical pay from the ads that list it, hours, and how many are fresh. Estimates are left out." },
+      { x: 43.8, y: 86.6, title: "Fit, with reasons", body: "A strong fit says why in words: your target role, your skills, your current role." },
+    ],
+    goodFor: {
+      heading: "Good for",
+      items: [
+        "Finding roles near you that fit your profile",
+        "Ads that list pay, so you're not guessing",
+        "Graduate and entry-level roles",
+        "Part-time, casual or remote work",
+        "Saving a job now and tailoring for it later",
+      ],
     },
     steps: [
       {
