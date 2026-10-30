@@ -5,7 +5,9 @@
  * so "what have I practised" reads at a glance: a cell per type with its
  * latest score and trend, a week of sessions as coloured segments, and recent
  * sessions tagged by type. Scores are numbers, never colours, and a type is
- * never colour alone. Real DB rows only; the weekly note comes from the coach.
+ * never colour alone. Real DB rows only; the weekly note and the coach's read
+ * of their patterns come from the coach, saved, and are only asked for again
+ * once there's a newer session.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, ArrowUpRight, RotateCcw } from "lucide-react";
@@ -15,7 +17,9 @@ import { RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { auditLog } from "@/lib/security/auditLog";
 import { interviewCoach, COACH_AVAILABLE, type WeeklyInsight } from "@/lib/interviewCoach";
 import { RoundDot, RoundTag } from "@/features/interview/components/RoundMarks";
+import { CoachRead } from "@/features/interview/components/CoachRead";
 import { StarHabits } from "@/features/interview/components/StarHabits";
+import { useLatestSaved } from "@/lib/savedResults";
 import {
   lastSevenDays,
   overallAverage,
@@ -296,6 +300,19 @@ export default function InterviewHome({
   const average = useMemo(() => overallAverage(sessions), [sessions]);
   const thisWeek = useMemo(() => sessionsThisWeek(sessions), [sessions]);
   const newestId = sessions[0]?.id;
+  // The coach's read waits for finished sessions, and is current while the
+  // newest finished one is the one it read.
+  const finishedRows = useMemo(
+    () =>
+      sessions
+        .filter((r) => r.status === "completed")
+        .sort((a, b) => (b.completed_at ?? b.created_at).localeCompare(a.completed_at ?? a.created_at)),
+    [sessions],
+  );
+
+  // The weekly note the coach saved after the newest session, if there is one.
+  const savedWeekly = useLatestSaved<WeeklyInsight & { basedOn?: string | null }>("weekly_insight", field);
+  const weeklyAskedFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (!rows || audited.current) return;
@@ -312,7 +329,18 @@ export default function InterviewHome({
   // The coach reads the learner's own records server-side (including the mix
   // of round types), so it only needs to know which job this is for.
   useEffect(() => {
-    if (!COACH_AVAILABLE || !newestId) return;
+    if (!newestId || savedWeekly.isFetching) return;
+    const saved = savedWeekly.data?.payload;
+    if (saved?.headline && (saved.basedOn === newestId || !COACH_AVAILABLE)) {
+      setWeeklyInsight(saved);
+      setLoadingInsight(false);
+      return;
+    }
+    if (!COACH_AVAILABLE) return;
+    // Once per newest session and job, even if the save didn't land.
+    const asked = `${newestId}|${field ?? ""}|${seniority ?? ""}`;
+    if (weeklyAskedFor.current === asked) return;
+    weeklyAskedFor.current = asked;
     let cancelled = false;
     setLoadingInsight(true);
     interviewCoach
@@ -321,19 +349,21 @@ export default function InterviewHome({
         if (!cancelled) setWeeklyInsight(insight);
       })
       .catch(() => {
-        if (!cancelled) setWeeklyInsight(null);
+        if (!cancelled) setWeeklyInsight(saved?.headline ? saved : null);
       })
       .finally(() => {
         if (!cancelled) setLoadingInsight(false);
       });
     return () => {
       cancelled = true;
+      // Let the next run ask again (React runs effects twice in development).
+      weeklyAskedFor.current = null;
     };
     // Keyed on the newest session, not the rows: re-ask when a session is
     // added, not on every background refetch that returns the same sessions.
     // (Not the count either: the history read is capped, so past the cap the
     // count stops changing.)
-  }, [newestId, field, seniority]);
+  }, [newestId, field, seniority, savedWeekly.isFetching, savedWeekly.data]);
 
   if (isLoading) {
     return (
@@ -437,6 +467,14 @@ export default function InterviewHome({
       </section>
 
       <StarHabits />
+
+      <CoachRead
+        field={field}
+        seniority={seniority}
+        finishedCount={finishedRows.length}
+        newestFinishedId={finishedRows[0]?.id ?? null}
+        onPracticeType={onPracticeType}
+      />
 
       {/* grid-cols-1 (minmax(0,1fr)) on small screens: an implicit auto
           column grows to the week chart's content and pushes off the screen. */}

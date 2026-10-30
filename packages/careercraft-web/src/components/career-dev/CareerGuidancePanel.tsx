@@ -3,8 +3,12 @@
  * gaps, trajectory options, narrative, next actions) and a week-addressed
  * roadmap, for the job in the page's "Going for" card, which is where the goal
  * itself is set.
+ *
+ * Both open on the last ones the coach saved for this job, so coming back
+ * shows your read and your roadmap instead of an empty page; Refresh asks for
+ * new ones.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,7 +44,8 @@ import {
   type CareerGuidance,
   type CareerRoadmap,
 } from "@/lib/careerCoach";
-import { CoachNotConnected, SectionHeader, SeverityBadge } from "./shared";
+import { useForgetSaved, useLatestSaved } from "@/lib/savedResults";
+import { CoachNotConnected, SavedNote, SectionHeader, SeverityBadge } from "./shared";
 
 /**
  * `field` is the role from the page's "Going for" card. Setting the goal used to
@@ -61,6 +66,26 @@ export default function CareerGuidancePanel({ field }: { field?: string }) {
   const [horizonWeeks, setHorizonWeeks] = useState("12");
   const [hoursPerWeek, setHoursPerWeek] = useState("6");
 
+  // What the coach saved for this job last time, shown until they refresh.
+  // The panel is remounted when the job changes, so these never cross jobs.
+  const forgetSaved = useForgetSaved();
+  const savedGuidance = useLatestSaved<{ guidance: CareerGuidance }>("career_guidance", field);
+  const savedRoadmap = useLatestSaved<{ roadmap: CareerRoadmap }>("roadmap", field);
+  const [guidanceSavedAt, setGuidanceSavedAt] = useState<string | null>(null);
+  const [roadmapSavedAt, setRoadmapSavedAt] = useState<string | null>(null);
+  useEffect(() => {
+    const saved = savedGuidance.data;
+    if (!saved?.payload.guidance) return;
+    setGuidance((current) => current ?? saved.payload.guidance);
+    setGuidanceSavedAt((current) => current ?? saved.savedAt);
+  }, [savedGuidance.data]);
+  useEffect(() => {
+    const saved = savedRoadmap.data;
+    if (!saved?.payload.roadmap) return;
+    setRoadmap((current) => current ?? saved.payload.roadmap);
+    setRoadmapSavedAt((current) => current ?? saved.savedAt);
+  }, [savedRoadmap.data]);
+
   const notAvailable = (e: unknown) => {
     const message = e instanceof CoachUnavailableError ? e.message : "Career coach is not available at the moment.";
     toast({ title: "Not available", description: message, variant: "destructive" });
@@ -76,8 +101,9 @@ export default function CareerGuidancePanel({ field }: { field?: string }) {
         horizonMonths: Number(horizonMonths) || 6,
       });
       setGuidance(r.guidance);
+      setGuidanceSavedAt(null);
+      void forgetSaved("career_guidance");
     } catch (e) {
-      setGuidance(null);
       notAvailable(e);
     } finally {
       setLoadingGuidance(false);
@@ -102,8 +128,9 @@ export default function CareerGuidancePanel({ field }: { field?: string }) {
         hoursPerWeek: Number(hoursPerWeek) || 6,
       });
       setRoadmap(r.roadmap);
+      setRoadmapSavedAt(null);
+      void forgetSaved("roadmap");
     } catch (e) {
-      setRoadmap(null);
       notAvailable(e);
     } finally {
       setLoadingRoadmap(false);
@@ -150,7 +177,7 @@ export default function CareerGuidancePanel({ field }: { field?: string }) {
             </Select>
           </div>
           <Button onClick={getGuidance} disabled={loadingGuidance} className="bg-gradient-to-r from-primary to-primary/80">
-            {loadingGuidance ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reading your profile...</> : <><Sparkles className="w-4 h-4 mr-2" />Get guidance<ArrowRight className="w-4 h-4 ml-2" /></>}
+            {loadingGuidance ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Reading your profile...</> : <><Sparkles className="w-4 h-4 mr-2" />{guidance ? "Refresh guidance" : "Get guidance"}<ArrowRight className="w-4 h-4 ml-2" /></>}
           </Button>
         </div>
       </Card>
@@ -159,6 +186,7 @@ export default function CareerGuidancePanel({ field }: { field?: string }) {
       <AnimatePresence>
         {guidance && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+            <SavedNote at={guidanceSavedAt} refreshLabel="Refresh guidance" />
             {guidance.headline && (
               <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
                 <p className="text-lg font-semibold">{guidance.headline}</p>
@@ -291,13 +319,14 @@ export default function CareerGuidancePanel({ field }: { field?: string }) {
               </Select>
             </div>
             <Button onClick={buildRoadmap} disabled={loadingRoadmap} className="bg-gradient-to-r from-primary to-primary/80">
-              {loadingRoadmap ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Building...</> : <><Route className="w-4 h-4 mr-2" />Build roadmap</>}
+              {loadingRoadmap ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Building...</> : <><Route className="w-4 h-4 mr-2" />{roadmap ? "Rebuild roadmap" : "Build roadmap"}</>}
             </Button>
           </div>
         </div>
 
         {roadmap ? (
           <div className="space-y-4">
+            <SavedNote at={roadmapSavedAt} refreshLabel="Rebuild roadmap" />
             {roadmap.title && <p className="text-lg font-semibold">{roadmap.title}</p>}
             {roadmap.northStar && (
               <p className="text-sm text-muted-foreground flex items-start gap-2"><Target className="w-4 h-4 text-primary mt-0.5 shrink-0" />{roadmap.northStar}</p>

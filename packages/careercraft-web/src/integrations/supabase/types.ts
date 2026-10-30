@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -94,11 +94,14 @@ export type Database = {
           dismissed_at: string | null
           expires_at: string | null
           id: string
+          level: string | null
+          payload: Json | null
           priority: number | null
           recommendation_type: string
           resource_id: string | null
           skill_id: string | null
           status: string | null
+          subject: string | null
           title: string
           user_id: string
         }
@@ -112,11 +115,14 @@ export type Database = {
           dismissed_at?: string | null
           expires_at?: string | null
           id?: string
+          level?: string | null
+          payload?: Json | null
           priority?: number | null
           recommendation_type: string
           resource_id?: string | null
           skill_id?: string | null
           status?: string | null
+          subject?: string | null
           title: string
           user_id: string
         }
@@ -130,11 +136,14 @@ export type Database = {
           dismissed_at?: string | null
           expires_at?: string | null
           id?: string
+          level?: string | null
+          payload?: Json | null
           priority?: number | null
           recommendation_type?: string
           resource_id?: string | null
           skill_id?: string | null
           status?: string | null
+          subject?: string | null
           title?: string
           user_id?: string
         }
@@ -694,6 +703,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "interview_sessions_job_application_id_fkey"
+            columns: ["job_application_id"]
+            isOneToOne: false
+            referencedRelation: "job_applications"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "interview_sessions_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
@@ -1064,6 +1080,24 @@ export type Database = {
           success?: boolean
           user_agent?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      market_snapshots: {
+        Row: {
+          fetched_at: string
+          payload: Json
+          query_key: string
+        }
+        Insert: {
+          fetched_at?: string
+          payload: Json
+          query_key: string
+        }
+        Update: {
+          fetched_at?: string
+          payload?: Json
+          query_key?: string
         }
         Relationships: []
       }
@@ -2035,9 +2069,13 @@ export type Database = {
           id: string
           notes: string | null
           progress_percent: number | null
+          provider: string | null
           resource_id: string | null
+          skill: string | null
           started_at: string | null
           status: string | null
+          title: string | null
+          url: string | null
           user_id: string
           user_rating: number | null
         }
@@ -2047,9 +2085,13 @@ export type Database = {
           id?: string
           notes?: string | null
           progress_percent?: number | null
+          provider?: string | null
           resource_id?: string | null
+          skill?: string | null
           started_at?: string | null
           status?: string | null
+          title?: string | null
+          url?: string | null
           user_id: string
           user_rating?: number | null
         }
@@ -2059,9 +2101,13 @@ export type Database = {
           id?: string
           notes?: string | null
           progress_percent?: number | null
+          provider?: string | null
           resource_id?: string | null
+          skill?: string | null
           started_at?: string | null
           status?: string | null
+          title?: string | null
+          url?: string | null
           user_id?: string
           user_rating?: number | null
         }
@@ -2416,6 +2462,15 @@ export type Database = {
       consume_plan_quota: {
         Args: { p_dry_run?: boolean; p_resource: string; p_user_id: string }
         Returns: Json
+      }
+      delete_user_data: { Args: { p_user: string }; Returns: Json }
+      ensure_skill_tags: {
+        Args: { p_categories?: string[]; p_names: string[] }
+        Returns: {
+          id: string
+          name: string
+          requested: string
+        }[]
       }
       get_chat_prompt: {
         Args: { _focus_area?: string }

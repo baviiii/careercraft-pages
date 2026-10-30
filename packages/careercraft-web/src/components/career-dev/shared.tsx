@@ -7,8 +7,9 @@
 import { type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Loader2, type LucideIcon } from "lucide-react";
+import { AlertTriangle, History, Loader2, type LucideIcon } from "lucide-react";
 import { CAREER_COACH_AVAILABLE } from "@/lib/careerCoach";
+import { savedAgo } from "@/lib/savedResults";
 
 /** Shown when VITE_INTERVIEW_MCP_URL isn't configured — mirrors InterviewPrep. */
 export function CoachNotConnected() {
@@ -52,6 +53,20 @@ export function SectionHeader({
       </div>
       {action}
     </div>
+  );
+}
+
+/**
+ * "Saved 3 days ago" above a result the coach saved on an earlier visit, so
+ * nobody mistakes last week's plan for a new one. Nothing for a fresh result.
+ */
+export function SavedNote({ at, refreshLabel }: { at: string | null; refreshLabel: string }) {
+  if (!at) return null;
+  return (
+    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+      <History className="w-3.5 h-3.5 shrink-0" aria-hidden />
+      {savedAgo(at)}. Press {refreshLabel} for a new one.
+    </p>
   );
 }
 

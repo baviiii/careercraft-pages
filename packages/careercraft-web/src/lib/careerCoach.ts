@@ -194,9 +194,33 @@ export interface DrillScheduling {
   nextReviewInDays: number;
 }
 
+/** One of the drill's ideal points, as the coach marked it against the answer. */
+export interface DrillPointMark {
+  point: string;
+  mark: "covered" | "partial" | "missing";
+  /** The words in the answer that show it, located by character offsets. */
+  quote: { start: number; end: number; text: string } | null;
+  note: string;
+}
+
+export interface DrillEvaluation {
+  points: DrillPointMark[];
+  /** 0–1: covered counts 1, partial 0.5. */
+  coverage: number;
+  /** A wrong or unsafe claim caps the score. */
+  cap: { max: number; reason: string } | null;
+  fellBack: boolean;
+  whatWorked: string;
+  whatsMissing: string;
+  oneThingToTry: string;
+}
+
 export interface DrillResult {
   skill: string;
   score: number;
+  /** "coach" when the answer was marked; "self" for a self-rating. */
+  scoredBy: "coach" | "self";
+  evaluation: DrillEvaluation | null;
   previousProficiency: number;
   newProficiency: number;
   delta: number;
@@ -229,7 +253,13 @@ export interface PathwayResource {
   stat?: string | null;
   priority: number;
   whyRecommended: string;
+  /** The target skill it builds: finishing it counts towards this skill. */
+  forSkill?: string;
+  /** The learner's own status, when they've saved or started it. */
+  myStatus?: ResourceStatus;
 }
+
+export type ResourceStatus = "saved" | "in_progress" | "completed";
 
 export interface PathwayDrill {
   skill: string;
@@ -430,10 +460,17 @@ export const careerCoach = {
     return post("/api/study/drill", input);
   },
 
-  /** Score a finished drill 0-10; updates the skill matrix instantly. */
+  /**
+   * Finish a drill. With answerText (and the drill) the coach marks the answer
+   * against the drill's ideal points; with only a score it's a self-rating.
+   * Either way the skill matrix updates.
+   */
   async recordDrillResult(input: {
     skill: string;
-    score: number;
+    score?: number;
+    answerText?: string;
+    drill?: Pick<Drill, "prompt" | "type" | "difficulty" | "idealAnswerPoints">;
+    field?: string;
     drillType?: string;
     notes?: string;
   }): Promise<DrillResult> {
@@ -449,14 +486,28 @@ export const careerCoach = {
     return post("/api/study/explain", input);
   },
 
-  /** Track learning-resource progress; completion credits linked skills. */
+  /**
+   * Save, start or finish a resource: a catalogue row by resourceId, or any
+   * link by url. Finishing one credits its skill once.
+   */
   async trackResourceProgress(input: {
-    resourceId: string;
-    status: "saved" | "in_progress" | "completed";
+    resourceId?: string;
+    url?: string;
+    title?: string;
+    provider?: string;
+    skill?: string;
+    status: ResourceStatus;
     progressPercent?: number;
     rating?: number;
     notes?: string;
-  }): Promise<{ resourceId: string; status: string; persisted: boolean; skillsCredited: string[] }> {
+  }): Promise<{
+    resourceId: string | null;
+    url: string | null;
+    status: ResourceStatus;
+    previousStatus: ResourceStatus | null;
+    persisted: boolean;
+    skillsCredited: string[];
+  }> {
     return post("/api/study/resource/progress", input);
   },
 

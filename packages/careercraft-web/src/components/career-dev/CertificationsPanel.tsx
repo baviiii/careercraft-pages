@@ -3,8 +3,12 @@
  * held portfolio (coverage, market value, expiry alerts, interview talking
  * points), get a ranked next-certification plan (budget/time aware, sourced),
  * and log newly-earned certs (which credit their skills in the matrix).
+ *
+ * The review and the plan open on the last ones the coach saved for this job.
+ * Logging a certification redoes the review straight away and marks the plan
+ * out of date, since it was ranked without that certification.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +45,8 @@ import {
   type CertificationPlan,
   type Proof,
 } from "@/lib/careerCoach";
-import { CertStatusBadge, CoachNotConnected, SectionHeader } from "./shared";
+import { useForgetSaved, useLatestSaved } from "@/lib/savedResults";
+import { CertStatusBadge, CoachNotConnected, SavedNote, SectionHeader } from "./shared";
 
 function ProofChip({ proof }: { proof: Proof | null }) {
   if (!proof) return null;
@@ -85,6 +90,35 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
   const [budget, setBudget] = useState("");
   const [hours, setHours] = useState("5");
 
+  // The last review and plan the coach saved for this job (and level).
+  const forgetSaved = useForgetSaved();
+  const savedReview = useLatestSaved<{ facts: CertificationFacts; analysis: CertificationAnalysis }>(
+    "certification_analysis",
+    targetField,
+  );
+  const savedPlan = useLatestSaved<{ plan: CertificationPlan; topPickProof: Proof | null }>(
+    "certification",
+    targetField,
+    level || null,
+  );
+  const [reviewSavedAt, setReviewSavedAt] = useState<string | null>(null);
+  const [planSavedAt, setPlanSavedAt] = useState<string | null>(null);
+  const [planOutOfDate, setPlanOutOfDate] = useState(false);
+  useEffect(() => {
+    const saved = savedReview.data;
+    if (!saved?.payload.analysis) return;
+    setAnalysis((current) => current ?? saved.payload.analysis);
+    setFacts((current) => current ?? saved.payload.facts);
+    setReviewSavedAt((current) => current ?? saved.savedAt);
+  }, [savedReview.data]);
+  useEffect(() => {
+    const saved = savedPlan.data;
+    if (!saved?.payload.plan) return;
+    setPlan((current) => current ?? saved.payload.plan);
+    setPlanProof((current) => current ?? saved.payload.topPickProof ?? null);
+    setPlanSavedAt((current) => current ?? saved.savedAt);
+  }, [savedPlan.data]);
+
   // Log form
   const [showLog, setShowLog] = useState(false);
   const [logName, setLogName] = useState("");
@@ -104,6 +138,8 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
       const r = await careerCoach.analyzeCertifications({ targetField: targetField || undefined });
       setFacts(r.facts);
       setAnalysis(r.analysis);
+      setReviewSavedAt(null);
+      void forgetSaved("certification_analysis");
     } catch (e) {
       notAvailable(e);
     } finally {
@@ -123,6 +159,9 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
       });
       setPlan(r.plan);
       setPlanProof(r.topPickProof);
+      setPlanSavedAt(null);
+      setPlanOutOfDate(false);
+      void forgetSaved("certification");
     } catch (e) {
       notAvailable(e);
     } finally {
@@ -151,6 +190,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
       });
       setLogName(""); setLogIssuer(""); setLogIssue(""); setLogExpiry("");
       setShowLog(false);
+      if (plan) setPlanOutOfDate(true);
       void analyze();
     } catch (e) {
       notAvailable(e);
@@ -227,7 +267,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
             </p>
           </div>
           <Button onClick={analyze} disabled={analyzing} variant="outline" className="md:mb-0">
-            {analyzing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analyzing...</> : <><ShieldCheck className="w-4 h-4 mr-2" />Analyze my portfolio</>}
+            {analyzing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analyzing...</> : <><ShieldCheck className="w-4 h-4 mr-2" />{analysis ? "Review again" : "Analyze my portfolio"}</>}
           </Button>
         </div>
       </Card>
@@ -236,6 +276,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
       <AnimatePresence>
         {(facts || analysis) && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+            <SavedNote at={reviewSavedAt} refreshLabel="Review again" />
             {/* Expiry alerts */}
             {facts && (facts.expiringSoon.length > 0 || facts.expired.length > 0) && (
               <Card className="p-4 bg-amber-500/10 border-amber-500/20">
@@ -341,13 +382,21 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
               </Select>
             </div>
             <Button onClick={recommend} disabled={recommending} className="bg-gradient-to-r from-primary to-primary/80">
-              {recommending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Ranking...</> : <><Sparkles className="w-4 h-4 mr-2" />Recommend</>}
+              {recommending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Ranking...</> : <><Sparkles className="w-4 h-4 mr-2" />{plan ? "Recommend again" : "Recommend"}</>}
             </Button>
           </div>
         </div>
 
         {plan ? (
           <div className="space-y-4">
+            {planOutOfDate ? (
+              <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <TriangleAlert className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                You've logged a certification since this plan was made. Press Recommend again to rank with it.
+              </p>
+            ) : (
+              <SavedNote at={planSavedAt} refreshLabel="Recommend again" />
+            )}
             {planProof && <ProofChip proof={planProof} />}
             <div className="space-y-3">
               {(plan.recommendations ?? []).map((r, i) => (

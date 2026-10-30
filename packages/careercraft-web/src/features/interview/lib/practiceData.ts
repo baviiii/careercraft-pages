@@ -171,3 +171,53 @@ export function usePracticeCount(jobId: string | null): number {
 export function jobLabel(job: Pick<TrackerJob, "title" | "company">): string {
   return job.company ? `${job.title} at ${job.company}` : job.title;
 }
+
+/* ── the learner's own resources ──────────────────────────────────────── */
+
+export type ResourceStatus = "saved" | "in_progress" | "completed";
+
+export interface MyResource {
+  url: string;
+  title: string;
+  provider: string | null;
+  skill: string | null;
+  status: ResourceStatus;
+  rating: number | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * Links they've saved, started or finished (the coach writes these, by URL,
+ * through track_resource_progress). Catalogue rows have no URL and aren't
+ * listed: the catalogue is empty. Newest first.
+ */
+export async function fetchMyResources(): Promise<MyResource[]> {
+  const uid = await userId();
+  if (!uid) return [];
+  const { data, error } = await supabase
+    .from("user_resources")
+    .select("url, title, provider, skill, status, user_rating, completed_at, created_at")
+    .eq("user_id", uid)
+    .not("url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (missing(error)) return [];
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    url: r.url!,
+    title: r.title ?? r.url!,
+    provider: r.provider,
+    skill: r.skill,
+    status: r.status === "completed" || r.status === "in_progress" ? r.status : "saved",
+    rating: r.user_rating,
+    completedAt: r.completed_at,
+    createdAt: r.created_at,
+  }));
+}
+
+export const MY_RESOURCES_KEY = ["interview-my-resources"] as const;
+
+export function useMyResources() {
+  return useQuery({ queryKey: MY_RESOURCES_KEY, queryFn: fetchMyResources, staleTime: 30_000 });
+}

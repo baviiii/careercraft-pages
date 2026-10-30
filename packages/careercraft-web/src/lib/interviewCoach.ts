@@ -210,6 +210,7 @@ interface WireResource {
   skill?: string;
   rating?: number;
   proof?: Proof | null;
+  myStatus?: ResourceStatus;
 }
 
 interface WireResources {
@@ -469,7 +470,11 @@ export interface CoachResource {
   provider: string;
   rating?: number;
   proof: Proof | null;
+  /** The learner's own status, when they've saved or started it. */
+  myStatus?: ResourceStatus;
 }
+
+export type ResourceStatus = "saved" | "in_progress" | "completed";
 
 export interface ProvenTip {
   tip: string;
@@ -477,10 +482,21 @@ export interface ProvenTip {
   verified: boolean;
 }
 
+/**
+ * The coach's read of their practice. Until three sessions are finished it's
+ * only { ready: false, finished, sessionsNeeded }.
+ */
 export interface PatternAnalysis {
+  ready?: boolean;
+  finished?: number;
+  sessionsNeeded?: number;
+  /** The newest finished session this read was based on. */
+  basedOn?: string;
   patternSummary?: string;
   strengths?: { consistent?: string[]; improving?: string[]; evidence?: string };
   weaknesses?: { persistent?: string[]; declining?: string[]; evidence?: string };
+  correlations?: Array<{ observation?: string; implication?: string }>;
+  riskAreas?: string[];
   recommendations?: Array<{
     priority?: number;
     skill?: string;
@@ -488,6 +504,7 @@ export interface PatternAnalysis {
     suggestedPractice?: string;
     expectedTimeToImprove?: string;
   }>;
+  progressProjection?: { currentTrajectory?: string; optimisticScenario?: string; pessimisticScenario?: string };
 }
 
 interface WireSelectionDraft {
@@ -900,6 +917,7 @@ function adaptResource(r: WireResource, fallbackSkill: string): CoachResource {
     provider: r.provider ?? (r.proof?.label ?? "Community"),
     rating: r.rating,
     proof: adaptProof(r.proof),
+    ...(r.myStatus ? { myStatus: r.myStatus } : {}),
   };
 }
 
@@ -1095,11 +1113,14 @@ export const interviewCoach = {
 
   async getResources(input: {
     skills?: string[];
+    /** The job: research and proof links follow it, not the skill filter. */
+    field?: string;
     goal?: string;
     maxResults?: number;
   }): Promise<CoachResource[]> {
     const raw = await post<WireResources>("/api/resources", {
       skills: input.skills,
+      field: input.field,
       goal: input.goal,
       maxResults: input.maxResults,
     });
@@ -1109,11 +1130,14 @@ export const interviewCoach = {
 
   async getProvenTips(input: {
     skill?: string;
+    /** The job the tips are for. */
+    field?: string;
     question?: string;
     count?: number;
   }): Promise<ProvenTip[]> {
     const raw = await post<WireProvenTips>("/api/proven-tips", {
       skill: input.skill,
+      field: input.field,
       question: input.question,
       count: input.count,
     });

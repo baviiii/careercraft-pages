@@ -1,9 +1,15 @@
 /**
  * StudyPanel — the upskilling engine. Build a sequenced study plan, run the
- * spaced-repetition drill loop (scheduler picks what's due → attempt → self-score
- * → matrix updates), and get layered concept explanations on demand.
+ * spaced-repetition drill loop (scheduler picks what's due → they write an
+ * answer → the coach marks it against the drill's ideal points → the skill
+ * matrix updates), and get layered concept explanations on demand.
+ *
+ * The plan opens on the last one the coach saved for this job. A drill is
+ * marked by the coach when they write an answer; rating themselves is the
+ * fallback when they don't. Resources in the plan can be saved, started and
+ * marked done.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +45,7 @@ import {
   Repeat,
   Target,
   Timer,
+  X,
 } from "lucide-react";
 import {
   careerCoach,
@@ -46,12 +53,16 @@ import {
   type ConceptExplanation,
   type Degradation,
   type Drill,
+  type DrillPointMark,
+  type DrillResult,
   type DrillScheduling,
   type LearningPathway,
   type Proof,
   type StudyPlan,
 } from "@/lib/careerCoach";
-import { CoachNotConnected, SectionHeader } from "./shared";
+import { ResourceProgress } from "@/features/interview/components/ResourceProgress";
+import { useForgetSaved, useLatestSaved } from "@/lib/savedResults";
+import { CoachNotConnected, SavedNote, SectionHeader } from "./shared";
 
 const METHOD_STYLES: Record<string, string> = {
   learn: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -86,6 +97,18 @@ export default function StudyPanel({ field }: { field?: string }) {
   const [weeks, setWeeks] = useState("4");
   const [hours, setHours] = useState("5");
 
+  // The last pathway the coach saved for this job, until they build a new one.
+  const forgetSaved = useForgetSaved();
+  const savedPathway = useLatestSaved<{ pathway: LearningPathway }>("pathway", field);
+  const [pathwaySavedAt, setPathwaySavedAt] = useState<string | null>(null);
+  useEffect(() => {
+    const saved = savedPathway.data;
+    if (!saved?.payload.pathway) return;
+    setPathway((current) => current ?? saved.payload.pathway);
+    setPlan((current) => current ?? saved.payload.pathway.plan ?? null);
+    setPathwaySavedAt((current) => current ?? saved.savedAt);
+  }, [savedPathway.data]);
+
   // Drill loop
   const [drill, setDrill] = useState<Drill | null>(null);
   const [scheduling, setScheduling] = useState<DrillScheduling | null>(null);
@@ -94,6 +117,9 @@ export default function StudyPanel({ field }: { field?: string }) {
   const [score, setScore] = useState(6);
   const [recording, setRecording] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [drillResult, setDrillResult] = useState<DrillResult | null>(null);
+  // Rating yourself is the fallback for not writing an answer, so it's tucked away.
+  const [selfRating, setSelfRating] = useState(false);
 
   // Explain
   const [concept, setConcept] = useState("");
@@ -122,6 +148,8 @@ export default function StudyPanel({ field }: { field?: string }) {
       setPathway(r.pathway);
       setPlan(r.pathway?.plan ?? null);
       setDegraded(r._meta?.degraded ?? null);
+      setPathwaySavedAt(null);
+      void forgetSaved("pathway");
       if (!r.pathway?.plan?.weeks?.length) {
         toast({
           title: "No plan returned",
@@ -139,6 +167,8 @@ export default function StudyPanel({ field }: { field?: string }) {
   const getDrill = async () => {
     setDrilling(true);
     setLastResult(null);
+    setDrillResult(null);
+    setSelfRating(false);
     setAttempt("");
     try {
       const r = await careerCoach.nextDrill({ field: field || undefined });
@@ -153,13 +183,30 @@ export default function StudyPanel({ field }: { field?: string }) {
     }
   };
 
-  const recordResult = async () => {
-    if (!scheduling) return;
+  /**
+   * One result per drill: the coach's mark of what they wrote, or (with no
+   * answer) their own rating. Recording twice would move the skill twice.
+   */
+  const recordResult = async (how: "coach" | "self") => {
+    if (!scheduling || !drill || drillResult) return;
     setRecording(true);
     try {
-      const r = await careerCoach.recordDrillResult({ skill: scheduling.skill, score });
+      const r = await careerCoach.recordDrillResult(
+        how === "coach"
+          ? {
+              skill: scheduling.skill,
+              answerText: attempt.trim(),
+              drill: { prompt: drill.prompt, type: drill.type, difficulty: drill.difficulty, idealAnswerPoints: drill.idealAnswerPoints },
+              field: field || undefined,
+            }
+          : { skill: scheduling.skill, score },
+      );
+      setDrillResult(r);
       setLastResult(`${r.skill}: ${r.previousProficiency} → ${r.newProficiency} (${r.delta >= 0 ? "+" : ""}${r.delta}). ${r.verdict} Next review in ${r.nextReviewInDays}d.`);
-      toast({ title: "Drill recorded", description: `${r.skill} is now ${r.newProficiency}/100.` });
+      toast({
+        title: r.scoredBy === "coach" ? `Marked: ${r.score}/10` : "Drill recorded",
+        description: `${r.skill} is now ${r.newProficiency}/100.`,
+      });
     } catch (e) {
       notAvailable(e);
     } finally {
@@ -211,11 +258,39 @@ export default function StudyPanel({ field }: { field?: string }) {
               <p className="text-base font-medium">{drill.prompt}</p>
             </Card>
 
-            <Textarea value={attempt} onChange={(e) => setAttempt(e.target.value)} placeholder="Draft your answer here (optional — for your own reflection)..." className="min-h-[120px]" />
+            <div className="space-y-2">
+              <label htmlFor="drill-answer" className="text-sm font-medium">Your answer</label>
+              <Textarea
+                id="drill-answer"
+                value={attempt}
+                onChange={(e) => setAttempt(e.target.value)}
+                disabled={Boolean(drillResult)}
+                placeholder="Write it as you'd say it. The coach marks it against the points a strong answer covers."
+                className="min-h-[140px]"
+              />
+              {!drillResult && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    onClick={() => void recordResult("coach")}
+                    disabled={recording || attempt.trim().length < 20}
+                    className="bg-gradient-to-r from-primary to-primary/80"
+                  >
+                    {recording && !selfRating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Marking...</> : <><Target className="w-4 h-4 mr-2" />Check my answer</>}
+                  </Button>
+                  {!selfRating && (
+                    <button type="button" onClick={() => setSelfRating(true)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                      Skip writing, rate myself
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {drillResult?.evaluation && <DrillMarks result={drillResult} />}
 
             <Accordion type="single" collapsible>
               <AccordionItem value="check">
-                <AccordionTrigger className="text-sm">Reveal self-check & ideal points</AccordionTrigger>
+                <AccordionTrigger className="text-sm">{drillResult ? "Ideal points & self-check" : "Reveal self-check & ideal points"}</AccordionTrigger>
                 <AccordionContent>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
@@ -231,26 +306,31 @@ export default function StudyPanel({ field }: { field?: string }) {
               </AccordionItem>
             </Accordion>
 
-            <Separator />
-
-            {/* Self-score → records to the matrix */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">How did you do?</p>
-                <span className="text-2xl font-bold">{score}<span className="text-sm text-muted-foreground">/10</span></span>
+            {/* Self-rating: only when they didn't write an answer for the coach to mark */}
+            {selfRating && !drillResult && (
+              <div>
+                <Separator className="mb-4" />
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium">How did you do? <span className="text-xs text-muted-foreground">(self-rated)</span></p>
+                  <span className="text-2xl font-bold">{score}<span className="text-sm text-muted-foreground">/10</span></span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  value={score}
+                  aria-label="Rate yourself out of 10"
+                  onChange={(e) => setScore(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1"><span>Struggled</span><span>Nailed it</span></div>
+                <Button onClick={() => void recordResult("self")} disabled={recording} className="mt-3 w-full" variant="outline">
+                  {recording ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating your matrix...</> : <><Target className="w-4 h-4 mr-2" />Record my rating</>}
+                </Button>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={10}
-                value={score}
-                onChange={(e) => setScore(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1"><span>Struggled</span><span>Nailed it</span></div>
-              <Button onClick={recordResult} disabled={recording} className="mt-3 w-full" variant="outline">
-                {recording ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating your matrix...</> : <><Target className="w-4 h-4 mr-2" />Record result</>}
-              </Button>
+            )}
+
+            <div>
               {lastResult && (
                 <p className="text-sm text-center mt-3 p-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg">{lastResult}</p>
               )}
@@ -259,8 +339,8 @@ export default function StudyPanel({ field }: { field?: string }) {
         ) : (
           <p className="text-sm text-muted-foreground">
             The scheduler picks the skill most due for review — based on your proficiency, how long since you last
-            touched it, and its trend — then generates one focused, self-checkable exercise. Scoring it updates your
-            skill matrix instantly.
+            touched it, and its trend — then generates one focused exercise. Write your answer and the coach marks it
+            against the points a strong answer covers; the mark updates your skill matrix.
           </p>
         )}
       </Card>
@@ -279,7 +359,7 @@ export default function StudyPanel({ field }: { field?: string }) {
               <SelectContent>{["3", "5", "8", "10"].map((h) => <SelectItem key={h} value={h}>{h} h/wk</SelectItem>)}</SelectContent>
             </Select>
             <Button onClick={buildPlan} disabled={planning} className="bg-gradient-to-r from-primary to-primary/80">
-              {planning ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Building...</> : <><CalendarDays className="w-4 h-4 mr-2" />Build plan</>}
+              {planning ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Building...</> : <><CalendarDays className="w-4 h-4 mr-2" />{pathway ? "Rebuild plan" : "Build plan"}</>}
             </Button>
           </div>
         </div>
@@ -289,6 +369,7 @@ export default function StudyPanel({ field }: { field?: string }) {
             broken. */}
         {pathway && (
           <div className="mb-4 space-y-3 rounded-lg border bg-muted/30 p-4">
+            <SavedNote at={pathwaySavedAt} refreshLabel="Rebuild plan" />
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="text-[10px]">
                 {pathway.focus.fromLastInterview ? "from your last mock" : pathway.focus.source}
@@ -340,6 +421,14 @@ export default function StudyPanel({ field }: { field?: string }) {
                     <p className="text-sm font-medium">{r.title}</p>
                   )}
                   <p className="text-xs text-muted-foreground">{r.whyRecommended}</p>
+                  {r.url && (
+                    <div className="mt-2">
+                      <ResourceProgress
+                        resource={{ url: r.url, title: r.title, provider: r.provider, skill: r.forSkill }}
+                        status={r.myStatus}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -458,5 +547,55 @@ export default function StudyPanel({ field }: { field?: string }) {
         </AnimatePresence>
       </Card>
     </motion.div>
+  );
+}
+
+const MARK_STYLE: Record<DrillPointMark["mark"], { label: string; className: string; icon: typeof CheckCircle2 }> = {
+  covered: { label: "Covered", className: "text-green-600", icon: CheckCircle2 },
+  partial: { label: "Partly", className: "text-amber-600", icon: Lightbulb },
+  missing: { label: "Missing", className: "text-muted-foreground", icon: X },
+};
+
+/** What the coach found in the answer, point by point, with the words that show it. */
+function DrillMarks({ result }: { result: DrillResult }) {
+  const e = result.evaluation!;
+  return (
+    <Card className="p-4 space-y-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-semibold">The coach's marks</p>
+        <p className="text-2xl font-bold">{result.score}<span className="text-sm text-muted-foreground">/10</span></p>
+      </div>
+      {e.cap && (
+        <p className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+          <X className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
+          Capped at {e.cap.max}: {e.cap.reason}
+        </p>
+      )}
+      <ul className="space-y-2.5">
+        {e.points.map((p, i) => {
+          const style = MARK_STYLE[p.mark];
+          const Icon = style.icon;
+          return (
+            <li key={i} className="text-sm">
+              <p className="flex items-start gap-2">
+                <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.className}`} aria-hidden />
+                <span>
+                  <span className={`font-medium ${style.className}`}>{style.label}:</span> {p.point}
+                </span>
+              </p>
+              {p.quote && <p className="ml-6 mt-1 text-xs italic text-muted-foreground">“{p.quote.text}”</p>}
+              {p.note && <p className="ml-6 mt-0.5 text-xs text-muted-foreground">{p.note}</p>}
+            </li>
+          );
+        })}
+      </ul>
+      {(e.whatWorked || e.whatsMissing || e.oneThingToTry) && (
+        <div className="grid gap-3 md:grid-cols-3 text-sm">
+          {e.whatWorked && <div><p className="text-xs font-semibold uppercase text-muted-foreground mb-1">What worked</p><p>{e.whatWorked}</p></div>}
+          {e.whatsMissing && <div><p className="text-xs font-semibold uppercase text-muted-foreground mb-1">What's missing</p><p>{e.whatsMissing}</p></div>}
+          {e.oneThingToTry && <div><p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Next time</p><p>{e.oneThingToTry}</p></div>}
+        </div>
+      )}
+    </Card>
   );
 }
