@@ -6,6 +6,10 @@
  * one counts towards the skill it was recommended for and stops it being
  * recommended again. The filter chips are this job's key skills, not a fixed
  * tech list, and research and proof links follow the job.
+ *
+ * When no source turns up for a job (common outside tech), the coach suggests
+ * resources from its own knowledge. Those say so, show how to find them, and
+ * link to a web search rather than a page nobody checked.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -62,6 +66,8 @@ export function ResourcesPanel({ field }: { field?: string }) {
   const { data: mine } = useMyResources();
   const myByLink = useMemo(() => new Map((mine ?? []).map((r) => [linkKey(r.url), r])), [mine]);
   const underway = (mine ?? []).filter((r) => r.status !== "completed");
+  const suggestedOnly = resources.length > 0 && resources.every((r) => r.unsourced);
+  const anyVerifiedTip = tips.some((t) => t.proof);
   const finished = (mine ?? []).filter((r) => r.status === "completed");
 
   const load = useCallback(
@@ -144,18 +150,34 @@ export function ResourcesPanel({ field }: { field?: string }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-[color:var(--cc-ink-soft)]">
-            Community-vetted material
-            {field ? (
-              <>
-                {" "}
-                for <span className="font-semibold text-[color:var(--cc-ink)]">{field}</span>
-              </>
-            ) : (
-              ""
-            )}
-            , each with its source on the chip.
-          </p>
+          {suggestedOnly ? (
+            <p className="text-sm text-[color:var(--cc-ink-soft)]">
+              No public sources turned up
+              {field ? (
+                <>
+                  {" "}
+                  for <span className="font-semibold text-[color:var(--cc-ink)]">{field}</span>
+                </>
+              ) : (
+                ""
+              )}
+              , so these are the coach's own suggestions. Each link searches the web for it; check it before you
+              rely on it.
+            </p>
+          ) : (
+            <p className="text-sm text-[color:var(--cc-ink-soft)]">
+              Community-vetted material
+              {field ? (
+                <>
+                  {" "}
+                  for <span className="font-semibold text-[color:var(--cc-ink)]">{field}</span>
+                </>
+              ) : (
+                ""
+              )}
+              , each with its source on the chip.
+            </p>
+          )}
         </div>
         <div className="inline-flex max-w-full overflow-x-auto rounded-[0.85rem] border border-[color:var(--cc-hair-strong)] [scrollbar-width:none]">
           {filters.map((f) => (
@@ -195,7 +217,9 @@ export function ResourcesPanel({ field }: { field?: string }) {
             return (
               <article key={resource.id} className="cc-surface cc-lift group flex flex-col p-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="cc-label-sm text-[color:var(--cc-rust)]">{resource.type}</span>
+                  <span className="cc-label-sm text-[color:var(--cc-rust)]">
+                    {resource.unsourced ? `Coach suggestion · ${resource.type}` : resource.type}
+                  </span>
                   <ArrowUpRight
                     aria-hidden
                     className="h-3.5 w-3.5 text-[color:var(--cc-ash)] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
@@ -214,9 +238,14 @@ export function ResourcesPanel({ field }: { field?: string }) {
                     {resource.description}
                   </p>
                 )}
+                {resource.unsourced && resource.provider && (
+                  <p className="mt-2 text-xs leading-relaxed text-[color:var(--cc-ash)]">
+                    <span className="font-semibold text-[color:var(--cc-ink-soft)]">How to find it:</span> {resource.provider}
+                  </p>
+                )}
                 <div className="mt-auto flex items-center justify-between gap-2 pt-4">
                   <span className="cc-label-sm truncate text-[color:var(--cc-ash)]">
-                    {resource.provider}
+                    {resource.unsourced ? "No source found · link searches the web" : resource.provider}
                     {resource.duration ? ` · ${resource.duration}` : ""}
                   </span>
                   {typeof resource.rating === "number" && (
@@ -282,7 +311,9 @@ export function ResourcesPanel({ field }: { field?: string }) {
           <div className="border-b border-[color:var(--cc-hair)] bg-[color:var(--cc-rust-soft)]/30 px-5 py-4">
             <p className="cc-kicker">Proven tips</p>
             <p className="mt-1 text-xs text-[color:var(--cc-ash)]">
-              Coaching advice backed by real, vetted sources.
+              {tipsLoading || anyVerifiedTip
+                ? "Coaching advice, with the real source behind each one where there is one."
+                : "Coaching advice for this job. No public sources turned up to back these yet."}
             </p>
           </div>
           <div className="divide-y divide-[color:var(--cc-hair)]">

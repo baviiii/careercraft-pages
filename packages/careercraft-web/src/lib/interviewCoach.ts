@@ -211,6 +211,8 @@ interface WireResource {
   rating?: number;
   proof?: Proof | null;
   myStatus?: ResourceStatus;
+  /** The coach's own suggestion: no source was found, and the link is a web search for it. */
+  unsourced?: boolean;
 }
 
 interface WireResources {
@@ -472,6 +474,11 @@ export interface CoachResource {
   proof: Proof | null;
   /** The learner's own status, when they've saved or started it. */
   myStatus?: ResourceStatus;
+  /**
+   * The coach suggested it from its own knowledge because no source turned
+   * up for this job; `provider` says how to find it and `url` searches for it.
+   */
+  unsourced?: boolean;
 }
 
 export type ResourceStatus = "saved" | "in_progress" | "completed";
@@ -918,6 +925,7 @@ function adaptResource(r: WireResource, fallbackSkill: string): CoachResource {
     rating: r.rating,
     proof: adaptProof(r.proof),
     ...(r.myStatus ? { myStatus: r.myStatus } : {}),
+    ...(r.unsourced ? { unsourced: true } : {}),
   };
 }
 
