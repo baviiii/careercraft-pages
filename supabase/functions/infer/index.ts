@@ -68,6 +68,11 @@ const InferRequestSchema = z.object({
   { message: "messages or prompt is required" },
 );
 
+/** Horus takes a schema only as a JSON object; anything else is dropped rather than refused. */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function bearer(req: Request): string {
   return (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
 }
@@ -209,6 +214,10 @@ serve(handler(async (req) => {
     model: body.model,
     temperature: body.temperature,
     maxTokens: body.maxTokens,
+    // Horus makes the model fill this exact shape; without it the model is
+    // only held to "a JSON object" and can stop after its first section.
+    schema: isJsonObject(body.schema) ? body.schema : undefined,
+    schemaName: body.schemaName,
     meter,
   });
 
