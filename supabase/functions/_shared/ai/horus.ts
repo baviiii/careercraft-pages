@@ -1,10 +1,10 @@
 // Horus inference client — CareerCraft's door to the model.
 //
-// All text generation in the edge functions goes through Horus's
+// All generation in the edge functions goes through Horus's
 // `POST /api/infer` gateway (deployed horus-platform, Vercel) using a
 // tenant API key with the `intelligence:infer` scope. Horus maps the
-// "fast" | "deep" tier to a concrete Azure deployment; CareerCraft never
-// holds a model-vendor key for generation.
+// "fast" | "deep" tier to a concrete model (Claude on Amazon Bedrock);
+// CareerCraft never holds a model-vendor key.
 //
 // Env:
 //   HORUS_INFER_URL — full URL to the gateway, e.g. https://horus.example.com/api/infer
@@ -22,9 +22,15 @@ import { recordTokenSpend } from "../db/token-usage.ts";
 
 export type HorusTier = "fast" | "deep";
 
+/** A piece of a user message: text, or an image (base64, no data: prefix). */
+export type HorusContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; image: string; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp" };
+
 export interface HorusMessage {
   role: "user" | "assistant" | "system";
-  content: string;
+  /** Text, or for a user turn, text and images (e.g. résumé pages). */
+  content: string | HorusContentPart[];
 }
 
 export interface HorusUsage {
@@ -42,6 +48,13 @@ export interface HorusInferOptions {
   model?: HorusTier;
   temperature?: number;
   maxTokens?: number;
+  /**
+   * JSON Schema of the answer. Horus makes the model fill exactly this shape;
+   * without one the model is only told "a JSON object", and on a long answer
+   * it can stop after the first section.
+   */
+  schema?: Record<string, unknown>;
+  schemaName?: string;
   /**
    * Who pays, and what they are allowed to spend.
    *
@@ -107,6 +120,7 @@ export async function horusInfer(opts: HorusInferOptions): Promise<HorusInferRes
         model,
         temperature: opts.temperature ?? 0.7,
         maxTokens,
+        ...(opts.schema && { schema: opts.schema, schemaName: opts.schemaName }),
         // Finally populated. Horus has accepted this field all along; nothing
         // ever sent it, so every call arrived anonymous under the tenant key.
         userRef: meter.userId ?? undefined,

@@ -18,7 +18,7 @@ const PDF_RENDER_SCALE = 1.5;
 
 /**
  * Single entry point for resume extraction.
- * TXT/DOCX → text path. PDF/images → vision-first on server (Azure OpenAI multimodal), DI fallback automatic.
+ * TXT/DOCX → text path. PDF/images → page images, read by the model on the server (parse-resume).
  */
 export async function extractResumeFromFile(
   file: File,
@@ -134,7 +134,7 @@ async function invokeParseResumeVision(
   return mapEdgeParsedToAIResumeData(data.parsed);
 }
 
-/** PDF + images: render/send to vision-first parse-resume (Azure OpenAI multimodal + DI fallback on server). */
+/** PDF + images: render pages and send them to parse-resume, where the model reads them. */
 export async function parseResumeWithAI(
   file: File,
   onProgress?: (progress: number) => void,

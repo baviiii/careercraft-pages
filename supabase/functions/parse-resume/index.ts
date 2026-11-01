@@ -1,30 +1,26 @@
 // parse-resume — Structured resume extraction.
 //
-// Vision-first:
-//   JSON body   → plain text (DOCX/TXT pre-extracted on client) → Azure OpenAI structure
-//   FormData    → page images → Azure OpenAI multimodal (gpt-4o-mini) reads visually
+// Both routes go through the Horus gateway (Claude on Amazon Bedrock):
+//   JSON body   → plain text (DOCX/TXT pre-extracted on client) → structured
+//   FormData    → page images (PDF pages rendered on client, or a photo) →
+//                 the model reads the pages visually, columns and all
 //
-// The Azure Document Intelligence OCR fallback was removed with the rest of the
-// decommissioned CareerCraft Azure estate; gpt-4o vision reads scanned pages.
-//
-// This is the one edge function that talks to Azure OpenAI directly instead of
-// the Horus gateway: the vision path needs image inputs, which Horus /api/infer
-// doesn't accept (yet).
+// This used to call Azure OpenAI (gpt-4o) directly, because Horus didn't take
+// images. That Azure resource is gone; Horus now takes images in user turns.
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { generateObject } from "npm:ai@4";
+import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 import { z } from "npm:zod@3";
+import { zodToJsonSchema } from "npm:zod-to-json-schema@3";
 
 import { AU_PARSING_RULES } from "../_shared/ai/au-context.ts";
-import { getAzure } from "../_shared/ai/providers.ts";
-import { ConfigError, ProviderError, UnauthorizedError, ValidationError } from "../_shared/ai/errors.ts";
+import { horusGenerateObject, type HorusContentPart } from "../_shared/ai/horus.ts";
+import { UnauthorizedError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota, systemMeter, type MeterContext } from "../_shared/ai/meter.ts";
 import { handler, json } from "../_shared/http/responses.ts";
-import { optEnv } from "../_shared/env.ts";
 import { optionalUser } from "../_shared/http/auth.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
-import { recordTokenSpend } from "../_shared/db/token-usage.ts";
 
 
 const ParsedResumeSchema = z.object({
@@ -108,6 +104,13 @@ const ParsedResumeSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+/* Sent with every parse, so the model fills exactly this shape instead of
+   "some JSON object" — with no shape, a long answer can stop after its first
+   section. The zod schema still checks what comes back. */
+const { $schema: _draft, ...PARSED_RESUME_JSON_SCHEMA } = zodToJsonSchema(ParsedResumeSchema, {
+  $refStrategy: "none",
+}) as Record<string, unknown>;
+
 const JsonBodySchema = z.object({
   rawText: z.string().min(1).max(60_000),
   fileName: z.string().default("document.txt"),
@@ -166,14 +169,22 @@ Confidence (0-1): rate honestly —
 type ParsedResume = z.infer<typeof ParsedResumeSchema>;
 type ExtractionRoute = "text" | "vision";
 
-/* The real per-call cost ceiling on this function.
-   Worth stating plainly because the meter is NOT it: generateObject is called
-   directly here rather than through horusInfer, so meter.maxTokensPerCall and
-   meter.maxModelTier are descriptive (they label the ledger row) and enforce
-   nothing. These two constants are what actually bound the spend of a single
-   request, and for guests they are what the rate limit gets multiplied by. */
+/* What bounds the spend of one request. horusInfer enforces both the token
+   cap and the model tier from the meter; these are what this function asks
+   for. A two-page résumé comes back in roughly 2,000–4,000 tokens; the cap
+   only bounds a runaway answer, and unused room costs nothing. */
 const MAX_INPUT_CHARS = 15_000;
-const MAX_OUTPUT_TOKENS = 4000;
+const MAX_OUTPUT_TOKENS = 8000;
+/** The résumé is the first thing a new user sees the product do, so it gets the deep model. */
+const MODEL_TIER = "deep" as const;
+
+/* Images. Claude reads JPEG, PNG, GIF and WebP. Horus runs on Vercel, whose
+   request limit is 4.5 MB, and base64 adds a third — so 3 MB of image in total. */
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
+type ImageType = (typeof IMAGE_TYPES)[number];
+const MAX_IMAGE_BASE64_CHARS = 4_000_000;
+const TOO_BIG =
+  "That file is too large for the AI to read. Upload a PDF or Word file, or an image under 3 MB.";
 
 const RESOURCE = "parse-resume";
 /** Separate key so guest spend is its own line in the ledger and the quota tables. */
@@ -181,97 +192,77 @@ const GUEST_RESOURCE = "parse-resume-guest";
 const GUEST_HOURLY_PER_IP = 10;
 const GUEST_HOURLY_TOTAL = 500;
 
-function getStructureModel() {
-  const deployment = optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini")!;
-  return getAzure()(deployment);
-}
-
-
 async function structureFromText(rawText: string, meter: MeterContext): Promise<ParsedResume> {
-  const startedAt = Date.now();
-  const { object, usage } = await generateObject({
-    model: getStructureModel(),
-    schema: ParsedResumeSchema,
-    schemaName: "ParsedResume",
+  const { object } = await horusGenerateObject(ParsedResumeSchema, {
+    task: "careercraft.parse_resume_text",
     system: TEXT_SYSTEM_PROMPT,
     prompt: `Resume text:\n${rawText.substring(0, MAX_INPUT_CHARS)}`,
+    model: MODEL_TIER,
     temperature: 0.1,
     maxTokens: MAX_OUTPUT_TOKENS,
+    schema: PARSED_RESUME_JSON_SCHEMA,
+    schemaName: "ParsedResume",
+    meter,
   });
-
-  // provider: "azure" — this path spends CareerCraft's own AZURE_OPENAI_KEY,
-  // not Horus's budget, so it lands on a different invoice and is worth being
-  // able to separate in the ledger.
-  await recordTokenSpend(meter, {
-    task: "careercraft.parse_resume_text",
-    provider: "azure",
-    model: optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini"),
-    promptTokens: usage?.promptTokens,
-    completionTokens: usage?.completionTokens,
-    durationMs: Date.now() - startedAt,
-    metadata: { route: "text" },
-  });
-
   return object;
 }
 
-type ImagePart = { mimeType: string; base64: string };
+type ImagePart = { mediaType: ImageType; base64: string };
+
+function asImageType(type: string): ImageType {
+  const normalised = type.toLowerCase() === "image/jpg" ? "image/jpeg" : type.toLowerCase();
+  if (!(IMAGE_TYPES as readonly string[]).includes(normalised)) {
+    throw new ValidationError(
+      "The AI can read PDF, Word, JPG, PNG, GIF and WebP files. Convert this file and try again.",
+    );
+  }
+  return normalised as ImageType;
+}
 
 function parseDataUrl(dataUrl: string): ImagePart {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) throw new ValidationError("Invalid page image data URL");
-  return { mimeType: match[1], base64: match[2] };
+  return { mediaType: asImageType(match[1]), base64: match[2] };
 }
 
 async function fileToImagePart(file: File): Promise<ImagePart> {
-  const buf = new Uint8Array(await file.arrayBuffer());
-  const base64 = btoa(String.fromCharCode(...buf));
-  const mimeType = file.type || "image/jpeg";
-  return { mimeType, base64 };
+  const mediaType = asImageType(file.type || "image/jpeg");
+  // Checked before reading, so an oversized photo never gets base64-encoded.
+  if (file.size > (MAX_IMAGE_BASE64_CHARS / 4) * 3) throw new ValidationError(TOO_BIG);
+  const base64 = encodeBase64(new Uint8Array(await file.arrayBuffer()));
+  return { mediaType, base64 };
 }
 
 async function structureFromVision(images: ImagePart[], meter: MeterContext): Promise<ParsedResume> {
   if (!images.length) {
     throw new ValidationError("At least one page image is required for vision parsing");
   }
+  if (images.reduce((n, img) => n + img.base64.length, 0) > MAX_IMAGE_BASE64_CHARS) {
+    throw new ValidationError(TOO_BIG);
+  }
 
-  const content: Array<{ type: "text"; text: string } | { type: "image"; image: string; mimeType?: string }> = [
+  const content: HorusContentPart[] = [
     {
       type: "text",
       text: "Extract the full resume from these page image(s). Respect visual columns and section layout.",
     },
+    ...images.map((img): HorusContentPart => ({ type: "image", image: img.base64, mediaType: img.mediaType })),
   ];
 
-  for (const img of images) {
-    content.push({ type: "image", image: img.base64, mimeType: img.mimeType });
-  }
-
-  const startedAt = Date.now();
-  const { object, usage } = await generateObject({
-    model: getStructureModel(),
-    schema: ParsedResumeSchema,
-    schemaName: "ParsedResume",
-    messages: [
-      { role: "system", content: VISION_SYSTEM_PROMPT },
-      { role: "user", content },
-    ],
+  // The most expensive single call in the product: up to three full-page
+  // images. Reachable only with a verified session — the handler rejects
+  // anonymous callers before this path.
+  const { object } = await horusGenerateObject(ParsedResumeSchema, {
+    task: "careercraft.parse_resume_vision",
+    system: VISION_SYSTEM_PROMPT,
+    messages: [{ role: "user", content }],
+    model: MODEL_TIER,
     temperature: 0.1,
     maxTokens: MAX_OUTPUT_TOKENS,
+    schema: PARSED_RESUME_JSON_SCHEMA,
+    schemaName: "ParsedResume",
+    meter,
   });
-
-  // The most expensive single call in the product: up to three full-page
-  // images at MAX_OUTPUT_TOKENS. Reachable only with a verified session —
-  // the handler rejects anonymous callers before this path.
-  await recordTokenSpend(meter, {
-    task: "careercraft.parse_resume_vision",
-    provider: "azure",
-    model: optEnv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini"),
-    promptTokens: usage?.promptTokens,
-    completionTokens: usage?.completionTokens,
-    durationMs: Date.now() - startedAt,
-    metadata: { route: "vision", pages: images.length },
-  });
-
   return object;
 }
 
@@ -353,14 +344,12 @@ serve(handler(async (req) => {
     // userId stays null: the ledger still gets a row, so guest spend is
     // visible and separable rather than untracked.
     //
-    // These two fields describe the call for the ledger, they do not enforce
-    // it — systemMeter's defaults (deep/16000) would otherwise mislabel a
-    // guest parse as a far bigger budget than it is. The enforced ceiling is
-    // MAX_INPUT_CHARS/MAX_OUTPUT_TOKENS above; the enforced VOLUME is the two
-    // rate limits. Guests deliberately get the same per-call budget as anyone
-    // else: a worse parse for guests would defeat the point of this path.
+    // horusInfer enforces these two: the per-call ceiling is MAX_OUTPUT_TOKENS,
+    // and the VOLUME is the two rate limits above. Guests deliberately get the
+    // same model and budget as anyone else: a worse parse for guests would
+    // defeat the point of this path.
     meter = systemMeter(GUEST_RESOURCE);
-    meter.maxModelTier = "fast";
+    meter.maxModelTier = MODEL_TIER;
     meter.maxTokensPerCall = MAX_OUTPUT_TOKENS;
   }
 
@@ -413,10 +402,7 @@ serve(handler(async (req) => {
     imageParts = [await fileToImagePart(file)];
   }
 
-  // Azure Document Intelligence was the OCR fallback here. It lived in the
-  // CareerCraft Azure estate that has been decommissioned along with the
-  // search service and Function App, so those calls could no longer succeed.
-  // gpt-4o vision is the primary route and handles scanned pages directly.
+  // No OCR step: the model reads scanned pages directly.
   if (imageParts.length === 0) {
     throw new ValidationError(
       "Could not read this file. Convert it to PDF or an image and try again — " +
