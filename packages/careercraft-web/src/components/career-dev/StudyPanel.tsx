@@ -64,6 +64,13 @@ import { ResourceProgress } from "@/features/interview/components/ResourceProgre
 import { useForgetSaved, useLatestSaved } from "@/lib/savedResults";
 import { CoachNotConnected, SavedNote, SectionHeader } from "./shared";
 
+/** What a pathway resource is, in words: a course from the catalogue, a recommendation, or one of the coach's picks. */
+function resourceBadge(r: LearningPathway["resources"][number]): string {
+  if (r.linkKind === "direct") return "Coach's pick · link checked";
+  if (r.linkKind === "search") return "Coach's pick · web search";
+  return r.source === "catalog" ? "Course" : "Recommended";
+}
+
 const METHOD_STYLES: Record<string, string> = {
   learn: "bg-blue-500/10 text-blue-600 border-blue-500/20",
   drill: "bg-purple-500/10 text-purple-600 border-purple-500/20",
@@ -399,12 +406,13 @@ export default function StudyPanel({ field }: { field?: string }) {
           <div className="mb-4 space-y-2">
             <p className="text-xs font-medium text-muted-foreground">
               Resources for these skills
-              {pathway.unsourcedResources && " (suggestions — nothing real backed these yet)"}
+              {pathway.unsourcedResources &&
+                " — the coach's picks. A link opens the page itself when we could check it, otherwise it searches for it."}
             </p>
             {pathway.resources.slice(0, 5).map((r) => (
               <div key={r.id} className="flex items-start gap-2 rounded-lg bg-muted/40 p-3">
                 <Badge variant="outline" className="shrink-0 text-[9px]">
-                  {r.source}
+                  {resourceBadge(r)}
                 </Badge>
                 <div className="flex-1 min-w-0">
                   {r.url ? (
@@ -421,6 +429,11 @@ export default function StudyPanel({ field }: { field?: string }) {
                     <p className="text-sm font-medium">{r.title}</p>
                   )}
                   <p className="text-xs text-muted-foreground">{r.whyRecommended}</p>
+                  {pathway.unsourcedResources && r.provider && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground/80">How to find it:</span> {r.provider}
+                    </p>
+                  )}
                   {r.url && (
                     <div className="mt-2">
                       <ResourceProgress
@@ -431,6 +444,37 @@ export default function StudyPanel({ field }: { field?: string }) {
                   )}
                 </div>
               </div>
+            ))}
+          </div>
+        ) : null}
+
+        {pathway?.officialTraining?.length ? (
+          <div className="mb-4 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <GraduationCap className="w-3.5 h-3.5" />
+              Get it recognised — nationally accredited training
+            </p>
+            {pathway.officialTraining.map((t) => (
+              <a
+                key={t.url}
+                href={t.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-start gap-2 rounded-lg bg-muted/40 p-3 hover:bg-muted/60"
+              >
+                <Badge variant="outline" className="shrink-0 text-[9px]">
+                  Official
+                </Badge>
+                <span className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-primary inline-flex items-center gap-1">
+                    {t.title}
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t.provider} · for {t.skill}
+                  </span>
+                </span>
+              </a>
             ))}
           </div>
         ) : null}

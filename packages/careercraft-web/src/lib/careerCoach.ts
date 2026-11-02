@@ -257,6 +257,17 @@ export interface PathwayResource {
   forSkill?: string;
   /** The learner's own status, when they've saved or started it. */
   myStatus?: ResourceStatus;
+  /** For the coach's own picks: "direct" when the page it named was opened and checked, "search" when the link searches for it. */
+  linkKind?: "direct" | "search";
+}
+
+/** Where to find accredited training for a skill in Australia (the national register, or the government's course search). */
+export interface OfficialTrainingLink {
+  skill: string;
+  title: string;
+  provider: string;
+  url: string;
+  linkKind: "official";
 }
 
 export type ResourceStatus = "saved" | "in_progress" | "completed";
@@ -285,8 +296,10 @@ export interface LearningPathway {
   targets: PathwayTarget[];
   plan: StudyPlan;
   resources: PathwayResource[];
-  /** True when nothing real backed the resources — model suggestions only. */
+  /** True when nothing real backed the resources — the coach's own picks (each link still opens). */
   unsourcedResources: boolean;
+  /** Accredited training for the skills that are normally learned that way (Australia; older saved pathways lack it). */
+  officialTraining?: OfficialTrainingLink[];
   nextDrill: PathwayDrill;
   nextMock: {
     field: string;

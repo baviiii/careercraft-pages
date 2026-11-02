@@ -161,8 +161,8 @@ export function ResourcesPanel({ field }: { field?: string }) {
               ) : (
                 ""
               )}
-              , so these are the coach's own suggestions. Each link searches the web for it; check it before you
-              rely on it.
+              , so these are the coach's own suggestions. Each link opens the page it named when we could check it,
+              and otherwise searches the web for it; check it before you rely on it.
             </p>
           ) : (
             <p className="text-sm text-[color:var(--cc-ink-soft)]">
@@ -245,7 +245,11 @@ export function ResourcesPanel({ field }: { field?: string }) {
                 )}
                 <div className="mt-auto flex items-center justify-between gap-2 pt-4">
                   <span className="cc-label-sm truncate text-[color:var(--cc-ash)]">
-                    {resource.unsourced ? "No source found · link searches the web" : resource.provider}
+                    {resource.unsourced
+                      ? resource.linkKind === "direct"
+                        ? "Coach's pick · link checked"
+                        : "No source found · link searches the web"
+                      : resource.provider}
                     {resource.duration ? ` · ${resource.duration}` : ""}
                   </span>
                   {typeof resource.rating === "number" && (
