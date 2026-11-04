@@ -1,0 +1,73 @@
+/* Chart tokens for the admin AI usage screens.
+   Categorical slots are the dataviz reference palette in its validated order
+   (adjacent-pair CVD ΔE ≥ 8.4 in both modes). Three light-mode slots sit
+   under 3:1 on white, so every chart here ships a legend, a tooltip and a
+   table of the same numbers. */
+
+.usage-viz {
+  --viz-surface: var(--ds-surface, #ffffff);
+  --viz-grid: rgba(15, 23, 42, 0.08);
+  --viz-axis: #64748b;
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #008300;
+  --viz-7: #4a3aa7;
+  --viz-other: #9ca3af;
+  --viz-track: #cde2fb;
+  --viz-good: #2a78d6;
+  --viz-warn: #eda100;
+  --viz-poor: #e34948;
+}
+
+.dark .usage-viz {
+  --viz-grid: rgba(238, 242, 255, 0.1);
+  --viz-axis: #94a3b8;
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #008300;
+  --viz-7: #9085e9;
+  --viz-other: #6b7280;
+  --viz-track: #184f95;
+  --viz-good: #3987e5;
+  --viz-warn: #c98500;
+  --viz-poor: #e66767;
+}
+
+/* Budget meter: the fill carries severity, the track is a light step of the
+   same blue so the whole bar reads as one instrument. */
+.usage-meter {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--viz-track);
+  overflow: hidden;
+}
+.usage-meter > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  transition: width .6s cubic-bezier(.2, .8, .2, 1);
+}
+.usage-meter[data-tone="good"] > span { background: var(--viz-good); }
+.usage-meter[data-tone="warn"] > span { background: var(--viz-warn); }
+.usage-meter[data-tone="poor"] > span { background: var(--viz-poor); }
+
+.usage-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Wide tables scroll inside their card instead of widening the page. */
+.usage-scroll {
+  width: 100%;
+  overflow-x: auto;
+}

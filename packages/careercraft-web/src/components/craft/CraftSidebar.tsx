@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { FaircopyMark } from "@/components/brand/FaircopyMark";
+import { SidebarTokenBudget } from "./TokenBudgetMeter";
 
 export interface CraftSidebarLink {
   icon: React.ComponentType<{ className?: string }>;
@@ -199,6 +200,9 @@ export const CraftSidebar = memo(function CraftSidebar({
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold">{userName || "Guest"}</div>
             <div className="truncate text-[11px] text-[color:var(--cc-ash)]">{userEmail}</div>
+            {/* Inside the card rather than above it: the nav is already
+                close to filling a laptop-height sidebar. */}
+            <SidebarTokenBudget onNavigate={onClose} />
           </div>
           <button
             onClick={onSignOut}

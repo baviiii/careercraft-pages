@@ -557,3 +557,26 @@ or first impressions, and the files are cached after the first visit.
 
 **Decide later:** the same change as the builder: `await import(...)` inside
 the upload, parse and export handlers.
+
+---
+
+## 19. Deleting an account deletes its AI spend history
+
+**Found:** 2026-11-04, building `/admin/usage`.
+
+`token_usage_ledger.user_id` is `ON DELETE CASCADE`, and `delete_user_data`
+lists the ledger too. So when someone deletes their account, every call they
+made disappears from the ledger, and past totals on `/admin/usage` (tokens,
+estimated cost, spend by plan) drop after the fact.
+
+**Why it matters:** for auditing, last month's cost should not change because
+a user left this month. It will not match the provider invoice.
+
+**Not urgent because:** there are a handful of accounts and almost no
+deletions, and estimated cost is already an estimate.
+
+**Decide later:** change the foreign key to `ON DELETE SET NULL` (and take the
+ledger out of `delete_user_data`). The rows keep tokens, model and feature but
+lose any link to the person, so the privacy promise still holds. Those rows
+then show up under "No user" alongside test scripts; add a
+`metadata.deleted_account` flag if the two need telling apart.

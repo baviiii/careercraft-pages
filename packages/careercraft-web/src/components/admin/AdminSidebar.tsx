@@ -7,7 +7,8 @@ import {
   LogOut,
   Monitor,
   MessageSquare,
-  Gauge
+  Gauge,
+  Coins
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -32,6 +33,7 @@ const mainNavItems = [
   { title: 'Activity', url: '/admin/activity', icon: Activity },
   { title: 'Sessions', url: '/admin/sessions', icon: Monitor },
   { title: 'AI Prompts', url: '/admin/prompts', icon: MessageSquare },
+  { title: 'AI Usage', url: '/admin/usage', icon: Coins },
   { title: 'Plans & Limits', url: '/admin/plans', icon: Gauge },
 ];
 

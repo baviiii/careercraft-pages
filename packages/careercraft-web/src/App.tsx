@@ -46,6 +46,8 @@ const SecurityAlerts = lazy(() => import("./pages/admin/SecurityAlerts"));
 const AccessControl = lazy(() => import("./pages/admin/AccessControl"));
 const ChatPrompts = lazy(() => import("./pages/admin/ChatPrompts"));
 const PlansAndLimits = lazy(() => import("./pages/admin/PlansAndLimits"));
+const AiUsage = lazy(() => import("./pages/admin/AiUsage"));
+const UserUsageDetail = lazy(() => import("./pages/admin/UserUsageDetail"));
 
 // Optimized QueryClient with better caching
 const queryClient = new QueryClient({
@@ -193,6 +195,8 @@ const App = () => (
                 <Route path="access" element={<AccessControl />} />
                 <Route path="prompts" element={<ChatPrompts />} />
                 <Route path="plans" element={<PlansAndLimits />} />
+                <Route path="usage" element={<AiUsage />} />
+                <Route path="usage/:userId" element={<UserUsageDetail />} />
                 {/* Retired pages — keep bookmarks working */}
                 <Route path="documents" element={<Navigate to="/admin" replace />} />
                 <Route path="settings" element={<Navigate to="/admin" replace />} />

@@ -62,6 +62,42 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          id: number
+          new_values: Json | null
+          old_values: Json | null
+          row_key: Json
+          table_name: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          id?: number
+          new_values?: Json | null
+          old_values?: Json | null
+          row_key?: Json
+          table_name: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          id?: number
+          new_values?: Json | null
+          old_values?: Json | null
+          row_key?: Json
+          table_name?: string
+        }
+        Relationships: []
+      }
       admin_whitelist: {
         Row: {
           added_by: string | null
@@ -1140,6 +1176,36 @@ export type Database = {
         }
         Relationships: []
       }
+      model_prices: {
+        Row: {
+          created_at: string
+          input_usd_per_mtok: number
+          label: string
+          notes: string | null
+          output_usd_per_mtok: number
+          pattern: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          input_usd_per_mtok: number
+          label: string
+          notes?: string | null
+          output_usd_per_mtok: number
+          pattern: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          input_usd_per_mtok?: number
+          label?: string
+          notes?: string | null
+          output_usd_per_mtok?: number
+          pattern?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       news_articles: {
         Row: {
           category: string | null
@@ -1781,6 +1847,7 @@ export type Database = {
           metadata: Json
           model: string | null
           model_tier: string | null
+          plan_key: string | null
           prompt_tokens: number
           provider: string
           request_id: string | null
@@ -1799,6 +1866,7 @@ export type Database = {
           metadata?: Json
           model?: string | null
           model_tier?: string | null
+          plan_key?: string | null
           prompt_tokens?: number
           provider?: string
           request_id?: string | null
@@ -1817,6 +1885,7 @@ export type Database = {
           metadata?: Json
           model?: string | null
           model_tier?: string | null
+          plan_key?: string | null
           prompt_tokens?: number
           provider?: string
           request_id?: string | null
@@ -2436,6 +2505,112 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_list_audit_log: {
+        Args: { p_before_id?: number; p_limit?: number; p_user_id?: string }
+        Returns: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          id: number
+          new_values: Json | null
+          old_values: Json | null
+          row_key: Json
+          table_name: string
+          target_email: string | null
+          target_user_id: string | null
+        }[]
+      }
+      admin_remove_limit_override: {
+        Args: { p_resource: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_set_daily_token_override: {
+        Args: { p_ceiling: number | null; p_user_id: string }
+        Returns: undefined
+      }
+      admin_set_limit_override: {
+        Args: {
+          p_expires_at?: string | null
+          p_hourly_limit?: number | null
+          p_is_enabled?: boolean | null
+          p_monthly_limit?: number | null
+          p_reason?: string | null
+          p_resource: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      admin_set_user_plan: {
+        Args: { p_note?: string | null; p_plan_key: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_usage_by_user: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          calls: number
+          completion_tokens: number
+          cost_usd: number
+          daily_limit: number | null
+          email: string | null
+          errors: number
+          full_name: string | null
+          last_call_at: string | null
+          last_sign_in_at: string | null
+          plan_key: string | null
+          plan_source: string | null
+          plan_status: string | null
+          prompt_tokens: number
+          requests: number
+          retries: number
+          role: string | null
+          signed_up_at: string
+          tokens: number
+          tokens_today: number
+          top_resource: string | null
+          user_id: string
+        }[]
+      }
+      admin_usage_calls: {
+        Args: {
+          p_before_id?: number
+          p_from: string
+          p_limit?: number
+          p_resource?: string
+          p_scope?: string
+          p_to: string
+          p_user_id?: string
+        }
+        Returns: {
+          attempt: number
+          completion_tokens: number
+          cost_usd: number
+          created_at: string
+          duration_ms: number | null
+          email: string | null
+          error_code: string | null
+          id: number
+          metadata: Json
+          model: string | null
+          model_tier: string | null
+          plan_key: string | null
+          prompt_tokens: number
+          provider: string
+          request_id: string | null
+          resource: string
+          task: string | null
+          total_tokens: number
+          user_id: string | null
+        }[]
+      }
+      admin_usage_overview: {
+        Args: { p_from: string; p_to: string; p_tz?: string }
+        Returns: Json
+      }
+      admin_user_usage: {
+        Args: { p_from: string; p_to: string; p_tz?: string; p_user_id: string }
+        Returns: Json
+      }
       calculate_profile_completeness: {
         Args: { p_user_id: string }
         Returns: number
@@ -2478,6 +2653,19 @@ export type Database = {
           id: string
           name: string
           system_prompt: string
+        }[]
+      }
+      get_my_token_activity: {
+        Args: { p_limit?: number }
+        Returns: {
+          activity_id: string
+          calls: number
+          failed: boolean
+          label: string | null
+          resource: string
+          started_at: string
+          tasks: string[]
+          tokens: number
         }[]
       }
       get_plan_usage: { Args: { p_user_id: string }; Returns: Json }

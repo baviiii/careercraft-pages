@@ -24,6 +24,12 @@ import type { ModelTier, PlanQuota } from "../db/plan-quota.ts";
 export interface MeterContext {
   /** The user whose plan pays. null on system/cron paths. */
   userId: string | null;
+  /**
+   * The plan in force when the request was admitted, stamped on every ledger
+   * row so spend-by-plan stays true after the user changes plan. null when no
+   * plan applies (system paths, or a quota check that could not resolve one).
+   */
+  planKey: string | null;
   /** The same server-owned key the quota was consumed under. */
   resource: string;
   /** Groups every model call made while serving one HTTP request. */
@@ -44,6 +50,8 @@ export interface MeterContext {
 export function meterFromQuota(quota: PlanQuota, userId: string): MeterContext {
   return {
     userId,
+    // permissive() reports "unknown" when the quota check itself failed.
+    planKey: quota.planKey === "unknown" ? null : quota.planKey,
     resource: quota.resource,
     requestId: crypto.randomUUID(),
     dailyTokenLimit: quota.dailyTokens.limit,
@@ -60,6 +68,7 @@ export function meterFromQuota(quota: PlanQuota, userId: string): MeterContext {
 export function systemMeter(resource: string): MeterContext {
   return {
     userId: null,
+    planKey: null,
     resource,
     requestId: crypto.randomUUID(),
     dailyTokenLimit: null,

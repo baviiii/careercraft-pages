@@ -133,6 +133,38 @@ Order matters. Do not skip step 1.
       browser with the anon key. These can never work — they need service-role.
       Disable them or move them behind an `admin-users` edge function.
 
+## Reading it: `/admin/usage` (2026-11-04)
+
+Migration `20261104000000_ai_usage_audit.sql`. The ledger is still
+service-role only; admins read it through RPCs that check `is_admin()` first.
+
+- **Overview**: tokens, estimated cost, retries and failures for a date range,
+  per day by feature, and by model, task and plan.
+- **Users**: every account with its spend, today's budget and plan. Click
+  through to `/admin/usage/:userId` for that person's full call log, plan
+  history, overrides and admin changes, plus controls to change their plan,
+  daily token budget and per-feature limits.
+- **Call log**: every model call, grouped into the user action it served,
+  with CSV export.
+- **Change log**: `admin_audit_log`, written by triggers on plans, limits,
+  prices, user plans, overrides, roles and the whitelist, so SQL-editor
+  changes are caught too.
+- **Prices**: `model_prices`, which turns tokens into US$ estimates. Seeded at
+  list price; set it from a real invoice.
+
+Users see the same daily ceiling as a balance: a meter in the sidebar and a
+"What used them" list on Settings › Plan & usage, refetched after each AI call.
+
+**Deploy order:** apply the migration before (or with) the edge functions. If
+the functions land first, `recordTokenSpend` sees the unknown `plan_key`
+column and retries the insert without it, so spend is still recorded — just
+without a plan on those rows.
+
+**Fixed along the way:** "set plan" and the override buttons on
+`/admin/plans` had never worked. `authenticated` has no write privilege on
+`user_subscriptions` / `user_limit_overrides`, so they now go through
+`admin_set_user_plan` / `admin_set_limit_override` / `admin_remove_limit_override`.
+
 ## Things that will bite you
 
 - **Do not clamp the analysis features to `fast`.** It is the obvious cost save

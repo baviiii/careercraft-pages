@@ -147,6 +147,10 @@ export interface PlanUsage {
   plan_key: string;
   resets_at: string;
   daily_tokens_used: number;
+  /** The daily AI budget. null = no ceiling on this plan. */
+  daily_tokens_limit?: number | null;
+  /** Next UTC midnight, when the daily budget refills. */
+  daily_resets_at?: string | null;
   resources: ResourceUsage[];
 }
 

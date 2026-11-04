@@ -42,23 +42,35 @@ export async function recordTokenSpend(
   // must not keep spending as though nothing happened.
   meter.dailyTokensUsed += total;
 
+  const row = {
+    user_id: meter.userId,
+    plan_key: meter.planKey,
+    resource: meter.resource,
+    task: spend.task ?? null,
+    provider: spend.provider,
+    model: spend.model ?? null,
+    model_tier: spend.modelTier ?? null,
+    prompt_tokens: prompt,
+    completion_tokens: completion,
+    total_tokens: total,
+    request_id: meter.requestId,
+    attempt: spend.attempt ?? 1,
+    error_code: spend.errorCode ?? null,
+    duration_ms: spend.durationMs ?? null,
+    metadata: spend.metadata ?? {},
+  };
+
   try {
-    const { error } = await adminClient().from("token_usage_ledger").insert({
-      user_id: meter.userId,
-      resource: meter.resource,
-      task: spend.task ?? null,
-      provider: spend.provider,
-      model: spend.model ?? null,
-      model_tier: spend.modelTier ?? null,
-      prompt_tokens: prompt,
-      completion_tokens: completion,
-      total_tokens: total,
-      request_id: meter.requestId,
-      attempt: spend.attempt ?? 1,
-      error_code: spend.errorCode ?? null,
-      duration_ms: spend.durationMs ?? null,
-      metadata: spend.metadata ?? {},
-    });
+    let { error } = await adminClient().from("token_usage_ledger").insert(row);
+
+    // plan_key arrived in 20261104000000. If this code is live before that
+    // migration, the column is unknown (PGRST204 from the schema cache, 42703
+    // from Postgres) and every insert would fail — losing the spend that the
+    // daily ceiling counts. Record the call without the plan instead.
+    if (error && (error.code === "PGRST204" || error.code === "42703")) {
+      const { plan_key: _unknownYet, ...withoutPlan } = row;
+      ({ error } = await adminClient().from("token_usage_ledger").insert(withoutPlan));
+    }
 
     if (error) {
       console.error(`[ledger] insert failed for ${meter.resource}: ${error.message}`);

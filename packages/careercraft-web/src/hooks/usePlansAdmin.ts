@@ -165,9 +165,11 @@ export function usePlansAdmin() {
   /**
    * Move a user onto a plan and record why.
    *
-   * source 'admin_grant' distinguishes this from a future payment webhook
-   * writing the same row, so a comped account is never mistaken for a paying
-   * one when the numbers get read back.
+   * Goes through admin_set_user_plan rather than writing the tables: the
+   * browser has no write privilege on user_subscriptions (deliberately — no
+   * session should be able to grant itself a plan), and the RPC writes the
+   * plan and its history row together. It records source 'admin_grant', so a
+   * comped account is never mistaken for a paying one.
    */
   const setUserPlan = useCallback(async (
     userId: string,
@@ -176,33 +178,12 @@ export function usePlansAdmin() {
   ): Promise<boolean> => {
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const previous = subscriptions.find((s) => s.user_id === userId);
-
-      const { error } = await supabase
-        .from('user_subscriptions')
-        .upsert({
-          user_id: userId,
-          plan_key: planKey,
-          status: 'active',
-          source: 'admin_grant',
-          granted_by: user?.id ?? null,
-          grant_note: note ?? null,
-        }, { onConflict: 'user_id' });
-
-      if (error) throw error;
-
-      // Append-only history, so "why is this account premium?" is answerable.
-      await supabase.from('user_subscription_events').insert({
-        user_id: userId,
-        from_plan_key: previous?.plan_key ?? null,
-        from_status: previous?.status ?? null,
-        to_plan_key: planKey,
-        to_status: 'active',
-        source: 'admin_grant',
-        actor_id: user?.id ?? null,
-        note: note ?? null,
+      const { error } = await supabase.rpc('admin_set_user_plan', {
+        p_user_id: userId,
+        p_plan_key: planKey,
+        p_note: note ?? null,
       });
+      if (error) throw error;
 
       toast.success(`Plan set to ${planKey}`);
       await fetchAll();
@@ -214,17 +195,22 @@ export function usePlansAdmin() {
     } finally {
       setSaving(false);
     }
-  }, [subscriptions, fetchAll]);
+  }, [fetchAll]);
 
   const upsertOverride = useCallback(async (
     override: LimitOverride,
   ): Promise<boolean> => {
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from('user_limit_overrides')
-        .upsert({ ...override, granted_by: user?.id ?? null }, { onConflict: 'user_id,resource' });
+      const { error } = await supabase.rpc('admin_set_limit_override', {
+        p_user_id: override.user_id,
+        p_resource: override.resource,
+        p_is_enabled: override.is_enabled,
+        p_monthly_limit: override.monthly_limit,
+        p_hourly_limit: override.hourly_limit,
+        p_expires_at: override.expires_at,
+        p_reason: override.reason,
+      });
       if (error) throw error;
       toast.success('Override saved');
       await fetchAll();
@@ -244,11 +230,10 @@ export function usePlansAdmin() {
   ): Promise<boolean> => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('user_limit_overrides')
-        .delete()
-        .eq('user_id', userId)
-        .eq('resource', resource);
+      const { error } = await supabase.rpc('admin_remove_limit_override', {
+        p_user_id: userId,
+        p_resource: resource,
+      });
       if (error) throw error;
       setOverrides((prev) =>
         prev.filter((o) => !(o.user_id === userId && o.resource === resource)),
