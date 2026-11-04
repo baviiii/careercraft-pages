@@ -270,6 +270,30 @@ export interface OfficialTrainingLink {
   linkKind: "official";
 }
 
+/** A YouTube video for learning one skill. Title and thumbnail are YouTube's own; `why` is the coach's. */
+export interface StudyVideo {
+  skill: string;
+  videoId: string;
+  title: string;
+  channelTitle: string;
+  thumbnail: string;
+  url: string;
+  durationSeconds: number;
+  views: number;
+  publishedAt: string;
+  why: string;
+  source: "youtube";
+}
+
+export interface SkillVideos {
+  skill: string;
+  field: string;
+  videos: StudyVideo[];
+  /** "coach": judged by the coach; "ranked": by views and length only; "none": nothing to show. */
+  pickedBy: "coach" | "ranked" | "none";
+  _meta?: { source: "YouTube"; reason?: string };
+}
+
 export type ResourceStatus = "saved" | "in_progress" | "completed";
 
 export interface PathwayDrill {
@@ -497,6 +521,11 @@ export const careerCoach = {
     field?: string;
   }): Promise<ConceptExplanation> {
     return post("/api/study/explain", input);
+  },
+
+  /** The best few YouTube videos for learning one skill (empty, with a reason, when none are good enough). */
+  async skillVideos(input: { skill: string; field?: string; max?: number }): Promise<SkillVideos> {
+    return post("/api/study/videos", input);
   },
 
   /**

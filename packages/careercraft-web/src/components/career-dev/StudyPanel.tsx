@@ -9,7 +9,7 @@
  * fallback when they don't. Resources in the plan can be saved, started and
  * marked done.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ import {
 import { ResourceProgress } from "@/features/interview/components/ResourceProgress";
 import { useForgetSaved, useLatestSaved } from "@/lib/savedResults";
 import { CoachNotConnected, SavedNote, SectionHeader } from "./shared";
+import { StudyVideos } from "./StudyVideos";
 
 /** What a pathway resource is, in words: a course from the catalogue, a recommendation, or one of the coach's picks. */
 function resourceBadge(r: LearningPathway["resources"][number]): string {
@@ -171,14 +172,17 @@ export default function StudyPanel({ field }: { field?: string }) {
     }
   };
 
-  const getDrill = async () => {
+  // "Practise it" on a video jumps here with a drill on that video's skill.
+  const drillRef = useRef<HTMLDivElement>(null);
+
+  const getDrill = async (skill?: string) => {
     setDrilling(true);
     setLastResult(null);
     setDrillResult(null);
     setSelfRating(false);
     setAttempt("");
     try {
-      const r = await careerCoach.nextDrill({ field: field || undefined });
+      const r = await careerCoach.nextDrill({ field: field || undefined, ...(skill && { skill }) });
       setDrill(r.drill);
       setScheduling(r.scheduling);
       setScore(6);
@@ -243,10 +247,10 @@ export default function StudyPanel({ field }: { field?: string }) {
       <SectionHeader icon={GraduationCap} title="Study & Upskill" subtitle="A sequenced plan, spaced-repetition drills, and explanations that stick." />
 
       {/* Drill loop — the daily habit, first */}
-      <Card className="p-6">
+      <Card ref={drillRef} className="p-6 scroll-mt-24">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
           <h3 className="font-semibold flex items-center gap-2"><Dumbbell className="w-5 h-5 text-primary" />Today's drill</h3>
-          <Button onClick={getDrill} disabled={drilling} className="bg-gradient-to-r from-primary to-primary/80">
+          <Button onClick={() => getDrill()} disabled={drilling} className="bg-gradient-to-r from-primary to-primary/80">
             {drilling ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Picking what's due...</> : <><Repeat className="w-4 h-4 mr-2" />{drill ? "Next drill" : "Start a drill"}</>}
           </Button>
         </div>
@@ -401,6 +405,17 @@ export default function StudyPanel({ field }: { field?: string }) {
             )}
           </div>
         )}
+
+        {pathway ? (
+          <StudyVideos
+            skills={pathway.focus.skills.length ? pathway.focus.skills : pathway.targets.map((t) => t.skill)}
+            field={pathway.field || field}
+            onPractise={(skill) => {
+              drillRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              void getDrill(skill);
+            }}
+          />
+        ) : null}
 
         {pathway?.resources?.length ? (
           <div className="mb-4 space-y-2">

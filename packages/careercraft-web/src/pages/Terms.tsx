@@ -43,6 +43,13 @@ const sections = [
       "AI features can be wrong. Outputs are general information, not professional, legal, financial or migration advice. Review everything before you rely on it.",
       "Market intelligence is drawn from official government documents and cited to its source — but budgets change and documents date. Verify before making major decisions.",
       "Job listings come from third-party job boards. We do not control their accuracy, availability or hiring outcomes.",
+      <>
+        Videos in Study come from YouTube, and we do not control their content. By watching them you agree to the{" "}
+        <a href="https://www.youtube.com/t/terms" className="underline underline-offset-2" target="_blank" rel="noreferrer">
+          YouTube Terms of Service
+        </a>
+        .
+      </>,
       "Faircopy improves your material and your information. It does not and cannot guarantee interviews, offers or employment.",
     ],
   },
@@ -84,7 +91,7 @@ export default function Terms() {
   usePageMeta(publicPageMeta("/terms"));
   // The date these terms last changed (c4846e5). Update it whenever they do;
   // it used to be new Date(), so the terms claimed to be rewritten every day.
-  const updated = "19 September 2026";
+  const updated = "4 November 2026";
 
   return (
     <CraftPageShell>

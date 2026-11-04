@@ -23,6 +23,15 @@ const sections = [
       "To run the tools you use — parsing, analysing and rewriting your résumé, scoring job fit, interview practice and coaching.",
       "AI processing: when you use an AI feature, your résumé or job text is sent to our AI providers to produce that result. It is not used to train AI models.",
       "Job searches are sent to job boards to fetch live listings — the query and location only, never your identity.",
+      <>
+        Study shows YouTube videos found with YouTube API Services. We send YouTube the skill and job being
+        studied — never your identity — and keep the video details it returns for no more than a day, unless you
+        save a video to your list. When you play a video, YouTube's own player runs it and{" "}
+        <a href="https://policies.google.com/privacy" className="underline underline-offset-2" target="_blank" rel="noreferrer">
+          Google's Privacy Policy
+        </a>{" "}
+        applies to what YouTube collects.
+      </>,
       "To personalise recommendations against South Australian market and policy data.",
       "To send service emails about your account — marketing only ever with your consent.",
       "To analyse usage in aggregate and meet our legal obligations.",
@@ -57,7 +66,7 @@ export default function Privacy() {
   usePageMeta(publicPageMeta("/privacy"));
   // The date this text last changed. Update it whenever the policy changes;
   // it used to be new Date(), so the policy claimed to be rewritten every day.
-  const updated = "12 October 2026";
+  const updated = "4 November 2026";
 
   return (
     <CraftPageShell>
