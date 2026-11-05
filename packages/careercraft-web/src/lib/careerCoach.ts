@@ -294,6 +294,27 @@ export interface SkillVideos {
   _meta?: { source: "YouTube"; reason?: string };
 }
 
+/** A web page worth opening for one skill. `site` is shown with it: the source is always credited. */
+export interface WebPick {
+  title: string;
+  url: string;
+  site: string;
+  why: string;
+  publishedDate?: string;
+}
+
+export interface SkillWeb {
+  skill: string;
+  field: string;
+  /** Practitioners' discussions (discussion sites only). */
+  discussions: WebPick[];
+  /** Courses and guides that teach the skill. */
+  guides: WebPick[];
+  provider?: "tavily" | "aws";
+  pickedBy: "coach" | "ranked" | "none";
+  _meta?: { source?: string; reason?: string };
+}
+
 export type ResourceStatus = "saved" | "in_progress" | "completed";
 
 export interface PathwayDrill {
@@ -526,6 +547,11 @@ export const careerCoach = {
   /** The best few YouTube videos for learning one skill (empty, with a reason, when none are good enough). */
   async skillVideos(input: { skill: string; field?: string; max?: number }): Promise<SkillVideos> {
     return post("/api/study/videos", input);
+  },
+
+  /** Practitioners' discussions and courses or guides for one skill (empty, with a reason, when none are good enough). */
+  async skillWebResources(input: { skill: string; field?: string; max?: number }): Promise<SkillWeb> {
+    return post("/api/study/web", input);
   },
 
   /**

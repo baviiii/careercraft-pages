@@ -32,6 +32,7 @@ const sections = [
         </a>{" "}
         applies to what YouTube collects.
       </>,
+      "To find discussions, courses and guides for a skill, we send the skill and job — never your identity — to our web search provider (Amazon Web Services or Tavily), and show each result with its source.",
       "To personalise recommendations against South Australian market and policy data.",
       "To send service emails about your account — marketing only ever with your consent.",
       "To analyse usage in aggregate and meet our legal obligations.",

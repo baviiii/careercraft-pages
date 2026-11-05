@@ -63,7 +63,7 @@ import {
 import { ResourceProgress } from "@/features/interview/components/ResourceProgress";
 import { useForgetSaved, useLatestSaved } from "@/lib/savedResults";
 import { CoachNotConnected, SavedNote, SectionHeader } from "./shared";
-import { StudyVideos } from "./StudyVideos";
+import { StudySkillLearning } from "./StudySkillLearning";
 
 /** What a pathway resource is, in words: a course from the catalogue, a recommendation, or one of the coach's picks. */
 function resourceBadge(r: LearningPathway["resources"][number]): string {
@@ -407,7 +407,7 @@ export default function StudyPanel({ field }: { field?: string }) {
         )}
 
         {pathway ? (
-          <StudyVideos
+          <StudySkillLearning
             skills={pathway.focus.skills.length ? pathway.focus.skills : pathway.targets.map((t) => t.skill)}
             field={pathway.field || field}
             onPractise={(skill) => {
