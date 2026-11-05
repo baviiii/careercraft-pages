@@ -26,7 +26,7 @@ export const ScoreTallies = ({ analysis, onJump }: ScoreTalliesProps) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 border-t border-white/[0.08] md:grid-cols-4">
+    <div className="grid grid-cols-2 border-t border-[color:var(--cc-hair)] md:grid-cols-4">
       {items.map((t, i) => (
         <button
           key={t.label}
@@ -36,14 +36,14 @@ export const ScoreTallies = ({ analysis, onJump }: ScoreTalliesProps) => {
           } ${i < 2 ? "border-b md:border-b-0" : ""} ${i === 1 ? "md:border-r" : ""}`}
         >
           <span
-            className="cc-font-display cc-tabular text-[30px] leading-none"
-            style={{ color: t.alert ? "var(--pf-bad)" : "#fff" }}
+            className="cc-font-display cc-tabular text-[28px] leading-none"
+            style={{ color: t.alert ? "var(--pf-bad)" : "var(--cc-ink)" }}
           >
             {t.n}
           </span>
-          <span className="mt-2 inline-flex items-center gap-1 text-[13px] text-white/55 transition-colors group-hover:text-white">
+          <span className="mt-2 inline-flex items-center gap-1 text-[13px] text-[color:var(--cc-ink-soft)] transition-colors group-hover:text-[color:var(--cc-ink)]">
             {t.label}
-            <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+            <ArrowUpRight className="h-3.5 w-3.5 opacity-40 transition-opacity group-hover:opacity-100" />
           </span>
         </button>
       ))}

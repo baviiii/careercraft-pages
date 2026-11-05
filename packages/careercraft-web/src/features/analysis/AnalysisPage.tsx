@@ -159,8 +159,13 @@ export default function AnalysisPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: EASE }}
         >
-          <div className="grid gap-10 p-6 md:p-10 lg:grid-cols-[1.2fr_1fr] lg:gap-20 lg:p-12">
-            <ScoreGauge score={a.analysis.overallScore} fileName={a.fileName} />
+          <div className="grid gap-10 p-6 md:p-10 lg:grid-cols-[1.2fr_1fr] lg:gap-16 lg:p-12">
+            <ScoreGauge
+              score={a.analysis.overallScore}
+              fileName={a.fileName}
+              subScores={a.analysis.subScores}
+              onJump={jumpTo}
+            />
             <ScoreBreakdown subScores={a.analysis.subScores} />
           </div>
           <ScoreTallies analysis={a.analysis} onJump={jumpTo} />

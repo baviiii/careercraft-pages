@@ -1,42 +1,48 @@
-import { SegmentMeter } from "./proof";
+import type { CSSProperties } from "react";
 
-interface ScoreBreakdownProps {
-  subScores: {
-    skillsMatch: number;
-    experienceMatch: number;
-    keywordMatch: number;
-    formatCompatibility: number;
-  };
-}
+import { useArmed } from "../hooks/useProofMotion";
+import { toneFor, toneVar } from "../tone";
+import { SCORE_PARTS, weakestArea, type SubScores } from "./scoreParts";
 
-const ITEMS = [
-  { key: "skillsMatch", label: "Skills" },
-  { key: "experienceMatch", label: "Experience" },
-  { key: "keywordMatch", label: "Keywords" },
-  { key: "formatCompatibility", label: "Format" },
-] as const;
+export const ScoreBreakdown = ({ subScores }: { subScores: SubScores }) => {
+  const armed = useArmed();
+  const weakest = weakestArea(subScores);
 
-export const ScoreBreakdown = ({ subScores }: ScoreBreakdownProps) => (
-  <div className="flex flex-col justify-center gap-6">
-    {ITEMS.map(({ key, label }) => {
-      const value = Math.round(subScores[key]);
-      return (
-        <div key={key}>
-          <div className="flex items-baseline justify-between gap-4">
-            <span className="text-[14px] font-medium text-white/70">{label}</span>
-            <span className="cc-font-display cc-tabular text-[28px] leading-none text-white">
-              {value}
-            </span>
-          </div>
-          <SegmentMeter
-            value={value}
-            max={100}
-            segments={20}
-            label={`${label} ${value} out of 100`}
-            className="mt-2.5"
-          />
-        </div>
-      );
-    })}
-  </div>
-);
+  return (
+    <div className="flex flex-col justify-center">
+      <span className="cc-proof-label">How it breaks down</span>
+      <ul className="mt-5 space-y-5">
+        {SCORE_PARTS.map(({ key, label, hint }) => {
+          const value = Math.max(0, Math.min(100, Math.round(subScores[key])));
+          const isWeakest = weakest?.key === key;
+          return (
+            <li key={key}>
+              <div className="flex items-baseline justify-between gap-4">
+                <span className="text-[15px] font-medium text-[color:var(--cc-ink)]">
+                  {label}
+                  {isWeakest && <span className="cc-proof-weakest">start here</span>}
+                </span>
+                <span className="cc-font-display cc-tabular text-[22px] leading-none text-[color:var(--cc-ink)]">
+                  {value}
+                </span>
+              </div>
+              <div
+                className="cc-proof-bar mt-2"
+                role="meter"
+                aria-label={`${label} ${value} out of 100`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={value}
+              >
+                <span
+                  style={{ width: `${armed ? value : 0}%`, "--m": toneVar(toneFor(value)) } as CSSProperties}
+                />
+              </div>
+              <p className="mt-1.5 text-[13px] text-[color:var(--cc-ash)]">{hint}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};

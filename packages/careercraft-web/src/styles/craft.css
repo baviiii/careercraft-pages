@@ -1929,14 +1929,13 @@
 /* ═══════════════════════════════════════════════════════════════════════
    ATS CHECK — the proof sheet.
 
-   A dark scorecard up top, then an editor's desk: highlighter for what the
+   A paper scorecard up top, then an editor's desk: highlighter for what the
    résumé already has, a red-pen insert for what it's missing, a strike for
    what to cut, a sticky note for what to fix first. Colour carries meaning
    here, so each mark keeps one job. Everything is scoped under .cc-proof.
 
    TONES  --pf-good / ok / warn / bad map a 0–100 score onto sage / accent /
-   wheat / red pen. The scorecard re-points them to brighter values so the
-   same component reads on carbon.
+   wheat / red pen.
    ═══════════════════════════════════════════════════════════════════════ */
 
 .cc-proof {
@@ -1950,58 +1949,70 @@
 }
 
 /* Scorecard ------------------------------------------------------------ */
+/* A sheet of paper with the result written on it — the same paper as the
+   rest of the page, so the score reads as part of the review, not a
+   dashboard bolted on top. The score's band shows as a thin rule across the
+   top and in the stamp, nowhere louder. */
 .cc-proof-card {
-  --pf-good: #8BD3A8;
-  --pf-ok: color-mix(in srgb, var(--cc-rust) 45%, #fff);
-  --pf-warn: #EDC46F;
-  --pf-bad: #F4907A;
   position: relative;
   overflow: hidden;
-  isolation: isolate;
-  border-radius: 1.75rem;
-  color: #F4F4F0;
-  background:
-    radial-gradient(ellipse 55% 85% at 94% -12%, color-mix(in srgb, var(--cc-rust) 62%, transparent), transparent 64%),
-    radial-gradient(ellipse 50% 80% at -6% 118%, color-mix(in srgb, var(--pf-tone, var(--pf-ok)) 26%, transparent), transparent 62%),
-    linear-gradient(165deg, #1E2129 0%, #14161A 52%, #0C0E11 100%);
+  border-radius: 1.5rem;
+  color: var(--cc-ink);
+  background: #fff;
+  border: 1px solid var(--cc-hair);
   box-shadow:
-    0 50px 90px -60px rgba(20, 22, 26, 0.8),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    0 1px 0 var(--cc-hair),
+    0 30px 60px -48px rgba(20, 22, 26, 0.35);
 }
-/* Baseline grid, fading out toward the edges — the "proof" paper. */
 .cc-proof-card::before {
   content: '';
   position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
-  background-size: 40px 40px;
-  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 28% 30%, #000, transparent 78%);
-  mask-image: radial-gradient(ellipse 75% 70% at 28% 30%, #000, transparent 78%);
-  pointer-events: none;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--pf-tone, var(--pf-ok));
+  opacity: 0.85;
 }
 .cc-proof-label {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10.5px;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: rgba(244, 244, 240, 0.55);
+  color: var(--cc-ash);
 }
 .cc-proof-score {
   font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
   font-optical-sizing: auto;
   font-weight: 800;
   font-variant-numeric: tabular-nums lining-nums;
-  font-size: clamp(6.5rem, 16vw, 11.5rem);
-  line-height: 0.78;
-  letter-spacing: -0.065em;
-  background: linear-gradient(180deg, #FFFFFF 30%, color-mix(in srgb, var(--pf-tone, var(--pf-ok)) 60%, #fff) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 12px 42px color-mix(in srgb, var(--pf-tone, var(--pf-ok)) 38%, transparent));
+  font-size: clamp(4.75rem, 11vw, 7.5rem);
+  line-height: 0.8;
+  letter-spacing: -0.055em;
+  color: var(--cc-ink);
+}
+/* The one part to fix first, marked in the margin in red pen. */
+.cc-proof-weakest {
+  margin-left: 0.6rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pf-redpen);
+}
+/* One plain bar per part, in the part's own band colour. */
+.cc-proof-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cc-cream-2);
+  overflow: hidden;
+}
+.cc-proof-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--m);
+  transition: width 0.9s cubic-bezier(.2, .8, .2, 1);
 }
 
 /* Rubber stamp — double ruled, mono caps. Colour from --stamp. */
@@ -2024,10 +2035,6 @@
   color: var(--stamp, var(--pf-tone, var(--pf-ok)));
   background: color-mix(in srgb, var(--stamp, var(--pf-tone, var(--pf-ok))) 9%, transparent);
 }
-.cc-proof-card .cc-proof-stamp {
-  text-shadow: 0 0 18px color-mix(in srgb, currentColor 55%, transparent);
-  box-shadow: 0 0 34px -10px currentColor;
-}
 .cc-proof-stamp--sm {
   padding: 0.42rem 0.65rem 0.38rem;
   border-width: 1.5px;
@@ -2038,16 +2045,10 @@
 .cc-proof-stamp--tilt { transform: rotate(-4deg); }
 
 /* Score ruler — 0–100 with the band edges marked, pin at the score. */
-.cc-proof-ruler { position: relative; height: 38px; }
-.cc-proof-ruler__ticks {
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 6px;
-  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.24) 0 1px, transparent 1px 10%);
-}
+.cc-proof-ruler { position: relative; height: 34px; max-width: 30rem; }
 .cc-proof-ruler__track {
   position: absolute;
-  inset: 10px 0 auto 0;
+  inset: 6px 0 auto 0;
   display: flex;
   height: 6px;
   border-radius: 999px;
@@ -2055,42 +2056,39 @@
 }
 .cc-proof-ruler__zone {
   height: 100%;
-  background: color-mix(in srgb, var(--z) 24%, transparent);
-  border-right: 2px solid #14161A;
+  background: color-mix(in srgb, var(--z) 22%, transparent);
+  border-right: 2px solid #fff;
 }
 .cc-proof-ruler__zone:last-child { border-right: 0; }
-.cc-proof-ruler__zone.is-here {
-  background: var(--z);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--z) 70%, transparent);
-}
+.cc-proof-ruler__zone.is-here { background: var(--z); }
 .cc-proof-ruler__pin {
   position: absolute;
   top: 0;
   width: 3px;
-  height: 22px;
+  height: 18px;
   margin-left: -1.5px;
   border-radius: 3px;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(20, 22, 26, 0.9), 0 0 16px rgba(255, 255, 255, 0.55);
+  background: var(--cc-ink);
+  box-shadow: 0 0 0 3px #fff;
   transition: left 1.05s cubic-bezier(.2, .8, .2, 1);
 }
 .cc-proof-ruler__num {
   position: absolute;
-  top: 25px;
+  top: 21px;
   transform: translateX(-50%);
   font-family: 'JetBrains Mono', monospace;
   font-size: 9.5px;
   letter-spacing: 0.08em;
-  color: rgba(244, 244, 240, 0.38);
+  color: var(--cc-ash);
 }
 
 /* Tallies — the clickable count strip along the scorecard's foot. */
 .cc-proof-tally {
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--cc-hair);
   transition: background .2s ease;
 }
-.cc-proof-tally:hover { background: rgba(255, 255, 255, 0.045); }
-.cc-proof-tally:focus-visible { outline: 2px solid var(--pf-ok); outline-offset: -2px; }
+.cc-proof-tally:hover { background: var(--cc-cream); }
+.cc-proof-tally:focus-visible { outline: 2px solid var(--cc-ink); outline-offset: -2px; }
 
 /* Segment meter — a level bar; lit segments take the score's tone. */
 .cc-meter { display: flex; gap: 3px; }
@@ -2102,11 +2100,6 @@
   transition: background-color .3s ease, box-shadow .3s ease;
 }
 .cc-meter > span.is-on { background: var(--m); }
-.cc-proof-card .cc-meter > span { background: rgba(255, 255, 255, 0.09); }
-.cc-proof-card .cc-meter > span.is-on {
-  background: var(--m);
-  box-shadow: 0 0 10px -1px color-mix(in srgb, var(--m) 75%, transparent);
-}
 
 /* Proof marks ---------------------------------------------------------- */
 .cc-mark {
