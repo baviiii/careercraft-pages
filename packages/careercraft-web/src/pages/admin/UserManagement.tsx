@@ -1,477 +1,309 @@
-import { useState } from 'react';
-import { Search, Filter, UserPlus, MoreHorizontal, Shield, Ban, Key, Mail, Trash2, UserCheck, UserX, Send, AlertTriangle, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Textarea } from '@/components/ui/textarea';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { useAdminData } from '@/hooks/useAdminData';
-import { supabase } from '@/integrations/supabase/client';
+// /admin/users — every account, what state it's in, and what an admin can do
+// about it.
+//
+// The actions run on the server: bans, sign-outs, deletion and invites in the
+// admin-users edge function (Supabase's Auth admin API needs the service role
+// key), IP blocks and admin access in admin_* database functions. The browser
+// version this replaced called the Auth admin API directly with the public
+// key, so suspend and delete had never worked, and "Invite" sent nothing.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Ban, RefreshCw, Search, Shield, ShieldOff, UserCheck, UserPlus, Users } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { supabase } from '@/integrations/supabase/client';
+import { PlanBadge, StatTile } from '@/components/admin/usage/UsageBits';
+import { formatDay, relativeTime } from '@/components/admin/usage/usageHelpers';
+import { AdminRoleDialog, BanDialog, DeleteDialog, type DialogTarget } from '@/components/admin/users/AccountDialogs';
+import { InviteDialog } from '@/components/admin/users/InviteDialog';
+import { UserRowActions } from '@/components/admin/users/UserRowActions';
+import {
+  accountAction,
+  banLabel,
+  blockUserIps,
+  errorMessage,
+  fetchAdminUsers,
+  ipResultText,
+  isAdminLike,
+  isBanned,
+  providerLabel,
+  type AdminUserRow,
+} from '@/lib/adminUsers';
+
+type StatusFilter = 'all' | 'active' | 'banned' | 'ip_blocked' | 'admins' | 'unconfirmed';
+
+const WEEK_MS = 7 * 864e5;
+
+function matchesStatus(u: AdminUserRow, status: StatusFilter): boolean {
+  switch (status) {
+    case 'active':
+      return !isBanned(u) && !u.ip_blocked;
+    case 'banned':
+      return isBanned(u);
+    case 'ip_blocked':
+      return u.ip_blocked;
+    case 'admins':
+      return isAdminLike(u);
+    case 'unconfirmed':
+      return !u.email_confirmed;
+    default:
+      return true;
+  }
+}
+
+function StatusBadges({ u }: { u: AdminUserRow }) {
+  const banned = isBanned(u);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {u.is_admin && (
+        <Badge className="gap-1">
+          <Shield className="h-3 w-3" /> Admin
+        </Badge>
+      )}
+      {!u.is_admin && isAdminLike(u) && (
+        // The admin role without a whitelist entry: not a working admin, but
+        // the server still treats the account as one and won't act on it.
+        <Badge variant="outline" className="gap-1" title="Has the admin role but isn't on the whitelist">
+          <Shield className="h-3 w-3" /> Admin role only
+        </Badge>
+      )}
+      {banned && (
+        <Badge variant="destructive" className="gap-1" title={u.ban_reason ?? undefined}>
+          <Ban className="h-3 w-3" /> {banLabel(u.banned_until)}
+        </Badge>
+      )}
+      {u.ip_blocked && (
+        <Badge variant="outline" className="gap-1 border-red-500/40 text-red-700 dark:text-red-400">
+          <ShieldOff className="h-3 w-3" /> Blocked IP
+        </Badge>
+      )}
+      {!isAdminLike(u) && !banned && !u.ip_blocked && (
+        <Badge variant="outline" className="gap-1 border-green-500/30 text-green-700 dark:text-green-400">
+          <UserCheck className="h-3 w-3" /> Active
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 export default function UserManagement() {
-  const { users, fetchUsers, loading } = useAdminData();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('user');
+  const navigate = useNavigate();
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [meId, setMeId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [banTarget, setBanTarget] = useState<DialogTarget | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DialogTarget | null>(null);
+  const [roleTarget, setRoleTarget] = useState<(DialogTarget & { makeAdmin: boolean }) | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
-  // Email dialog states
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [emailRecipient, setEmailRecipient] = useState<any>(null);
-  const [emailSubject, setEmailSubject] = useState('');
-  const [emailMessage, setEmailMessage] = useState('');
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-
-  // Delete dialog states
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<any>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // Suspend states
-  const [isSuspending, setIsSuspending] = useState(false);
-
-  const filteredUsers = users.filter(user => {
-    const matchesSearch =
-      user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const isSuspended = user.banned_until ? new Date(user.banned_until) > new Date() : false;
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && !isSuspended) ||
-      (statusFilter === 'suspended' && isSuspended);
-    return matchesSearch && matchesRole && matchesStatus;
-  });
-
-  const getRoleBadgeVariant = (role: string) => {
-    switch (role) {
-      case 'admin': return 'default';
-      default: return 'outline';
-    }
-  };
-
-  const handleChangeRole = async (userId: string, newRole: string) => {
+  // Only the latest load may write, so a slow refresh can't overwrite a newer one.
+  const ticket = useRef(0);
+  const load = useCallback(async () => {
+    const mine = ++ticket.current;
+    setLoading(true);
     try {
-      // Delete existing role.
-      //
-      // An RLS-blocked DELETE removes zero rows WITHOUT raising an error, so
-      // checking `error` alone cannot detect the self-demotion guard. Ask for
-      // the deleted rows back and treat an empty result as blocked — otherwise
-      // the insert below would leave the user holding two roles at once.
-      const { data: removed, error: deleteError } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId)
-        .select();
-
-      if (deleteError) throw deleteError;
-      if (!removed || removed.length === 0) {
-        throw new Error(
-          'Role change blocked. Admins cannot change their own role — ask another admin.',
-        );
-      }
-
-      // Insert new role
-      const { error } = await supabase
-        .from('user_roles')
-        .insert([{ user_id: userId, role: newRole as 'admin' | 'user' }]);
-
-      if (error) throw error;
-
-      toast.success(`User role updated to ${newRole}`);
-      fetchUsers();
-    } catch (error) {
-      console.error('Error changing role:', error);
-      toast.error('Failed to update user role');
-    }
-  };
-
-  const handleInviteUser = async () => {
-    if (!inviteEmail) {
-      toast.error('Please enter an email address');
-      return;
-    }
-
-    // In a real app, you would send an invitation email
-    toast.success(`Invitation sent to ${inviteEmail}`);
-    setInviteDialogOpen(false);
-    setInviteEmail('');
-    setInviteRole('user');
-  };
-
-  const handleSuspendUser = async (userId: string, suspend: boolean) => {
-    setIsSuspending(true);
-    try {
-      const bannedUntil = suspend ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
-
-      const { error } = await supabase.auth.admin.updateUserById(userId, {
-        ban_duration: suspend ? '720h' : 'none',
-      });
-
-      if (error) throw error;
-
-      toast.success(suspend ? 'User suspended successfully' : 'User unsuspended successfully');
-      fetchUsers();
-    } catch (error: any) {
-      console.error('Error suspending user:', error);
-      toast.error(error.message || 'Failed to update user status');
+      const rows = await fetchAdminUsers();
+      if (mine === ticket.current) setUsers(rows);
+    } catch (err) {
+      if (mine === ticket.current) toast.error(errorMessage(err, 'Couldn\'t load users'));
     } finally {
-      setIsSuspending(false);
+      if (mine === ticket.current) setLoading(false);
     }
-  };
+  }, []);
 
-  const handleDeleteUser = async () => {
-    if (!userToDelete) return;
+  useEffect(() => {
+    void load();
+    supabase.auth.getUser().then(({ data }) => setMeId(data.user?.id ?? null));
+  }, [load]);
 
-    setIsDeleting(true);
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return users.filter(
+      (u) =>
+        matchesStatus(u, status) &&
+        (!q ||
+          u.email?.toLowerCase().includes(q) ||
+          u.full_name?.toLowerCase().includes(q) ||
+          u.last_ip?.includes(q) ||
+          u.user_id.startsWith(q)),
+    );
+  }, [users, search, status]);
+
+  const stats = useMemo(
+    () => ({
+      total: users.length,
+      banned: users.filter(isBanned).length,
+      ipBlocked: users.filter((u) => u.ip_blocked).length,
+      admins: users.filter(isAdminLike).length,
+      recent: users.filter((u) => u.last_seen_at && Date.now() - new Date(u.last_seen_at).getTime() < WEEK_MS).length,
+    }),
+    [users],
+  );
+
+  const quick = async (u: AdminUserRow, label: string, fn: () => Promise<string>) => {
+    setBusyId(u.user_id);
     try {
-      const { error } = await supabase.auth.admin.deleteUser(userToDelete.id);
-
-      if (error) throw error;
-
-      toast.success(`User ${userToDelete.email} deleted successfully`);
-      setDeleteDialogOpen(false);
-      setUserToDelete(null);
-      fetchUsers();
-    } catch (error: any) {
-      console.error('Error deleting user:', error);
-      toast.error(error.message || 'Failed to delete user');
+      toast.success(await fn());
+      await load();
+    } catch (err) {
+      toast.error(errorMessage(err, `${label} failed`));
     } finally {
-      setIsDeleting(false);
+      setBusyId(null);
     }
   };
 
-  const handleSendEmail = async () => {
-    if (!emailRecipient || !emailSubject || !emailMessage) {
-      toast.error('Please fill in all fields');
-      return;
-    }
-
-    /* This used to `await new Promise(r => setTimeout(r, 1000))` and then say
-       "Email sent to {address}". Nothing was sent. An admin replying to a
-       support request, or telling someone their account had been restored,
-       got a green toast and the user got silence — and unlike the public
-       contact form, the person misled here is the one who would otherwise
-       follow up.
-
-       There is no send endpoint yet, so it hands off to the admin's own mail
-       client with the address, subject and body filled in. It genuinely
-       sends, from a real person, and the reply lands somewhere a human
-       reads. Swap in a POST when there is one; the state is already shaped
-       for it. */
-    setIsSendingEmail(true);
-    try {
-      const href =
-        `mailto:${encodeURIComponent(emailRecipient.email)}` +
-        `?subject=${encodeURIComponent(emailSubject)}` +
-        `&body=${encodeURIComponent(emailMessage)}`;
-      window.location.href = href;
-
-      toast.success(`Opening your mail app to ${emailRecipient.email}`);
-      setEmailDialogOpen(false);
-      setEmailRecipient(null);
-      setEmailSubject('');
-      setEmailMessage('');
-    } catch (error) {
-      console.error('Error opening mail client:', error);
-      toast.error('Could not open your mail app');
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
-  const openEmailDialog = (user: any) => {
-    setEmailRecipient(user);
-    setEmailSubject('');
-    setEmailMessage('');
-    setEmailDialogOpen(true);
-  };
-
-  const openDeleteDialog = (user: any) => {
-    setUserToDelete(user);
-    setDeleteDialogOpen(true);
-  };
-
-  const getUserStatus = (user: any) => {
-    const isSuspended = user.banned_until ? new Date(user.banned_until) > new Date() : false;
-    return isSuspended ? 'suspended' : 'active';
-  };
-
-  // Calculate user stats
-  const totalUsers = users.length;
-  const activeUsers = users.filter(u => getUserStatus(u) === 'active').length;
-  const suspendedUsers = users.filter(u => getUserStatus(u) === 'suspended').length;
-  const adminUsers = users.filter(u => u.role === 'admin').length;
+  const sessions = (n: number | undefined) => `${n ?? 0} session${n === 1 ? '' : 's'}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Manage users, roles, and permissions</p>
+          <h1 className="text-2xl font-bold">Users</h1>
+          <p className="text-muted-foreground">Every account: status, where it signs in from, and what you can do about it</p>
         </div>
-        
-        <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Invite User
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite New User</DialogTitle>
-              <DialogDescription>
-                Send an invitation email to add a new user to the platform.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="user@example.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">Initial Role</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleInviteUser}>
-                <Mail className="w-4 h-4 mr-2" />
-                Send Invitation
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => void load()} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Invite
+          </Button>
+        </div>
       </div>
 
-      {/* User Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-border/50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold mt-1">{totalUsers}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Active Users</p>
-                <p className="text-2xl font-bold mt-1">{activeUsers}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
-                <UserCheck className="w-6 h-6 text-green-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Suspended</p>
-                <p className="text-2xl font-bold mt-1">{suspendedUsers}</p>
-              </div>
-              <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center">
-                <Ban className="w-6 h-6 text-orange-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Administrators</p>
-                <p className="text-2xl font-bold mt-1">{adminUsers}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                <Shield className="w-6 h-6 text-purple-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <StatTile label="Accounts" value={stats.total} />
+        <StatTile label="Seen this week" value={stats.recent} />
+        <StatTile label="Banned" value={stats.banned} />
+        <StatTile label="On a blocked IP" value={stats.ipBlocked} />
+        <StatTile label="Admins" value={stats.admins} />
       </div>
 
       <Card className="border-border/50">
         <CardHeader>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search users..."
+                placeholder="Search by email, name or IP…"
                 className="pl-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[160px]">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by role" />
+            <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+              <SelectTrigger className="w-full sm:w-[190px]">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admins</SelectItem>
-                <SelectItem value="user">Users</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all">Everyone</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="banned">Banned</SelectItem>
+                <SelectItem value="ip_blocked">On a blocked IP</SelectItem>
+                <SelectItem value="admins">Admins</SelectItem>
+                <SelectItem value="unconfirmed">Email not confirmed</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="usage-scroll">
           <Table>
             <TableHeader>
               <TableRow className="border-border/50">
                 <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Last seen</TableHead>
                 <TableHead>Joined</TableHead>
-                <TableHead>Last Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => {
-                const userStatus = getUserStatus(user);
-                const isSuspended = userStatus === 'suspended';
-
+              {shown.map((u) => {
+                const isSelf = u.user_id === meId;
+                const target: DialogTarget = { user_id: u.user_id, email: u.email };
+                const open = () => navigate(`/admin/usage/${u.user_id}`);
                 return (
-                  <TableRow key={user.id} className="border-border/50">
+                  <TableRow key={u.user_id} className="cursor-pointer border-border/50" onClick={open}>
                     <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="text-xs">
-                            {user.full_name?.charAt(0) || user.email?.charAt(0) || '?'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.full_name || 'Unnamed User'}</p>
-                          <p className="text-xs text-muted-foreground">{user.email || user.id.slice(0, 8)}</p>
-                        </div>
+                      <div className="font-medium">
+                        {u.full_name || '—'}
+                        {isSelf && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{u.email}</div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">
+                        {u.providers.map(providerLabel).join(' · ') || 'no sign-in method'}
+                        {!u.email_confirmed && ' · unconfirmed'}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getRoleBadgeVariant(user.role)}>
-                        {user.role}
-                      </Badge>
+                      <StatusBadges u={u} />
                     </TableCell>
                     <TableCell>
-                      <Badge variant={isSuspended ? 'destructive' : 'outline'} className={isSuspended ? '' : 'bg-green-500/10 text-green-700 border-green-500/20'}>
-                        {isSuspended ? (
-                          <>
-                            <Ban className="w-3 h-3 mr-1" />
-                            Suspended
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck className="w-3 h-3 mr-1" />
-                            Active
-                          </>
-                        )}
-                      </Badge>
+                      <PlanBadge planKey={u.plan_key} source={u.plan_source} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+                    <TableCell className="whitespace-nowrap text-sm">
+                      <div>{relativeTime(u.last_seen_at ?? u.last_sign_in_at)}</div>
+                      {u.last_ip && (
+                        <code className="text-[11px] text-muted-foreground">
+                          {u.last_ip}
+                          {u.ip_count > 1 && ` +${u.ip_count - 1}`}
+                        </code>
+                      )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {user.last_sign_in_at
-                        ? formatDistanceToNow(new Date(user.last_sign_in_at), { addSuffix: true })
-                        : 'Never'
-                      }
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => openEmailDialog(user)}>
-                            <Mail className="w-4 h-4 mr-2" />
-                            Send Email
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleChangeRole(user.id, user.role === 'admin' ? 'user' : 'admin')}>
-                            <Shield className="w-4 h-4 mr-2" />
-                            {user.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {isSuspended ? (
-                            <DropdownMenuItem onClick={() => handleSuspendUser(user.id, false)} className="text-green-600">
-                              <UserCheck className="w-4 h-4 mr-2" />
-                              Unsuspend User
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem onClick={() => handleSuspendUser(user.id, true)} className="text-orange-600">
-                              <UserX className="w-4 h-4 mr-2" />
-                              Suspend User
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onClick={() => openDeleteDialog(user)} className="text-destructive">
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete User
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDay(u.created_at)}</TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <UserRowActions
+                        user={u}
+                        isSelf={isSelf}
+                        busy={busyId === u.user_id}
+                        on={{
+                          view: open,
+                          ban: () => setBanTarget(target),
+                          unban: () =>
+                            quick(u, 'Unban', async () => {
+                              await accountAction({ action: 'unban', userId: u.user_id });
+                              return `${u.email} can sign in again.`;
+                            }),
+                          signOut: () =>
+                            quick(u, 'Sign out', async () => {
+                              const r = await accountAction({ action: 'sign_out', userId: u.user_id });
+                              return `${u.email} has been signed out everywhere (${sessions(r.sessionsEnded)}).`;
+                            }),
+                          blockIps: () =>
+                            quick(u, 'Blocking their IPs', async () => {
+                              const r = await blockUserIps(u.user_id, null);
+                              return ipResultText(r).trim();
+                            }),
+                          toggleAdmin: () => setRoleTarget({ ...target, makeAdmin: !isAdminLike(u) }),
+                          remove: () => setDeleteTarget(target),
+                        }}
+                      />
                     </TableCell>
                   </TableRow>
                 );
               })}
-              {filteredUsers.length === 0 && (
+              {shown.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    {loading ? 'Loading users...' : 'No users found'}
+                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                    {loading ? (
+                      'Loading users…'
+                    ) : (
+                      <span className="inline-flex items-center gap-2">
+                        <Users className="h-4 w-4" /> No accounts match.
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               )}
@@ -480,102 +312,15 @@ export default function UserManagement() {
         </CardContent>
       </Card>
 
-      {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Send Email to User</DialogTitle>
-            <DialogDescription>
-              Send an email to {emailRecipient?.email}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="recipient">To</Label>
-              <Input
-                id="recipient"
-                value={emailRecipient?.email || ''}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject</Label>
-              <Input
-                id="subject"
-                placeholder="Email subject..."
-                value={emailSubject}
-                onChange={(e) => setEmailSubject(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="message">Message</Label>
-              <Textarea
-                id="message"
-                placeholder="Type your message here..."
-                value={emailMessage}
-                onChange={(e) => setEmailMessage(e.target.value)}
-                rows={6}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSendEmail} disabled={isSendingEmail}>
-              {isSendingEmail ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Email
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              Delete User Account
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the account for <strong>{userToDelete?.email}</strong>?
-              <br /><br />
-              This action cannot be undone. This will permanently delete their account and remove all their data from our servers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteUser}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete User
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <BanDialog target={banTarget} onClose={() => setBanTarget(null)} onDone={() => void load()} />
+      <DeleteDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} onDone={() => void load()} />
+      <AdminRoleDialog
+        target={roleTarget}
+        makeAdmin={roleTarget?.makeAdmin ?? false}
+        onClose={() => setRoleTarget(null)}
+        onDone={() => void load()}
+      />
+      <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} onDone={() => void load()} />
     </div>
   );
 }

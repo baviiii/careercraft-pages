@@ -100,24 +100,21 @@ export function useAdminData() {
 
   const fetchUsers = async () => {
     try {
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, created_at, updated_at');
+      // admin_list_users reads auth.users, so emails and real sign-in times
+      // come through. The profiles-only version this replaced left every email
+      // blank and showed the profile's last edit as "last sign in".
+      const { data: rows, error } = await supabase.rpc('admin_list_users');
 
       if (error) throw error;
 
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      const usersWithRoles = profiles?.map(profile => ({
-        id: profile.id,
-        email: '', // Will be populated from auth if needed
-        created_at: profile.created_at,
-        last_sign_in_at: profile.updated_at,
-        full_name: profile.full_name,
-        role: roles?.find(r => r.user_id === profile.id)?.role || 'user',
-      })) || [];
+      const usersWithRoles = (rows ?? []).map(row => ({
+        id: row.user_id,
+        email: row.email ?? '',
+        created_at: row.created_at,
+        last_sign_in_at: row.last_sign_in_at,
+        full_name: row.full_name,
+        role: row.is_admin ? 'admin' : 'user',
+      }));
 
       setUsers(usersWithRoles);
       

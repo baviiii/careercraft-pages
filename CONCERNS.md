@@ -580,3 +580,33 @@ ledger out of `delete_user_data`). The rows keep tokens, model and feature but
 lose any link to the person, so the privacy promise still holds. Those rows
 then show up under "No user" alongside test scripts; add a
 `metadata.deleted_account` flag if the two need telling apart.
+
+## 20. Gaps left in bans and IP blocks
+
+**Found:** 2026-11-06, in the review of the admin user-management change.
+
+What a ban or an IP block does not reach yet:
+
+- **Storage and Realtime.** The data API gate (`check_request`) only runs for
+  PostgREST. A banned user's access token keeps working against Storage and
+  Realtime until it expires. That is an hour at most: their sessions are
+  ended, so the token can't be refreshed.
+- **Interview coach traffic through the MCP server.** It reaches Horus without
+  going through our edge functions, so only a ban stops it, not an IP block.
+- **Every signed-in edge call makes two `access_check` lookups.** `handler()`
+  checks the IP, then `verifyUserToken` checks the user. Each is cached for
+  30 s per isolate, but a cold isolate pays two database round trips before
+  the function runs. One `access_check(ip, userId)` call per request would
+  halve that.
+- **Blocking an edge function's own outbound address.** Edge functions call the
+  data API with the user's token, so `check_request` sees their outbound
+  address. Block a range that happens to include one and user-scoped database
+  calls from that function start failing. Supabase doesn't publish those
+  ranges (Deno Deploy), and blocks are limited to /16 or narrower, so this is
+  unlikely. Don't block hosting-provider ranges.
+
+**Why it matters:** a ban is close to total but not quite, and every request
+pays a little extra time.
+
+**Not urgent because:** every account action and AI feature goes through the
+gated paths, and the round trips are cached.

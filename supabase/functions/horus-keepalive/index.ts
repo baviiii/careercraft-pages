@@ -49,4 +49,10 @@ serve(handler(async (req) => {
     }
     throw err;
   }
-}, { name: "horus-keepalive" }));
+}, {
+  name: "horus-keepalive",
+  // Called only by the daily GitHub Actions job with the service role key: no
+  // person and no user token, so neither the IP check nor the ban check has
+  // anything to look at.
+  skipAccessCheck: true,
+}));

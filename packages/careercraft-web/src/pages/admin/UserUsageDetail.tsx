@@ -5,7 +5,7 @@
 // change it: plan, daily token budget, and per-feature overrides.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { TokensByDayChart } from '@/components/admin/usage/TokensByDayChart';
 import { CallLog } from '@/components/admin/usage/CallLog';
 import { AuditLogTable } from '@/components/admin/usage/AuditLogTable';
+import { UserAccessPanel } from '@/components/admin/users/UserAccessPanel';
 import { BudgetMeter, PlanBadge, StatTile } from '@/components/admin/usage/UsageBits';
 import { formatDay, formatWhen, relativeTime } from '@/components/admin/usage/usageHelpers';
 import { parseLimit } from '@/hooks/usePlansAdmin';
@@ -49,6 +50,8 @@ function planAllowance(limit: number | null): string {
 
 export default function UserUsageDetail() {
   const { userId = '' } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
+  const [meId, setMeId] = useState<string | null>(null);
   const [rangeKey, setRangeKey] = useState<RangeKey>('30d');
   const [now, setNow] = useState(() => new Date());
   const range = useMemo(() => rangeFor(rangeKey, now), [rangeKey, now]);
@@ -89,6 +92,10 @@ export default function UserUsageDetail() {
   useEffect(() => {
     void load();
   }, [load, reloadKey]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setMeId(data.user?.id ?? null));
+  }, []);
 
   useEffect(() => {
     supabase
@@ -167,9 +174,9 @@ export default function UserUsageDetail() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild>
-          <Link to="/admin/usage">
+          <Link to="/admin/users">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            AI Usage
+            Users
           </Link>
         </Button>
         <p className="text-muted-foreground">That account doesn&rsquo;t exist, or couldn&rsquo;t be loaded.</p>
@@ -203,12 +210,17 @@ export default function UserUsageDetail() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <Button variant="ghost" size="sm" className="-ml-2" asChild>
-            <Link to="/admin/usage">
-              <ArrowLeft className="mr-1.5 h-4 w-4" />
-              AI Usage
-            </Link>
-          </Button>
+          <div className="-ml-2 flex gap-1">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/admin/users">
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                Users
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/admin/usage">AI Usage</Link>
+            </Button>
+          </div>
           <h1 className="text-2xl font-bold">{u?.full_name || u?.email || 'Loading…'}</h1>
           {u && (
             <p className="text-sm text-muted-foreground">
@@ -236,6 +248,13 @@ export default function UserUsageDetail() {
           </Button>
         </div>
       </div>
+
+      <UserAccessPanel
+        userId={userId}
+        meId={meId}
+        onDeleted={() => navigate('/admin/users', { replace: true })}
+        onChanged={refresh}
+      />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile

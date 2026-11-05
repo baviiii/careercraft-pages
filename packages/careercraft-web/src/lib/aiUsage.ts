@@ -547,6 +547,9 @@ const TABLE_LABELS: Record<string, string> = {
   user_limit_overrides: 'User limit override',
   user_roles: 'User role',
   admin_whitelist: 'Admin whitelist',
+  // Written by the admin-users edge function: bans, sign-outs, deletions, invites.
+  account: 'Account',
+  blocked_ips: 'Blocked IP',
 };
 
 export function auditTableLabel(table: string): string {

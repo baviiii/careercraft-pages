@@ -18,6 +18,7 @@ import { horusGenerateObject, type HorusContentPart } from "../_shared/ai/horus.
 import { UnauthorizedError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota, systemMeter, type MeterContext } from "../_shared/ai/meter.ts";
 import { handler, json } from "../_shared/http/responses.ts";
+import { clientIp as trustedClientIp } from "../_shared/http/access.ts";
 import { optionalUser } from "../_shared/http/auth.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
@@ -319,7 +320,9 @@ serve(handler(async (req) => {
     // loose: Australian mobile carriers and office networks put many real
     // people behind one address, and a guest who pastes, dislikes the result
     // and re-pastes is normal behaviour, not abuse.
-    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    // The platform-vouched address. The first X-Forwarded-For entry is whatever
+    // the client sent, so keying guest limits on it let anyone rotate past them.
+    const clientIp = trustedClientIp(req) ?? "unknown";
     await enforceAnonymousWindowLimit({
       resource: GUEST_RESOURCE,
       principal: `ip:${clientIp}`,

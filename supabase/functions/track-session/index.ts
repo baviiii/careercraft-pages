@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { UnauthorizedError } from "../_shared/ai/errors.ts";
+import { AccessBlockedError, UnauthorizedError } from "../_shared/ai/errors.ts";
 import { requireUser } from "../_shared/http/auth.ts";
+import { assertIpAllowed, clientIp } from "../_shared/http/access.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -174,9 +175,12 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Not wrapped in handler(), so the blocked-network check is made here.
+    await assertIpAllowed(req);
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: TrackSessionRequest = await req.json();
@@ -206,10 +210,9 @@ Deno.serve(async (req) => {
         : null;
     const reason = typeof body.reason === 'string' ? body.reason.slice(0, 500) : null;
 
-    // Get IP from headers (Supabase edge functions provide this)
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-               req.headers.get('x-real-ip') || 
-               'unknown';
+    // The platform-vouched address (see clientIp): the first X-Forwarded-For
+    // entry is client-supplied and was being stored as the user's IP.
+    const ip = clientIp(req) ?? 'unknown';
 
     if (isPreAuthEvent) {
       const { data: quotaCount, error: quotaError } = await supabase.rpc(
@@ -568,6 +571,12 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
+    if (error instanceof AccessBlockedError) {
+      return new Response(
+        JSON.stringify({ error: error.message, code: error.code, details: error.details }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
     console.error('Error in track-session function:', error);
     const unauthorized = error instanceof UnauthorizedError;
     const errorMessage = unauthorized

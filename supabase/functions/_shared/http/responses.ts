@@ -8,6 +8,7 @@
 //   }, { name: "onboard-analyze" }));
 
 import { AppError, RateLimitError } from "../ai/errors.ts";
+import { assertIpAllowed } from "./access.ts";
 import { corsHeaders, preflight } from "./cors.ts";
 
 export function json(body: unknown, status = 200, extra?: HeadersInit): Response {
@@ -37,6 +38,11 @@ export interface HandlerOpts {
   allowedMethods?: string[];
   /** Used in error logs. */
   name?: string;
+  /**
+   * Skip the blocked-IP check. Only for callers that are never a person's
+   * browser — a cron job, a provider webhook — where the IP is a server's.
+   */
+  skipAccessCheck?: boolean;
 }
 
 export type Handler = (req: Request) => Response | Promise<Response>;
@@ -45,6 +51,7 @@ export type Handler = (req: Request) => Response | Promise<Response>;
  * Wraps an edge-function handler with:
  *   - CORS preflight
  *   - Method-not-allowed responses
+ *   - Blocked-IP refusal (403 ACCESS_BLOCKED), before the function runs
  *   - Top-level try/catch → typed JSON error responses
  *   - Structured 5xx logging
  */
@@ -59,6 +66,7 @@ export function handler(fn: Handler, opts: HandlerOpts = {}): Handler {
       return json({ error: "Method not allowed" }, 405);
     }
     try {
+      if (!opts.skipAccessCheck) await assertIpAllowed(req);
       return await fn(req);
     } catch (err) {
       return errorToResponse(err, name);

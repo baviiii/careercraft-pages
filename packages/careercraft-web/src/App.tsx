@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigat
 import { supabase } from "@/integrations/supabase/client";
 import { applyStoredAccent } from "@/lib/personaTheme";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { AccessGate } from "@/components/AccessGate";
 
 // Re-apply the persona accent before first paint so returning users see
 // their palette immediately instead of a rust flash.
@@ -48,6 +49,7 @@ const ChatPrompts = lazy(() => import("./pages/admin/ChatPrompts"));
 const PlansAndLimits = lazy(() => import("./pages/admin/PlansAndLimits"));
 const AiUsage = lazy(() => import("./pages/admin/AiUsage"));
 const UserUsageDetail = lazy(() => import("./pages/admin/UserUsageDetail"));
+const BlockedIps = lazy(() => import("./pages/admin/BlockedIps"));
 
 // Optimized QueryClient with better caching
 const queryClient = new QueryClient({
@@ -134,6 +136,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ScrollToTop />
+        {/* Banned accounts and blocked networks see a blocked screen instead. */}
+        <AccessGate>
         <RouteBoundary>
         <Suspense fallback={<PageLoader />}>
           <Routes>
@@ -197,6 +201,7 @@ const App = () => (
                 <Route path="plans" element={<PlansAndLimits />} />
                 <Route path="usage" element={<AiUsage />} />
                 <Route path="usage/:userId" element={<UserUsageDetail />} />
+                <Route path="blocked-ips" element={<BlockedIps />} />
                 {/* Retired pages — keep bookmarks working */}
                 <Route path="documents" element={<Navigate to="/admin" replace />} />
                 <Route path="settings" element={<Navigate to="/admin" replace />} />
@@ -208,6 +213,7 @@ const App = () => (
           </Routes>
         </Suspense>
         </RouteBoundary>
+        </AccessGate>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

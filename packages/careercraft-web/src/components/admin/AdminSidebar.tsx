@@ -8,7 +8,8 @@ import {
   Monitor,
   MessageSquare,
   Gauge,
-  Coins
+  Coins,
+  ShieldOff
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -29,7 +30,7 @@ import { useNavigate } from 'react-router-dom';
 
 const mainNavItems = [
   { title: 'Overview', url: '/admin', icon: LayoutDashboard },
-  { title: 'User Management', url: '/admin/users', icon: Users },
+  { title: 'Users', url: '/admin/users', icon: Users },
   { title: 'Activity', url: '/admin/activity', icon: Activity },
   { title: 'Sessions', url: '/admin/sessions', icon: Monitor },
   { title: 'AI Prompts', url: '/admin/prompts', icon: MessageSquare },
@@ -38,6 +39,7 @@ const mainNavItems = [
 ];
 
 const securityNavItems = [
+  { title: 'Blocked IPs', url: '/admin/blocked-ips', icon: ShieldOff },
   { title: 'Security Alerts', url: '/admin/security', icon: AlertTriangle },
   { title: 'Access Control', url: '/admin/access', icon: Shield },
 ];

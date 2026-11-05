@@ -32,6 +32,7 @@ import { UnauthorizedError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota, systemMeter } from "../_shared/ai/meter.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
+import { clientIp as trustedClientIp } from "../_shared/http/access.ts";
 import { verifyUserToken } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
@@ -159,7 +160,8 @@ serve(handler(async (req) => {
     // authorisation input, but it is a perfectly good bucketing key: an
     // attacker who forges it is already past the shared secret, and the IP
     // fallback still covers a caller who sends none.
-    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    // The platform-vouched address, not the spoofable first X-Forwarded-For entry.
+    const clientIp = trustedClientIp(req) ?? "unknown";
 
     // Two limits, because they defend against different things and neither
     // covers the other.

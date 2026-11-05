@@ -257,6 +257,36 @@ export type Database = {
           },
         ]
       }
+      blocked_ips: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          expires_at: string | null
+          id: number
+          network: unknown
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          expires_at?: string | null
+          id?: number
+          network: unknown
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          expires_at?: string | null
+          id?: number
+          network?: unknown
+          reason?: string | null
+        }
+        Relationships: []
+      }
       career_paths: {
         Row: {
           color: string | null
@@ -1943,6 +1973,39 @@ export type Database = {
           },
         ]
       }
+      user_ip_log: {
+        Row: {
+          country: string | null
+          first_seen: string
+          hits: number
+          ip: unknown
+          last_seen: string
+          source: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          country?: string | null
+          first_seen?: string
+          hits?: number
+          ip: unknown
+          last_seen?: string
+          source?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          country?: string | null
+          first_seen?: string
+          hits?: number
+          ip?: unknown
+          last_seen?: string
+          source?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_limit_overrides: {
         Row: {
           created_at: string
@@ -2505,6 +2568,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      access_check: { Args: { p_ip: string; p_user_id: string }; Returns: Json }
+      admin_block_ip: {
+        Args: { p_expires_at?: string | null; p_network: string; p_reason?: string | null }
+        Returns: Json
+      }
+      admin_block_user_ips: {
+        Args: { p_include_shared?: boolean; p_reason?: string | null; p_user_id: string }
+        Returns: Json
+      }
+      admin_check_target: { Args: { p_user_id: string }; Returns: Json }
+      admin_enforcement_status: { Args: never; Returns: Json }
       admin_list_audit_log: {
         Args: { p_before_id?: number; p_limit?: number; p_user_id?: string }
         Returns: {
@@ -2521,8 +2595,57 @@ export type Database = {
           target_user_id: string | null
         }[]
       }
+      admin_list_blocked_ips: {
+        Args: never
+        Returns: {
+          accounts: number
+          active: boolean
+          created_at: string
+          created_by_email: string | null
+          expires_at: string | null
+          id: number
+          network: string
+          reason: string | null
+        }[]
+      }
+      admin_list_users: {
+        Args: { p_user_id?: string }
+        Returns: {
+          ban_reason: string | null
+          banned_until: string | null
+          created_at: string
+          email: string | null
+          email_confirmed: boolean
+          full_name: string | null
+          ip_blocked: boolean
+          ip_count: number
+          is_admin: boolean
+          last_ip: string | null
+          last_seen_at: string | null
+          last_sign_in_at: string | null
+          plan_key: string | null
+          plan_source: string | null
+          providers: string[]
+          roles: string[]
+          user_id: string
+        }[]
+      }
+      admin_network_accounts: {
+        Args: { p_network: string }
+        Returns: {
+          email: string | null
+          is_admin: boolean
+          last_seen: string | null
+          user_id: string
+        }[]
+      }
       admin_remove_limit_override: {
         Args: { p_resource: string; p_user_id: string }
+        Returns: undefined
+      }
+      admin_revoke_sessions: { Args: { p_user_id: string }; Returns: number }
+      admin_set_admin: {
+        Args: { p_make_admin: boolean; p_user_id: string }
         Returns: undefined
       }
       admin_set_daily_token_override: {
@@ -2545,6 +2668,7 @@ export type Database = {
         Args: { p_note?: string | null; p_plan_key: string; p_user_id: string }
         Returns: undefined
       }
+      admin_unblock_ip: { Args: { p_id: number }; Returns: undefined }
       admin_usage_by_user: {
         Args: { p_from: string; p_to: string }
         Returns: {
@@ -2607,6 +2731,20 @@ export type Database = {
         Args: { p_from: string; p_to: string; p_tz?: string }
         Returns: Json
       }
+      admin_user_ips: {
+        Args: { p_user_id: string }
+        Returns: {
+          block_id: number | null
+          blocked_by: string | null
+          country: string | null
+          first_seen: string
+          hits: number
+          ip: string
+          last_seen: string
+          other_accounts: number
+          source: string
+        }[]
+      }
       admin_user_usage: {
         Args: { p_from: string; p_to: string; p_tz?: string; p_user_id: string }
         Returns: Json
@@ -2615,6 +2753,7 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      check_request: { Args: never; Returns: undefined }
       clean_old_news_articles: { Args: never; Returns: undefined }
       consume_anonymous_edge_quota: {
         Args: {
@@ -2695,6 +2834,10 @@ export type Database = {
         Returns: number
       }
       promote_to_admin: { Args: { _email: string }; Returns: boolean }
+      record_user_ip: {
+        Args: { p_country?: string | null; p_ip: string; p_user_agent?: string | null; p_user_id: string }
+        Returns: undefined
+      }
       refund_plan_quota: {
         Args: { p_resource: string; p_user_id: string }
         Returns: undefined
@@ -2712,6 +2855,7 @@ export type Database = {
         }[]
       }
       tokens_used_today: { Args: { p_user_id: string }; Returns: number }
+      whoami: { Args: never; Returns: string }
     }
     Enums: {
       app_role: "admin" | "user"

@@ -524,7 +524,7 @@ export default function AiUsage() {
               <CardTitle className="text-lg">Change log</CardTitle>
               <CardDescription>
                 Every change to plans, limits, prices, user plans, overrides, roles and the admin whitelist,
-                including ones made outside this screen
+                plus every ban, sign-out, deletion, invite and IP block, including ones made outside these screens
               </CardDescription>
             </CardHeader>
             <CardContent>

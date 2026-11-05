@@ -30,6 +30,21 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/**
+ * The caller is banned, or their IP address is blocked. A distinct code so the
+ * site can tell "you're blocked" apart from an ordinary 403 and show the
+ * blocked screen instead of an error.
+ */
+export class AccessBlockedError extends AppError {
+  constructor(
+    message: string,
+    /** { reason: "banned" | "ip", until: string | null } */
+    public readonly details?: unknown,
+  ) {
+    super(message, 403, "ACCESS_BLOCKED");
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = "Not found") {
     super(message, 404, "NOT_FOUND");

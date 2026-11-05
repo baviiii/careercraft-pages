@@ -8,6 +8,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 import { ForbiddenError, UnauthorizedError } from "../ai/errors.ts";
 import { reqEnv } from "../env.ts";
+import { assertTokenNotBanned, assertUserAllowed } from "./access.ts";
 
 export interface AuthContext {
   userId: string;
@@ -80,7 +81,16 @@ export async function verifyUserToken(jwt: string): Promise<AuthContext> {
   });
 
   const { data, error } = await userClient.auth.getUser();
-  if (error || !data?.user) throw new UnauthorizedError("Invalid session");
+  if (error || !data?.user) {
+    // A ban ends the account's sessions, so Auth now refuses its token — but
+    // the person behind it is banned, not signed out, and should hear that.
+    await assertTokenNotBanned(jwt);
+    throw new UnauthorizedError("Invalid session");
+  }
+
+  // A banned account's access token stays valid until it expires; refuse it
+  // here so a ban takes effect on the next request, not the next sign-in.
+  await assertUserAllowed(data.user.id);
 
   return {
     userId: data.user.id,
