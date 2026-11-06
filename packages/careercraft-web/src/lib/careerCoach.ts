@@ -122,13 +122,19 @@ export interface CertificationAnalysis {
 
 export interface CertificationPlan {
   recommendations?: Array<{
-    certificationId: string;
+    certificationId: string | null;
     name: string;
+    /** Who awards it (older saved plans lack it). */
+    issuer?: string | null;
+    /** The issuer's website, for its logo. */
+    issuerDomain?: string | null;
     priority: number;
     whyThisOne: string;
     prepPlan: string;
-    estimatedWeeks: number;
-    examCostUsd: number;
+    estimatedWeeks: number | null;
+    examCostUsd: number | null;
+    /** The cost is the coach's knowledge, not the catalog's. */
+    costIsEstimate?: boolean;
     roi: string;
   }>;
   skipForNow?: Array<{ name: string; why: string }>;

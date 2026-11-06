@@ -195,3 +195,50 @@
   .cc-cert .cc-cert-step__card { padding: 16px 16px 18px; }
   .cc-cert .cc-cert-split > div { padding: 12px 14px; }
 }
+
+/* ── The plan in colour: each step its own, a logo for who awards it ── */
+.cc-cert .cc-cert-tone-1 { --ct: var(--cc-rust); --ct-deep: var(--cc-rust-deep); --ct-soft: rgba(42, 82, 204, 0.11); --ct-wash: rgba(42, 82, 204, 0.045); }
+.cc-cert .cc-cert-tone-2 { --ct: var(--cc-signal); --ct-deep: var(--cc-signal-deep); --ct-soft: rgba(63, 122, 92, 0.14); --ct-wash: rgba(63, 122, 92, 0.05); }
+.cc-cert .cc-cert-tone-3 { --ct: var(--cc-wheat); --ct-deep: var(--cc-wheat-deep); --ct-soft: rgba(180, 135, 44, 0.15); --ct-wash: rgba(180, 135, 44, 0.055); }
+
+.cc-cert .cc-cert-step[class*="cc-cert-tone-"] .cc-cert-step__n { border-color: var(--ct); color: var(--ct-deep); }
+.cc-cert .cc-cert-step[class*="cc-cert-tone-"]:first-child .cc-cert-step__n { background: var(--ct); color: #fff; }
+.cc-cert .cc-cert-step[class*="cc-cert-tone-"] .cc-cert-step__card {
+  box-shadow: inset 0 3px 0 var(--ct), 0 18px 44px -36px rgba(20, 22, 26, 0.3);
+  animation: cc-cert-rise 0.45s cubic-bezier(.2, .8, .2, 1) both;
+}
+.cc-cert .cc-cert-step:nth-child(2) .cc-cert-step__card { animation-delay: 0.08s; }
+.cc-cert .cc-cert-step:nth-child(3) .cc-cert-step__card { animation-delay: 0.16s; }
+@keyframes cc-cert-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cc-cert .cc-cert-step__card { animation-name: cc-cert-fade !important; }
+}
+@keyframes cc-cert-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.cc-cert .cc-cert-logo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--cc-hair), 0 8px 18px -14px rgba(20, 22, 26, 0.5);
+}
+.cc-cert .cc-cert-logo img { width: 28px; height: 28px; object-fit: contain; }
+.cc-cert .cc-cert-logo--initials {
+  background: var(--ct-soft, var(--cc-rust-soft));
+  box-shadow: none;
+  font: 700 15px/1 'Bricolage Grotesque', 'Inter', sans-serif;
+  color: var(--ct-deep, var(--cc-rust-deep));
+}
+.cc-cert .cc-cert-issuer { margin-bottom: 3px; font: 600 13px/1.3 'Inter', system-ui, sans-serif; color: var(--ct-deep, var(--cc-ink-soft)); }
+
+.cc-cert .cc-cert-chip--weeks { border-color: transparent; background: var(--ct-soft, var(--cc-cream)); color: var(--ct-deep, var(--cc-ink-soft)); font-weight: 600; }
+.cc-cert .cc-cert-chip--cost { border-color: transparent; background: rgba(63, 122, 92, 0.13); color: var(--cc-signal-deep); font-weight: 600; }
+.cc-cert .cc-cert-chip--estimate { border-color: rgba(180, 135, 44, 0.35); background: rgba(180, 135, 44, 0.1); color: var(--cc-wheat-deep); font-weight: 600; }
+
+/* How to prepare and what it opens, tinted in the step's colour. */
+.cc-cert .cc-cert-step[class*="cc-cert-tone-"] .cc-cert-split > div { background: var(--ct-wash); box-shadow: inset 0 0 0 1px var(--ct-soft); }
+.cc-cert .cc-cert-step[class*="cc-cert-tone-"] .cc-cert-split .cc-cert-label { color: var(--ct-deep); }

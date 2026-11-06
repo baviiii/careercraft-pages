@@ -33,6 +33,7 @@ const sections = [
         applies to what YouTube collects.
       </>,
       "To find discussions, courses and guides for a skill, we send the skill and job — never your identity — to our web search provider (Amazon Web Services or Tavily), and show each result with its source.",
+      "Certification logos are loaded from DuckDuckGo's icon service, which is sent the awarding body's web address (such as aws.amazon.com) — never what you hold or who you are.",
       "To personalise recommendations against South Australian market and policy data.",
       "To send service emails about your account — marketing only ever with your consent.",
       "To analyse usage in aggregate and meet our legal obligations.",

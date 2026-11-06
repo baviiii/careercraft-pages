@@ -75,6 +75,99 @@ function leadSentence(text: string): [string, string] {
   return m ? [m[1], m[2]] : [text.trim(), ""];
 }
 
+/* ── A plan, however it was saved ───────────────────────────────────────── */
+
+/**
+ * A model once returned the plan's list as one JSON string, and it was saved
+ * that way: spread into steps, every character became a step. Plans are
+ * cleaned by the coach now; this repairs the ones already saved.
+ */
+function asList<T>(v: unknown): T[] {
+  if (Array.isArray(v)) return v as T[];
+  if (typeof v === "string" && /^\s*\[/.test(v)) {
+    try {
+      const parsed: unknown = JSON.parse(v);
+      return Array.isArray(parsed) ? (parsed as T[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** Text, even when it was saved as a list of sentences. */
+function asText(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) return v.filter((s) => typeof s === "string").join(" ");
+  return "";
+}
+
+/* ── Who awards it, as a logo ─────────────────────────────────────────────── */
+
+/** Awarding bodies we know, for when the coach didn't name a website. */
+const ISSUER_SITES: Array<[RegExp, string]> = [
+  [/amazon web services|\baws\b/i, "aws.amazon.com"],
+  [/microsoft|azure/i, "microsoft.com"],
+  [/google/i, "cloud.google.com"],
+  [/comptia/i, "comptia.org"],
+  [/cisco/i, "cisco.com"],
+  [/project management institute|\bpmi\b|\bpmp\b/i, "pmi.org"],
+  [/isc2|\(isc\)|\bcissp\b/i, "isc2.org"],
+  [/isaca|\bcism\b|\bcisa\b/i, "isaca.org"],
+  [/linux foundation|\bcncf\b|kubernetes|\bckad\b|\bcka\b/i, "linuxfoundation.org"],
+  [/hashicorp|terraform/i, "hashicorp.com"],
+  [/oracle/i, "oracle.com"],
+  [/salesforce/i, "salesforce.com"],
+  [/red hat/i, "redhat.com"],
+  [/scrum\.org|professional scrum/i, "scrum.org"],
+  [/scrum alliance/i, "scrumalliance.org"],
+  [/peoplecert|axelos|prince2|\bitil\b/i, "peoplecert.org"],
+  [/databricks/i, "databricks.com"],
+  [/snowflake/i, "snowflake.com"],
+  [/ahpra|nursing and midwifery board/i, "ahpra.gov.au"],
+  [/cpa australia/i, "cpaaustralia.com.au"],
+  [/chartered accountants/i, "charteredaccountantsanz.com"],
+];
+
+const DOMAIN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+function issuerSite(issuer: string, name: string, given?: string | null): string | null {
+  const d = (given ?? "").trim().toLowerCase();
+  if (DOMAIN.test(d) && d.length <= 100) return d;
+  for (const [re, site] of ISSUER_SITES) if (re.test(issuer) || re.test(name)) return site;
+  return null;
+}
+
+/** "Amazon Web Services" → "AW"; "CompTIA" → "CO". */
+function initials(text: string): string {
+  const words = text.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean);
+  const two = words.length > 1 ? words[0]![0]! + words[1]![0]! : (words[0] ?? "?").slice(0, 2);
+  return two.toUpperCase();
+}
+
+/** The awarding body's logo (from DuckDuckGo's icon service), or its initials when there isn't one. */
+function IssuerLogo({ issuer, name, domain }: { issuer: string; name: string; domain: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!domain || failed) {
+    return (
+      <span className="cc-cert-logo cc-cert-logo--initials" aria-hidden>
+        {initials(issuer || name)}
+      </span>
+    );
+  }
+  return (
+    <span className="cc-cert-logo" aria-hidden>
+      <img
+        src={`https://icons.duckduckgo.com/ip3/${domain}.ico`}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  );
+}
+
 const VALUE_LEVEL: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
 function ValueDots({ value }: { value: string }) {
@@ -264,8 +357,25 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
   ).map((col) => col.map(([text, on]) => ({ text, on })));
   const [verdictLead, verdictRest] = analysis?.portfolioVerdict ? leadSentence(analysis.portfolioVerdict) : ["", ""];
 
-  /* The plan in order, with the weeks each one takes if done one after another. */
-  const recs = [...(plan?.recommendations ?? [])].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+  /* The plan in order, with the weeks each one takes if done one after another.
+     Repaired first: a plan saved before the coach cleaned its answers can hold
+     a list as a string, or a list where text belongs. */
+  type Rec = NonNullable<CertificationPlan["recommendations"]>[number];
+  const recs = asList<Rec>(plan?.recommendations)
+    .filter((r): r is Rec => Boolean(r) && typeof r === "object" && asText(r.name).trim().length > 0)
+    .map((r) => ({
+      ...r,
+      name: asText(r.name),
+      issuer: asText(r.issuer),
+      whyThisOne: asText(r.whyThisOne),
+      prepPlan: asText(r.prepPlan),
+      roi: asText(r.roi),
+    }))
+    .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+  const skipForNow = asList<{ name: string; why: string }>(plan?.skipForNow).filter(
+    (s) => Boolean(s) && typeof s === "object" && asText(s.name).trim().length > 0,
+  );
+  const sequencingNote = asText(plan?.sequencingNote);
   let week = 1;
   const ranges = recs.map((r) => {
     const w = Math.round(Number(r.estimatedWeeks));
@@ -574,7 +684,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
             <button type="button" onClick={recommend} disabled={recommending} className="cc-action">
               {recommending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Ranking…
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Ranking… about half a minute
                 </>
               ) : (
                 <>
@@ -585,7 +695,12 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
           </div>
         }
       >
-        {plan ? (
+        {plan && recs.length === 0 ? (
+          <p className="cc-cert-note cc-cert-note--warn">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--cc-wheat-deep)]" aria-hidden />
+            <span>This plan came back incomplete. Press Recommend again for a fresh one.</span>
+          </p>
+        ) : plan ? (
           <div className="space-y-5">
             {planOutOfDate ? (
               <p className="flex items-center gap-1.5 text-[13.5px] text-[color:var(--cc-wheat-deep)]">
@@ -604,24 +719,36 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
             <ol className="cc-cert-path">
               {recs.map((r, i) => {
                 const range = ranges[i];
-                const cost = typeof r.examCostUsd === "number" && r.examCostUsd > 0 ? `US$${r.examCostUsd}` : null;
+                const costValue = Number(r.examCostUsd);
+                const cost = Number.isFinite(costValue) && costValue > 0 ? `US$${Math.round(costValue)}` : null;
+                const site = issuerSite(r.issuer, r.name, r.issuerDomain);
                 return (
-                  <li key={r.certificationId || r.name} className="cc-cert-step">
+                  <li key={`${r.certificationId || r.name}-${i}`} className={`cc-cert-step cc-cert-tone-${(i % 3) + 1}`}>
                     <span className="cc-cert-step__n" aria-hidden>
                       {i + 1}
                     </span>
                     <div className="cc-surface cc-cert-step__card">
-                      <h4 className="cc-cert-h text-[19px] leading-snug md:text-[21px]">{r.name}</h4>
+                      <div className="flex items-start gap-4">
+                        <IssuerLogo issuer={r.issuer} name={r.name} domain={site} />
+                        <div className="min-w-0">
+                          {r.issuer && <p className="cc-cert-issuer">{r.issuer}</p>}
+                          <h4 className="cc-cert-h text-[19px] leading-snug md:text-[21px]">{r.name}</h4>
+                        </div>
+                      </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {range && (
-                          <span className="cc-cert-chip">
+                          <span className="cc-cert-chip cc-cert-chip--weeks">
                             Weeks {range.from}–{range.to}
                           </span>
                         )}
                         {!range && Number(r.estimatedWeeks) > 0 && (
-                          <span className="cc-cert-chip">About {Math.round(r.estimatedWeeks)} weeks</span>
+                          <span className="cc-cert-chip cc-cert-chip--weeks">About {Math.round(Number(r.estimatedWeeks))} weeks</span>
                         )}
-                        {cost && <span className="cc-cert-chip">Exam {cost}</span>}
+                        {cost && (
+                          <span className={`cc-cert-chip ${r.costIsEstimate ? "cc-cert-chip--estimate" : "cc-cert-chip--cost"}`}>
+                            {r.costIsEstimate ? `Exam about ${cost} · estimate` : `Exam ${cost}`}
+                          </span>
+                        )}
                       </div>
                       {r.whyThisOne && (
                         <p className="mt-4 text-[15.5px] leading-relaxed text-[color:var(--cc-ink)]">
@@ -659,22 +786,22 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
               })}
             </ol>
 
-            {plan.sequencingNote && (
+            {sequencingNote && (
               <p className="cc-cert-note">
                 <span className="cc-cert-label shrink-0 !text-[10px] leading-[1.9]">Order</span>
                 <span>
-                  <Inline text={plan.sequencingNote} />
+                  <Inline text={sequencingNote} />
                 </span>
               </p>
             )}
 
-            {plan.skipForNow && plan.skipForNow.length > 0 && (
+            {skipForNow.length > 0 && (
               <div>
                 <p className="cc-cert-label cc-cert-label--muted">Skip for now</p>
                 <ul className="mt-2">
-                  {plan.skipForNow.map((s, i) => (
+                  {skipForNow.map((s, i) => (
                     <li key={i} className={`py-2.5 text-[14.5px] leading-relaxed text-[color:var(--cc-ink-soft)] ${i ? "border-t border-dashed border-[color:var(--cc-hair)]" : ""}`}>
-                      <span className="font-semibold text-[color:var(--cc-ink)]">{s.name}</span> — <Inline text={s.why} />
+                      <span className="font-semibold text-[color:var(--cc-ink)]">{asText(s.name)}</span> — <Inline text={asText(s.why)} />
                     </li>
                   ))}
                 </ul>
