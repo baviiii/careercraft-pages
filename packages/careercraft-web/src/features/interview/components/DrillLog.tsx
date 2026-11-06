@@ -39,7 +39,7 @@ export function SkillProgressCards({ rows, max = 8 }: { rows: DrillRow[]; max?: 
                 <span className="text-[11px] text-[color:var(--cc-ash)]">/10</span>
               </span>
               <span className="st-mono block text-[11px] text-[color:var(--cc-ash)]">
-                {s.change !== null ? `${signed(s.change)} · ` : ""}
+                {s.change ? `${signed(s.change)} · ` : ""}
                 {s.attempts} {s.attempts === 1 ? "drill" : "drills"}
               </span>
             </span>
@@ -77,19 +77,10 @@ function LogEntry({ row, onPractise }: { row: DrillRow; onPractise?: (skill: str
           <span className="st-entry__skill block">{row.skill}</span>
           <span className="st-small block truncate">{row.exercise.prompt}</span>
         </span>
-        <span className={`st-meter is-${scoreTone(score)}`} aria-hidden>
-          {Array.from({ length: 10 }, (_, i) => (
-            <i key={i} className={i < Math.round(score) ? "is-on" : undefined} />
-          ))}
-        </span>
-        <span className="st-entry__score inline-flex items-center gap-2">
-          <span>
-            {mark(score)}
-            <small>/10</small>
-          </span>
-          <span className={`st-stamp st-stamp--${row.scoredBy === "coach" ? "coach" : "self"}`}>
-            {row.scoredBy === "coach" ? "Coach" : "Self"}
-          </span>
+        <span className="st-entry__by">{row.scoredBy === "coach" ? "Marked by the coach" : "Rated yourself"}</span>
+        <span className={`st-score is-${scoreTone(score)}`}>
+          {mark(score)}
+          <small>/10</small>
         </span>
       </summary>
 

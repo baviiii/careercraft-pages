@@ -325,7 +325,7 @@ export function DrillDesk({
           <div className="st-card__top">
             <span className="st-card__meta">
               <b>Drill</b>
-              <span>Picking what's due…</span>
+              <span className="st-pill">Picking what's due…</span>
             </span>
           </div>
           <div className="mt-5 space-y-3">
@@ -337,12 +337,12 @@ export function DrillDesk({
         <article className="st-card" aria-label={`Drill on ${current.scheduling.skill}`}>
           <div className="st-card__top">
             <span className="st-card__meta">
-              <b>{cardNo ? `Drill Nº ${cardNo}` : "Drill"}</b>
-              <span>{current.scheduling.skill}</span>
-              <span>{current.exercise.difficulty}</span>
-              {current.exercise.timeboxMinutes ? <span>{current.exercise.timeboxMinutes} min</span> : null}
-              {current.origin && <span>From your plan · {current.origin.label}</span>}
-              {current.id && !result && <span>Saved</span>}
+              <b>{cardNo ? `Drill ${cardNo}` : "Drill"}</b>
+              <span className="st-pill st-tone-wheat">{current.scheduling.skill}</span>
+              <span className="st-pill">{current.exercise.difficulty}</span>
+              {current.exercise.timeboxMinutes ? <span className="st-pill">{current.exercise.timeboxMinutes} min</span> : null}
+              {current.origin && <span className="st-pill st-tone-cobalt">From your plan · {current.origin.label}</span>}
+              {current.id && !result && <span className="st-pill st-tone-sage">Saved</span>}
             </span>
             {!result && (
               <button type="button" onClick={cancel} className="st-textbtn" disabled={marking}>

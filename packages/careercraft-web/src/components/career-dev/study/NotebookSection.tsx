@@ -34,11 +34,14 @@ export function NotebookSection({
   summary,
   defaultOpen = true,
   openSignal,
+  tone = "cobalt",
   children,
 }: {
   id: string;
   n: string;
   title: string;
+  /** The section's colour: its number chip and the strip along an open section. */
+  tone?: "wheat" | "cobalt" | "sage" | "slate" | "clay";
   summary?: ReactNode;
   defaultOpen?: boolean;
   /** Changes when something elsewhere needs this section open (e.g. "Practise it"). */
@@ -59,7 +62,7 @@ export function NotebookSection({
   };
 
   return (
-    <section id={`study-${id}`} className="st-section scroll-mt-24">
+    <section id={`study-${id}`} className={`st-section st-tone-${tone} scroll-mt-24`} data-open={open}>
       <h3>
         <button type="button" className="st-section__head" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
           <span className="st-section__n" aria-hidden>

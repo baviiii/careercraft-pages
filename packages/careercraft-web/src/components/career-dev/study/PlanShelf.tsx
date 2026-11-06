@@ -118,7 +118,9 @@ export function PlanShelf({
             className="st-folder"
             title={planName(p.pathway)}
           >
-            <span className="st-folder__kind">{p.pathway.explore ? "Exploring" : "For the job"}</span>
+            <span className={`st-folder__kind${p.pathway.explore ? " is-explore" : ""}`}>
+              {p.pathway.explore ? "Exploring" : "For the job"}
+            </span>
             <span className="st-folder__name">{planName(p.pathway)}</span>
           </button>
         ))}
@@ -532,15 +534,21 @@ function PlanSheet({
                   title={wk.theme}
                 >
                   <b>
-                    Week {wk.week} · {done}/{wk.sessions.length}
+                    Week {wk.week}
+                    <em>
+                      {done}/{wk.sessions.length}
+                    </em>
                   </b>
                   <span>{wk.theme}</span>
+                  <i className="st-week__bar" aria-hidden>
+                    <i style={{ width: `${wk.sessions.length ? Math.round((done / wk.sessions.length) * 100) : 0}%` }} />
+                  </i>
                 </button>
               );
             })}
           </div>
 
-          <div className="st-days" role="tabpanel" aria-label={`Week ${w.week}: ${w.theme}`}>
+          <div key={week} className="st-days" role="tabpanel" aria-label={`Week ${w.week}: ${w.theme}`}>
             {w.sessions.map((s, j) => {
               const method = METHODS.has(s.method) ? s.method : "review";
               const key = sessionKey(week + 1, j);
@@ -558,7 +566,7 @@ function PlanSheet({
                 });
               };
               return (
-                <div key={j} className={`st-day${status === "done" ? " is-done" : ""}`}>
+                <div key={j} className={`st-day st-day--${method}${status === "done" ? " is-done" : ""}`}>
                   <div className="st-day__when">
                     <button
                       type="button"

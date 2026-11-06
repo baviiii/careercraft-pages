@@ -95,7 +95,7 @@ export function DrillProgress({
                       ))}
                     </span>
                     <span className="st-mono w-24 whitespace-nowrap text-right text-xs text-[color:var(--cc-ink-soft)]">
-                      {mark(s.last)}/10{s.change !== null ? ` ${signed(s.change)}` : ""}
+                      {mark(s.last)}/10{s.change ? ` ${signed(s.change)}` : ""}
                     </span>
                   </span>
                 </button>

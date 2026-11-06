@@ -78,19 +78,19 @@ export function DrillMarks({ result }: { result: DrillResult }) {
       {e && (e.whatWorked || e.whatsMissing || e.oneThingToTry) && (
         <div className="st-split">
           {e.whatWorked && (
-            <div>
+            <div className="is-good">
               <p className="st-label st-label--muted">What worked</p>
               <p>{e.whatWorked}</p>
             </div>
           )}
           {e.whatsMissing && (
-            <div>
+            <div className="is-gap">
               <p className="st-label st-label--muted">What's missing</p>
               <p>{e.whatsMissing}</p>
             </div>
           )}
           {e.oneThingToTry && (
-            <div>
+            <div className="is-next">
               <p className="st-label st-label--muted">Next time</p>
               <p>{e.oneThingToTry}</p>
             </div>

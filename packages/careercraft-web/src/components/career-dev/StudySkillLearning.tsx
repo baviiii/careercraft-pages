@@ -186,7 +186,7 @@ export function StudySkillLearning({
       )}
 
       <section aria-label="Watch">
-        <p className="st-label">Watch</p>
+        <p className="st-label st-tone-wheat">Watch</p>
         <div className="mt-3">
           {videos.loading ? (
             <Waiting>Finding videos worth your time…</Waiting>
@@ -218,7 +218,7 @@ export function StudySkillLearning({
       ) : w ? (
         <div className="grid gap-8 md:grid-cols-2">
           <section aria-label="What people say">
-            <p className="st-label">What people say</p>
+            <p className="st-label st-tone-cobalt">What people say</p>
             <div className="mt-2">
               {w.discussions.length ? (
                 <WebList picks={w.discussions} skill={w.skill} />
@@ -228,7 +228,7 @@ export function StudySkillLearning({
             </div>
           </section>
           <section aria-label="Courses and guides">
-            <p className="st-label">Courses &amp; guides</p>
+            <p className="st-label st-tone-sage">Courses &amp; guides</p>
             <div className="mt-2">
               {w.guides.length ? (
                 <WebList picks={w.guides} skill={w.skill} />

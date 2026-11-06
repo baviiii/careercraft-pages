@@ -188,7 +188,7 @@ export default function StudyPanel({
 
       <header className="st-head">
         <div>
-          <p className="st-label">Study{field ? ` · ${field}` : ""}</p>
+          <p className="st-label">{field ? `For ${field}` : "Your study"}</p>
           <h2 className="st-h mt-2 text-[clamp(26px,3vw,34px)] leading-[1.1]">Study</h2>
           <p className="st-body mt-2 max-w-xl">
             A short drill each day, plans you can switch between, and the best videos, discussions and guides for
@@ -196,22 +196,22 @@ export default function StudyPanel({
           </p>
         </div>
         <div className="st-tallies">
-          <div className="st-tally">
+          <div className="st-tally st-tone-wheat">
             <p className="st-tally__n">{stats.thisWeek}</p>
             <p className="st-tally__label">drills this week</p>
           </div>
-          <div className="st-tally">
+          <div className="st-tally st-tone-sage">
             <p className="st-tally__n">
               {stats.average !== null ? mark(stats.average) : "—"}
               {stats.average !== null && <small>/10</small>}
             </p>
             <p className="st-tally__label">average mark</p>
           </div>
-          <div className="st-tally">
+          <div className="st-tally st-tone-cobalt">
             <p className="st-tally__n">{stats.saved}</p>
             <p className="st-tally__label">saved for later</p>
           </div>
-          <div className="st-tally">
+          <div className="st-tally st-tone-slate">
             <p className="st-tally__n">{plansQuery.data?.length ?? 0}</p>
             <p className="st-tally__label">{plansQuery.data?.length === 1 ? "plan" : "plans"}</p>
           </div>
@@ -222,6 +222,7 @@ export default function StudyPanel({
         id="drill"
         n="01"
         title="Today's drill"
+        tone="wheat"
         openSignal={drillAsk?.n}
         summary={
           saved.length
@@ -245,6 +246,7 @@ export default function StudyPanel({
         id="plan"
         n="02"
         title="Your plans"
+        tone="cobalt"
         summary={
           openPlan
             ? `${planName(openPlan.pathway)} is open · ${plans.length} ${plans.length === 1 ? "plan" : "plans"}`
@@ -274,6 +276,7 @@ export default function StudyPanel({
         id="learn"
         n="03"
         title="Learn it"
+        tone="sage"
         openSignal={learnAsk?.n}
         summary={
           skills.length
@@ -297,6 +300,7 @@ export default function StudyPanel({
         id="log"
         n="04"
         title="Drill log"
+        tone="slate"
         defaultOpen={false}
         summary={
           stats.done
@@ -320,6 +324,7 @@ export default function StudyPanel({
         id="explain"
         n="05"
         title="Explain a concept"
+        tone="clay"
         defaultOpen={false}
         summary="Any idea, explained simply first, then deeper"
       >
