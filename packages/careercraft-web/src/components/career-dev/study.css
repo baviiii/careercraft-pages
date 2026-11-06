@@ -492,6 +492,40 @@
 .cc-study .st-day__bar { height: 3px; margin-top: 7px; border-radius: 2px; background: var(--cc-rust); opacity: 0.55; }
 .cc-study .st-day__what { font: 15px/1.55 'Inter', system-ui, sans-serif; color: var(--cc-ink); }
 
+/* Ticking off a session: an empty box, half-filled once started, sage when done. */
+.cc-study .st-tick {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 9px;
+  border: 1.5px solid var(--cc-hair-strong);
+  border-radius: 7px;
+  background: #fff;
+  color: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+.cc-study .st-tick:hover { border-color: var(--cc-ink); }
+.cc-study .st-tick:active { transform: scale(0.92); }
+.cc-study .st-tick.is-started { border-color: var(--cc-wheat); background: linear-gradient(to top, var(--cc-wheat-soft) 50%, #fff 50%); }
+.cc-study .st-tick.is-done { border-color: var(--cc-signal); background: var(--cc-signal); }
+.cc-study .st-day.is-done .st-day__what { color: var(--cc-ash); }
+.cc-study .st-day.is-done .st-stamp { opacity: 0.55; }
+.cc-study .st-status {
+  font: 600 10.5px/1 'JetBrains Mono', monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cc-wheat-deep);
+}
+.cc-study .st-status--done { color: var(--cc-signal-deep); }
+.cc-study .st-week.is-complete b::after { content: " ✓"; color: var(--cc-signal); }
+.cc-study .st-week.is-complete[aria-selected="true"] b::after { color: var(--cc-cream); }
+
+/* How much of a plan is done. */
+.cc-study .st-progress { position: relative; display: block; width: 160px; height: 6px; overflow: hidden; border-radius: 3px; background: var(--cc-cream-3); }
+.cc-study .st-progress i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--cc-signal); transition: width 0.4s cubic-bezier(.2, .8, .2, 1); }
+
 /* Method stamps. */
 .cc-study .st-stamp {
   display: inline-block;

@@ -146,13 +146,20 @@ function Waiting({ children }: { children: string }) {
 export function StudySkillLearning({
   skills,
   field,
+  focus,
   onPractise,
 }: {
   skills: string[];
   field?: string;
+  /** A skill asked for from a plan session; a new n switches to it. */
+  focus?: { skill: string; n: number } | null;
   onPractise: (skill: string) => void;
 }) {
-  const [active, setActive] = useState(skills[0]);
+  const [active, setActive] = useState(focus?.skill ?? skills[0]);
+
+  useEffect(() => {
+    if (focus?.skill) setActive(focus.skill);
+  }, [focus?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A new plan brings new skills: start from its first unless the open one is still in it.
   useEffect(() => {

@@ -518,7 +518,14 @@ export const careerCoach = {
   },
 
   /** The next spaced-repetition drill (scheduler picks unless skill given). */
-  async nextDrill(input: { skill?: string; field?: string } = {}): Promise<{ drill: Drill; scheduling: DrillScheduling }> {
+  async nextDrill(
+    input: {
+      skill?: string;
+      field?: string;
+      /** A task from the study plan to build the drill around. */
+      focus?: string;
+    } = {},
+  ): Promise<{ drill: Drill; scheduling: DrillScheduling }> {
     return post("/api/study/drill", input);
   },
 

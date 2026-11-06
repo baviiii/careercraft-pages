@@ -293,6 +293,7 @@ function InterviewHub() {
             field={field}
             drillRequest={drillRequest}
             onDrillRequestHandled={() => setSearchParams({ tab: "study" }, { replace: true })}
+            onSetUpMock={scrollToSetup}
           />
         </TabsContent>
       </Tabs>

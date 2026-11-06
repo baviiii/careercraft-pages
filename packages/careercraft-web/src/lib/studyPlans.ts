@@ -6,10 +6,15 @@
  * Rebuilding a plan replaces it; a new one sits beside the others. This lists
  * them, remembers which one is open, and deletes one when asked, straight from
  * the database (own rows only, by RLS), the way session history is read.
+ *
+ * Which sessions of a plan are started or done is kept with the plan
+ * (payload.progress), so the ticks follow the learner to any device. A rebuilt
+ * plan is a new plan, so it starts with none.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type { LearningPathway } from "@/lib/careerCoach";
 import { savedKey } from "@/lib/savedResults";
 
@@ -21,6 +26,23 @@ export interface StudyPlanRow {
   subject: string | null;
   /** How the coach described it: "4w · 5 h/week · Software Engineer". */
   description: string | null;
+  /** Sessions started or done, by sessionKey. */
+  progress: PlanProgress;
+}
+
+export type SessionStatus = "started" | "done";
+export type PlanProgress = Record<string, SessionStatus>;
+
+/** One session of a plan: week number and its place in that week. */
+export function sessionKey(week: number, index: number): string {
+  return `${week}-${index}`;
+}
+
+function readProgress(raw: unknown): PlanProgress {
+  if (!raw || typeof raw !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).filter(([, v]) => v === "started" || v === "done"),
+  ) as PlanProgress;
 }
 
 export const PLANS_QUERY_KEY = ["study-plans"] as const;
@@ -40,9 +62,19 @@ export async function fetchStudyPlans(): Promise<StudyPlanRow[]> {
       .limit(12);
     if (error) return [];
     return (data ?? []).flatMap((row) => {
-      const pathway = (row.payload as { pathway?: LearningPathway } | null)?.pathway;
+      const payload = row.payload as { pathway?: LearningPathway; progress?: unknown } | null;
+      const pathway = payload?.pathway;
       if (!pathway?.plan) return [];
-      return [{ id: row.id, pathway, savedAt: row.created_at, subject: row.subject, description: row.description }];
+      return [
+        {
+          id: row.id,
+          pathway,
+          savedAt: row.created_at,
+          subject: row.subject,
+          description: row.description,
+          progress: readProgress(payload?.progress),
+        },
+      ];
     });
   } catch {
     return [];
@@ -61,6 +93,31 @@ export function useStudyPlans() {
 export function useRefreshPlans() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: PLANS_QUERY_KEY });
+}
+
+/*
+ * Saving ticks. Each save carries the plan's whole progress as it is after
+ * that click, and saves for one plan run one after another, so quick clicks
+ * can't overwrite each other: the last one holds them all. The payload is read
+ * fresh each time so the plan itself is never written back from a stale copy.
+ */
+const saving = new Map<string, Promise<void>>();
+
+export function savePlanProgress(id: string, progress: PlanProgress): Promise<void> {
+  const run = (saving.get(id) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(async () => {
+      const { data, error } = await supabase.from("ai_recommendations").select("payload").eq("id", id).single();
+      if (error) throw error;
+      const payload = (data.payload ?? {}) as Record<string, unknown>;
+      const { error: saveError } = await supabase
+        .from("ai_recommendations")
+        .update({ payload: { ...payload, progress } as unknown as Json })
+        .eq("id", id);
+      if (saveError) throw saveError;
+    });
+  saving.set(id, run);
+  return run;
 }
 
 export async function deleteStudyPlan(id: string): Promise<void> {

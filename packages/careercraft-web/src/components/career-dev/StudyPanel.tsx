@@ -13,38 +13,46 @@
  *      History, and summed up on Home).
  *   05 Explain a concept.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 import type { Degradation } from "@/lib/careerCoach";
-import { drillStats, mark, useDrills } from "@/features/interview/lib/drills";
+import { drillStats, mark, useDrills, type PlanOrigin } from "@/features/interview/lib/drills";
 import { DrillLog, SkillProgressCards } from "@/features/interview/components/DrillLog";
 import {
   isMainPlanFor,
   planName,
   rememberedPlanId,
   rememberPlanId,
+  savePlanProgress,
   useRefreshPlans,
   useStudyPlans,
+  type PlanProgress,
+  type SessionStatus,
   type StudyPlanRow,
 } from "@/lib/studyPlans";
 import { useForgetSaved } from "@/lib/savedResults";
 import { CoachNotConnected } from "./shared";
 import { StudySkillLearning } from "./StudySkillLearning";
-import { DrillDesk } from "./study/DrillDesk";
+import { DrillDesk, type DrillRequest } from "./study/DrillDesk";
 import { ExplainConcept } from "./study/ExplainConcept";
 import { NotebookSection } from "./study/NotebookSection";
-import { PlanShelf, type BuiltPlan } from "./study/PlanShelf";
+import { PlanShelf, type BuiltPlan, type SessionAction } from "./study/PlanShelf";
 import "./study.css";
 
 export default function StudyPanel({
   field,
   drillRequest,
   onDrillRequestHandled,
+  onSetUpMock,
 }: {
   field?: string;
   /** From the address bar (?drill=): a skill to drill now, or "due" for whatever's due. */
   drillRequest?: string | null;
   onDrillRequestHandled?: () => void;
+  /** A plan's mock session: go to the interview setup. */
+  onSetUpMock?: () => void;
 }) {
+  const { toast } = useToast();
   const plansQuery = useStudyPlans();
   const refreshPlans = useRefreshPlans();
   const forgetSaved = useForgetSaved();
@@ -83,7 +91,14 @@ export default function StudyPanel({
 
   const onBuilt = (built: BuiltPlan) => {
     const id = built.id ?? "unsaved";
-    setFresh({ id, pathway: built.pathway, savedAt: new Date().toISOString(), subject: null, description: built.description });
+    setFresh({
+      id,
+      pathway: built.pathway,
+      savedAt: new Date().toISOString(),
+      subject: null,
+      description: built.description,
+      progress: {},
+    });
     setGone((g) => g.filter((x) => x !== id));
     setDegraded({ id, value: built.degraded });
     open(id);
@@ -106,13 +121,59 @@ export default function StudyPanel({
       : openPlan.pathway.targets.map((t) => t.skill)
     : [];
 
+  // Ticks on plan sessions show at once and save in the background. The refs
+  // let two quick clicks (or a drill finishing) build on each other before
+  // the screen catches up.
+  const [ticks, setTicks] = useState<Record<string, PlanProgress>>({});
+  const ticksRef = useRef(ticks);
+  const plansRef = useRef(plans);
+  plansRef.current = plans;
+  const progressOf = (row: StudyPlanRow) => ticks[row.id] ?? row.progress;
+
+  const setSessionStatus = (planId: string, key: string, status: SessionStatus | null) => {
+    const row = plansRef.current.find((p) => p.id === planId);
+    if (!row) return;
+    const current = ticksRef.current[planId] ?? row.progress;
+    if ((current[key] ?? null) === status) return;
+    const next = { ...current };
+    if (status) next[key] = status;
+    else delete next[key];
+    ticksRef.current = { ...ticksRef.current, [planId]: next };
+    setTicks(ticksRef.current);
+    if (planId === "unsaved") return;
+    savePlanProgress(planId, next).catch(() => {
+      const { [planId]: _, ...rest } = ticksRef.current;
+      ticksRef.current = rest;
+      setTicks(rest);
+      void refreshPlans();
+      toast({ title: "Couldn't save that tick", description: "Try again in a moment.", variant: "destructive" });
+    });
+  };
+
+  const scrollTo = (id: string) =>
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+
   // "Practise it" anywhere: open the drill section and start one.
-  const [drillAsk, setDrillAsk] = useState<{ skill?: string; n: number } | null>(null);
-  const practise = (skill?: string) => {
-    setDrillAsk((a) => ({ skill, n: (a?.n ?? 0) + 1 }));
-    requestAnimationFrame(() =>
-      document.getElementById("study-drill")?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
+  const [drillAsk, setDrillAsk] = useState<DrillRequest | null>(null);
+  const practise = (skill?: string, from?: { focus: string; origin: PlanOrigin }) => {
+    setDrillAsk((a) => ({ skill, ...from, n: (a?.n ?? 0) + 1 }));
+    scrollTo("study-drill");
+  };
+
+  // A session's own button: its drill, its skill's videos and guides, or the mock setup.
+  const [learnAsk, setLearnAsk] = useState<{ skill: string; n: number } | null>(null);
+  const onSessionAction = (a: SessionAction) => {
+    if (a.kind === "drill") practise(a.skill, { focus: a.focus, origin: a.origin });
+    else if (a.kind === "learn") {
+      setLearnAsk((l) => ({ skill: a.skill, n: (l?.n ?? 0) + 1 }));
+      scrollTo("study-learn");
+    } else onSetUpMock?.();
+  };
+
+  const onPlanDrillFinished = (origin: PlanOrigin) => {
+    if (!plansRef.current.some((p) => p.id === origin.planId)) return;
+    setSessionStatus(origin.planId, origin.key, "done");
+    toast({ title: `Ticked off ${origin.label}`, description: "That session is done in your plan." });
   };
 
   useEffect(() => {
@@ -176,6 +237,7 @@ export default function StudyPanel({
           saved={saved}
           doneCount={drillsQuery.data ? stats.done : null}
           request={drillAsk}
+          onFinished={onPlanDrillFinished}
         />
       </NotebookSection>
 
@@ -202,6 +264,9 @@ export default function StudyPanel({
           onOpen={open}
           onBuilt={onBuilt}
           onDeleted={onDeleted}
+          progressOf={progressOf}
+          onSetStatus={setSessionStatus}
+          onAction={onSessionAction}
         />
       </NotebookSection>
 
@@ -209,6 +274,7 @@ export default function StudyPanel({
         id="learn"
         n="03"
         title="Learn it"
+        openSignal={learnAsk?.n}
         summary={
           skills.length
             ? `Videos, discussions and guides for ${skills.slice(0, 3).join(", ")}${skills.length > 3 ? "…" : ""}`
@@ -216,7 +282,12 @@ export default function StudyPanel({
         }
       >
         {skills.length ? (
-          <StudySkillLearning skills={skills} field={openPlan?.pathway.field || field} onPractise={practise} />
+          <StudySkillLearning
+            skills={learnAsk && !skills.includes(learnAsk.skill) ? [...skills, learnAsk.skill] : skills}
+            field={openPlan?.pathway.field || field}
+            focus={learnAsk}
+            onPractise={(skill) => practise(skill)}
+          />
         ) : (
           <p className="st-body pt-4">Build a plan first, and each of its skills gets videos, discussions and guides here.</p>
         )}

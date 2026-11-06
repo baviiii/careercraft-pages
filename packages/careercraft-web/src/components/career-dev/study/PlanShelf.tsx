@@ -5,14 +5,29 @@
  * A plan is either the main one for the job (the skills that most need work)
  * or one to explore something they name. The coach keeps them side by side:
  * rebuilding a plan replaces it, a new one never replaces another.
+ *
+ * A plan is worked through, not just read: every session has a box to tick
+ * and a button for what it asks (start the drill, find videos, set up the
+ * mock), weeks show how many are done, and the plan opens on the first week
+ * with something left.
  */
 import { useState } from "react";
-import { ArrowUpRight, Loader2, Plus } from "lucide-react";
+import { ArrowUpRight, Check, Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { careerCoach, CoachUnavailableError, type Degradation, type LearningPathway } from "@/lib/careerCoach";
 import { ResourceProgress } from "@/features/interview/components/ResourceProgress";
 import { savedAgo } from "@/lib/savedResults";
-import { deleteStudyPlan, isMainPlanFor, planName, planSize, type StudyPlanRow } from "@/lib/studyPlans";
+import type { PlanOrigin } from "@/features/interview/lib/drills";
+import {
+  deleteStudyPlan,
+  isMainPlanFor,
+  planName,
+  planSize,
+  sessionKey,
+  type PlanProgress,
+  type SessionStatus,
+  type StudyPlanRow,
+} from "@/lib/studyPlans";
 
 const WEEKS = [2, 4, 6, 8];
 const HOURS = [3, 5, 8, 10];
@@ -31,6 +46,24 @@ const METHODS = new Set(["learn", "drill", "build", "mock", "review"]);
 /** "Show HN" posts are someone's product launch, not reading (older saved plans still have them). */
 const isLaunch = (title: string) => /^\s*(show|launch)\s+hn\b/i.test(title);
 
+/** What a session's button asks for: a drill on its task, the skill's videos and guides, or a mock interview. */
+export interface SessionAction {
+  kind: "drill" | "learn" | "mock";
+  skill: string;
+  /** The session's task, for a drill built around it. */
+  focus: string;
+  origin: PlanOrigin;
+}
+
+/** The button each kind of session gets. */
+const ACTIONS: Record<string, { label: string; kind?: SessionAction["kind"]; review?: boolean; primary?: boolean }> = {
+  drill: { label: "Start this drill", kind: "drill", primary: true },
+  review: { label: "Review with a drill", kind: "drill", review: true },
+  learn: { label: "Find videos & guides", kind: "learn" },
+  mock: { label: "Set up a mock interview", kind: "mock" },
+  build: { label: "Mark as started" },
+};
+
 export interface BuiltPlan {
   id: string | null;
   pathway: LearningPathway;
@@ -47,6 +80,9 @@ export function PlanShelf({
   onOpen,
   onBuilt,
   onDeleted,
+  progressOf,
+  onSetStatus,
+  onAction,
 }: {
   field?: string;
   plans: StudyPlanRow[];
@@ -58,6 +94,11 @@ export function PlanShelf({
   onOpen: (id: string) => void;
   onBuilt: (plan: BuiltPlan) => void;
   onDeleted: (id: string) => void;
+  /** Which sessions of a plan are started or done. */
+  progressOf: (row: StudyPlanRow) => PlanProgress;
+  /** Tick, half-tick or clear one session. */
+  onSetStatus: (planId: string, key: string, status: SessionStatus | null) => void;
+  onAction: (action: SessionAction) => void;
 }) {
   const open = plans.find((p) => p.id === openId) ?? null;
   // The form when asked for, or when there's nothing to show; never for the
@@ -108,7 +149,16 @@ export function PlanShelf({
             onBuilt={onBuilt}
           />
         ) : open ? (
-          <PlanSheet key={open.id} row={open} degraded={degraded} onBuilt={onBuilt} onDeleted={onDeleted} />
+          <PlanSheet
+            key={open.id}
+            row={open}
+            degraded={degraded}
+            progress={progressOf(open)}
+            onBuilt={onBuilt}
+            onDeleted={onDeleted}
+            onSetStatus={(key, status) => onSetStatus(open.id, key, status)}
+            onAction={onAction}
+          />
         ) : null}
       </div>
     </div>
@@ -294,21 +344,36 @@ function NewPlanForm({
 function PlanSheet({
   row,
   degraded,
+  progress,
   onBuilt,
   onDeleted,
+  onSetStatus,
+  onAction,
 }: {
   row: StudyPlanRow;
   degraded: Degradation | null;
+  progress: PlanProgress;
   onBuilt: (plan: BuiltPlan) => void;
   onDeleted: (id: string) => void;
+  onSetStatus: (key: string, status: SessionStatus | null) => void;
+  onAction: (action: SessionAction) => void;
 }) {
   const { toast } = useToast();
   const p = row.pathway;
   const weeks = p.plan?.weeks ?? [];
   const size = planSize(row);
   const { building, build } = useBuild(onBuilt);
-  const [week, setWeek] = useState(0);
-  const [confirming, setConfirming] = useState(false);
+  // Sessions are keyed by their place in the plan (week order, then day order).
+  const doneIn = (wi: number) =>
+    (weeks[wi]?.sessions ?? []).filter((_, j) => progress[sessionKey(wi + 1, j)] === "done").length;
+  const totalSessions = weeks.reduce((n, wk) => n + wk.sessions.length, 0);
+  const totalDone = weeks.reduce((n, _, wi) => n + doneIn(wi), 0);
+  // Open on the first week with something left to do.
+  const [week, setWeek] = useState(() => {
+    const open = weeks.findIndex((wk, wi) => doneIn(wi) < wk.sessions.length);
+    return open === -1 ? 0 : open;
+  });
+  const [confirming, setConfirming] = useState<"delete" | "rebuild" | null>(null);
   const [deleting, setDeleting] = useState(false);
   const unsaved = row.id === "unsaved";
 
@@ -328,6 +393,19 @@ function PlanSheet({
     ? "what your last mock interview showed"
     : (SOURCE[p.focus.source] ?? "your skills so far");
   const reading = (p.resources ?? []).filter((r) => r.url && !isLaunch(r.title)).slice(0, 5);
+  // The "with" a session names, as a link when the plan has one by that title.
+  const linkFor = (title: string): string | null => {
+    const t = title.trim().toLowerCase();
+    return (
+      p.resources?.find((r) => r.url && r.title.trim().toLowerCase() === t)?.url ??
+      p.officialTraining?.find((r) => r.title.trim().toLowerCase() === t)?.url ??
+      null
+    );
+  };
+  const rebuild = () => {
+    setConfirming(null);
+    void build({ field: p.field, explore: p.explore ?? undefined, weeks: size.weeks, hours: size.hours });
+  };
   const w = weeks[Math.min(week, weeks.length - 1)];
   const longest = Math.max(1, ...(w?.sessions ?? []).map((s) => s.minutes || 0));
 
@@ -342,11 +420,21 @@ function PlanSheet({
             {weeks.length} weeks · about {size.hours} hours a week ·{" "}
             {unsaved ? "not saved" : savedAgo(row.savedAt).replace(/^Saved/, "built")}
           </p>
+          {totalSessions > 0 && (
+            <div className="mt-3 flex items-center gap-3">
+              <span className="st-progress" aria-hidden>
+                <i style={{ width: `${Math.round((totalDone / totalSessions) * 100)}%` }} />
+              </span>
+              <span className="st-small">
+                {totalDone} of {totalSessions} sessions done
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
-            onClick={() => void build({ field: p.field, explore: p.explore ?? undefined, weeks: size.weeks, hours: size.hours })}
+            onClick={() => (totalDone > 0 ? setConfirming("rebuild") : rebuild())}
             disabled={building || deleting}
             className="cc-action cc-action--ghost cc-action--sm"
           >
@@ -360,20 +448,32 @@ function PlanSheet({
             )}
           </button>
           {!unsaved && (
-            <button type="button" onClick={() => setConfirming(true)} disabled={building} className="st-textbtn st-textbtn--danger">
+            <button type="button" onClick={() => setConfirming("delete")} disabled={building} className="st-textbtn st-textbtn--danger">
               Delete plan
             </button>
           )}
         </div>
       </div>
 
-      {confirming && (
+      {confirming === "rebuild" && (
+        <div className="st-confirm" role="group" aria-label="Rebuild this plan?">
+          <span>Rebuild this plan? The new one starts with nothing ticked.</span>
+          <button type="button" onClick={rebuild} className="cc-action cc-action--sm">
+            Rebuild
+          </button>
+          <button type="button" onClick={() => setConfirming(null)} className="st-textbtn">
+            Keep this one
+          </button>
+        </div>
+      )}
+
+      {confirming === "delete" && (
         <div className="st-confirm" role="group" aria-label="Delete this plan?">
           <span>Delete “{planName(p)}”? Your drills, and the videos and links you've marked, stay.</span>
           <button type="button" onClick={() => void remove()} disabled={deleting} className="cc-action cc-action--danger cc-action--sm">
             {deleting ? "Deleting…" : "Delete plan"}
           </button>
-          <button type="button" onClick={() => setConfirming(false)} className="st-textbtn">
+          <button type="button" onClick={() => setConfirming(null)} className="st-textbtn">
             Keep it
           </button>
         </div>
@@ -382,7 +482,8 @@ function PlanSheet({
       {/* Why these skills */}
       <div className="space-y-4">
         <p className="st-body">
-          Built from <span className="st-hl">{source}</span>. {p.focus.why}
+          Built from <span className="st-hl">{source}</span>.
+          {p.focus.why && !/lowest-proficiency tested skills/i.test(p.focus.why) ? ` ${p.focus.why}` : ""}
         </p>
         {p.targets.length > 0 && (
           <div className="st-targets" aria-label="Where each skill is, and where the plan takes it">
@@ -417,28 +518,58 @@ function PlanSheet({
             </p>
           )}
           <div className="st-weeks" role="tablist" aria-label="Weeks">
-            {weeks.map((wk, i) => (
-              <button
-                key={i}
-                type="button"
-                role="tab"
-                aria-selected={i === week}
-                onClick={() => setWeek(i)}
-                className="st-week"
-                title={wk.theme}
-              >
-                <b>Week {wk.week}</b>
-                <span>{wk.theme}</span>
-              </button>
-            ))}
+            {weeks.map((wk, i) => {
+              const done = doneIn(i);
+              const complete = wk.sessions.length > 0 && done === wk.sessions.length;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === week}
+                  onClick={() => setWeek(i)}
+                  className={`st-week${complete ? " is-complete" : ""}`}
+                  title={wk.theme}
+                >
+                  <b>
+                    Week {wk.week} · {done}/{wk.sessions.length}
+                  </b>
+                  <span>{wk.theme}</span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="st-days" role="tabpanel" aria-label={`Week ${w.week}: ${w.theme}`}>
             {w.sessions.map((s, j) => {
               const method = METHODS.has(s.method) ? s.method : "review";
+              const key = sessionKey(week + 1, j);
+              const status = progress[key] ?? null;
+              const action = ACTIONS[method];
+              const link = s.resourceTitle ? linkFor(s.resourceTitle) : null;
+              const go = () => {
+                if (!status) onSetStatus(key, "started");
+                if (!action.kind) return;
+                onAction({
+                  kind: action.kind,
+                  skill: s.skill,
+                  focus: action.review ? `Review: ${s.activity}` : s.activity,
+                  origin: { planId: row.id, key, label: `Week ${w.week} · ${s.day}` },
+                });
+              };
               return (
-                <div key={j} className="st-day">
+                <div key={j} className={`st-day${status === "done" ? " is-done" : ""}`}>
                   <div className="st-day__when">
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={status === "done" ? true : status === "started" ? "mixed" : false}
+                      aria-label={`${s.day}, ${s.method}: ${status === "done" ? "done" : "mark as done"}`}
+                      onClick={() => onSetStatus(key, status === "done" ? null : "done")}
+                      className={`st-tick${status ? ` is-${status}` : ""}`}
+                    >
+                      {status === "done" && <Check className="h-3.5 w-3.5" aria-hidden />}
+                    </button>
                     <b>{s.day}</b>
                     <span>{s.minutes} min</span>
                     <div className="st-day__bar" style={{ width: `${Math.round(((s.minutes || 0) / longest) * 100)}%` }} />
@@ -449,7 +580,41 @@ function PlanSheet({
                       <span className="st-small">{s.skill}</span>
                     </div>
                     <p className="st-day__what mt-1.5">{s.activity}</p>
-                    {s.resourceTitle && <p className="st-small mt-1">With: {s.resourceTitle}</p>}
+                    {s.resourceTitle && (
+                      <p className="st-small mt-1">
+                        With:{" "}
+                        {link ? (
+                          <a href={link} target="_blank" rel="noreferrer" className="st-textbtn inline-flex items-center gap-1">
+                            {s.resourceTitle}
+                            <ArrowUpRight className="h-3 w-3" aria-hidden />
+                          </a>
+                        ) : (
+                          s.resourceTitle
+                        )}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {status === "done" ? (
+                        <span className="st-status st-status--done">Done</span>
+                      ) : (
+                        <>
+                          {(action.kind || status !== "started") && (
+                            <button
+                              type="button"
+                              onClick={go}
+                              className={`cc-action cc-action--sm${action.primary ? "" : " cc-action--ghost"}`}
+                            >
+                              {action.label}
+                              {action.kind && <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />}
+                            </button>
+                          )}
+                          {status === "started" && <span className="st-status">Started</span>}
+                          <button type="button" onClick={() => onSetStatus(key, "done")} className="st-textbtn">
+                            Mark done
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

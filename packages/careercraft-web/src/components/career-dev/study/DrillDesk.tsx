@@ -10,6 +10,9 @@
  * far) in the tray below; starting another drill puts a half-written one there
  * first; and the card in progress survives switching tabs or reloading, in
  * this browser, until it's finished, saved or thrown away.
+ *
+ * A drill started from a study-plan session is built around that session's
+ * task, and finishing it (now or after saving it for later) ticks the session.
  */
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -23,6 +26,7 @@ import {
   signedInUserId,
   useRefreshDrills,
   type DrillRow,
+  type PlanOrigin,
 } from "@/features/interview/lib/drills";
 import { savedAgo } from "@/lib/savedResults";
 
@@ -31,6 +35,17 @@ interface Current {
   id: string | null;
   exercise: Drill;
   scheduling: DrillScheduling;
+  /** The plan session it came from, if any. */
+  origin?: PlanOrigin | null;
+}
+
+/** A drill asked for from elsewhere; a new n starts one. */
+export interface DrillRequest {
+  skill?: string;
+  /** A study-plan task to build it around. */
+  focus?: string;
+  origin?: PlanOrigin;
+  n: number;
 }
 
 /* The card in progress, kept per browser so a tab switch or reload doesn't lose it. */
@@ -62,6 +77,7 @@ export function DrillDesk({
   saved,
   doneCount,
   request,
+  onFinished,
 }: {
   field?: string;
   /** The open plan's skills, offered as quick picks. */
@@ -70,8 +86,10 @@ export function DrillDesk({
   saved: DrillRow[];
   /** How many they've finished, to number the card (null until known). */
   doneCount: number | null;
-  /** A drill asked for elsewhere ("Practise it"); a new n starts one. */
-  request: { skill?: string; n: number } | null;
+  /** A drill asked for elsewhere ("Practise it", a plan session). */
+  request: DrillRequest | null;
+  /** A drill from a plan session was finished: tick that session. */
+  onFinished?: (origin: PlanOrigin) => void;
 }) {
   const { toast } = useToast();
   const refresh = useRefreshDrills();
@@ -102,12 +120,12 @@ export function DrillDesk({
       const d = readDraft();
       if (d && id && d.userId === id) {
         if (!requested.current) {
-          setCurrent({ id: d.id, exercise: d.exercise, scheduling: d.scheduling });
+          setCurrent({ id: d.id, exercise: d.exercise, scheduling: d.scheduling, origin: d.origin ?? null });
           setAnswer(d.answer);
           savedAnswer.current = d.id ? d.answer : "";
         } else if (d.answer.trim()) {
           // Another drill was asked for: the one from last time goes in the tray.
-          void saveDrill({ id: d.id, exercise: d.exercise, scheduling: d.scheduling, field, answer: d.answer })
+          void saveDrill({ id: d.id, exercise: d.exercise, scheduling: d.scheduling, field, answer: d.answer, origin: d.origin })
             .then(() => refresh())
             .catch(() => undefined);
         }
@@ -156,7 +174,14 @@ export function DrillDesk({
     if (!current) return true;
     setBusy("save");
     try {
-      await saveDrill({ id: current.id, exercise: current.exercise, scheduling: current.scheduling, field, answer });
+      await saveDrill({
+        id: current.id,
+        exercise: current.exercise,
+        scheduling: current.scheduling,
+        field,
+        answer,
+        origin: current.origin,
+      });
       void refresh();
       toast({
         title: why === "asked" ? "Saved for later" : "Your unfinished drill was saved for later",
@@ -171,7 +196,7 @@ export function DrillDesk({
     }
   };
 
-  const start = async (skill?: string) => {
+  const start = async (skill?: string, focus?: string, origin?: PlanOrigin) => {
     // A half-written answer is never thrown away by starting something else.
     if (current && !result && answer.trim() && answer !== savedAnswer.current) {
       if (!(await putAside("switching"))) return;
@@ -179,8 +204,8 @@ export function DrillDesk({
     reset();
     setLoading(true);
     try {
-      const r = await careerCoach.nextDrill({ field: field || undefined, ...(skill && { skill }) });
-      setCurrent({ id: null, exercise: r.drill, scheduling: r.scheduling });
+      const r = await careerCoach.nextDrill({ field: field || undefined, ...(skill && { skill }), ...(focus && { focus }) });
+      setCurrent({ id: null, exercise: r.drill, scheduling: r.scheduling, origin: origin ?? null });
     } catch (e) {
       notAvailable(e);
     } finally {
@@ -194,7 +219,7 @@ export function DrillDesk({
     if (!request || request.n === lastRequest.current) return;
     lastRequest.current = request.n;
     requested.current = true;
-    void start(request.skill);
+    void start(request.skill, request.focus, request.origin);
   }, [request]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const resume = async (row: DrillRow) => {
@@ -213,6 +238,7 @@ export function DrillDesk({
         whyNow: "saved for later",
         nextReviewInDays: 1,
       },
+      origin: row.origin,
     });
     setAnswer(row.answer ?? "");
     savedAnswer.current = row.answer ?? "";
@@ -221,7 +247,7 @@ export function DrillDesk({
   /** One result per drill: recording twice would move the skill twice. */
   const check = async (how: "coach" | "self") => {
     if (!current || result) return;
-    const { exercise, scheduling } = current;
+    const { exercise, scheduling, origin } = current;
     setBusy(how);
     try {
       const r = await careerCoach.recordDrillResult(
@@ -241,8 +267,9 @@ export function DrillDesk({
       );
       setResult(r);
       setRating(false);
+      if (origin) onFinished?.(origin);
       try {
-        await finishDrill({ id: current.id, exercise, scheduling, field, answer, result: r });
+        await finishDrill({ id: current.id, exercise, scheduling, field, answer, result: r, origin });
         void refresh();
       } catch {
         toast({
@@ -314,6 +341,7 @@ export function DrillDesk({
               <span>{current.scheduling.skill}</span>
               <span>{current.exercise.difficulty}</span>
               {current.exercise.timeboxMinutes ? <span>{current.exercise.timeboxMinutes} min</span> : null}
+              {current.origin && <span>From your plan · {current.origin.label}</span>}
               {current.id && !result && <span>Saved</span>}
             </span>
             {!result && (

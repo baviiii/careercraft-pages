@@ -15,12 +15,22 @@ import type { Json } from "@/integrations/supabase/types";
 import type { Drill, DrillResult, DrillScheduling } from "@/lib/careerCoach";
 import { isNotMigratedYet } from "@/lib/schemaLag";
 
+/** The study-plan session a drill was started from; finishing it ticks that session. */
+export interface PlanOrigin {
+  planId: string;
+  /** studyPlans sessionKey: "1-2" is week 1's third session. */
+  key: string;
+  /** How the card names it: "Week 1 · Tue". */
+  label: string;
+}
+
 export interface DrillRow {
   id: string;
   skill: string;
   field: string | null;
   exercise: Drill;
   scheduling: DrillScheduling | null;
+  origin: PlanOrigin | null;
   status: "saved" | "done";
   answer: string | null;
   score: number | null;
@@ -49,7 +59,7 @@ type Raw = {
 };
 
 function toRow(r: Raw): DrillRow | null {
-  const stored = (r.drill ?? {}) as { exercise?: Drill; scheduling?: DrillScheduling | null };
+  const stored = (r.drill ?? {}) as { exercise?: Drill; scheduling?: DrillScheduling | null; origin?: PlanOrigin | null };
   if (!stored.exercise?.prompt) return null;
   const score = r.score === null ? null : Number(r.score);
   return {
@@ -58,6 +68,7 @@ function toRow(r: Raw): DrillRow | null {
     field: r.field,
     exercise: stored.exercise,
     scheduling: stored.scheduling ?? null,
+    origin: stored.origin?.planId && stored.origin.key ? stored.origin : null,
     status: r.status === "done" ? "done" : "saved",
     answer: r.answer,
     score: score !== null && Number.isFinite(score) ? score : null,
@@ -104,7 +115,8 @@ async function userId(): Promise<string> {
   return id;
 }
 
-const stored = (exercise: Drill, scheduling: DrillScheduling | null) => ({ exercise, scheduling }) as unknown as Json;
+const stored = (exercise: Drill, scheduling: DrillScheduling | null, origin?: PlanOrigin | null) =>
+  ({ exercise, scheduling, origin: origin ?? null }) as unknown as Json;
 
 /** Put a drill aside, with whatever is written so far. Returns its id. */
 export async function saveDrill(args: {
@@ -113,6 +125,7 @@ export async function saveDrill(args: {
   scheduling: DrillScheduling | null;
   field?: string;
   answer?: string;
+  origin?: PlanOrigin | null;
 }): Promise<string> {
   const answer = args.answer?.trim() ? args.answer.slice(0, 8000) : null;
   if (args.id) {
@@ -126,7 +139,7 @@ export async function saveDrill(args: {
       user_id: await userId(),
       skill: (args.scheduling?.skill ?? args.exercise.skill).slice(0, 100),
       field: args.field?.slice(0, 100) || null,
-      drill: stored(args.exercise, args.scheduling),
+      drill: stored(args.exercise, args.scheduling, args.origin),
       status: "saved",
       answer,
     })
@@ -144,6 +157,7 @@ export async function finishDrill(args: {
   field?: string;
   answer?: string;
   result: DrillResult;
+  origin?: PlanOrigin | null;
 }): Promise<void> {
   const done = {
     status: "done",
@@ -162,7 +176,7 @@ export async function finishDrill(args: {
     user_id: await userId(),
     skill: (args.result.skill || args.scheduling?.skill || args.exercise.skill).slice(0, 100),
     field: args.field?.slice(0, 100) || null,
-    drill: stored(args.exercise, args.scheduling),
+    drill: stored(args.exercise, args.scheduling, args.origin),
     ...done,
   });
   if (error) throw error;
