@@ -98,6 +98,10 @@ function InterviewHub() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = resolveTab(searchParams.get("tab"));
   const sessionId = searchParams.get("session");
+  // ?view=drills opens History on drills; ?drill= starts a drill in Study
+  // (a skill, or "due" for whatever's due).
+  const historyView = searchParams.get("view") === "drills" ? "drills" : "interviews";
+  const drillRequest = tab === "study" ? searchParams.get("drill") : null;
   // One role for every tab: the profile's (from getting-started), or a just-this-once pick.
   const { role, level } = useActiveRole();
   const field = role ?? undefined;
@@ -152,6 +156,11 @@ function InterviewHub() {
     updateChoice({ roundType: type });
     scrollToSetup();
   };
+
+  /** Study, starting a drill on a skill (or whatever's due). */
+  const drillIn = (skill?: string) => setSearchParams({ tab: "study", drill: skill || "due" });
+  const openStudy = () => setTab("study");
+  const openDrillHistory = () => setSearchParams({ tab: "history", view: "drills" });
 
   /** A step from an upcoming interview's plan: that job, that round. */
   const prepareFor = (jobId: string, type: RoundType) => {
@@ -240,6 +249,9 @@ function InterviewHub() {
             }}
             onStartPractice={scrollToSetup}
             onPracticeType={practiseType}
+            onDrill={drillIn}
+            onOpenStudy={openStudy}
+            onOpenDrillHistory={openDrillHistory}
           />
         </TabsContent>
 
@@ -248,6 +260,10 @@ function InterviewHub() {
             highlightId={sessionId}
             onStartPractice={scrollToSetup}
             onPracticeType={practiseType}
+            view={historyView}
+            onViewChange={(view) => setSearchParams(view === "drills" ? { tab: "history", view } : { tab: "history" })}
+            onPractiseSkill={drillIn}
+            onOpenStudy={openStudy}
           />
         </TabsContent>
 
@@ -272,7 +288,12 @@ function InterviewHub() {
         </TabsContent>
 
         <TabsContent value="study" className="cc-tabs-panel mt-6 focus-visible:ring-0">
-          <StudyPanel key={roleKey} field={field} />
+          <StudyPanel
+            key={roleKey}
+            field={field}
+            drillRequest={drillRequest}
+            onDrillRequestHandled={() => setSearchParams({ tab: "study" }, { replace: true })}
+          />
         </TabsContent>
       </Tabs>
     </CraftAppLayout>

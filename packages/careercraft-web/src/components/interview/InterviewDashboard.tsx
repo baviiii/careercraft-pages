@@ -18,6 +18,7 @@ import { auditLog } from "@/lib/security/auditLog";
 import { interviewCoach, COACH_AVAILABLE, type WeeklyInsight } from "@/lib/interviewCoach";
 import { RoundDot, RoundTag } from "@/features/interview/components/RoundMarks";
 import { CoachRead } from "@/features/interview/components/CoachRead";
+import { DrillProgress } from "@/features/interview/components/DrillProgress";
 import { StarHabits } from "@/features/interview/components/StarHabits";
 import { useLatestSaved } from "@/lib/savedResults";
 import {
@@ -45,6 +46,11 @@ interface InterviewHomeProps {
   onStartPractice: () => void;
   /** Pick a round type in the setup panel and scroll up to it. */
   onPracticeType: (type: RoundType) => void;
+  /** Study: start a drill on this skill (or whatever's due), or just open it. */
+  onDrill?: (skill?: string) => void;
+  onOpenStudy?: () => void;
+  /** History, showing drills. */
+  onOpenDrillHistory?: () => void;
 }
 
 /* ── By type ────────────────────────────────────────────────────────────── */
@@ -273,6 +279,9 @@ export default function InterviewHome({
   onOpenHistory,
   onStartPractice,
   onPracticeType,
+  onDrill,
+  onOpenStudy,
+  onOpenDrillHistory,
 }: InterviewHomeProps) {
   const { toast } = useToast();
   const { data: rows, isLoading, isError, refetch } = useInterviewSessions();
@@ -401,8 +410,15 @@ export default function InterviewHome({
     );
   }
 
+  const drills =
+    onDrill && onOpenStudy && onOpenDrillHistory ? (
+      <DrillProgress onDrill={onDrill} onOpenStudy={onOpenStudy} onOpenAll={onOpenDrillHistory} hideWhenEmpty={sessions.length === 0} />
+    ) : null;
+
   if (sessions.length === 0) {
     return (
+      <div className="space-y-5">
+      {drills}
       <div className="cc-surface px-6 py-10 text-center md:px-10">
         <p className="cc-kicker">Your record</p>
         <p className="mt-3 cc-font-display text-2xl text-[color:var(--cc-ink)]">No sessions yet.</p>
@@ -416,6 +432,7 @@ export default function InterviewHome({
           Practise your first interview
           <ArrowRight className="h-4 w-4" />
         </button>
+      </div>
       </div>
     );
   }
@@ -475,6 +492,8 @@ export default function InterviewHome({
         newestFinishedId={finishedRows[0]?.id ?? null}
         onPracticeType={onPracticeType}
       />
+
+      {drills}
 
       {/* grid-cols-1 (minmax(0,1fr)) on small screens: an implicit auto
           column grows to the week chart's content and pushes off the screen. */}

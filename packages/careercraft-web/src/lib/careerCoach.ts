@@ -331,6 +331,8 @@ export interface PathwayDrill {
 export interface LearningPathway {
   field: string;
   targetRole: string | null;
+  /** What the plan explores, when it isn't the main plan for the job (older plans lack it). */
+  explore?: string | null;
   focus: {
     skills: string[];
     /** Where the targets came from: tested matrix, career goal, or research. */
@@ -491,6 +493,8 @@ export const careerCoach = {
     field?: string;
     weeks?: number;
     hoursPerWeek?: number;
+    /** Something to explore ("cloud security"): a plan built around it, kept beside the main one. */
+    explore?: string;
   } = {}): Promise<{
     pathway: LearningPathway;
     recommendationId: string | null;

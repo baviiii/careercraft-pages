@@ -1830,6 +1830,54 @@ export type Database = {
         }
         Relationships: []
       }
+      study_drills: {
+        Row: {
+          answer: string | null
+          completed_at: string | null
+          created_at: string
+          drill: Json
+          field: string | null
+          id: string
+          result: Json | null
+          score: number | null
+          scored_by: string | null
+          skill: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answer?: string | null
+          completed_at?: string | null
+          created_at?: string
+          drill: Json
+          field?: string | null
+          id?: string
+          result?: Json | null
+          score?: number | null
+          scored_by?: string | null
+          skill: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answer?: string | null
+          completed_at?: string | null
+          created_at?: string
+          drill?: Json
+          field?: string | null
+          id?: string
+          result?: Json | null
+          score?: number | null
+          scored_by?: string | null
+          skill?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       suspicious_activities: {
         Row: {
           activity_type: string

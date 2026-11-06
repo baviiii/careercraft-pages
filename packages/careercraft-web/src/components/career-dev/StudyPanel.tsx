@@ -1,660 +1,259 @@
 /**
- * StudyPanel — the upskilling engine. Build a sequenced study plan, run the
- * spaced-repetition drill loop (scheduler picks what's due → they write an
- * answer → the coach marks it against the drill's ideal points → the skill
- * matrix updates), and get layered concept explanations on demand.
+ * StudyPanel — the upskilling side of Interview Prep, laid out as a study
+ * notebook in numbered sections that fold shut:
  *
- * The plan opens on the last one the coach saved for this job. A drill is
- * marked by the coach when they write an answer; rating themselves is the
- * fallback when they don't. Resources in the plan can be saved, started and
- * marked done.
+ *   01 Today's drill — one short exercise on the skill most due; the coach
+ *      marks what they write. Drills can be saved for later, picked up again,
+ *      cancelled or deleted, and every finished one is kept.
+ *   02 Your plans — the main plan for the job plus any number of plans to
+ *      explore something; switch, rebuild, delete.
+ *   03 Learn it — videos, discussions, courses and guides for the open plan's
+ *      skills.
+ *   04 Drill log — finished drills and how each skill is going (also in
+ *      History, and summed up on Home).
+ *   05 Explain a concept.
  */
-import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
+import { useEffect, useMemo, useState } from "react";
+import type { Degradation } from "@/lib/careerCoach";
+import { drillStats, mark, useDrills } from "@/features/interview/lib/drills";
+import { DrillLog, SkillProgressCards } from "@/features/interview/components/DrillLog";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import {
-  BookOpen,
-  BrainCircuit,
-  CalendarDays,
-  CheckCircle2,
-  Clock,
-  Dumbbell,
-  ExternalLink,
-  GraduationCap,
-  Lightbulb,
-  Loader2,
-  Repeat,
-  Target,
-  Timer,
-  X,
-} from "lucide-react";
-import {
-  careerCoach,
-  CoachUnavailableError,
-  type ConceptExplanation,
-  type Degradation,
-  type Drill,
-  type DrillPointMark,
-  type DrillResult,
-  type DrillScheduling,
-  type LearningPathway,
-  type Proof,
-  type StudyPlan,
-} from "@/lib/careerCoach";
-import { ResourceProgress } from "@/features/interview/components/ResourceProgress";
-import { useForgetSaved, useLatestSaved } from "@/lib/savedResults";
-import { CoachNotConnected, SavedNote, SectionHeader } from "./shared";
+  isMainPlanFor,
+  planName,
+  rememberedPlanId,
+  rememberPlanId,
+  useRefreshPlans,
+  useStudyPlans,
+  type StudyPlanRow,
+} from "@/lib/studyPlans";
+import { useForgetSaved } from "@/lib/savedResults";
+import { CoachNotConnected } from "./shared";
 import { StudySkillLearning } from "./StudySkillLearning";
+import { DrillDesk } from "./study/DrillDesk";
+import { ExplainConcept } from "./study/ExplainConcept";
+import { NotebookSection } from "./study/NotebookSection";
+import { PlanShelf, type BuiltPlan } from "./study/PlanShelf";
+import "./study.css";
 
-/** What a pathway resource is, in words: a course from the catalogue, a recommendation, or one of the coach's picks. */
-function resourceBadge(r: LearningPathway["resources"][number]): string {
-  if (r.linkKind === "direct") return "Coach's pick · link checked";
-  if (r.linkKind === "search") return "Coach's pick · web search";
-  return r.source === "catalog" ? "Course" : "Recommended";
-}
-
-const METHOD_STYLES: Record<string, string> = {
-  learn: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-  drill: "bg-purple-500/10 text-purple-600 border-purple-500/20",
-  build: "bg-green-500/10 text-green-600 border-green-500/20",
-  mock: "bg-red-500/10 text-red-600 border-red-500/20",
-  review: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-};
-
-function ProofChip({ proof }: { proof: Proof | null | undefined }) {
-  if (!proof) return null;
-  return (
-    <a href={proof.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10">
-      <CheckCircle2 className="w-3 h-3" />
-      <span className="opacity-70">Backed by</span>
-      <span className="font-semibold">{proof.label}</span>
-      {proof.stat && <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold">{proof.stat}</span>}
-      <ExternalLink className="w-3 h-3" />
-    </a>
-  );
-}
-
-export default function StudyPanel({ field }: { field?: string }) {
-  const { toast } = useToast();
-
-  // Study plan — sourced from the pathway call, which also carries the focus
-  // reasoning, ranked resources and the next mock to sit.
-  const [plan, setPlan] = useState<StudyPlan | null>(null);
-  const [pathway, setPathway] = useState<LearningPathway | null>(null);
-  const [degraded, setDegraded] = useState<Degradation | null>(null);
-  const [planning, setPlanning] = useState(false);
-  const [weeks, setWeeks] = useState("4");
-  const [hours, setHours] = useState("5");
-
-  // The last pathway the coach saved for this job, until they build a new one.
+export default function StudyPanel({
+  field,
+  drillRequest,
+  onDrillRequestHandled,
+}: {
+  field?: string;
+  /** From the address bar (?drill=): a skill to drill now, or "due" for whatever's due. */
+  drillRequest?: string | null;
+  onDrillRequestHandled?: () => void;
+}) {
+  const plansQuery = useStudyPlans();
+  const refreshPlans = useRefreshPlans();
   const forgetSaved = useForgetSaved();
-  const savedPathway = useLatestSaved<{ pathway: LearningPathway }>("pathway", field);
-  const [pathwaySavedAt, setPathwaySavedAt] = useState<string | null>(null);
+  const drillsQuery = useDrills();
+  const drills = useMemo(() => drillsQuery.data ?? [], [drillsQuery.data]);
+  const stats = useMemo(() => drillStats(drills), [drills]);
+  const saved = useMemo(() => drills.filter((d) => d.status === "saved"), [drills]);
+
+  // A plan built just now shows straight away, before the list is read again
+  // (and stays, if it couldn't be saved, until they leave). A deleted one goes
+  // straight away too.
+  const [fresh, setFresh] = useState<StudyPlanRow | null>(null);
+  const [gone, setGone] = useState<string[]>([]);
+  const [degraded, setDegraded] = useState<{ id: string; value: Degradation | null } | null>(null);
+  const plans = useMemo(() => {
+    const listed = (plansQuery.data ?? []).filter((p) => !gone.includes(p.id));
+    return fresh && !gone.includes(fresh.id) && !listed.some((p) => p.id === fresh.id) ? [fresh, ...listed] : listed;
+  }, [fresh, gone, plansQuery.data]);
+
+  // Which plan is open: the one open last time, else this job's main plan,
+  // else the newest, else the form for a first plan.
+  const [openId, setOpenId] = useState<string | null>(null);
   useEffect(() => {
-    const saved = savedPathway.data;
-    if (!saved?.payload.pathway) return;
-    setPathway((current) => current ?? saved.payload.pathway);
-    setPlan((current) => current ?? saved.payload.pathway.plan ?? null);
-    setPathwaySavedAt((current) => current ?? saved.savedAt);
-  }, [savedPathway.data]);
+    if (plansQuery.isLoading) return;
+    if (openId && (openId === "new" || plans.some((p) => p.id === openId))) return;
+    const last = rememberedPlanId();
+    const pick =
+      plans.find((p) => p.id === last) ?? plans.find((p) => isMainPlanFor(p, field)) ?? plans[0] ?? null;
+    setOpenId(pick ? pick.id : "new");
+  }, [plansQuery.isLoading, plans, openId, field]);
 
-  // Drill loop
-  const [drill, setDrill] = useState<Drill | null>(null);
-  const [scheduling, setScheduling] = useState<DrillScheduling | null>(null);
-  const [drilling, setDrilling] = useState(false);
-  const [attempt, setAttempt] = useState("");
-  const [score, setScore] = useState(6);
-  const [recording, setRecording] = useState(false);
-  const [lastResult, setLastResult] = useState<string | null>(null);
-  const [drillResult, setDrillResult] = useState<DrillResult | null>(null);
-  // Rating yourself is the fallback for not writing an answer, so it's tucked away.
-  const [selfRating, setSelfRating] = useState(false);
-
-  // Explain
-  const [concept, setConcept] = useState("");
-  const [level, setLevel] = useState<"eli5" | "working" | "interview">("working");
-  const [explanation, setExplanation] = useState<ConceptExplanation | null>(null);
-  const [explaining, setExplaining] = useState(false);
-
-  const notAvailable = (e: unknown) => {
-    const message = e instanceof CoachUnavailableError ? e.message : "Career coach is not available at the moment.";
-    toast({ title: "Not available", description: message, variant: "destructive" });
+  const open = (id: string) => {
+    setOpenId(id);
+    if (id !== "new" && id !== "unsaved") rememberPlanId(id);
   };
 
-  /**
-   * Uses the pathway endpoint rather than buildStudyPlan directly: it derives
-   * targets from the career goal or field research when nothing has been tested
-   * yet, so a learner with an empty skill matrix gets a plan instead of an error.
-   */
-  const buildPlan = async () => {
-    setPlanning(true);
-    try {
-      const r = await careerCoach.getLearningPathway({
-        field: field || undefined,
-        weeks: Number(weeks) || 4,
-        hoursPerWeek: Number(hours) || 5,
-      });
-      setPathway(r.pathway);
-      setPlan(r.pathway?.plan ?? null);
-      setDegraded(r._meta?.degraded ?? null);
-      setPathwaySavedAt(null);
-      void forgetSaved("pathway");
-      if (!r.pathway?.plan?.weeks?.length) {
-        toast({
-          title: "No plan returned",
-          description: "The coach reached the model but returned no weeks — try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (e) {
-      notAvailable(e);
-    } finally {
-      setPlanning(false);
-    }
+  const onBuilt = (built: BuiltPlan) => {
+    const id = built.id ?? "unsaved";
+    setFresh({ id, pathway: built.pathway, savedAt: new Date().toISOString(), subject: null, description: built.description });
+    setGone((g) => g.filter((x) => x !== id));
+    setDegraded({ id, value: built.degraded });
+    open(id);
+    void refreshPlans();
+    void forgetSaved("pathway");
   };
 
-  // "Practise it" on a video jumps here with a drill on that video's skill.
-  const drillRef = useRef<HTMLDivElement>(null);
-
-  const getDrill = async (skill?: string) => {
-    setDrilling(true);
-    setLastResult(null);
-    setDrillResult(null);
-    setSelfRating(false);
-    setAttempt("");
-    try {
-      const r = await careerCoach.nextDrill({ field: field || undefined, ...(skill && { skill }) });
-      setDrill(r.drill);
-      setScheduling(r.scheduling);
-      setScore(6);
-    } catch (e) {
-      setDrill(null);
-      notAvailable(e);
-    } finally {
-      setDrilling(false);
-    }
+  const onDeleted = (id: string) => {
+    setGone((g) => [...g, id]);
+    rememberPlanId(null);
+    setOpenId(null);
+    void refreshPlans();
+    void forgetSaved("pathway");
   };
 
-  /**
-   * One result per drill: the coach's mark of what they wrote, or (with no
-   * answer) their own rating. Recording twice would move the skill twice.
-   */
-  const recordResult = async (how: "coach" | "self") => {
-    if (!scheduling || !drill || drillResult) return;
-    setRecording(true);
-    try {
-      const r = await careerCoach.recordDrillResult(
-        how === "coach"
-          ? {
-              skill: scheduling.skill,
-              answerText: attempt.trim(),
-              drill: { prompt: drill.prompt, type: drill.type, difficulty: drill.difficulty, idealAnswerPoints: drill.idealAnswerPoints },
-              field: field || undefined,
-            }
-          : { skill: scheduling.skill, score },
-      );
-      setDrillResult(r);
-      setLastResult(`${r.skill}: ${r.previousProficiency} → ${r.newProficiency} (${r.delta >= 0 ? "+" : ""}${r.delta}). ${r.verdict} Next review in ${r.nextReviewInDays}d.`);
-      toast({
-        title: r.scoredBy === "coach" ? `Marked: ${r.score}/10` : "Drill recorded",
-        description: `${r.skill} is now ${r.newProficiency}/100.`,
-      });
-    } catch (e) {
-      notAvailable(e);
-    } finally {
-      setRecording(false);
-    }
+  const openPlan = plans.find((p) => p.id === openId) ?? null;
+  const skills = openPlan
+    ? openPlan.pathway.focus.skills.length
+      ? openPlan.pathway.focus.skills
+      : openPlan.pathway.targets.map((t) => t.skill)
+    : [];
+
+  // "Practise it" anywhere: open the drill section and start one.
+  const [drillAsk, setDrillAsk] = useState<{ skill?: string; n: number } | null>(null);
+  const practise = (skill?: string) => {
+    setDrillAsk((a) => ({ skill, n: (a?.n ?? 0) + 1 }));
+    requestAnimationFrame(() =>
+      document.getElementById("study-drill")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
   };
 
-  const explain = async () => {
-    if (concept.trim().length < 2) {
-      toast({ title: "Enter a concept", variant: "destructive" });
-      return;
-    }
-    setExplaining(true);
-    try {
-      setExplanation(await careerCoach.explainConcept({ concept: concept.trim(), level, field: field || undefined }));
-    } catch (e) {
-      setExplanation(null);
-      notAvailable(e);
-    } finally {
-      setExplaining(false);
-    }
-  };
+  useEffect(() => {
+    if (!drillRequest) return;
+    practise(drillRequest === "due" ? undefined : drillRequest);
+    onDrillRequestHandled?.();
+  }, [drillRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="cc-study space-y-5">
       <CoachNotConnected />
-      <SectionHeader icon={GraduationCap} title="Study & Upskill" subtitle="A sequenced plan, spaced-repetition drills, and explanations that stick." />
 
-      {/* Drill loop — the daily habit, first */}
-      <Card ref={drillRef} className="p-6 scroll-mt-24">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-          <h3 className="font-semibold flex items-center gap-2"><Dumbbell className="w-5 h-5 text-primary" />Today's drill</h3>
-          <Button onClick={() => getDrill()} disabled={drilling} className="bg-gradient-to-r from-primary to-primary/80">
-            {drilling ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Picking what's due...</> : <><Repeat className="w-4 h-4 mr-2" />{drill ? "Next drill" : "Start a drill"}</>}
-          </Button>
+      <header className="st-head">
+        <div>
+          <p className="st-label">Study{field ? ` · ${field}` : ""}</p>
+          <h2 className="st-h mt-2 text-[clamp(26px,3vw,34px)] leading-[1.1]">Study</h2>
+          <p className="st-body mt-2 max-w-xl">
+            A short drill each day, plans you can switch between, and the best videos, discussions and guides for
+            each skill.
+          </p>
         </div>
+        <div className="st-tallies">
+          <div className="st-tally">
+            <p className="st-tally__n">{stats.thisWeek}</p>
+            <p className="st-tally__label">drills this week</p>
+          </div>
+          <div className="st-tally">
+            <p className="st-tally__n">
+              {stats.average !== null ? mark(stats.average) : "—"}
+              {stats.average !== null && <small>/10</small>}
+            </p>
+            <p className="st-tally__label">average mark</p>
+          </div>
+          <div className="st-tally">
+            <p className="st-tally__n">{stats.saved}</p>
+            <p className="st-tally__label">saved for later</p>
+          </div>
+          <div className="st-tally">
+            <p className="st-tally__n">{plansQuery.data?.length ?? 0}</p>
+            <p className="st-tally__label">{plansQuery.data?.length === 1 ? "plan" : "plans"}</p>
+          </div>
+        </div>
+      </header>
 
-        {drill && scheduling ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{scheduling.skill}</Badge>
-              <Badge variant="outline">{drill.type}</Badge>
-              <Badge variant="outline">{drill.difficulty}</Badge>
-              <span className="text-xs text-muted-foreground flex items-center gap-1"><Timer className="w-3 h-3" />{drill.timeboxMinutes} min</span>
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" />Why now: {scheduling.whyNow}</p>
+      <NotebookSection
+        id="drill"
+        n="01"
+        title="Today's drill"
+        openSignal={drillAsk?.n}
+        summary={
+          saved.length
+            ? `${saved.length} saved for later · ${stats.thisWeek} done this week`
+            : stats.done
+              ? `${stats.thisWeek} done this week · last mark ${mark(stats.skills[0]?.last ?? 0)}/10`
+              : "Ten minutes on the skill that's most due"
+        }
+      >
+        <DrillDesk
+          field={field}
+          skills={skills}
+          saved={saved}
+          doneCount={drillsQuery.data ? stats.done : null}
+          request={drillAsk}
+        />
+      </NotebookSection>
 
-            <Card className="p-4 bg-muted/40">
-              <p className="text-base font-medium">{drill.prompt}</p>
-            </Card>
+      <NotebookSection
+        id="plan"
+        n="02"
+        title="Your plans"
+        summary={
+          openPlan
+            ? `${planName(openPlan.pathway)} is open · ${plans.length} ${plans.length === 1 ? "plan" : "plans"}`
+            : openId === "new" && plans.length
+              ? `Making a new plan · ${plans.length} saved`
+              : plansQuery.isLoading
+              ? "Loading your plans…"
+              : "No plan yet: build one for your job, or to explore something"
+        }
+      >
+        <PlanShelf
+          field={field}
+          plans={plans}
+          loading={plansQuery.isLoading}
+          openId={openId}
+          degraded={degraded && degraded.id === openId ? degraded.value : null}
+          onOpen={open}
+          onBuilt={onBuilt}
+          onDeleted={onDeleted}
+        />
+      </NotebookSection>
 
-            <div className="space-y-2">
-              <label htmlFor="drill-answer" className="text-sm font-medium">Your answer</label>
-              <Textarea
-                id="drill-answer"
-                value={attempt}
-                onChange={(e) => setAttempt(e.target.value)}
-                disabled={Boolean(drillResult)}
-                placeholder="Write it as you'd say it. The coach marks it against the points a strong answer covers."
-                className="min-h-[140px]"
-              />
-              {!drillResult && (
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    onClick={() => void recordResult("coach")}
-                    disabled={recording || attempt.trim().length < 20}
-                    className="bg-gradient-to-r from-primary to-primary/80"
-                  >
-                    {recording && !selfRating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Marking...</> : <><Target className="w-4 h-4 mr-2" />Check my answer</>}
-                  </Button>
-                  {!selfRating && (
-                    <button type="button" onClick={() => setSelfRating(true)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
-                      Skip writing, rate myself
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+      <NotebookSection
+        id="learn"
+        n="03"
+        title="Learn it"
+        summary={
+          skills.length
+            ? `Videos, discussions and guides for ${skills.slice(0, 3).join(", ")}${skills.length > 3 ? "…" : ""}`
+            : "Each skill in your plan gets videos, discussions and guides"
+        }
+      >
+        {skills.length ? (
+          <StudySkillLearning skills={skills} field={openPlan?.pathway.field || field} onPractise={practise} />
+        ) : (
+          <p className="st-body pt-4">Build a plan first, and each of its skills gets videos, discussions and guides here.</p>
+        )}
+      </NotebookSection>
 
-            {drillResult?.evaluation && <DrillMarks result={drillResult} />}
-
-            <Accordion type="single" collapsible>
-              <AccordionItem value="check">
-                <AccordionTrigger className="text-sm">{drillResult ? "Ideal points & self-check" : "Reveal self-check & ideal points"}</AccordionTrigger>
-                <AccordionContent>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-green-600 uppercase mb-2">A strong answer includes</p>
-                      <ul className="space-y-1">{drill.idealAnswerPoints.map((p, i) => <li key={i} className="text-sm flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-1 shrink-0" />{p}</li>)}</ul>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Ask yourself</p>
-                      <ul className="space-y-1">{drill.selfCheck.map((p, i) => <li key={i} className="text-sm flex items-start gap-2"><Lightbulb className="w-3.5 h-3.5 text-amber-500 mt-1 shrink-0" />{p}</li>)}</ul>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-
-            {/* Self-rating: only when they didn't write an answer for the coach to mark */}
-            {selfRating && !drillResult && (
-              <div>
-                <Separator className="mb-4" />
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-medium">How did you do? <span className="text-xs text-muted-foreground">(self-rated)</span></p>
-                  <span className="text-2xl font-bold">{score}<span className="text-sm text-muted-foreground">/10</span></span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={10}
-                  value={score}
-                  aria-label="Rate yourself out of 10"
-                  onChange={(e) => setScore(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-1"><span>Struggled</span><span>Nailed it</span></div>
-                <Button onClick={() => void recordResult("self")} disabled={recording} className="mt-3 w-full" variant="outline">
-                  {recording ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating your matrix...</> : <><Target className="w-4 h-4 mr-2" />Record my rating</>}
-                </Button>
-              </div>
-            )}
-
-            <div>
-              {lastResult && (
-                <p className="text-sm text-center mt-3 p-3 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg">{lastResult}</p>
-              )}
-            </div>
+      <NotebookSection
+        id="log"
+        n="04"
+        title="Drill log"
+        defaultOpen={false}
+        summary={
+          stats.done
+            ? `${stats.done} ${stats.done === 1 ? "drill" : "drills"} done · average ${stats.average !== null ? mark(stats.average) : "—"}/10 over the last ten`
+            : "Every drill you finish is kept here"
+        }
+      >
+        {stats.done ? (
+          <div className="space-y-6 pt-4">
+            <SkillProgressCards rows={drills} />
+            <DrillLog rows={drills} onPractise={practise} />
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            The scheduler picks the skill most due for review — based on your proficiency, how long since you last
-            touched it, and its trend — then generates one focused exercise. Write your answer and the coach marks it
-            against the points a strong answer covers; the mark updates your skill matrix.
+          <p className="st-body pt-4">
+            Nothing yet. Finish a drill and it lands here with what you wrote and how it was marked.
           </p>
         )}
-      </Card>
+      </NotebookSection>
 
-      {/* Study plan */}
-      <Card className="p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-          <h3 className="font-semibold flex items-center gap-2"><CalendarDays className="w-5 h-5 text-primary" />Study plan</h3>
-          <div className="flex flex-wrap items-center gap-3">
-            <Select value={weeks} onValueChange={setWeeks}>
-              <SelectTrigger className="w-[100px] h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{["2", "4", "6", "8"].map((w) => <SelectItem key={w} value={w}>{w} wks</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={hours} onValueChange={setHours}>
-              <SelectTrigger className="w-[100px] h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{["3", "5", "8", "10"].map((h) => <SelectItem key={h} value={h}>{h} h/wk</SelectItem>)}</SelectContent>
-            </Select>
-            <Button onClick={buildPlan} disabled={planning} className="bg-gradient-to-r from-primary to-primary/80">
-              {planning ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Building...</> : <><CalendarDays className="w-4 h-4 mr-2" />{pathway ? "Rebuild plan" : "Build plan"}</>}
-            </Button>
-          </div>
-        </div>
-
-        {/* Why these skills — and, when the data was thin, what the coach fell
-            back to. Makes an under-powered pathway readable instead of looking
-            broken. */}
-        {pathway && (
-          <div className="mb-4 space-y-3 rounded-lg border bg-muted/30 p-4">
-            <SavedNote at={pathwaySavedAt} refreshLabel="Rebuild plan" />
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">
-                {pathway.focus.fromLastInterview ? "from your last mock" : pathway.focus.source}
-              </Badge>
-              {pathway.targets.map((t) => (
-                <Badge key={t.skill} variant="secondary" className="text-[10px]">
-                  {t.skill} {t.from}→{t.to}
-                </Badge>
-              ))}
-            </div>
-            <p className="text-sm text-muted-foreground">{pathway.focus.why}</p>
-            {pathway.nextMock.focusAreas.length > 0 && (
-              <p className="text-xs text-muted-foreground flex items-start gap-1.5">
-                <Target className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
-                Next mock: {pathway.nextMock.focusAreas.join(", ")} — {pathway.nextMock.why}
-              </p>
-            )}
-            {degraded?.degraded && (
-              <p className="text-xs text-amber-600">
-                Working with partial data — {degraded.reasons.join("; ")}.
-              </p>
-            )}
-          </div>
-        )}
-
-        {pathway ? (
-          <StudySkillLearning
-            skills={pathway.focus.skills.length ? pathway.focus.skills : pathway.targets.map((t) => t.skill)}
-            field={pathway.field || field}
-            onPractise={(skill) => {
-              drillRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-              void getDrill(skill);
-            }}
-          />
-        ) : null}
-
-        {pathway?.resources?.length ? (
-          <div className="mb-4 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">
-              Resources for these skills
-              {pathway.unsourcedResources &&
-                " — the coach's picks. A link opens the page itself when we could check it, otherwise it searches for it."}
-            </p>
-            {pathway.resources.slice(0, 5).map((r) => (
-              <div key={r.id} className="flex items-start gap-2 rounded-lg bg-muted/40 p-3">
-                <Badge variant="outline" className="shrink-0 text-[9px]">
-                  {resourceBadge(r)}
-                </Badge>
-                <div className="flex-1 min-w-0">
-                  {r.url ? (
-                    <a
-                      href={r.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm font-medium text-primary hover:underline inline-flex items-center gap-1"
-                    >
-                      {r.title}
-                      <ExternalLink className="w-3 h-3 shrink-0" />
-                    </a>
-                  ) : (
-                    <p className="text-sm font-medium">{r.title}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">{r.whyRecommended}</p>
-                  {pathway.unsourcedResources && r.provider && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground/80">How to find it:</span> {r.provider}
-                    </p>
-                  )}
-                  {r.url && (
-                    <div className="mt-2">
-                      <ResourceProgress
-                        resource={{ url: r.url, title: r.title, provider: r.provider, skill: r.forSkill }}
-                        status={r.myStatus}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {pathway?.officialTraining?.length ? (
-          <div className="mb-4 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-              <GraduationCap className="w-3.5 h-3.5" />
-              Get it recognised — nationally accredited training
-            </p>
-            {pathway.officialTraining.map((t) => (
-              <a
-                key={t.url}
-                href={t.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-start gap-2 rounded-lg bg-muted/40 p-3 hover:bg-muted/60"
-              >
-                <Badge variant="outline" className="shrink-0 text-[9px]">
-                  Official
-                </Badge>
-                <span className="flex-1 min-w-0">
-                  <span className="text-sm font-medium text-primary inline-flex items-center gap-1">
-                    {t.title}
-                    <ExternalLink className="w-3 h-3 shrink-0" />
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {t.provider} · for {t.skill}
-                  </span>
-                </span>
-              </a>
-            ))}
-          </div>
-        ) : null}
-
-        {plan?.weeks?.length ? (
-          <div className="space-y-4">
-            {plan.goal && <p className="text-sm text-muted-foreground flex items-start gap-2"><Target className="w-4 h-4 text-primary mt-0.5 shrink-0" />{plan.goal}</p>}
-            <Accordion type="single" collapsible defaultValue="week-0">
-              {plan.weeks.map((w, i) => (
-                <AccordionItem key={i} value={`week-${i}`}>
-                  <AccordionTrigger>
-                    <div className="flex items-center gap-3 text-left">
-                      <Badge variant="secondary" className="shrink-0">Week {w.week}</Badge>
-                      <span className="font-medium">{w.theme}</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="space-y-2">
-                      {w.sessions.map((s, j) => (
-                        <div key={j} className="flex items-start gap-3 p-3 bg-muted/40 rounded-lg">
-                          <div className="text-center shrink-0 w-10">
-                            <p className="text-xs font-bold">{s.day}</p>
-                            <p className="text-[10px] text-muted-foreground">{s.minutes}m</p>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <Badge variant="outline" className={`text-[9px] ${METHOD_STYLES[s.method] ?? ""}`}>{s.method}</Badge>
-                              <span className="text-xs text-muted-foreground">{s.skill}</span>
-                            </div>
-                            <p className="text-sm">{s.activity}</p>
-                            {s.resourceTitle && <p className="text-xs text-primary mt-1 flex items-center gap-1"><BookOpen className="w-3 h-3" />{s.resourceTitle}</p>}
-                          </div>
-                        </div>
-                      ))}
-                      {w.milestone && <p className="text-xs text-muted-foreground italic pt-1 flex items-start gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />By week's end: {w.milestone}</p>}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
-            {plan.spacedReviewRules && plan.spacedReviewRules.length > 0 && (
-              <div className="p-4 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20">
-                <p className="text-sm font-medium mb-2 flex items-center gap-2"><Repeat className="w-4 h-4 text-primary" />Spaced-review rules</p>
-                <ul className="space-y-1">{plan.spacedReviewRules.map((r, i) => <li key={i} className="text-xs text-muted-foreground">• {r}</li>)}</ul>
-              </div>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Builds a week-by-week deliberate-practice plan over your weakest skills, sized to your weekly hours, with
-            real learning resources slotted in and standing spaced-review rules.
-          </p>
-        )}
-      </Card>
-
-      {/* Explain a concept */}
-      <Card className="p-6">
-        <h3 className="font-semibold mb-4 flex items-center gap-2"><BrainCircuit className="w-5 h-5 text-primary" />Explain a concept</h3>
-        <div className="flex flex-col md:flex-row gap-3">
-          <Input value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="e.g. CAP theorem, eventual consistency, B-trees..." className="flex-1" onKeyDown={(e) => e.key === "Enter" && explain()} />
-          <Select value={level} onValueChange={(v) => setLevel(v as typeof level)}>
-            <SelectTrigger className="w-full md:w-[160px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="eli5">Explain simply</SelectItem>
-              <SelectItem value="working">Working knowledge</SelectItem>
-              <SelectItem value="interview">Interview-grade</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={explain} disabled={explaining} className="bg-gradient-to-r from-primary to-primary/80">
-            {explaining ? <Loader2 className="w-4 h-4 animate-spin" /> : <BrainCircuit className="w-4 h-4 mr-2" />}
-            Explain
-          </Button>
-        </div>
-
-        <AnimatePresence>
-          {explanation && (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 space-y-4">
-              {explanation.levels && (
-                <div className="space-y-3">
-                  {explanation.levels.intuition && (
-                    <div><p className="text-xs font-semibold text-blue-600 uppercase mb-1">Intuition</p><p className="text-sm">{explanation.levels.intuition}</p></div>
-                  )}
-                  {explanation.levels.working && (
-                    <div><p className="text-xs font-semibold text-purple-600 uppercase mb-1">Working knowledge</p><p className="text-sm">{explanation.levels.working}</p></div>
-                  )}
-                  {explanation.levels.interviewGrade && (
-                    <div><p className="text-xs font-semibold text-primary uppercase mb-1">Interview-grade</p><p className="text-sm">{explanation.levels.interviewGrade}</p></div>
-                  )}
-                </div>
-              )}
-              {explanation.workedExample && (
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Worked example</p>
-                  <p className="text-sm">{explanation.workedExample}</p>
-                </div>
-              )}
-              <div className="grid md:grid-cols-2 gap-4">
-                {explanation.commonPitfalls && explanation.commonPitfalls.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-amber-600 uppercase mb-2">Common pitfalls</p>
-                    <ul className="space-y-1">{explanation.commonPitfalls.map((p, i) => <li key={i} className="text-sm text-muted-foreground">• {p}</li>)}</ul>
-                  </div>
-                )}
-                {explanation.interviewAngles && explanation.interviewAngles.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-primary uppercase mb-2">How interviewers probe it</p>
-                    <ul className="space-y-1">{explanation.interviewAngles.map((p, i) => <li key={i} className="text-sm text-muted-foreground">• {p}</li>)}</ul>
-                  </div>
-                )}
-              </div>
-              {explanation.proof && <ProofChip proof={explanation.proof} />}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </Card>
-    </motion.div>
-  );
-}
-
-const MARK_STYLE: Record<DrillPointMark["mark"], { label: string; className: string; icon: typeof CheckCircle2 }> = {
-  covered: { label: "Covered", className: "text-green-600", icon: CheckCircle2 },
-  partial: { label: "Partly", className: "text-amber-600", icon: Lightbulb },
-  missing: { label: "Missing", className: "text-muted-foreground", icon: X },
-};
-
-/** What the coach found in the answer, point by point, with the words that show it. */
-function DrillMarks({ result }: { result: DrillResult }) {
-  const e = result.evaluation!;
-  return (
-    <Card className="p-4 space-y-4">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold">The coach's marks</p>
-        <p className="text-2xl font-bold">{result.score}<span className="text-sm text-muted-foreground">/10</span></p>
-      </div>
-      {e.cap && (
-        <p className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
-          <X className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
-          Capped at {e.cap.max}: {e.cap.reason}
-        </p>
-      )}
-      <ul className="space-y-2.5">
-        {e.points.map((p, i) => {
-          const style = MARK_STYLE[p.mark];
-          const Icon = style.icon;
-          return (
-            <li key={i} className="text-sm">
-              <p className="flex items-start gap-2">
-                <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${style.className}`} aria-hidden />
-                <span>
-                  <span className={`font-medium ${style.className}`}>{style.label}:</span> {p.point}
-                </span>
-              </p>
-              {p.quote && <p className="ml-6 mt-1 text-xs italic text-muted-foreground">“{p.quote.text}”</p>}
-              {p.note && <p className="ml-6 mt-0.5 text-xs text-muted-foreground">{p.note}</p>}
-            </li>
-          );
-        })}
-      </ul>
-      {(e.whatWorked || e.whatsMissing || e.oneThingToTry) && (
-        <div className="grid gap-3 md:grid-cols-3 text-sm">
-          {e.whatWorked && <div><p className="text-xs font-semibold uppercase text-muted-foreground mb-1">What worked</p><p>{e.whatWorked}</p></div>}
-          {e.whatsMissing && <div><p className="text-xs font-semibold uppercase text-muted-foreground mb-1">What's missing</p><p>{e.whatsMissing}</p></div>}
-          {e.oneThingToTry && <div><p className="text-xs font-semibold uppercase text-muted-foreground mb-1">Next time</p><p>{e.oneThingToTry}</p></div>}
-        </div>
-      )}
-    </Card>
+      <NotebookSection
+        id="explain"
+        n="05"
+        title="Explain a concept"
+        defaultOpen={false}
+        summary="Any idea, explained simply first, then deeper"
+      >
+        <ExplainConcept field={field} />
+      </NotebookSection>
+    </div>
   );
 }

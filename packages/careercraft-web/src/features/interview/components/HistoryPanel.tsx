@@ -1,6 +1,10 @@
 /**
- * Session history — every session, tagged and filterable by round type;
- * reopen a stored debrief, practise the same round again.
+ * History — interviews and drills.
+ *
+ * Interviews: every session, tagged and filterable by round type; reopen a
+ * stored debrief, practise the same round again.
+ * Drills: every study drill finished, how each skill is going, and what was
+ * written and marked; practise a skill again, or delete a drill.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +15,8 @@ import { jobLabel, useTrackerJobs } from "../lib/practiceData";
 import { rowScore, scoreChange, signed } from "../lib/progress";
 import { ROUND_TYPES, roundClass, roundMeta, type RoundType } from "../lib/roundTypes";
 import { normalizeScore100, sessionOverallScore, useInterviewSessions, type SessionRow } from "../lib/sessions";
+import { finished, useDrills } from "../lib/drills";
+import { DrillLog, SkillProgressCards } from "./DrillLog";
 import { RoundDebriefExtras } from "./RoundDebriefExtras";
 import { RoundDot, RoundTag } from "./RoundMarks";
 import "../interview.css";
@@ -103,16 +109,147 @@ function StoredDebrief({
   );
 }
 
-interface HistoryPanelProps {
+interface SessionHistoryProps {
   highlightId?: string | null;
   onStartPractice?: () => void;
   /** Pick a round type in the setup panel (on the Home tab) and go there. */
   onPracticeType?: (type: RoundType) => void;
 }
 
+export type HistoryView = "interviews" | "drills";
+
+interface HistoryPanelProps extends SessionHistoryProps {
+  view?: HistoryView;
+  onViewChange?: (view: HistoryView) => void;
+  /** Go to Study and drill this skill (or whatever's due). */
+  onPractiseSkill?: (skill?: string) => void;
+  /** Go to Study, where saved drills wait. */
+  onOpenStudy?: () => void;
+}
+
+export function HistoryPanel({
+  view = "interviews",
+  onViewChange,
+  onPractiseSkill,
+  onOpenStudy,
+  ...sessions
+}: HistoryPanelProps) {
+  const { data: sessionRows } = useInterviewSessions();
+  const { data: drillRows } = useDrills();
+  const counts = { interviews: sessionRows?.length, drills: drillRows ? finished(drillRows).length : undefined };
+
+  const tab = (id: HistoryView, label: string) => (
+    <button
+      key={id}
+      type="button"
+      aria-pressed={view === id}
+      onClick={() => onViewChange?.(id)}
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+        view === id
+          ? "border-[color:var(--cc-ink)] bg-[color:var(--cc-ink)] text-[color:var(--cc-cream)]"
+          : "border-[color:var(--cc-hair-strong)] bg-white text-[color:var(--cc-ink-soft)] hover:border-[color:var(--cc-ink)] hover:text-[color:var(--cc-ink)]"
+      }`}
+    >
+      {label}
+      {counts[id] !== undefined && <span className="cc-tabular text-xs opacity-70">{counts[id]}</span>}
+    </button>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
+        {tab("interviews", "Interviews")}
+        {tab("drills", "Drills")}
+      </div>
+      {view === "drills" ? (
+        <DrillHistory onPractiseSkill={onPractiseSkill} onOpenStudy={onOpenStudy} />
+      ) : (
+        <SessionHistory {...sessions} />
+      )}
+    </div>
+  );
+}
+
+function DrillHistory({
+  onPractiseSkill,
+  onOpenStudy,
+}: {
+  onPractiseSkill?: (skill?: string) => void;
+  onOpenStudy?: () => void;
+}) {
+  const { data, isLoading, isError, refetch } = useDrills();
+  const rows = data ?? [];
+  const done = finished(rows);
+  const saved = rows.length - done.length;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3" aria-busy="true" aria-label="Loading your drills">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-14 animate-pulse rounded-[1.25rem] border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)]" />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="cc-surface p-10 text-center">
+        <p className="cc-kicker mb-2">Couldn't load your drills</p>
+        <button type="button" onClick={() => void refetch()} className="cc-action cc-action--ghost mt-4">
+          <RotateCcw className="h-3.5 w-3.5" />
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (!done.length) {
+    return (
+      <div className="cc-surface px-6 py-12 text-center">
+        <p className="cc-kicker mb-2">No drills yet</p>
+        <p className="mx-auto max-w-md text-sm text-[color:var(--cc-ink-soft)]">
+          A drill is one short exercise on one skill. Finish one in Study and it shows up here, with what you wrote and
+          how it was marked.
+          {saved > 0 && ` You have ${saved} saved for later.`}
+        </p>
+        {saved > 0 && onOpenStudy ? (
+          <button type="button" onClick={onOpenStudy} className="cc-action mt-6">
+            Finish them in Study
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        ) : onPractiseSkill ? (
+          <button type="button" onClick={() => onPractiseSkill()} className="cc-action mt-6">
+            Do a drill
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="cc-study cc-surface space-y-6 p-5 md:p-7">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <p className="cc-kicker">By skill</p>
+        {saved > 0 && onOpenStudy && (
+          <button type="button" onClick={onOpenStudy} className="st-textbtn">
+            {saved} saved for later. Finish {saved === 1 ? "it" : "them"} in Study
+          </button>
+        )}
+      </div>
+      <SkillProgressCards rows={rows} max={12} />
+      <div>
+        <p className="cc-kicker mb-3">Every drill</p>
+        <DrillLog rows={rows} onPractise={onPractiseSkill} />
+      </div>
+    </div>
+  );
+}
+
 type Filter = RoundType | "all";
 
-export function HistoryPanel({ highlightId, onStartPractice, onPracticeType }: HistoryPanelProps) {
+function SessionHistory({ highlightId, onStartPractice, onPracticeType }: SessionHistoryProps) {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useInterviewSessions();
   const rows = useMemo(() => data ?? [], [data]);
