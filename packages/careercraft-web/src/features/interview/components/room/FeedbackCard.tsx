@@ -34,7 +34,7 @@ function PointList({
         : "var(--cc-rust-deep)";
   return (
     <div>
-      <p className="cc-label-sm mb-2" style={{ color: toneColor }}>
+      <p className="mb-2 text-[13px] font-semibold" style={{ color: toneColor }}>
         {title}
       </p>
       {items.length ? (
@@ -64,9 +64,9 @@ export function FeedbackCard({ evaluation, answer, delivery, isLast, onContinue,
   const followUp = evaluation.followUpQuestion || evaluation.improvement;
 
   return (
-    <section className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream-2)]">
-      <div className="flex items-center justify-between border-b border-[color:var(--cc-hair)] px-5 py-4">
-        <span className="cc-label text-[color:var(--cc-ink)]">Coach feedback</span>
+    <section className="cc-iv-sheet">
+      <div className="flex items-center justify-between border-b border-[color:var(--cc-hair)] px-5 pb-4 pt-5">
+        <span className="text-[15px] font-semibold text-[color:var(--cc-ink)]">Coach feedback</span>
         <p className="cc-font-display text-3xl leading-none text-[color:var(--cc-ink)]">
           {evaluation.score}
           <span className="text-base text-[color:var(--cc-ash)]">/10</span>
@@ -93,8 +93,8 @@ export function FeedbackCard({ evaluation, answer, delivery, isLast, onContinue,
 
         {evaluation.bestAnswer && (
           <div>
-            <p className="cc-label-sm mb-2 text-[color:var(--cc-ink)]">A stronger answer</p>
-            <blockquote className="border-l-2 border-[color:var(--cc-iv,var(--cc-rust))] bg-[color:var(--cc-cream)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
+            <p className="mb-2 text-[13px] font-semibold text-[color:var(--cc-ink)]">A stronger answer</p>
+            <blockquote className="rounded-r-xl border-l-2 border-[color:var(--cc-iv,var(--cc-rust))] bg-[color:var(--cc-cream)] px-4 py-3 text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">
               {evaluation.bestAnswer}
             </blockquote>
             {evaluation.faangAnswer && (
@@ -110,7 +110,7 @@ export function FeedbackCard({ evaluation, answer, delivery, isLast, onContinue,
             {evaluation.tips.map((tip, i) => (
               <span
                 key={i}
-                className="border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] px-2.5 py-1.5 text-xs text-[color:var(--cc-ink-soft)]"
+                className="rounded-full border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream)] px-3 py-1.5 text-xs text-[color:var(--cc-ink-soft)]"
               >
                 {tip}
               </span>
@@ -120,7 +120,7 @@ export function FeedbackCard({ evaluation, answer, delivery, isLast, onContinue,
 
         {followUp && (
           <div>
-            <p className="cc-label-sm mb-1.5 text-[color:var(--cc-ash)]">
+            <p className="mb-1.5 text-[13px] font-semibold text-[color:var(--cc-ash)]">
               What they'd ask you next
             </p>
             <p className="text-sm italic leading-relaxed text-[color:var(--cc-ink-soft)]">
@@ -133,14 +133,14 @@ export function FeedbackCard({ evaluation, answer, delivery, isLast, onContinue,
 
         <div className="flex flex-col gap-3 sm:flex-row">
           {onRetry && (
-            <button onClick={onRetry} className="cc-btn cc-btn-ghost sm:flex-1" type="button">
-              <RotateCcw className="h-3.5 w-3.5" />
+            <button onClick={onRetry} className="cc-action cc-action--ghost sm:flex-1" type="button">
+              <RotateCcw className="h-4 w-4" />
               Try this answer again
             </button>
           )}
-          <button onClick={onContinue} className="cc-btn cc-btn-primary sm:flex-1" type="button">
+          <button onClick={onContinue} className="cc-action sm:flex-1" type="button">
             {isLast ? "Finish & get your debrief" : "Next question"}
-            <ArrowRight className="cc-arrow-right h-3.5 w-3.5" />
+            <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </div>

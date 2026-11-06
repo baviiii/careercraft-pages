@@ -11,6 +11,8 @@ interface ProgressRailProps {
  * keeps them sealed until the debrief (a real panel doesn't grade you live).
  */
 export function ProgressRail({ records, totalPlanned, mode }: ProgressRailProps) {
+  // A one-question session has nothing to track.
+  if (totalPlanned <= 1) return null;
   const cells = Array.from({ length: totalPlanned }, (_, i) => records[i] ?? null);
 
   return (
@@ -33,22 +35,22 @@ export function ProgressRail({ records, totalPlanned, mode }: ProgressRailProps)
             >
               <span
                 className={[
-                  "cc-label-sm",
+                  "text-[13px] tabular-nums",
                   isCurrent
-                    ? "font-bold text-[color:var(--cc-ink)]"
+                    ? "font-semibold text-[color:var(--cc-ink)]"
                     : isDone
                       ? "text-[color:var(--cc-ink)]"
                       : "text-[color:var(--cc-ash)]",
                 ].join(" ")}
               >
-                {String(i + 1).padStart(2, "0")}
+                {i + 1}
               </span>
               {record?.skipped && (
-                <span className="cc-label-sm text-[color:var(--cc-ash)]">–</span>
+                <span className="text-[12px] text-[color:var(--cc-ash)]">· skipped</span>
               )}
               {score !== null && (
-                <span className="cc-font-mono text-[10px] tabular-nums text-[color:var(--cc-ink-soft)]">
-                  {score}/10
+                <span className="text-[12px] tabular-nums text-[color:var(--cc-ink-soft)]">
+                  · {score}/10
                 </span>
               )}
             </div>

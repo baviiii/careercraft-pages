@@ -61,7 +61,9 @@ export const ROUND_TYPES: RoundTypeMeta[] = [
     lengths: [4, 6, 8],
     defaultMode: "coached",
     minutesPerQuestion: 4.5,
-    answerPrompt: "The situation, what you had to do, what you did, and what came of it…",
+    // Line by line, so the empty box shows the shape of a STAR answer.
+    answerPrompt:
+      "Situation: where you were and what was going on\nTask: what you had to get done\nAction: what you did (say “I”, not “we”)\nResult: what changed, with a number if you have one",
   },
   {
     id: "technical",

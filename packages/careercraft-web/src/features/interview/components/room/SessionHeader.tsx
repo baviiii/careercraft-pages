@@ -40,25 +40,36 @@ export function SessionHeader({
         </div>
 
         <div className="flex items-center gap-3 md:gap-5">
-          <div className="cc-label-sm hidden text-[color:var(--cc-ash)] sm:block">
-            Q {String(questionNumber).padStart(2, "0")} / {String(config.questionCount).padStart(2, "0")}
-          </div>
-          <div className="cc-font-mono text-sm tabular-nums text-[color:var(--cc-ink)]">
-            {formatClock(elapsed)}
-          </div>
+          {/* With one question, the answer sheet's own clock says it all. */}
+          {config.questionCount > 1 && (
+            <>
+              <div className="hidden text-[13px] text-[color:var(--cc-ink-soft)] sm:block">
+                Question {questionNumber} of {config.questionCount}
+              </div>
+              <div
+                className="text-[13px] font-semibold tabular-nums text-[color:var(--cc-ink)]"
+                title="Time in this interview"
+              >
+                {formatClock(elapsed).replace(/^0(?=\d:)/, "")}
+              </div>
+            </>
+          )}
           {canWrapUp && (
             <button
+              type="button"
               onClick={onWrapUp}
-              className="cc-label-sm hidden items-center gap-1.5 border border-[color:var(--cc-hair-strong)] px-3 py-2 text-[color:var(--cc-ink-soft)] transition-colors hover:border-[color:var(--cc-ink)] hover:text-[color:var(--cc-ink)] md:inline-flex"
+              className="cc-action cc-action--ghost cc-action--sm hidden md:inline-flex"
             >
-              <Flag className="h-3 w-3" />
+              <Flag className="h-3.5 w-3.5" />
               Wrap up
             </button>
           )}
           <button
+            type="button"
             onClick={onQuit}
             aria-label="Leave the interview"
-            className="border border-transparent p-2 text-[color:var(--cc-ash)] transition-colors hover:border-[color:var(--cc-hair-strong)] hover:text-[color:var(--cc-ink)]"
+            title="Leave the interview"
+            className="rounded-full p-2 text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
           >
             <X className="h-4 w-4" />
           </button>

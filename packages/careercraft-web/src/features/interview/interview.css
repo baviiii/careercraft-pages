@@ -367,6 +367,50 @@
   border-radius: 2px;
 }
 
+/* ── The room ──────────────────────────────────────────────────────────── */
+
+/* The answer sheet, the hint and the coach's feedback: white cards on the
+   paper, the same as the round picker, with the round's colour along the
+   top. */
+.cc-iv-sheet {
+  position: relative;
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 18px 44px -38px rgba(20, 22, 26, 0.3);
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cc-iv-sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--cc-iv, var(--cc-rust));
+}
+.cc-iv-sheet:focus-within {
+  border-color: var(--cc-iv-edge, var(--cc-hair-strong));
+  box-shadow: 0 22px 48px -34px rgba(20, 22, 26, 0.32);
+}
+
+/* "Why this question?": closed until asked, so the question stays the thing
+   on the page. */
+.cc-iv-why > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  list-style: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--cc-ink-soft);
+  border-radius: 0.25rem;
+}
+.cc-iv-why > summary::-webkit-details-marker { display: none; }
+.cc-iv-why > summary:hover { color: var(--cc-ink); }
+.cc-iv-why > summary:focus-visible { outline: 2px solid var(--cc-ink); outline-offset: 3px; }
+.cc-iv-why > summary svg { transition: transform 0.2s ease; }
+.cc-iv-why[open] > summary svg { transform: rotate(90deg); }
+
 /* ── Answer length meter (the room) ────────────────────────────────────── */
 
 .cc-iv-meter {
@@ -411,7 +455,9 @@
   .cc-iv-live { animation: none; }
   .cc-iv-card,
   .cc-iv-typecell,
-  .cc-iv-meter-mark {
+  .cc-iv-meter-mark,
+  .cc-iv-sheet,
+  .cc-iv-why > summary svg {
     transition: none;
   }
   .cc-iv-card:hover,

@@ -207,6 +207,7 @@ export default function InterviewRoomPage() {
               <QuestionStage
                 question={(lastRecord ?? current).question}
                 questionNumber={questionNumber}
+                roundType={roundType}
                 advancing={phase === "advancing"}
               />
 
@@ -241,8 +242,8 @@ export default function InterviewRoomPage() {
               )}
 
               {config.mode === "realistic" && phase === "active" && !awaitingContinue && (
-                <p className="cc-label-sm text-center text-[color:var(--cc-ash)]">
-                  Feedback stays sealed until the debrief — like the real thing.
+                <p className="text-center text-[13px] text-[color:var(--cc-ash)]">
+                  You'll get feedback at the end, the way a real interview works.
                 </p>
               )}
             </div>

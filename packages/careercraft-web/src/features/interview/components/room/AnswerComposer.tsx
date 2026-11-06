@@ -5,12 +5,19 @@
  * one, with how it was delivered alongside; the room doesn't know the
  * difference.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CornerDownLeft, Lightbulb, Loader2, Mic, SkipForward, Square, Volume2 } from "lucide-react";
 import { VOICE_ENABLED, type WordBand } from "@/lib/interviewCoach";
 import { useSpokenAnswer } from "../../hooks/useSpokenAnswer";
 import type { DeliveryMetrics } from "../../types";
 import { formatClock, spokenSeconds, useElapsedSeconds, wordCount } from "../../lib/format";
+
+/** "0:17", "5:00" — a clock without the leading zero, as people write times. */
+const clock = (seconds: number) => formatClock(seconds).replace(/^0(?=\d:)/, "");
+
+/** How to submit from the keyboard, in the reader's own keys. */
+const SUBMIT_KEYS =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘ Enter" : "Ctrl + Enter";
 
 /**
  * How long this would take to say, against the healthy range for the
@@ -21,31 +28,38 @@ import { formatClock, spokenSeconds, useElapsedSeconds, wordCount } from "../../
 function LengthMeter({ words, band }: { words: number; band: WordBand }) {
   const scaleMax = band.max * 1.4;
   const pct = (n: number) => `${(Math.min(n, scaleMax) / scaleMax) * 100}%`;
-  const state = words === 0 ? null : words < band.min ? "Keep going" : words > band.max ? "Running long" : "Good length";
+  const state = words === 0 ? null : words < band.min ? "keep going" : words > band.max ? "running long" : "good length";
+  const aim = `${clock(spokenSeconds(band.min))}–${clock(spokenSeconds(band.max))}`;
   return (
-    <div className="flex flex-col gap-2 border-t border-[color:var(--cc-hair)] px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+    <div className="flex flex-col gap-2 border-t border-[color:var(--cc-hair)] px-5 py-3 sm:flex-row sm:items-center sm:gap-4">
       <div
-        className="cc-iv-meter flex-1"
+        className="cc-iv-meter w-full sm:w-auto sm:flex-1"
         role="meter"
         aria-label="Answer length, as speaking time"
         aria-valuemin={0}
         aria-valuemax={Math.round(scaleMax)}
         aria-valuenow={Math.min(words, Math.round(scaleMax))}
-        aria-valuetext={`about ${formatClock(spokenSeconds(words))} spoken; aim for ${formatClock(
-          spokenSeconds(band.min),
-        )} to ${formatClock(spokenSeconds(band.max))}`}
+        aria-valuetext={`about ${clock(spokenSeconds(words))} spoken; aim for ${aim}`}
       >
         <span
           className="cc-iv-meter-band"
           style={{ left: pct(band.min), width: `calc(${pct(band.max)} - ${pct(band.min)})` }}
         />
-        <span className="cc-iv-meter-mark" style={{ left: pct(words) }} />
+        {words > 0 && <span className="cc-iv-meter-mark" style={{ left: pct(words) }} />}
       </div>
-      <p className="cc-font-mono shrink-0 text-[11px] tabular-nums text-[color:var(--cc-ink-soft)]">
-        ≈ {formatClock(spokenSeconds(words))} spoken · aim {formatClock(spokenSeconds(band.min))}–
-        {formatClock(spokenSeconds(band.max))}
-        {state && (
-          <span className={state === "Running long" ? "font-semibold text-[color:var(--cc-ink)]" : ""}> · {state}</span>
+      <p className="shrink-0 text-[13px] tabular-nums text-[color:var(--cc-ink-soft)]">
+        {words === 0 ? (
+          <>Aim for {aim} spoken</>
+        ) : (
+          <>
+            About {clock(spokenSeconds(words))} spoken · aim {aim}
+            {state && (
+              <span className={state === "running long" ? "font-semibold text-[color:var(--cc-ink)]" : ""}>
+                {" "}
+                · {state}
+              </span>
+            )}
+          </>
         )}
       </p>
     </div>
@@ -107,6 +121,15 @@ export function AnswerComposer({
     if (!disabled) textareaRef.current?.focus();
   }, [disabled]);
 
+  // The sheet grows with the answer, so a long one isn't read through a
+  // slot; past most of the screen it scrolls.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, Math.round(window.innerHeight * 0.6))}px`;
+  }, [shown]);
+
   const startSpeaking = () => {
     setTypedBefore(draft);
     setDelivery(null);
@@ -137,37 +160,30 @@ export function AnswerComposer({
   };
 
   return (
-    <div className="border border-[color:var(--cc-hair-strong)] bg-[color:var(--cc-cream)]">
-      <div className="flex items-center justify-between border-b border-[color:var(--cc-hair)] px-4 py-2.5">
-        <span className="cc-label-sm text-[color:var(--cc-ash)]">
+    <div className="cc-iv-sheet">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 pb-1 pt-4">
+        <span className="text-[14px] font-semibold text-[color:var(--cc-ink)]">
           {listening ? (
-            <span className="inline-flex items-center gap-1.5 text-[color:var(--cc-ink)]">
+            <span className="inline-flex items-center gap-2">
               <span aria-hidden className="cc-iv-live" />
               {spoken.state === "connecting"
                 ? "Connecting the microphone…"
                 : spoken.state === "finishing"
                   ? "Catching your last words…"
-                  : "Listening — speak your answer"}
+                  : "Listening — say your answer"}
             </span>
           ) : (
             "Your answer"
           )}
         </span>
-        <div className="flex items-center gap-4">
-          <span className="cc-font-mono text-[11px] tabular-nums text-[color:var(--cc-ash)]">
-            {words} {words === 1 ? "word" : "words"}
+        <span className="text-[13px] tabular-nums text-[color:var(--cc-ash)]">
+          {words} {words === 1 ? "word" : "words"} ·{" "}
+          <span className={overTime ? "font-semibold text-[color:var(--cc-wheat-deep)]" : ""}>
+            {clock(elapsed)}
+            {allottedMinutes ? ` of ${clock(allottedMinutes * 60)}` : ""}
+            {overTime ? ", over time" : ""}
           </span>
-          <span
-            className={[
-              "cc-font-mono text-[11px] tabular-nums",
-              overTime ? "text-[color:var(--cc-wheat-deep)]" : "text-[color:var(--cc-ash)]",
-            ].join(" ")}
-          >
-            {formatClock(elapsed)}
-            {allottedMinutes ? ` / ${formatClock(allottedMinutes * 60)}` : ""}
-            {overTime ? " · over" : ""}
-          </span>
-        </div>
+        </span>
       </div>
 
       <textarea
@@ -189,25 +205,25 @@ export function AnswerComposer({
         disabled={disabled || evaluating}
         placeholder={placeholder}
         aria-label="Your answer"
-        className="min-h-[220px] w-full resize-y bg-transparent px-4 py-4 text-[15px] leading-relaxed text-[color:var(--cc-ink)] outline-none placeholder:text-[color:var(--cc-ash)] disabled:opacity-50"
+        className="min-h-[220px] w-full resize-none bg-transparent px-5 py-3 text-[16px] leading-relaxed text-[color:var(--cc-ink)] outline-none placeholder:text-[color:var(--cc-ash)] disabled:opacity-50"
       />
 
       {targetWords && <LengthMeter words={words} band={targetWords} />}
 
       {VOICE_ENABLED && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[color:var(--cc-hair)] px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[color:var(--cc-hair)] px-5 py-3">
           {listening ? (
             <>
               <button
                 type="button"
                 onClick={() => void stopSpeaking()}
                 disabled={spoken.state === "finishing"}
-                className="cc-label-sm inline-flex items-center gap-1.5 border border-[color:var(--cc-ink)] px-3 py-2 text-[color:var(--cc-ink)] disabled:opacity-50"
+                className="cc-action cc-action--ink cc-action--sm"
               >
                 {spoken.state === "finishing" ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
-                  <Square className="h-3 w-3" />
+                  <Square className="h-3.5 w-3.5" />
                 )}
                 Stop
               </button>
@@ -215,9 +231,9 @@ export function AnswerComposer({
                 <button
                   type="button"
                   onClick={() => spoken.readAloud(questionText)}
-                  className="cc-label-sm inline-flex items-center gap-1.5 px-3 py-2 text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]"
+                  className="inline-flex items-center gap-1.5 rounded-full px-2 py-2 text-[13px] font-medium text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]"
                 >
-                  <Volume2 className="h-3 w-3" />
+                  <Volume2 className="h-3.5 w-3.5" />
                   Hear the question again
                 </button>
               )}
@@ -228,72 +244,73 @@ export function AnswerComposer({
                 type="button"
                 onClick={startSpeaking}
                 disabled={disabled || evaluating}
-                className="cc-label-sm inline-flex items-center gap-1.5 border border-[color:var(--cc-hair-strong)] px-3 py-2 text-[color:var(--cc-ink)] transition-colors hover:border-[color:var(--cc-ink)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="cc-action cc-action--ghost cc-action--sm"
               >
-                <Mic className="h-3 w-3" />
+                <Mic className="h-3.5 w-3.5" />
                 Answer out loud
               </button>
-              <label className="inline-flex items-center gap-1.5 text-xs text-[color:var(--cc-ink-soft)]">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-[13px] text-[color:var(--cc-ink-soft)]">
                 <input
                   type="checkbox"
                   checked={hearFirst}
                   onChange={(e) => setHearFirst(e.target.checked)}
-                  className="accent-[color:var(--cc-ink)]"
+                  className="h-3.5 w-3.5 accent-[color:var(--cc-ink)]"
                 />
-                Read the question to me first
+                Read the question aloud first
               </label>
             </>
           )}
-          {spoken.error && <p className="w-full text-xs text-[color:var(--cc-ink-soft)]">{spoken.error}</p>}
+          {spoken.error && <p className="w-full text-[13px] text-[color:var(--cc-ink-soft)]">{spoken.error}</p>}
           {!listening && delivery && (
-            <p className="w-full text-xs text-[color:var(--cc-ink-soft)]">
-              You spoke for {formatClock(delivery.speakingSeconds)} at {delivery.wordsPerMinute} words a minute. Edit
-              the text if the transcript misheard you.
+            <p className="w-full text-[13px] text-[color:var(--cc-ink-soft)]">
+              You spoke for {clock(delivery.speakingSeconds)} at {delivery.wordsPerMinute} words a minute. Edit the
+              text if the transcript misheard you.
             </p>
           )}
         </div>
       )}
 
-      <div className="flex flex-col gap-3 border-t border-[color:var(--cc-hair)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 border-t border-[color:var(--cc-hair)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => onHint(shown)}
             disabled={disabled || evaluating || hintLoading}
-            className="cc-label-sm inline-flex items-center gap-1.5 border border-[color:var(--cc-hair-strong)] px-3 py-2 text-[color:var(--cc-ink-soft)] transition-colors hover:border-[color:var(--cc-wheat-deep)] hover:text-[color:var(--cc-wheat-deep)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="cc-action cc-action--ghost cc-action--sm"
           >
-            {hintLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Lightbulb className="h-3 w-3" />
-            )}
-            I'm stuck
+            {hintLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lightbulb className="h-3.5 w-3.5" />}
+            Get a hint
           </button>
           <button
+            type="button"
             onClick={() => {
               if (listening) void spoken.stop();
               onSkip();
             }}
             disabled={disabled || evaluating}
-            className="cc-label-sm inline-flex items-center gap-1.5 border border-transparent px-3 py-2 text-[color:var(--cc-ash)] transition-colors hover:text-[color:var(--cc-ink)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[13px] font-medium text-[color:var(--cc-ash)] transition-colors hover:text-[color:var(--cc-ink)] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <SkipForward className="h-3 w-3" />
+            <SkipForward className="h-3.5 w-3.5" />
             Skip
           </button>
         </div>
 
-        <button onClick={() => void submit()} disabled={!canSubmit} className="cc-btn cc-btn-primary !py-3">
-          {evaluating ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Evaluating
-            </>
-          ) : (
-            <>
-              Submit answer
-              <CornerDownLeft className="h-3.5 w-3.5" />
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="hidden text-[12px] text-[color:var(--cc-ash)] md:inline">{SUBMIT_KEYS}</span>
+          <button type="button" onClick={() => void submit()} disabled={!canSubmit} className="cc-action w-full sm:w-auto">
+            {evaluating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Scoring your answer
+              </>
+            ) : (
+              <>
+                Submit answer
+                <CornerDownLeft className="h-4 w-4" />
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
