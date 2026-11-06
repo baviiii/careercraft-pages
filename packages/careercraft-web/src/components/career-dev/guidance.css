@@ -1,0 +1,329 @@
+/* Interview Prep → Guidance. Builds on Study's calm paper look (study.css,
+   the .cc-study base and its st-* pieces) and adds what Guidance needs: the
+   coach's read laid out to be read top to bottom, and the roadmap as a route
+   with stops, then a path of phases you open one at a time. Scoped under
+   .cc-guide. */
+
+/* ── The coach's read ──────────────────────────────────────── */
+.cc-guide .gd-lead {
+  max-width: 62ch;
+  font: 600 clamp(20px, 2.2vw, 24px)/1.4 'Bricolage Grotesque', 'Inter', sans-serif;
+  letter-spacing: -0.012em;
+  color: var(--st-ink);
+}
+.cc-guide .gd-assess { display: grid; gap: 12px; }
+@media (min-width: 900px) { .cc-guide .gd-assess { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.cc-guide .gd-assess > div {
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--tone-wash);
+  box-shadow: inset 0 0 0 1px var(--tone-soft);
+  animation: st-rise 0.45s var(--st-ease) both;
+}
+.cc-guide .gd-assess > div:nth-child(2) { animation-delay: 0.08s; }
+.cc-guide .gd-assess > div:nth-child(3) { animation-delay: 0.16s; }
+.cc-guide .gd-assess p:not(.st-label) { margin-top: 8px; font: 15.5px/1.65 'Inter', system-ui, sans-serif; color: var(--st-text); }
+
+.cc-guide .gd-cols { display: grid; gap: 22px; }
+@media (min-width: 900px) { .cc-guide .gd-cols { grid-template-columns: 1fr 1fr; } }
+.cc-guide .gd-list { display: grid; gap: 10px; margin-top: 12px; }
+.cc-guide .gd-item {
+  padding: 15px 17px;
+  border-radius: 14px;
+  background: var(--tone-wash);
+  box-shadow: inset 3px 0 0 var(--tone);
+  animation: st-rise 0.4s var(--st-ease) both;
+}
+.cc-guide .gd-item:nth-child(2) { animation-delay: 0.06s; }
+.cc-guide .gd-item:nth-child(3) { animation-delay: 0.12s; }
+.cc-guide .gd-item:nth-child(n + 4) { animation-delay: 0.18s; }
+.cc-guide .gd-item__title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; font: 600 15.5px/1.45 'Inter', system-ui, sans-serif; color: var(--st-ink); }
+.cc-guide .gd-item__body { margin-top: 5px; font: 15px/1.6 'Inter', system-ui, sans-serif; color: var(--st-text); }
+.cc-guide .gd-pitch {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--tone-soft);
+  font: 14.5px/1.55 'Inter', system-ui, sans-serif;
+  color: var(--tone-deep);
+}
+
+/* Paths they could take: a card each, with how well it fits. */
+.cc-guide .gd-options { display: grid; gap: 14px; }
+@media (min-width: 768px) { .cc-guide .gd-options { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); } }
+.cc-guide .gd-option {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--st-line-strong);
+  border-radius: 18px;
+  background: #fff;
+  transition: transform 0.25s var(--st-ease), box-shadow 0.25s ease;
+  animation: st-rise 0.45s var(--st-ease) both;
+}
+.cc-guide .gd-option:nth-child(2) { animation-delay: 0.08s; }
+.cc-guide .gd-option:nth-child(n + 3) { animation-delay: 0.16s; }
+.cc-guide .gd-option:hover { transform: translateY(-3px); box-shadow: 0 20px 40px -30px rgba(20, 22, 26, 0.45); }
+.cc-guide .gd-option__path { font: 600 17px/1.3 'Bricolage Grotesque', 'Inter', sans-serif; color: var(--st-ink); }
+.cc-guide .gd-fit { display: flex; align-items: center; gap: 10px; }
+.cc-guide .gd-fit__bar { position: relative; flex: 1; height: 8px; overflow: hidden; border-radius: 4px; background: var(--tone-soft); }
+.cc-guide .gd-fit__bar > i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--tone); transform-origin: left; animation: st-grow 0.9s var(--st-ease) both 0.2s; }
+.cc-guide .gd-fit b { font: 700 14px/1 'Bricolage Grotesque', 'Inter', sans-serif; color: var(--tone-deep); white-space: nowrap; }
+.cc-guide .gd-option__meta { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--st-line); font: 14px/1.55 'Inter', system-ui, sans-serif; color: var(--st-soft); }
+.cc-guide .gd-option__meta strong { color: var(--st-ink); font-weight: 600; }
+
+/* The elevator pitch, as something to say out loud. */
+.cc-guide .gd-quote {
+  position: relative;
+  padding: 22px 24px 20px 52px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(42, 82, 204, 0.07), rgba(63, 122, 92, 0.06));
+  font: 500 17px/1.65 'Inter', system-ui, sans-serif;
+  color: var(--st-ink);
+}
+.cc-guide .gd-quote::before {
+  content: "“";
+  position: absolute;
+  top: 6px;
+  left: 16px;
+  font: 700 48px/1 'Bricolage Grotesque', serif;
+  color: var(--cc-rust);
+  opacity: 0.55;
+}
+
+/* Next actions, numbered. */
+.cc-guide .gd-next { display: grid; gap: 10px; counter-reset: gd-next; }
+.cc-guide .gd-next > li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 4px 14px;
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(20, 22, 26, 0.03);
+  counter-increment: gd-next;
+  animation: st-rise 0.4s var(--st-ease) both;
+}
+.cc-guide .gd-next > li::before {
+  content: counter(gd-next);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--cc-rust);
+  font: 700 14px/1 'Bricolage Grotesque', sans-serif;
+  color: #fff;
+}
+.cc-guide .gd-next > li:nth-child(2) { animation-delay: 0.06s; }
+.cc-guide .gd-next > li:nth-child(n + 3) { animation-delay: 0.12s; }
+.cc-guide .gd-next p { padding-top: 4px; font: 15.5px/1.55 'Inter', system-ui, sans-serif; color: var(--st-ink); }
+
+/* ── The roadmap ───────────────────────────────────────────── */
+.cc-guide .gd-north {
+  position: relative;
+  overflow: hidden;
+  padding: 22px 24px 22px 70px;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse 60% 120% at 100% 0%, rgba(180, 135, 44, 0.16), transparent 60%),
+    linear-gradient(135deg, rgba(42, 82, 204, 0.08), rgba(63, 122, 92, 0.07));
+}
+.cc-guide .gd-north__icon {
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--cc-wheat-deep);
+  box-shadow: 0 8px 20px -12px rgba(138, 102, 32, 0.6);
+}
+.cc-guide .gd-north h4 { font: 600 clamp(19px, 2vw, 22px)/1.35 'Bricolage Grotesque', 'Inter', sans-serif; color: var(--st-ink); }
+.cc-guide .gd-north p { margin-top: 6px; max-width: 68ch; font: 16px/1.65 'Inter', system-ui, sans-serif; color: var(--st-text); }
+
+/* The route: every phase as a stop on one line. */
+.cc-guide .gd-route { position: relative; display: flex; gap: 0; overflow-x: auto; padding: 6px 2px 4px; scrollbar-width: none; }
+.cc-guide .gd-route::-webkit-scrollbar { display: none; }
+.cc-guide .gd-stop {
+  position: relative;
+  flex: 1 0 150px;
+  padding: 0 10px 0 0;
+  text-align: left;
+  cursor: pointer;
+}
+.cc-guide .gd-stop::before {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: 36px;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--tone), var(--tone-soft));
+}
+.cc-guide .gd-stop:last-child::before { display: none; }
+.cc-guide .gd-stop__n {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2.5px solid var(--tone);
+  background: #fff;
+  font: 700 15px/1 'Bricolage Grotesque', sans-serif;
+  color: var(--tone-deep);
+  transition: transform 0.3s var(--st-ease), background 0.2s ease, color 0.2s ease;
+}
+.cc-guide .gd-stop:hover .gd-stop__n,
+.cc-guide .gd-stop[aria-current="true"] .gd-stop__n { background: var(--tone); color: #fff; transform: scale(1.08); }
+.cc-guide .gd-stop__weeks { display: block; margin-top: 9px; font: 600 12.5px/1.2 'Inter', system-ui, sans-serif; color: var(--tone-deep); }
+.cc-guide .gd-stop__name { display: block; margin-top: 3px; padding-right: 8px; font: 14px/1.35 'Inter', system-ui, sans-serif; color: var(--st-text); }
+
+/* The phases: a path with a rail, each phase opening on its own. */
+.cc-guide .gd-path { position: relative; display: grid; gap: 14px; }
+.cc-guide .gd-path::before {
+  content: "";
+  position: absolute;
+  top: 26px;
+  bottom: 26px;
+  left: 21px;
+  border-left: 2px dashed var(--st-line-strong);
+}
+.cc-guide .gd-phase { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; scroll-margin-top: 110px; }
+.cc-guide .gd-phase__n {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: 8px;
+  border-radius: 14px;
+  background: var(--tone);
+  font: 700 17px/1 'Bricolage Grotesque', sans-serif;
+  color: #fff;
+  box-shadow: 0 10px 22px -14px var(--tone);
+}
+.cc-guide .gd-phase__card {
+  border: 1px solid var(--st-line-strong);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: inset 0 3px 0 var(--tone);
+  transition: box-shadow 0.3s ease;
+}
+.cc-guide .gd-phase__card > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 14px;
+  align-items: center;
+  padding: 18px 20px;
+  list-style: none;
+  cursor: pointer;
+  border-radius: 18px;
+}
+.cc-guide .gd-phase__card > summary::-webkit-details-marker { display: none; }
+.cc-guide .gd-phase__card > summary:hover { background: var(--tone-wash); }
+.cc-guide .gd-phase__name { font: 600 18px/1.3 'Bricolage Grotesque', 'Inter', sans-serif; color: var(--st-ink); }
+.cc-guide .gd-phase__aim { margin-top: 4px; font: 15px/1.55 'Inter', system-ui, sans-serif; color: var(--st-text); }
+.cc-guide .gd-phase__card[open] .gd-phase__aim { color: var(--st-ink); }
+.cc-guide .gd-phase__chev {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--tone-wash);
+  color: var(--tone-deep);
+  transition: transform 0.35s var(--st-ease);
+}
+.cc-guide .gd-phase__card[open] .gd-phase__chev { transform: rotate(180deg); }
+.cc-guide .gd-phase__body { display: grid; gap: 20px; padding: 2px 20px 22px; animation: st-rise 0.35s var(--st-ease); }
+
+/* What to do in a phase, each with its kind and when it's done. */
+.cc-guide .gd-acts { display: grid; gap: 10px; }
+.cc-guide .gd-act {
+  display: grid;
+  gap: 6px;
+  padding: 13px 15px;
+  border-radius: 14px;
+  background: var(--tone-wash, rgba(20, 22, 26, 0.03));
+}
+.cc-guide .gd-act__what { font: 15.5px/1.55 'Inter', system-ui, sans-serif; color: var(--st-ink); }
+.cc-guide .gd-act__meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 13.5px/1.5 'Inter', system-ui, sans-serif; color: var(--st-soft); }
+.cc-guide .gd-act__meta strong { font-weight: 600; color: var(--st-text); }
+
+.cc-guide .gd-checkpoint {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(63, 122, 92, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(63, 122, 92, 0.22);
+  font: 15px/1.55 'Inter', system-ui, sans-serif;
+  color: var(--st-ink);
+}
+.cc-guide .gd-checkpoint svg { flex: none; margin-top: 3px; color: var(--cc-signal-deep); }
+
+/* Around the phases: the week's rhythm, mock cadence, certificates, risks. */
+.cc-guide .gd-extras { display: grid; gap: 14px; }
+@media (min-width: 900px) { .cc-guide .gd-extras { grid-template-columns: 1fr 1fr; } }
+.cc-guide .gd-box {
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: var(--tone-wash);
+  box-shadow: inset 0 0 0 1px var(--tone-soft);
+}
+.cc-guide .gd-rhythm { display: grid; gap: 9px; margin-top: 12px; }
+.cc-guide .gd-rhythm__row { display: grid; grid-template-columns: 46px minmax(0, 1fr) 56px; gap: 10px; align-items: center; font: 14.5px/1.4 'Inter', system-ui, sans-serif; color: var(--st-text); }
+.cc-guide .gd-rhythm__row b { font: 700 13.5px/1 'Inter', system-ui, sans-serif; color: var(--st-ink); }
+.cc-guide .gd-rhythm__row span:last-child { text-align: right; font: 12.5px/1 'JetBrains Mono', monospace; color: var(--st-soft); }
+.cc-guide .gd-rhythm__bar { display: block; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--tone); opacity: 0.55; }
+.cc-guide .gd-big { font: 600 40px/1 'Bricolage Grotesque', 'Inter', sans-serif; letter-spacing: -0.03em; color: var(--tone-deep); }
+.cc-guide .gd-certs { display: grid; gap: 10px; margin-top: 12px; }
+.cc-guide .gd-cert { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start; }
+.cc-guide .gd-cert p { font: 14.5px/1.5 'Inter', system-ui, sans-serif; color: var(--st-text); }
+.cc-guide .gd-cert p strong { color: var(--st-ink); }
+.cc-guide .gd-risks { display: grid; gap: 10px; margin-top: 12px; }
+.cc-guide .gd-risk p:first-child { font: 600 15px/1.45 'Inter', system-ui, sans-serif; color: var(--st-ink); }
+.cc-guide .gd-risk p + p { margin-top: 3px; font: 14.5px/1.55 'Inter', system-ui, sans-serif; color: var(--st-text); }
+
+/* A soft field to write a question in. */
+.cc-guide .gd-ask {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  padding: 14px 16px;
+  border: 1px solid var(--st-line-strong);
+  border-radius: 14px;
+  background: var(--cc-cream);
+  font: 16px/1.6 'Inter', system-ui, sans-serif;
+  color: var(--st-ink);
+  resize: vertical;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.cc-guide .gd-ask::placeholder { color: var(--st-meta); }
+.cc-guide .gd-ask:focus { outline: none; border-color: var(--cc-rust); background: #fff; }
+
+@media (max-width: 640px) {
+  .cc-guide .gd-phase { grid-template-columns: 34px minmax(0, 1fr); gap: 10px; }
+  .cc-guide .gd-phase__n { width: 34px; height: 34px; border-radius: 11px; font-size: 15px; }
+  .cc-guide .gd-path::before { left: 16px; }
+  .cc-guide .gd-phase__card > summary { padding: 16px; }
+  .cc-guide .gd-phase__body { padding: 2px 16px 18px; }
+  .cc-guide .gd-north { padding: 20px 18px 20px 62px; }
+  .cc-guide .gd-quote { padding: 20px 18px 18px 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-guide .gd-option:hover,
+  .cc-guide .gd-stop:hover .gd-stop__n,
+  .cc-guide .gd-stop[aria-current="true"] .gd-stop__n { transform: none; }
+}
