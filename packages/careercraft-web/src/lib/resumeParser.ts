@@ -4,7 +4,13 @@ import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 import mammoth from 'mammoth';
 import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
 
-import { type AIResumeData, mapEdgeParsedToAIResumeData, parseResumeTextWithAI, readFunctionsError } from './resumeParseApi';
+import {
+  type AIResumeData,
+  mapEdgeParsedToAIResumeData,
+  parseFailureMessage,
+  parseResumeTextWithAI,
+  readFunctionsError,
+} from './resumeParseApi';
 
 // Text parsing lives in resumeParseApi.ts; re-exported so existing imports keep working.
 export { formatResumeDataAsText } from './resumeParseApi';
@@ -106,28 +112,36 @@ async function invokeParseResumeVision(
     formData.append('pageImages', JSON.stringify(pageImages));
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/parse-resume`, {
-    method: 'POST',
-    headers: await getResumeParseAuthHeaders(),
-    body: formData,
-  });
+  const headers = await getResumeParseAuthHeaders();
+  let response: Response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/functions/v1/parse-resume`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+  } catch {
+    throw new Error("Couldn't reach Faircopy. Check your connection and try again.");
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
+    // Only parse-resume's own JSON is ever shown. A plain-text or HTML page
+    // (from the gateway in front of it, say) is logged, never displayed.
     let errorData: { error?: string } = {};
     try {
       errorData = JSON.parse(errorText);
     } catch {
-      errorData = { error: errorText };
+      console.error('[parse-resume] non-JSON error', response.status, errorText.slice(0, 300));
     }
-    throw new Error(errorData.error || `Failed to parse resume (${response.status})`);
+    throw new Error(parseFailureMessage('file', response.status, errorData));
   }
 
   const data = await response.json();
   if (onProgress) onProgress(90);
 
   if (!data.success || !data.parsed) {
-    throw new Error(data.error || 'AI parsing failed');
+    throw new Error(parseFailureMessage('file', undefined, data));
   }
 
   console.log(`✅ Resume parsed via ${data.extractionRoute ?? 'vision'}`);

@@ -225,15 +225,37 @@ async function invokeParseResumeJson(body: {
 
   if (error) {
     const bodyErr = await readFunctionsError(error);
-    throw new Error(bodyErr?.error || error.message || 'AI parsing failed');
+    const status = (error as { context?: Response }).context?.status;
+    throw new Error(parseFailureMessage('text', status, bodyErr));
   }
 
   if (!data?.success || !data?.parsed) {
-    throw new Error(data?.error || 'AI parsing returned no result');
+    throw new Error(parseFailureMessage('text', undefined, data ?? null));
   }
 
   console.log(`✅ Resume parsed via ${data.extractionRoute ?? 'text'}`);
   return mapEdgeParsedToAIResumeData(data.parsed);
+}
+
+/**
+ * The sentence a person sees when a résumé can't be read. parse-resume's own
+ * 4xx messages are written for people (file too big, sign in, out of quota,
+ * blocked) and pass through. A 5xx is our failure — the model's answer didn't
+ * fit the résumé's shape, or the AI was down — and its text is for
+ * developers, so it goes to the console and the person gets one plain line.
+ */
+export function parseFailureMessage(
+  kind: 'file' | 'text',
+  status: number | undefined,
+  body: { error?: string } | null,
+): string {
+  if (status !== undefined && status < 500 && typeof body?.error === 'string' && body.error.trim()) {
+    return body.error;
+  }
+  console.error('[parse-resume] failed', status ?? 'no response', body?.error ?? '');
+  return kind === 'file'
+    ? "We couldn't read that résumé this time. Please try again, or try another file."
+    : "We couldn't read that résumé text this time. Please try again.";
 }
 
 export async function readFunctionsError(error: unknown): Promise<{ error?: string } | null> {
