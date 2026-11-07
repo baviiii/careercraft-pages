@@ -11,9 +11,9 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 import { z } from "npm:zod@3";
-import { zodToJsonSchema } from "npm:zod-to-json-schema@3";
 
 import { AU_PARSING_RULES } from "../_shared/ai/au-context.ts";
+import { PARSED_RESUME_JSON_SCHEMA, ParsedResumeSchema, type ParsedResume } from "./schema.ts";
 import { horusGenerateObject, type HorusContentPart } from "../_shared/ai/horus.ts";
 import { UnauthorizedError, ValidationError } from "../_shared/ai/errors.ts";
 import { meterFromQuota, systemMeter, type MeterContext } from "../_shared/ai/meter.ts";
@@ -23,94 +23,6 @@ import { optionalUser } from "../_shared/http/auth.ts";
 import { enforcePlanQuota } from "../_shared/db/plan-quota.ts";
 import { enforceAnonymousWindowLimit } from "../_shared/db/rate-limit.ts";
 
-
-const ParsedResumeSchema = z.object({
-  personalInfo: z.object({
-    fullName: z.string().nullable(),
-    email: z.string().nullable(),
-    phone: z.string().nullable(),
-    location: z.string().nullable().describe("city, state/country"),
-    linkedin: z.string().nullable(),
-    website: z.string().nullable(),
-    summary: z.string().nullable().describe("Professional summary / objective text"),
-  }),
-  workExperience: z.array(z.object({
-    company: z.string(),
-    title: z.string(),
-    location: z.string().nullable(),
-    startDate: z.string().nullable().describe("YYYY-MM or YYYY"),
-    endDate: z.string().nullable().describe("YYYY-MM or YYYY; null when current"),
-    current: z.boolean(),
-    bullets: z.array(z.string()).default([]),
-  })).default([]),
-  education: z.array(z.object({
-    institution: z.string(),
-    degree: z.string(),
-    field: z.string().nullable(),
-    startDate: z.string().nullable(),
-    endDate: z.string().nullable(),
-    gpa: z.string().nullable(),
-    achievements: z.array(z.string()).default([]),
-  })).default([]),
-  skills: z.array(z.object({
-    category: z.string(),
-    items: z.array(z.string()),
-  })).default([]),
-  certifications: z.array(z.object({
-    name: z.string(),
-    issuer: z.string().nullable(),
-    date: z.string().nullable(),
-    expiryDate: z.string().nullable(),
-  })).default([]),
-  languages: z.array(z.object({
-    language: z.string(),
-    proficiency: z.string().nullable(),
-  })).default([]),
-  projects: z.array(z.object({
-    name: z.string(),
-    description: z.string().nullable(),
-    technologies: z.array(z.string()).default([]),
-    url: z.string().nullable(),
-  })).default([]),
-  references: z.array(z.object({
-    name: z.string(),
-    title: z.string().nullable(),
-    company: z.string().nullable(),
-    phone: z.string().nullable(),
-    email: z.string().nullable(),
-    relationship: z.string().nullable(),
-  })).default([]),
-  awards: z.array(z.object({
-    title: z.string(),
-    issuer: z.string().nullable(),
-    date: z.string().nullable(),
-    description: z.string().nullable(),
-  })).default([]),
-  volunteer: z.array(z.object({
-    role: z.string(),
-    organization: z.string(),
-    location: z.string().nullable(),
-    startDate: z.string().nullable(),
-    endDate: z.string().nullable(),
-    current: z.boolean(),
-    description: z.string().nullable(),
-  })).default([]),
-  publications: z.array(z.object({
-    title: z.string(),
-    publisher: z.string().nullable(),
-    date: z.string().nullable(),
-    url: z.string().nullable(),
-    description: z.string().nullable(),
-  })).default([]),
-  confidence: z.number().min(0).max(1),
-});
-
-/* Sent with every parse, so the model fills exactly this shape instead of
-   "some JSON object" — with no shape, a long answer can stop after its first
-   section. The zod schema still checks what comes back. */
-const { $schema: _draft, ...PARSED_RESUME_JSON_SCHEMA } = zodToJsonSchema(ParsedResumeSchema, {
-  $refStrategy: "none",
-}) as Record<string, unknown>;
 
 const JsonBodySchema = z.object({
   rawText: z.string().min(1).max(60_000),
@@ -167,7 +79,6 @@ Confidence (0-1): rate honestly —
   0.5–0.7 complex layout but mostly readable
   below 0.5 blurry scan, heavy graphics hiding text, or illegible sections`;
 
-type ParsedResume = z.infer<typeof ParsedResumeSchema>;
 type ExtractionRoute = "text" | "vision";
 
 /* What bounds the spend of one request. horusInfer enforces both the token
