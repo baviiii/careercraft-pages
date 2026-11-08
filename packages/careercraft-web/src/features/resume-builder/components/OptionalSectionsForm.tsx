@@ -3,7 +3,7 @@
    résumé once something is in it. */
 
 import { Plus, Trash2 } from "lucide-react";
-import type { Dispatch, SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 import { CraftButton } from "@/components/craft/AppPrimitives";
 
@@ -154,18 +154,10 @@ export const OptionalSectionsForm = ({
                   />
                 </LabelledField>
                 <LabelledField label="Tools used" hint="Separate them with commas.">
-                  <CraftInput
-                    value={(p.technologies || []).join(", ")}
-                    onChange={(e) =>
-                      updateItem(
-                        "projects",
-                        p.id,
-                        "technologies",
-                        e.target.value
-                          .split(",")
-                          .map((s) => s.trim())
-                          .filter(Boolean)
-                      )
+                  <CommaListInput
+                    value={p.technologies || []}
+                    onChange={(next) =>
+                      updateItem("projects", p.id, "technologies", next)
                     }
                     placeholder="e.g. Excel, Canva, Python"
                   />
@@ -612,6 +604,46 @@ export const OptionalSectionsForm = ({
         />
       </CraftSection>
     </div>
+  );
+};
+
+const parseList = (text: string) =>
+  text
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+const sameList = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((s, i) => s === b[i]);
+
+/* A list typed as comma-separated text. The box keeps the text as typed and
+   the list is parsed from it: rebuilding the text from the list on every
+   keystroke dropped a comma or space the moment it was typed. A list changed
+   from outside (an import, an AI rewrite) replaces the text. */
+const CommaListInput = ({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) => {
+  const [text, setText] = useState(() => value.join(", "));
+  const [seen, setSeen] = useState(value);
+  if (!sameList(value, seen)) {
+    setSeen(value);
+    if (!sameList(parseList(text), value)) setText(value.join(", "));
+  }
+  return (
+    <CraftInput
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(parseList(e.target.value));
+      }}
+      placeholder={placeholder}
+    />
   );
 };
 
