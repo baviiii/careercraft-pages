@@ -237,7 +237,13 @@ const ATS_ANALYSIS_SHAPE = `OUTPUT — respond with a single JSON object in exac
     "advancedOptimizations": string[]
   },
   "summary": { "topStrengths": string[], "topWeaknesses": string[], "mostImportantFixes": string[], "overallVerdict": string }
-}`;
+}
+
+LENGTH — the whole answer has to fit one reply, so keep to these limits and put the most important items first:
+- Each keyword or skill list: at most 15 items, a few words each. The exception is resumeKeywords.matched: list every jobRequirements item the résumé meets, worded exactly as in jobRequirements, up to 30.
+- redFlags: at most 8. quickFixes: at most 8. strongEnhancements: at most 5. advancedOptimizations: at most 5.
+- topStrengths, topWeaknesses, mostImportantFixes: at most 5 each.
+- Every description, fix, impact and verdict: one or two short sentences. "current" quotes the résumé line as written; "improved" is one rewritten line, not a paragraph.`;
 
 const StructuredResumeSchema = z.object({
   contact: z.record(z.any()),
@@ -1007,7 +1013,10 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         model: tier,
         meter,
         temperature: 0.3,
-        maxTokens: 6000,
+        // Claude writes longer analyses than the old Azure model did, and at
+        // 6,000 a long résumé ran out mid-answer. The LENGTH limits in the
+        // shape keep it well under this; 8,000 is the Free plan's per-call cap.
+        maxTokens: 8000,
       });
       return json({ analysis: analysisResult });
     } else if (analysisType === "rewrite-structured") {
