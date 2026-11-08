@@ -242,3 +242,45 @@
 /* How to prepare and what it opens, tinted in the step's colour. */
 .cc-cert .cc-cert-step[class*="cc-cert-tone-"] .cc-cert-split > div { background: var(--ct-wash); box-shadow: inset 0 0 0 1px var(--ct-soft); }
 .cc-cert .cc-cert-step[class*="cc-cert-tone-"] .cc-cert-split .cc-cert-label { color: var(--ct-deep); }
+
+/* ── Small logos in the review, and the certifications on record ── */
+.cc-cert .cc-cert-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 0;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--cc-hair);
+  vertical-align: -6px;
+}
+.cc-cert .cc-cert-mark img { width: 16px; height: 16px; object-fit: contain; }
+.cc-cert .cc-cert-gap__title .cc-cert-mark { margin-right: 8px; }
+
+.cc-cert .cc-cert-held { display: grid; gap: 12px; }
+@media (min-width: 900px) { .cc-cert .cc-cert-held { grid-template-columns: 1fr 1fr; } }
+.cc-cert .cc-cert-held__item {
+  display: flex;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--cc-cream) 70%, #fff);
+  box-shadow: inset 0 0 0 1px var(--cc-hair);
+  animation: cc-cert-rise 0.4s cubic-bezier(.2, .8, .2, 1) both;
+}
+.cc-cert .cc-cert-held__item:nth-child(2) { animation-delay: 0.06s; }
+.cc-cert .cc-cert-held__item:nth-child(n + 3) { animation-delay: 0.12s; }
+.cc-cert .cc-cert-status {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font: 600 12.5px/1.3 'Inter', system-ui, sans-serif;
+  background: rgba(20, 22, 26, 0.06);
+  color: var(--cc-ink-soft);
+}
+.cc-cert .cc-cert-status.is-good { background: rgba(63, 122, 92, 0.14); color: var(--cc-signal-deep); }
+.cc-cert .cc-cert-status.is-soon { background: rgba(180, 135, 44, 0.16); color: var(--cc-wheat-deep); }
+.cc-cert .cc-cert-status.is-gone { background: rgba(156, 52, 36, 0.12); color: #9C3424; }

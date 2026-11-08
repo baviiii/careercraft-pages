@@ -104,10 +104,10 @@ function asText(v: unknown): string {
 
 /* ── Who awards it, as a logo ─────────────────────────────────────────────── */
 
-/** Awarding bodies we know, for when the coach didn't name a website. */
+/** Awarding bodies (and a few tools) we know, for when the coach didn't name a website. */
 const ISSUER_SITES: Array<[RegExp, string]> = [
   [/amazon web services|\baws\b/i, "aws.amazon.com"],
-  [/microsoft|azure/i, "microsoft.com"],
+  [/microsoft|azure|\b(?:az|dp|ai|pl|sc|ms|md|mb)-\d{3}\b|power bi|\bfabric\b/i, "microsoft.com"],
   [/google/i, "cloud.google.com"],
   [/comptia/i, "comptia.org"],
   [/cisco/i, "cisco.com"],
@@ -127,16 +127,36 @@ const ISSUER_SITES: Array<[RegExp, string]> = [
   [/ahpra|nursing and midwifery board/i, "ahpra.gov.au"],
   [/cpa australia/i, "cpaaustralia.com.au"],
   [/chartered accountants/i, "charteredaccountantsanz.com"],
+  [/\bpython\b/i, "python.org"],
+  [/mlflow/i, "mlflow.org"],
+  [/coursera/i, "coursera.org"],
+  [/\bedx\b/i, "edx.org"],
+  [/nvidia/i, "nvidia.com"],
+  [/\bibm\b/i, "ibm.com"],
+  [/supabase/i, "supabase.com"],
+  [/splunk/i, "splunk.com"],
+  [/openai/i, "openai.com"],
 ];
 
 const DOMAIN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
+/** The body or tool a piece of text names first ("AZ-104 … or Google Cloud …" → Microsoft). */
+function vendorSite(text: string): string | null {
+  let best: { at: number; site: string } | null = null;
+  for (const [re, site] of ISSUER_SITES) {
+    const m = re.exec(text);
+    if (m && (!best || m.index < best.at)) best = { at: m.index, site };
+  }
+  return best?.site ?? null;
+}
+
 function issuerSite(issuer: string, name: string, given?: string | null): string | null {
   const d = (given ?? "").trim().toLowerCase();
   if (DOMAIN.test(d) && d.length <= 100) return d;
-  for (const [re, site] of ISSUER_SITES) if (re.test(issuer) || re.test(name)) return site;
-  return null;
+  return vendorSite(issuer) ?? vendorSite(name);
 }
+
+const logoUrl = (domain: string) => `https://icons.duckduckgo.com/ip3/${domain}.ico`;
 
 /** "Amazon Web Services" → "AW"; "CompTIA" → "CO". */
 function initials(text: string): string {
@@ -157,15 +177,33 @@ function IssuerLogo({ issuer, name, domain }: { issuer: string; name: string; do
   }
   return (
     <span className="cc-cert-logo" aria-hidden>
-      <img
-        src={`https://icons.duckduckgo.com/ip3/${domain}.ico`}
-        alt=""
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
-      />
+      <img src={logoUrl(domain)} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
     </span>
   );
+}
+
+/** A small logo for whatever body or tool a line of the review names; nothing when it names none. */
+function VendorMark({ text }: { text: string }) {
+  const [failed, setFailed] = useState(false);
+  const domain = vendorSite(text);
+  if (!domain || failed) return null;
+  return (
+    <span className="cc-cert-mark" aria-hidden>
+      <img src={logoUrl(domain)} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+    </span>
+  );
+}
+
+const STATUS: Record<string, { label: string; tone: string }> = {
+  active: { label: "Current", tone: "is-good" },
+  expiring_soon: { label: "Expiring soon", tone: "is-soon" },
+  expired: { label: "Expired", tone: "is-gone" },
+};
+
+function shortDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
 const VALUE_LEVEL: Record<string, number> = { high: 3, medium: 2, low: 1 };
@@ -427,8 +465,13 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
             <section className="cc-surface p-6 md:p-7">
               <p className="cc-cert-label">New</p>
-              <h3 className="cc-cert-h mt-2 flex items-center gap-2 text-[22px]">
-                <BadgeCheck className="h-5 w-5 text-[color:var(--cc-rust)]" aria-hidden /> Log a certification
+              <h3 className="cc-cert-h mt-2 flex items-center gap-3 text-[22px]">
+                {issuerSite(logIssuer, logName) ? (
+                  <IssuerLogo issuer={logIssuer} name={logName} domain={issuerSite(logIssuer, logName)} />
+                ) : (
+                  <BadgeCheck className="h-5 w-5 text-[color:var(--cc-rust)]" aria-hidden />
+                )}
+                Log a certification
               </h3>
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
@@ -526,6 +569,47 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
               </section>
             )}
 
+            {/* On record: what they hold, each with who awards it. */}
+            {held.length > 0 && (
+              <Section label="On record" title={held.length === 1 ? "Your certification" : `Your ${held.length} certifications`}>
+                <ul className="cc-cert-held">
+                  {held.map((c, i) => {
+                    const status = STATUS[c.status] ?? { label: c.status, tone: "" };
+                    const expires = shortDate(c.expiryDate);
+                    return (
+                      <li key={`${c.name}-${i}`} className="cc-cert-held__item">
+                        <IssuerLogo issuer={c.issuer ?? ""} name={c.name} domain={issuerSite(c.issuer ?? "", c.name)} />
+                        <div className="min-w-0 flex-1">
+                          {c.issuer && <p className="cc-cert-issuer">{c.issuer}</p>}
+                          <p className="font-semibold leading-snug text-[color:var(--cc-ink)]">{c.name}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className={`cc-cert-status ${status.tone}`}>{status.label}</span>
+                            {expires && (
+                              <span className="text-[13px] text-[color:var(--cc-ink-soft)]">
+                                {c.status === "expired" ? "Expired" : "Expires"} {expires}
+                              </span>
+                            )}
+                            {!c.recognized && (
+                              <span className="text-[13px] text-[color:var(--cc-ash)]">Not in our catalog yet</span>
+                            )}
+                          </div>
+                          {(c.skillsVouchedFor?.length ?? 0) > 0 && (
+                            <div className="mt-2.5 flex flex-wrap gap-1.5">
+                              {c.skillsVouchedFor.map((s) => (
+                                <span key={s} className="cc-cert-chip">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Section>
+            )}
+
             {/* Coverage: a checklist against the job. */}
             {requirementCount > 0 && (
               <Section
@@ -553,6 +637,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                             <span className={`cc-cert-box ${on ? "is-on" : ""}`} aria-hidden>
                               {on && <Check className="h-3 w-3" strokeWidth={3} />}
                             </span>
+                            <VendorMark text={text} />
                             <span className={on ? "cc-cert-hl" : undefined}>
                               <Inline text={text} />
                             </span>
@@ -578,6 +663,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                         {lead ? (
                           <>
                             <span className="cc-cert-gap__title">
+                              <VendorMark text={lead} />
                               <Inline text={lead} />
                             </span>
                             {rest && (
@@ -607,7 +693,10 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                       {analysis.marketValue.map((m, i) => (
                         <li key={i} className={`py-3 ${i ? "border-t border-[color:var(--cc-hair)]" : ""}`}>
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-semibold text-[color:var(--cc-ink)]">{m.certification}</p>
+                            <p className="flex items-center gap-2 font-semibold text-[color:var(--cc-ink)]">
+                              <VendorMark text={m.certification} />
+                              {m.certification}
+                            </p>
                             <ValueDots value={m.value} />
                           </div>
                           <p className="mt-1 text-[14.5px] leading-relaxed text-[color:var(--cc-ink-soft)]">
@@ -623,7 +712,10 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                     <ul className="space-y-3">
                       {analysis.interviewTalkingPoints.map((t, i) => (
                         <li key={i} className="rounded-[0.9rem] border-l-2 border-[color:var(--cc-rust)] bg-[color:var(--cc-cream)] px-4 py-3">
-                          <p className="cc-cert-label !text-[10px]">{t.certification}</p>
+                          <p className="cc-cert-label flex items-center gap-2 !text-[10px]">
+                            <VendorMark text={t.certification} />
+                            {t.certification}
+                          </p>
                           <p className="mt-1.5 text-[15px] leading-relaxed text-[color:var(--cc-ink)]">
                             “<Inline text={t.talkingPoint} />”
                           </p>
