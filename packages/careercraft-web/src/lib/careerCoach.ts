@@ -132,7 +132,10 @@ export interface CertificationPlan {
     whyThisOne: string;
     prepPlan: string;
     estimatedWeeks: number | null;
-    examCostUsd: number | null;
+    /** What it costs in Australia, in Australian dollars. */
+    examCostAud?: number | null;
+    /** Plans saved before costs were in AUD. */
+    examCostUsd?: number | null;
     /** The cost is the coach's knowledge, not the catalog's. */
     costIsEstimate?: boolean;
     roi: string;
@@ -443,7 +446,8 @@ export const careerCoach = {
   async recommendCertifications(input: {
     targetField?: string;
     seniority?: string;
-    budgetUsd?: number;
+    /** Australian dollars. */
+    budgetAud?: number;
     hoursPerWeek?: number;
     count?: number;
   } = {}): Promise<{ plan: CertificationPlan; topPickProof: Proof | null; recommendationId: string | null }> {

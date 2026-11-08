@@ -245,7 +245,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
       const r = await careerCoach.recommendCertifications({
         targetField: targetField || undefined,
         seniority: level || undefined,
-        budgetUsd: budget ? Number(budget) : undefined,
+        budgetAud: budget ? Number(budget) : undefined,
         hoursPerWeek,
         count: 3,
       });
@@ -657,7 +657,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
             <label className="flex items-center gap-2 text-sm text-[color:var(--cc-ink-soft)]">
               Budget
               <span className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[color:var(--cc-ash)]">US$</span>
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[color:var(--cc-ash)]">A$</span>
                 <Input
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
@@ -721,8 +721,17 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
             <ol className="cc-cert-path">
               {recs.map((r, i) => {
                 const range = ranges[i];
-                const costValue = Number(r.examCostUsd);
-                const cost = Number.isFinite(costValue) && costValue > 0 ? `US$${Math.round(costValue)}` : null;
+                // Australian dollars; a plan saved before that still says US$.
+                const aud = Number(r.examCostAud);
+                const usd = Number(r.examCostUsd);
+                const cost =
+                  Number.isFinite(aud) && aud > 0
+                    ? `A$${Math.round(aud)}`
+                    : Number.isFinite(usd) && usd > 0
+                      ? `US$${Math.round(usd)}`
+                      : null;
+                // Catalog prices are converted from US list prices, so they're "about" too.
+                const converted = cost?.startsWith("A$") && !r.costIsEstimate;
                 return (
                   <li key={`${r.certificationId || r.name}-${i}`} className={`cc-cert-step cc-cert-tone-${(i % 3) + 1}`}>
                     <span className="cc-cert-step__n" aria-hidden>
@@ -747,7 +756,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                         )}
                         {cost && (
                           <span className={`cc-cert-chip ${r.costIsEstimate ? "cc-cert-chip--estimate" : "cc-cert-chip--cost"}`}>
-                            {r.costIsEstimate ? `Exam about ${cost} · estimate` : `Exam ${cost}`}
+                            {r.costIsEstimate ? `Exam about ${cost} · estimate` : converted ? `Exam about ${cost}` : `Exam ${cost}`}
                           </span>
                         )}
                       </div>
