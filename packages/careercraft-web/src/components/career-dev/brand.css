@@ -1,0 +1,38 @@
+/* Company and tool logos (BrandLogo.tsx). A tile for an awarding body, its
+   initials in the surrounding tone (--brand-soft / --brand-deep) when there's
+   no logo; a small mark beside a line of text or a skill. */
+
+.cc-brand-logo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--cc-hair), 0 8px 18px -14px rgba(20, 22, 26, 0.5);
+}
+.cc-brand-logo img { width: 28px; height: 28px; object-fit: contain; }
+.cc-brand-logo--initials {
+  background: var(--brand-soft, var(--cc-rust-soft));
+  box-shadow: none;
+  font: 700 15px/1 'Bricolage Grotesque', 'Inter', sans-serif;
+  color: var(--brand-deep, var(--cc-rust-deep));
+}
+
+.cc-brand-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--cc-hair);
+  vertical-align: -6px;
+}
+.cc-brand-mark img { width: 16px; height: 16px; object-fit: contain; }
+.cc-brand-mark--sm { width: 20px; height: 20px; border-radius: 6px; vertical-align: -5px; }
+.cc-brand-mark--sm img { width: 13px; height: 13px; }
