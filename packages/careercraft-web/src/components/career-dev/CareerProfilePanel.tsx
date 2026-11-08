@@ -31,7 +31,6 @@ import {
   CoachUnavailableError,
   type CareerProfile,
 } from "@/lib/careerCoach";
-import { issuerSite } from "@/lib/brandLogos";
 import { BrandLogo, BrandMark } from "./BrandLogo";
 import { CertStatusBadge, CoachNotConnected, EmptyState, ProficiencyBar, SectionHeader } from "./shared";
 
@@ -286,7 +285,7 @@ export default function CareerProfilePanel({ onNavigate }: { onNavigate?: (tab: 
             {profile.certifications.map((c, i) => (
               <div key={i} className="flex items-start justify-between gap-3 p-3 bg-muted/50 rounded-lg">
                 <div className="flex min-w-0 items-start gap-3">
-                  <BrandLogo issuer={c.issuer ?? ""} name={c.name} domain={issuerSite(c.issuer ?? "", c.name)} />
+                  <BrandLogo issuer={c.issuer ?? ""} name={c.name} />
                   <div className="min-w-0">
                     <p className="font-medium text-sm">{c.name}</p>
                     <p className="text-xs text-muted-foreground">

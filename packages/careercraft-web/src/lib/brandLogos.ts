@@ -1,13 +1,21 @@
 /**
- * Which company or tool a piece of text names, as a website whose small icon
- * we can show: "AZ-104" → microsoft.com, "Terraform" → hashicorp.com,
- * "PostgreSQL" → postgresql.org.
+ * Which organisation a skill, certification, tool or line of advice is about,
+ * as a website whose small icon we can show.
+ *
+ * The coach answers that for any field (useBrandSite below): nursing
+ * registration → ahpra.gov.au, CPA → cpaaustralia.com.au. Names on a page are
+ * asked about together, once, and the answers kept in this browser for 30
+ * days. The list here is only the backup: it shows a logo straight away for
+ * well-known names while the coach answers, and when the coach can't.
  *
  * The icon itself comes from DuckDuckGo's icon service, which is sent only
  * the website's address (the privacy page says so). Nothing recognised means
  * no logo: initials where a tile must show something, nothing in a line of
  * text. Patterns match whole words, so "Java" never matches "JavaScript".
  */
+import { useEffect, useSyncExternalStore } from "react";
+
+import { careerCoach, CAREER_COACH_AVAILABLE } from "@/lib/careerCoach";
 
 const BRANDS: Array<[RegExp, string]> = [
   // Awarding bodies and the platforms their exams cover.
@@ -103,11 +111,111 @@ export function brandSite(text: string | null | undefined): string | null {
   return best?.site ?? null;
 }
 
-/** An awarding body's website: the one the coach named if it's a plain domain, else from the name. */
-export function issuerSite(issuer: string, name: string, given?: string | null): string | null {
+/** A website the coach gave, if it's a plain domain. */
+export function validDomain(given: string | null | undefined): string | null {
   const d = (given ?? "").trim().toLowerCase();
-  if (DOMAIN.test(d) && d.length <= 100) return d;
-  return brandSite(issuer) ?? brandSite(name);
+  return DOMAIN.test(d) && d.length <= 100 ? d : null;
+}
+
+/** An awarding body's website: the one the coach named if it's a plain domain, else from the list. */
+export function issuerSite(issuer: string, name: string, given?: string | null): string | null {
+  return validDomain(given) ?? brandSite(issuer) ?? brandSite(name);
+}
+
+/* ── Asking the coach ─────────────────────────────────────────────────────── */
+
+const STORE_KEY = "faircopy.brandSites";
+const KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_KEPT = 800;
+
+type Entry = { d: string | null; t: number };
+
+/** How a name is filed: trimmed, spaces collapsed, lower case (the coach files it the same way). */
+const keyOf = (text: string) => text.trim().replace(/\s+/g, " ").toLowerCase().slice(0, 300);
+
+function load(): Record<string, Entry> {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(STORE_KEY) ?? "{}") as Record<string, Entry>;
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(raw).filter(([, e]) => e && now - e.t < KEEP_MS));
+  } catch {
+    return {};
+  }
+}
+
+let store: Record<string, Entry> | null = null;
+const known = () => (store ??= load());
+
+function save(): void {
+  try {
+    const newest = Object.entries(known())
+      .sort((a, b) => b[1].t - a[1].t)
+      .slice(0, MAX_KEPT);
+    window.localStorage.setItem(STORE_KEY, JSON.stringify(Object.fromEntries(newest)));
+  } catch {
+    /* storage blocked: the coach is just asked again next visit */
+  }
+}
+
+let version = 0;
+const listeners = new Set<() => void>();
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+};
+const getVersion = () => version;
+
+const queued = new Map<string, string>();
+const asking = new Set<string>();
+let timer: ReturnType<typeof setTimeout> | null = null;
+
+/** Queue a name; everything queued in the same moment goes in one request (40 at most). */
+function ask(text: string): void {
+  const key = keyOf(text);
+  if (!key || !CAREER_COACH_AVAILABLE) return;
+  const hit = known()[key];
+  if ((hit && Date.now() - hit.t < KEEP_MS) || asking.has(key) || queued.has(key)) return;
+  queued.set(key, text.trim().slice(0, 300));
+  timer ??= setTimeout(flush, 80);
+}
+
+async function flush(): Promise<void> {
+  timer = null;
+  const batch = [...queued.entries()].slice(0, 40);
+  batch.forEach(([key]) => {
+    queued.delete(key);
+    asking.add(key);
+  });
+  if (queued.size) timer = setTimeout(flush, 80);
+  try {
+    const { sites } = await careerCoach.brandSites(batch.map(([, name]) => name));
+    const now = Date.now();
+    for (const [key, name] of batch) {
+      if (name in sites) known()[key] = { d: validDomain(sites[name]), t: now };
+    }
+    save();
+    version += 1;
+    listeners.forEach((l) => l());
+  } catch {
+    /* coach unavailable or not signed in: the list stands in, and it's asked again next visit */
+  } finally {
+    batch.forEach(([key]) => asking.delete(key));
+  }
+}
+
+/**
+ * The coach's answer for a name: a website, null for "no organisation", or
+ * undefined while it isn't known yet. Pass null to skip asking.
+ */
+export function useBrandSite(text: string | null | undefined): string | null | undefined {
+  useSyncExternalStore(subscribe, getVersion, getVersion);
+  useEffect(() => {
+    if (text) ask(text);
+  }, [text]);
+  if (!text) return undefined;
+  return known()[keyOf(text)]?.d;
 }
 
 export const logoUrl = (domain: string) => `https://icons.duckduckgo.com/ip3/${domain}.ico`;

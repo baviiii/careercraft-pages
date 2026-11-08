@@ -566,6 +566,11 @@ export const careerCoach = {
     return post("/api/study/videos", input);
   },
 
+  /** The website of the organisation behind each name (skills, certifications, tools), for its logo; null for none. */
+  async brandSites(names: string[]): Promise<{ sites: Record<string, string | null> }> {
+    return post("/api/brand/sites", { names });
+  },
+
   /** Practitioners' discussions and courses or guides for one skill (empty, with a reason, when none are good enough). */
   async skillWebResources(input: { skill: string; field?: string; max?: number }): Promise<SkillWeb> {
     return post("/api/study/web", input);

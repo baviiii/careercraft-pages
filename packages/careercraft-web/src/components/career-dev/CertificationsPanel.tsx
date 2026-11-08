@@ -377,7 +377,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
               <p className="cc-cert-label">New</p>
               <h3 className="cc-cert-h mt-2 flex items-center gap-3 text-[22px]">
                 {issuerSite(logIssuer, logName) ? (
-                  <BrandLogo issuer={logIssuer} name={logName} domain={issuerSite(logIssuer, logName)} />
+                  <BrandLogo issuer={logIssuer} name={logName} ask={false} />
                 ) : (
                   <BadgeCheck className="h-5 w-5 text-[color:var(--cc-rust)]" aria-hidden />
                 )}
@@ -488,7 +488,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                     const expires = shortDate(c.expiryDate);
                     return (
                       <li key={`${c.name}-${i}`} className="cc-cert-held__item">
-                        <BrandLogo issuer={c.issuer ?? ""} name={c.name} domain={issuerSite(c.issuer ?? "", c.name)} />
+                        <BrandLogo issuer={c.issuer ?? ""} name={c.name} />
                         <div className="min-w-0 flex-1">
                           {c.issuer && <p className="cc-cert-issuer">{c.issuer}</p>}
                           <p className="font-semibold leading-snug text-[color:var(--cc-ink)]">{c.name}</p>
@@ -723,7 +723,6 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                 const range = ranges[i];
                 const costValue = Number(r.examCostUsd);
                 const cost = Number.isFinite(costValue) && costValue > 0 ? `US$${Math.round(costValue)}` : null;
-                const site = issuerSite(r.issuer, r.name, r.issuerDomain);
                 return (
                   <li key={`${r.certificationId || r.name}-${i}`} className={`cc-cert-step cc-cert-tone-${(i % 3) + 1}`}>
                     <span className="cc-cert-step__n" aria-hidden>
@@ -731,7 +730,7 @@ export default function CertificationsPanel({ field, level }: { field?: string; 
                     </span>
                     <div className="cc-surface cc-cert-step__card">
                       <div className="flex items-start gap-4">
-                        <BrandLogo issuer={r.issuer} name={r.name} domain={site} />
+                        <BrandLogo issuer={r.issuer} name={r.name} given={r.issuerDomain} />
                         <div className="min-w-0">
                           {r.issuer && <p className="cc-cert-issuer">{r.issuer}</p>}
                           <h4 className="cc-cert-h text-[19px] leading-snug md:text-[21px]">{r.name}</h4>
