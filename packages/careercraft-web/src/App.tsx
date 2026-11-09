@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { applyStoredAccent } from "@/lib/personaTheme";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { AccessGate } from "@/components/AccessGate";
+import { AssistantMount } from "@/features/assistant/AssistantMount";
 
 // Re-apply the persona accent before first paint so returning users see
 // their palette immediately instead of a rust flash.
@@ -101,6 +102,8 @@ function ProtectedLayout() {
   return (
     <RequireAuthAndOnboarding>
       <Outlet />
+      {/* The assistant in the corner of every signed-in page. */}
+      <AssistantMount />
     </RequireAuthAndOnboarding>
   );
 }
