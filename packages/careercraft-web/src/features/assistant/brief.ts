@@ -14,6 +14,7 @@ export interface AssistantNudge {
 }
 
 export interface AssistantBrief {
+  firstName: string;
   hello: string;
   nudge: AssistantNudge | null;
   cheer: string;
@@ -58,6 +59,24 @@ export const CHEERS: string[] = [
   "Showing up is half of it, and you're here.",
 ];
 
+/* The little bubbles Fay says now and then, between the daily hellos.
+   Short enough to read at a glance; clicking one opens her card. */
+export const BUBBLES: string[] = [
+  "You've got this!",
+  "One step at a time.",
+  "Proud of you for showing up.",
+  "Small steps still count.",
+  "Take a breath. You're doing fine.",
+  "Need a hand? Click me.",
+  "Psst, I've got a tip for you.",
+];
+
+/** A random bubble that isn't the one just shown. */
+export function nextBubble(previous: string | null, random: () => number = Math.random): string {
+  const pool = BUBBLES.filter((b) => b !== previous);
+  return pool[Math.floor(random() * pool.length)];
+}
+
 const ACTIVE = new Set(["saved", "applied", "interview"]);
 
 /** A plain "2026-11-12" is a local calendar day; anything else is a timestamp. */
@@ -78,6 +97,14 @@ function whenWord(days: number, value: string): string {
   if (days === 0) return "today";
   if (days === 1) return "tomorrow";
   return `on ${parseDay(value).toLocaleDateString("en-AU", { weekday: "long" })}`;
+}
+
+/** The very first time Fay meets someone, she says who she is. */
+export function introFor(firstName: string): { hello: string; line: string } {
+  return {
+    hello: firstName ? `Hi ${firstName}, I'm Fay!` : "Hi, I'm Fay!",
+    line: "I'll point you to one useful next step each day. Click me any time to get around.",
+  };
 }
 
 export function helloFor(firstName: string, now: Date): string {
@@ -170,6 +197,7 @@ export function pickNudge({ applications, resumes, now }: BriefInput): Assistant
 
 export function buildBrief(input: BriefInput, seed: string): AssistantBrief {
   return {
+    firstName: input.firstName,
     hello: helloFor(input.firstName, input.now),
     nudge: pickNudge(input),
     cheer: cheerFor(seed, input.now),
