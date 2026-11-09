@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isMissingColumn } from "@/lib/schemaLag";
+import { fayReact } from "@/features/assistant/fayBus";
 
 import type {
   ApplicationStatus,
@@ -250,9 +251,10 @@ export function useJobTracker() {
 
   const updateStatus = async (id: string, status: ApplicationStatus) => {
     try {
+      const before = applications.find((a) => a.id === id);
       const patch = {
         status,
-        ...leavingSaved(applications.find((a) => a.id === id)?.status, status),
+        ...leavingSaved(before?.status, status),
       };
       const { error } = await supabase
         .from("job_applications")
@@ -262,6 +264,10 @@ export function useJobTracker() {
       setApplications((prev) =>
         prev.map((a) => (a.id === id ? { ...a, ...patch } : a))
       );
+      // Fay celebrates an interview or offer and comforts on a rejection.
+      if (before && before.status !== status) {
+        fayReact({ kind: "status", status, company: before.company });
+      }
     } catch (error) {
       toast({
         title: "Error",
