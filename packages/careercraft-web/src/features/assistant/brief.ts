@@ -122,18 +122,6 @@ function whenWord(days: number, value: string): string {
 }
 
 /** The very first time Fay meets someone, she says who she is. */
-/** The first real name among the candidates. Some accounts have their email
-    saved as their name, and Fay never greets anyone by that: "You're up
-    late!" reads better than "You're up late, someone@gmail.com!". */
-export function firstNameOf(...candidates: unknown[]): string {
-  for (const c of candidates) {
-    if (typeof c !== "string") continue;
-    const first = c.trim().split(/\s+/)[0] ?? "";
-    if (first && !first.includes("@")) return first;
-  }
-  return "";
-}
-
 export function introFor(firstName: string): { hello: string; line: string } {
   return {
     hello: firstName ? `Hi ${firstName}, I'm Fay!` : "Hi, I'm Fay!",

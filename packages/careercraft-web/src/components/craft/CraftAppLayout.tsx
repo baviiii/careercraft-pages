@@ -11,6 +11,7 @@ import { Menu } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
+import { realNameOf } from "@/lib/names";
 import { CraftGround } from "./CraftGround";
 import { CraftSidebar, CraftSidebarLink } from "./CraftSidebar";
 
@@ -93,7 +94,7 @@ export const CraftAppLayout = memo(function CraftAppLayout({
   }, []);
 
   const userName =
-    session?.user?.user_metadata?.full_name ||
+    realNameOf(session?.user?.user_metadata?.full_name) ||
     session?.user?.email?.split("@")[0] ||
     "";
 

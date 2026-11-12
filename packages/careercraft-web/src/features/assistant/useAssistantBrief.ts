@@ -6,8 +6,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { firstNameOf } from "@/lib/names";
 
-import { buildBrief, firstNameOf, type AssistantBrief } from "./brief";
+import { buildBrief, type AssistantBrief } from "./brief";
 
 export interface AssistantBriefState {
   userId: string | null;

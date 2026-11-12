@@ -41,6 +41,7 @@ import { CraftSidebar, CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSideb
 import { DispatchFeed } from "@/features/dispatch/DispatchFeed";
 import { OnboardingBanner } from "@/features/onboarding/OnboardingBanner";
 import { usePersonalization } from "@/hooks/usePersonalization";
+import { firstNameOf } from "@/lib/names";
 import { clearAccent } from "@/lib/personaTheme";
 
 interface ResumeStats {
@@ -212,12 +213,15 @@ export default function Dashboard() {
 
   const clearDispatches = useCallback(() => setDispatches([]), []);
 
-  const fullName =
-    perso.fullName ||
-    session?.user?.user_metadata?.full_name ||
-    session?.user?.email?.split("@")[0] ||
-    "friend";
-  const userName = fullName.split(" ")[0];
+  // A real first name for the greeting, never an email saved as a name.
+  const userName = firstNameOf(
+    perso.fullName,
+    session?.user?.user_metadata?.full_name,
+    session?.user?.user_metadata?.name,
+    session?.user?.user_metadata?.given_name,
+  );
+  // The sidebar's account box shows something either way, like other pages.
+  const accountName = userName || session?.user?.email?.split("@")[0] || "";
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -260,8 +264,14 @@ export default function Dashboard() {
         eyebrow: "Your workspace",
         title: (
           <>
-            {greeting},{" "}
-            <em className="cc-italic-wonk not-italic text-[color:var(--cc-rust)]">{userName}</em>.
+            {greeting}
+            {userName && (
+              <>
+                ,{" "}
+                <em className="cc-italic-wonk not-italic text-[color:var(--cc-rust)]">{userName}</em>
+              </>
+            )}
+            .
           </>
         ),
         body: "Pick up where you left off — résumés, applications, and market signals in one calm place.",
@@ -433,7 +443,7 @@ export default function Dashboard() {
         onClose={() => setSidebarOpen(false)}
         links={CRAFT_SIDEBAR_LINKS}
         currentPath={location.pathname}
-        userName={userName}
+        userName={accountName}
         userEmail={session?.user?.email || ""}
         onSignOut={handleSignOut}
         navigate={navigate}
