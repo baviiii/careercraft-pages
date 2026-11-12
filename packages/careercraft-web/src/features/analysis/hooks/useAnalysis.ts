@@ -71,6 +71,11 @@ const validateRewriteResult = (
   };
 };
 
+/** The check on screen stays open across visits in this tab: leave the page
+    or refresh, and coming back shows it again. Every check is also kept in
+    ats_checks, the history under the form. */
+export const HELD_CHECK = "atsCheckId";
+
 /* ───────────────── hook ───────────────── */
 
 export function useAnalysis() {
@@ -274,9 +279,13 @@ export function useAnalysis() {
     setQuotaBlock(null);
 
     try {
-      const result = await runATSAIAnalysis(resumeText, jobDescription);
+      const result = await runATSAIAnalysis(resumeText, jobDescription, {
+        resumeId: selectedResumeId,
+        resumeName: fileName,
+      });
       setAnalysis(result);
       setStep("results");
+      if (result.checkId) sessionStorage.setItem(HELD_CHECK, result.checkId);
 
       if (selectedResumeId) {
         await supabase
@@ -313,7 +322,7 @@ export function useAnalysis() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [resumeText, jobDescription, selectedResumeId, toast]);
+  }, [resumeText, jobDescription, selectedResumeId, fileName, toast]);
 
   const handleEnhancement = useCallback(
     async (type: EnhancementType) => {
@@ -344,9 +353,13 @@ export function useAnalysis() {
           try {
             setStep("analyzing");
             setIsAnalyzing(true);
-            const result = await runATSAIAnalysis(resumeText, jobDescription);
+            const result = await runATSAIAnalysis(resumeText, jobDescription, {
+              resumeId: selectedResumeId,
+              resumeName: fileName,
+            });
             setAnalysis(result);
             setStep("results");
+            if (result.checkId) sessionStorage.setItem(HELD_CHECK, result.checkId);
             toast({
               title: "Audit complete",
               description: `The reading: ${result.overallScore} / 100.`,
@@ -497,7 +510,16 @@ export function useAnalysis() {
         setActiveEnhancement(null);
       }
     },
-    [resumeText, jobDescription, analysis, isBuilderResume, parsedResumeData, toast]
+    [
+      resumeText,
+      jobDescription,
+      analysis,
+      isBuilderResume,
+      parsedResumeData,
+      selectedResumeId,
+      fileName,
+      toast,
+    ]
   );
 
   const applyEnhancementAndReanalyze = useCallback(async () => {
@@ -521,8 +543,12 @@ export function useAnalysis() {
         description: "Checking the new reading.",
       });
 
-      const result = await runATSAIAnalysis(newResumeText, jobDescription);
+      const result = await runATSAIAnalysis(newResumeText, jobDescription, {
+        resumeId: selectedResumeId,
+        resumeName: `${fileName || "Résumé"} (rewritten)`,
+      });
       setAnalysis(result);
+      if (result.checkId) sessionStorage.setItem(HELD_CHECK, result.checkId);
 
       if (selectedResumeId) {
         await supabase
@@ -551,6 +577,7 @@ export function useAnalysis() {
     enhancedResumeData,
     jobDescription,
     selectedResumeId,
+    fileName,
     toast,
   ]);
 
@@ -728,6 +755,8 @@ export function useAnalysis() {
     setEnhancementResult("");
     setActiveEnhancement(null);
     setEnhancedResumeData(null);
+    // It's still in the history; it just isn't the one held open any more.
+    sessionStorage.removeItem(HELD_CHECK);
   }, []);
 
   const clearResume = useCallback(() => {
@@ -830,6 +859,80 @@ export function useAnalysis() {
     setEnhancedResumeData(null);
   }, []);
 
+  /* Reopen a past check exactly as it was: its result, plus the résumé text
+     and job ad it was run on (rewrites and the cover letter work from those). */
+  const openCheck = useCallback(
+    async (id: string, { quiet = false }: { quiet?: boolean } = {}) => {
+      const { data: check, error } = await supabase
+        .from("ats_checks")
+        .select("id, resume_id, resume_name, resume_text, job_description, analysis")
+        .eq("id", id)
+        .maybeSingle();
+      if (error || !check) {
+        sessionStorage.removeItem(HELD_CHECK);
+        if (!quiet) {
+          toast({
+            title: "Couldn't open that check",
+            description: "It may have been removed.",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      // The saved résumé it was run on, if any: "Create résumé" and the
+      // Builder work from its structured content.
+      let parsed: AIResumeData | null = null;
+      let templateId: string | null = null;
+      if (check.resume_id) {
+        const { data: resume } = await supabase
+          .from("resumes")
+          .select("content, template_id")
+          .eq("id", check.resume_id)
+          .maybeSingle();
+        try {
+          const content =
+            typeof resume?.content === "string" ? JSON.parse(resume.content) : resume?.content;
+          if (content && typeof content === "object" && "contact" in content) {
+            parsed = content as unknown as AIResumeData;
+          }
+        } catch {
+          /* a plain-text résumé: nothing structured to reuse */
+        }
+        templateId = resume?.template_id ?? null;
+      }
+
+      setAnalysis({ ...(check.analysis as unknown as ATSAIAnalysis), checkId: check.id });
+      setResumeText(check.resume_text);
+      setJobDescription(check.job_description);
+      setFileName(check.resume_name ?? "");
+      setSelectedResumeId(check.resume_id ?? "");
+      setResumeSource(check.resume_id ? "saved" : "upload");
+      setParsedResumeData(parsed);
+      setIsBuilderResume(Boolean(parsed && templateId));
+      setSelectedResumeTemplateId(parsed ? templateId : null);
+      setActiveEnhancement(null);
+      setEnhancementResult("");
+      setEnhancedResumeData(null);
+      setQuotaBlock(null);
+      setActiveResultTab("overview");
+      setStep("results");
+      sessionStorage.setItem(HELD_CHECK, check.id);
+      sessionStorage.setItem("resumeText", check.resume_text);
+      sessionStorage.setItem("jobDescription", check.job_description);
+      sessionStorage.setItem("fileName", check.resume_name ?? "");
+    },
+    [toast]
+  );
+
+  // Coming back to the page shows the check that was open, unless they came
+  // to check a particular résumé (?id=). Once, on arrival.
+  useEffect(() => {
+    const held = sessionStorage.getItem(HELD_CHECK);
+    if (held && !searchParams.get("id")) void openCheck(held, { quiet: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return {
     /* state */
     step,
@@ -896,6 +999,7 @@ export function useAnalysis() {
     goBuilderFromTemplate,
     openSaveFromTemplateDialog,
     clearEnhancement,
+    openCheck,
   };
 }
 

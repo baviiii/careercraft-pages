@@ -17,6 +17,7 @@ import { JobDescriptionInput } from "./components/JobDescriptionInput";
 import { KeywordMatchesPanel } from "./components/KeywordMatchesPanel";
 import { OverviewPanel } from "./components/OverviewPanel";
 import { ReanalyzingOverlay } from "./components/ReanalyzingOverlay";
+import { RecentChecks } from "./components/RecentChecks";
 import { RedFlagsPanel } from "./components/RedFlagsPanel";
 import { RequirementsPanel } from "./components/RequirementsPanel";
 import { ResultTabs } from "./components/ResultTabs";
@@ -29,6 +30,7 @@ import { WritingQualityPanel } from "./components/WritingQualityPanel";
 import { CreateResumeDialog } from "./dialogs/CreateResumeDialog";
 import { SaveResumeDialog } from "./dialogs/SaveResumeDialog";
 import { useAnalysis } from "./hooks/useAnalysis";
+import { useAtsHistory } from "./hooks/useAtsHistory";
 import { toneVar } from "./tone";
 import { scoreTone, type ResultTabId } from "./types";
 import { QuotaNotice } from "@/components/craft/QuotaNotice";
@@ -37,6 +39,7 @@ const EASE = [0.2, 0.8, 0.2, 1] as const;
 
 export default function AnalysisPage() {
   const a = useAnalysis();
+  const history = useAtsHistory(a.step === "upload");
   const reduce = useReducedMotion();
   const tabsAnchor = useRef<HTMLDivElement>(null);
 
@@ -101,6 +104,14 @@ export default function AnalysisPage() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
+
+          <RecentChecks
+            checks={history.checks}
+            hasMore={history.hasMore}
+            onOpen={(id) => void a.openCheck(id)}
+            onRemove={(id) => void history.remove(id)}
+            onShowMore={history.showMore}
+          />
         </CraftAppBody>
       </CraftAppShell>
     );

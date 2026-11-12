@@ -257,6 +257,53 @@ export type Database = {
           },
         ]
       }
+      ats_checks: {
+        Row: {
+          analysis: Json
+          created_at: string
+          id: string
+          job_description: string
+          job_label: string | null
+          overall_score: number
+          resume_id: string | null
+          resume_name: string | null
+          resume_text: string
+          user_id: string
+        }
+        Insert: {
+          analysis: Json
+          created_at?: string
+          id?: string
+          job_description: string
+          job_label?: string | null
+          overall_score: number
+          resume_id?: string | null
+          resume_name?: string | null
+          resume_text: string
+          user_id: string
+        }
+        Update: {
+          analysis?: Json
+          created_at?: string
+          id?: string
+          job_description?: string
+          job_label?: string | null
+          overall_score?: number
+          resume_id?: string | null
+          resume_name?: string | null
+          resume_text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ats_checks_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blocked_ips: {
         Row: {
           created_at: string

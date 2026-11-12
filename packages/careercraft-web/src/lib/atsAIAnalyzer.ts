@@ -99,11 +99,21 @@ export interface ATSAIAnalysis {
     mostImportantFixes: string[];
     overallVerdict: string;
   };
+  /** The saved check (ats_checks) this result is, when the server kept it. */
+  checkId?: string;
 }
 
+/** Which résumé is being checked, so the saved check can say. */
+export interface CheckedResume {
+  resumeId?: string;
+  resumeName?: string;
+}
+
+/** Run a full check. The server keeps every one in the person's history. */
 export async function runATSAIAnalysis(
   resumeText: string,
-  jobDescription: string
+  jobDescription: string,
+  checked: CheckedResume = {}
 ): Promise<ATSAIAnalysis> {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/ats-analyze`,
@@ -114,6 +124,8 @@ export async function runATSAIAnalysis(
         resumeText,
         jobDescription,
         analysisType: "full-analysis",
+        resumeId: checked.resumeId || undefined,
+        resumeName: checked.resumeName || undefined,
       }),
     }
   );
@@ -125,7 +137,7 @@ export async function runATSAIAnalysis(
   }
 
   const data = await response.json();
-  return data.analysis;
+  return { ...data.analysis, checkId: data.checkId ?? undefined };
 }
 
 export interface RewriteResult {
