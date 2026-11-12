@@ -353,8 +353,68 @@ function mergeMissingSections(
   return { mergedText, recoveredSections };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A short line for the history list: the first line of the job ad. */
+function jobLabel(jobDescription: string): string | null {
+  const first = jobDescription
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .find((l) => l.length > 0);
+  if (!first) return null;
+  if (first.length <= 120) return first;
+  const cut = first.slice(0, 120);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 80)).trimEnd()}…`;
+}
+
+/**
+ * Keep a full analysis in ats_checks so it can be reopened later (see the
+ * 20261113000000_ats_checks migration). Written with the person's own client,
+ * so RLS decides what they may save — including that resume_id, if any, is
+ * their own résumé. A failed save is logged and never costs them the result.
+ */
+async function saveCheck(
+  userClient: Awaited<ReturnType<typeof requireUser>>["userClient"],
+  userId: string,
+  input: {
+    resumeText: string;
+    jobDescription: string;
+    resumeId: unknown;
+    resumeName: unknown;
+    analysis: z.infer<typeof AtsAnalysisSchema>;
+  },
+): Promise<string | null> {
+  try {
+    const score = Math.round(Number(input.analysis.overallScore));
+    const { data, error } = await userClient
+      .from("ats_checks")
+      .insert({
+        user_id: userId,
+        resume_id:
+          typeof input.resumeId === "string" && UUID.test(input.resumeId) ? input.resumeId : null,
+        resume_name:
+          typeof input.resumeName === "string" ? input.resumeName.trim().slice(0, 200) || null : null,
+        job_label: jobLabel(input.jobDescription),
+        job_description: input.jobDescription.slice(0, 20000),
+        resume_text: input.resumeText.slice(0, 40000),
+        overall_score: Number.isFinite(score) ? Math.min(100, Math.max(0, score)) : 0,
+        analysis: input.analysis,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      console.warn("[ats-analyze] check not saved:", error.message);
+      return null;
+    }
+    return data?.id ?? null;
+  } catch (err) {
+    console.warn("[ats-analyze] check not saved:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 serve(handler(async (req) => {
-  const { userId } = await requireUser(req);
+  const { userId, userClient } = await requireUser(req);
   const quota = await enforcePlanQuota({
     userId,
     resource: "ats-analyze",
@@ -367,7 +427,16 @@ serve(handler(async (req) => {
   const meter = meterFromQuota(quota, userId);
 
   try {
-    const { resumeText, jobDescription, analysisType, resumeData, analysisContext } = await req.json();
+    const {
+      resumeText,
+      jobDescription,
+      analysisType,
+      resumeData,
+      analysisContext,
+      // Full analyses only: which résumé was checked, for the history.
+      resumeId,
+      resumeName,
+    } = await req.json();
     
     if ((!resumeText && !resumeData) || !jobDescription) {
       throw new ValidationError("Missing resume or job description");
@@ -1018,7 +1087,14 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         // shape keep it well under this; 8,000 is the Free plan's per-call cap.
         maxTokens: 8000,
       });
-      return json({ analysis: analysisResult });
+      const checkId = await saveCheck(userClient, userId, {
+        resumeText: String(resumeText ?? ""),
+        jobDescription: String(jobDescription),
+        resumeId,
+        resumeName,
+        analysis: analysisResult,
+      });
+      return json({ analysis: analysisResult, checkId });
     } else if (analysisType === "rewrite-structured") {
       const { object: optimizedResume } = await horusGenerateObject(StructuredResumeSchema, {
         task: "careercraft.ats_rewrite_structured",
