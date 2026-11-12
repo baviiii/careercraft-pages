@@ -13,21 +13,25 @@ export type AnswerPiece =
 
 export type AnswerBlock = { kind: "para" | "item"; pieces: AnswerPiece[] };
 
-/** The pages an answer may link to (the persona lists the same ones). */
-export const FAY_PATHS = new Set([
-  "/dashboard",
-  "/builder",
-  "/my-resumes",
-  "/analysis",
-  "/cover-letter",
-  "/tracker",
-  "/interview-prep",
-  "/career-coach",
-  "/intelligence",
-  "/au-jobs",
-  "/job-market-news",
-  "/settings",
+/** The pages an answer may link to (the persona lists the same ones), by name. */
+const FAY_PAGES = new Map([
+  ["/dashboard", "Home"],
+  ["/builder", "Résumé Builder"],
+  ["/my-resumes", "My Résumés"],
+  ["/analysis", "ATS Check"],
+  ["/cover-letter", "Cover Letters"],
+  ["/tracker", "Job Tracker"],
+  ["/interview-prep", "Interview Prep"],
+  ["/career-coach", "Career Coach"],
+  ["/intelligence", "Career Insights"],
+  ["/au-jobs", "Browse Jobs"],
+  ["/job-market-news", "Market News"],
+  ["/settings", "Settings"],
 ]);
+export const FAY_PATHS = new Set(FAY_PAGES.keys());
+
+/** The page's own name, for a button ("/tracker" → "Job Tracker"). */
+export const pageLabel = (path: string) => FAY_PAGES.get(path) ?? path;
 
 const LINK = /\[([^\]\n]{1,80})\]\(([^)\s]{1,200})\)/g;
 
@@ -41,6 +45,7 @@ export function internalPath(href: string): string | null {
 function tidy(text: string): string {
   return text
     .replace(/\s?\[\d+(?:\s*,\s*\d+)*\]/g, "") // citation markers
+    .replace(/\s*—\s*/g, ", ") // em dashes read as machine-written
     .replace(/\*\*|__/g, "") // bold
     .replace(/(^|\s)[*_](\S[^*_]*\S|\S)[*_](?=\s|$|[.,!?])/g, "$1$2"); // italics
 }
@@ -70,4 +75,13 @@ export function parseAnswer(answer: string): AnswerBlock[] {
     if (ps.length) blocks.push({ kind: item ? "item" : "para", pieces: ps });
   }
   return blocks;
+}
+
+/** The app pages an answer links to, in the order it mentions them. */
+export function pagesIn(blocks: AnswerBlock[]): string[] {
+  const seen: string[] = [];
+  for (const b of blocks)
+    for (const p of b.pieces)
+      if (p.kind === "link" && !seen.includes(p.path)) seen.push(p.path);
+  return seen;
 }

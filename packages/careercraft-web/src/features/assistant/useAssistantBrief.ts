@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 
-import { buildBrief, type AssistantBrief } from "./brief";
+import { buildBrief, firstNameOf, type AssistantBrief } from "./brief";
 
 export interface AssistantBriefState {
   userId: string | null;
@@ -47,11 +47,14 @@ export function useAssistantBrief(): AssistantBriefState {
       ]);
       if (cancelled) return;
 
-      const fullName: string =
-        profile.data?.full_name || user.user_metadata?.full_name || "";
       const brief = buildBrief(
         {
-          firstName: fullName.trim().split(/\s+/)[0] || "",
+          firstName: firstNameOf(
+            profile.data?.full_name,
+            user.user_metadata?.full_name,
+            user.user_metadata?.name,
+            user.user_metadata?.given_name,
+          ),
           applications: applications.data ?? [],
           resumes: resumes.data ?? [],
           now: new Date(),

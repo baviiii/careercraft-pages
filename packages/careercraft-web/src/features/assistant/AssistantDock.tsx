@@ -43,16 +43,15 @@ import {
   useReducedMotion,
   useSpring,
 } from "framer-motion";
-import { ArrowRight, ArrowUp, ChevronDown, X } from "lucide-react";
+import { ArrowRight, ArrowUp, ChevronLeft, MoreHorizontal, X } from "lucide-react";
 
-import { CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
 import { CoachSessionExpiredError, streamCoachChat } from "@/lib/coachChat";
 import { QuotaExceededError } from "@/lib/quota";
 
-import { parseAnswer } from "./askFay";
+import { pageLabel, pagesIn, parseAnswer } from "./askFay";
 import { dayPart, introFor, nextBubble, type DayPart } from "./brief";
 import { Fay, type FayMood } from "./Fay";
-import { fayFrame } from "./fayArt";
+import { fayFrame, sparkPath } from "./fayArt";
 import { useFayEvents, type FayEvent } from "./fayBus";
 import { tipsFor } from "./tips";
 import { useAssistantBrief } from "./useAssistantBrief";
@@ -95,11 +94,20 @@ const DOZE_AFTER_MS = 180_000;
 const DOZE_AFTER_NIGHT_MS = 60_000;
 /** A click only makes her start ("!", ears up) if she's been calm this long. */
 const NOTICE_GAP_MS = 8_000;
-/** Questions to start from when the card has no conversation yet. */
+/** Common questions, offered before anything has been asked. */
 const ASK_EXAMPLES = [
-  "How do I check my résumé against a job?",
-  "Where do I track my applications?",
-  "How do I fit my résumé on fewer pages?",
+  {
+    label: "Check my résumé against a job",
+    question: "How do I check my résumé against a job?",
+  },
+  {
+    label: "Track my applications",
+    question: "Where do I track my applications?",
+  },
+  {
+    label: "Fit my résumé on fewer pages",
+    question: "How do I fit my résumé on fewer pages?",
+  },
 ];
 /** How long she keeps looking at something that was clicked. */
 const GLANCE_MS = 1_400;
@@ -269,7 +277,7 @@ export const AssistantDock = () => {
   const [poke, setPoke] = useState(0);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [question, setQuestion] = useState("");
-  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const still = motionPref === "calm" || (motionPref === "auto" && deviceStill);
 
   // Position (dragged directly) and where she looks (sprung, so it's soft).
@@ -322,6 +330,7 @@ export const AssistantDock = () => {
   const sessionRef = useRef<string | undefined>();
   const askAbort = useRef<AbortController | null>(null);
   const askInput = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const focusAsk = useRef(false);
   const asking = turns.some(
     (t) => t.status === "thinking" || t.status === "streaming",
@@ -787,6 +796,25 @@ export const AssistantDock = () => {
     };
   }, [mode]);
 
+  // Her menu closes on a click outside it, and whenever the card closes.
+  useEffect(() => {
+    if (mode !== "open") setMenuOpen(false);
+  }, [mode]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (
+        menuRef.current?.contains(t) ||
+        t?.closest?.('[aria-label="Fay settings"]')
+      )
+        return;
+      setMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown);
+    return () => window.removeEventListener("pointerdown", onDown);
+  }, [menuOpen]);
+
   // Moving to another page closes the card and any tip from the last page.
   useEffect(() => {
     setMode("closed");
@@ -870,6 +898,7 @@ export const AssistantDock = () => {
     }
   };
 
+  /* Back from an answer to her home view; the next question starts afresh. */
   const startOver = () => {
     askAbort.current?.abort();
     sessionRef.current = undefined;
@@ -956,11 +985,14 @@ export const AssistantDock = () => {
     p.dir = dir;
   };
 
-  const shortcuts = CRAFT_SIDEBAR_LINKS.filter((l) => l.path !== pathname);
   const met = intro && brief ? introFor(brief.firstName) : null;
   const place = placeNear(spot);
   const home = spotOf(HOME);
   const atHome = Math.abs(spot.x - home.x) < 2 && Math.abs(spot.y - home.y) < 2;
+  // Her card shows one answer at a time: the latest.
+  const latest = mode === "open" ? turns[turns.length - 1] : undefined;
+  const blocks = latest ? parseAnswer(latest.answer) : [];
+  const pages = latest?.status === "done" ? pagesIn(blocks).slice(0, 2) : [];
   const shownMood: FayMood =
     tucked || dozing
       ? "sleep"
@@ -988,232 +1020,86 @@ export const AssistantDock = () => {
             }}
             onPointerEnter={() => setHovering(true)}
             onPointerLeave={() => setHovering(false)}
-            className="fixed z-[35] w-[min(340px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-[color:var(--cc-hair)] bg-white p-4 text-[color:var(--cc-ink)] shadow-[0_18px_50px_-18px_rgba(20,22,26,0.35)]"
+            className="fixed z-[35] w-[min(340px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-[color:var(--cc-hair)] bg-white text-[color:var(--cc-ink)] shadow-[0_18px_50px_-18px_rgba(20,22,26,0.35)]"
           >
-            <button
-              type="button"
-              onClick={() => setMode("closed")}
-              aria-label="Close"
-              className="absolute right-2.5 top-2.5 rounded-full p-1.5 text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-
-            <div aria-live="polite">
-              <p className="cc-font-display pr-8 text-[19px] leading-snug">
-                {met ? met.hello : brief.hello}
-              </p>
-              {met && (
-                <p className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
-                  {met.line}
-                </p>
-              )}
-              {brief.nudge && !turns.length && (
-                <p className="mt-2 text-[14.5px] leading-relaxed text-[color:var(--cc-ink-soft)]">
-                  {brief.nudge.text}
-                </p>
-              )}
-              {brief.nudge?.action && !turns.length && (
+            {/* The greeting (or the way back from an answer), her menu, close */}
+            <div className="flex items-start gap-2 px-4 pt-3.5">
+              {latest ? (
                 <button
                   type="button"
-                  onClick={() => go(brief.nudge!.action!.path)}
-                  className="cc-action cc-action--sm mt-3"
+                  onClick={startOver}
+                  className="-ml-2 inline-flex items-center gap-0.5 rounded-full py-1 pl-1 pr-2.5 text-[13.5px] text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
                 >
-                  {brief.nudge.action.label}
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <ChevronLeft className="h-4 w-4" />
+                  Back
                 </button>
-              )}
-              {!turns.length && (
-                <p className="mt-3 border-l-2 border-[#F5B95F] pl-3 text-[13.5px] italic leading-relaxed text-[color:var(--cc-ash)]">
-                  {brief.cheer}
+              ) : (
+                <p className="cc-font-display min-w-0 flex-1 pt-0.5 text-[19px] leading-snug">
+                  {met ? met.hello : brief.hello}
                 </p>
               )}
+              <div className="-mr-2 ml-auto flex flex-shrink-0 items-center">
+                {mode === "open" && (
+                  <button
+                    type="button"
+                    aria-label="Fay settings"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    onClick={() => setMenuOpen((v) => !v)}
+                    className={`rounded-full p-1.5 transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)] ${
+                      menuOpen
+                        ? "bg-[color:var(--cc-cream-2)] text-[color:var(--cc-ink)]"
+                        : "text-[color:var(--cc-ash)]"
+                    }`}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setMode("closed")}
+                  aria-label="Close"
+                  className="rounded-full p-1.5 text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            {mode === "open" && (
-              <>
-                {/* Ask me anything */}
-                <div className="mt-4 border-t border-[color:var(--cc-hair)] pt-3">
-                  {turns.length > 0 && (
-                    <div className="mb-3 space-y-3" aria-live="polite">
-                      {turns.map((t) => (
-                        <div key={t.id} className="space-y-1.5">
-                          <p className="ml-8 rounded-2xl rounded-br-md bg-[color:var(--cc-cream-2)] px-3 py-2 text-[13.5px] leading-snug">
-                            {t.question}
-                          </p>
-                          {t.status === "thinking" ? (
-                            <p className="text-[13.5px] italic text-[color:var(--cc-ash)]">
-                              Fay is thinking…
-                            </p>
-                          ) : (
-                            <div
-                              className={`space-y-1.5 text-[14px] leading-relaxed ${
-                                t.status === "error"
-                                  ? "text-[color:var(--cc-ash)]"
-                                  : "text-[color:var(--cc-ink)]"
-                              }`}
-                            >
-                              {parseAnswer(t.answer).map((block, bi) => (
-                                <p
-                                  key={bi}
-                                  className={
-                                    block.kind === "item"
-                                      ? "flex gap-2"
-                                      : undefined
-                                  }
-                                >
-                                  {block.kind === "item" && (
-                                    <span aria-hidden="true">•</span>
-                                  )}
-                                  <span>
-                                    {block.pieces.map((piece, pi) =>
-                                      piece.kind === "link" ? (
-                                        <button
-                                          key={pi}
-                                          type="button"
-                                          onClick={() => go(piece.path)}
-                                          className="mx-0.5 inline-flex items-center gap-1 rounded-full bg-[color:var(--cc-rust-soft)] px-2 py-0.5 text-[13px] font-semibold text-[color:var(--cc-rust)] hover:bg-[color:var(--cc-rust)] hover:text-white"
-                                        >
-                                          {piece.label}
-                                          <ArrowRight className="h-3 w-3" />
-                                        </button>
-                                      ) : (
-                                        <span key={pi}>{piece.text}</span>
-                                      ),
-                                    )}
-                                  </span>
-                                </p>
-                              ))}
-                              {t.sources && t.status === "done" && (
-                                <p className="text-[12px] text-[color:var(--cc-ash)]">
-                                  Sources:{" "}
-                                  {t.sources.map((src, si) => (
-                                    <a
-                                      key={src.n}
-                                      href={src.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="underline underline-offset-2 hover:text-[color:var(--cc-ink)]"
-                                    >
-                                      {src.title || `Source ${si + 1}`}
-                                      {si < t.sources!.length - 1 ? ", " : ""}
-                                    </a>
-                                  ))}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void ask(question);
-                    }}
-                    className="flex items-center gap-2 rounded-full border border-[color:var(--cc-hair-strong)] bg-white py-1 pl-3.5 pr-1 focus-within:border-[color:var(--cc-rust)]"
-                  >
-                    <input
-                      ref={askInput}
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      maxLength={500}
-                      aria-label="Ask Fay a question"
-                      placeholder={
-                        turns.length
-                          ? "Ask something else…"
-                          : "Ask me anything about Faircopy…"
-                      }
-                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-[color:var(--cc-ash)] md:text-[14px]"
-                    />
-                    <button
-                      type="submit"
-                      aria-label="Ask"
-                      disabled={asking || !question.trim()}
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--cc-rust)] text-white transition-opacity disabled:opacity-40"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </button>
-                  </form>
-
-                  {turns.length === 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {ASK_EXAMPLES.map((ex) => (
-                        <button
-                          key={ex}
-                          type="button"
-                          onClick={() => void ask(ex)}
-                          className="rounded-full border border-[color:var(--cc-hair)] px-2.5 py-1 text-left text-[12.5px] text-[color:var(--cc-ink-soft)] hover:border-[color:var(--cc-rust)] hover:text-[color:var(--cc-ink)]"
-                        >
-                          {ex}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={startOver}
-                      className="mt-2 text-[12.5px] text-[color:var(--cc-ash)] underline-offset-2 hover:text-[color:var(--cc-ink)] hover:underline"
-                    >
-                      Start over
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-4 border-t border-[color:var(--cc-hair)] pt-3">
-                  <button
-                    type="button"
-                    aria-expanded={showShortcuts}
-                    onClick={() => setShowShortcuts((v) => !v)}
-                    className="cc-label-sm flex w-full items-center justify-between text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
-                  >
-                    Take me to
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform ${showShortcuts ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {showShortcuts && (
-                    <div className="mt-2 grid grid-cols-2 gap-1.5">
-                      {shortcuts.map(({ icon: Icon, label, path }) => (
-                        <button
-                          key={path}
-                          type="button"
-                          onClick={() => go(path)}
-                          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium transition-colors hover:bg-[color:var(--cc-cream-2)]"
-                        >
-                          <Icon className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--cc-rust)]" />
-                          <span className="truncate">{label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-[color:var(--cc-hair)] pt-3 text-[12.5px] text-[color:var(--cc-ash)]">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={chatty}
-                    onClick={toggleChatty}
-                    className="inline-flex items-center gap-2 hover:text-[color:var(--cc-ink)]"
+            {/* Her settings, out of the way until wanted */}
+            {menuOpen && mode === "open" && (
+              <div
+                ref={menuRef}
+                role="menu"
+                aria-label="Fay's settings"
+                className="absolute right-3 top-12 z-10 w-[236px] rounded-xl border border-[color:var(--cc-hair)] bg-white p-1.5 text-[13.5px] shadow-[0_14px_34px_-14px_rgba(20,22,26,0.4)]"
+              >
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={chatty}
+                  onClick={toggleChatty}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-[color:var(--cc-cream-2)]"
+                >
+                  Tips and bubbles
+                  <span
+                    aria-hidden="true"
+                    className={`relative h-4 w-7 flex-shrink-0 rounded-full transition-colors ${chatty ? "bg-[color:var(--cc-rust)]" : "bg-[color:var(--cc-cream-3)]"}`}
                   >
                     <span
-                      aria-hidden="true"
-                      className={`relative h-4 w-7 rounded-full transition-colors ${chatty ? "bg-[color:var(--cc-rust)]" : "bg-[color:var(--cc-cream-3)]"}`}
-                    >
-                      <span
-                        className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-[left] ${chatty ? "left-3.5" : "left-0.5"}`}
-                      />
-                    </span>
-                    Tips and bubbles
-                  </button>
-                  <span
-                    className="inline-flex items-center gap-1.5"
+                      className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-[left] ${chatty ? "left-3.5" : "left-0.5"}`}
+                    />
+                  </span>
+                </button>
+                <div className="px-2.5 pb-2 pt-1.5">
+                  <p className="text-[12.5px] text-[color:var(--cc-ash)]">
+                    Movement
+                  </p>
+                  <div
                     role="group"
                     aria-label="Fay's movement"
+                    className="mt-1.5 flex rounded-full bg-[color:var(--cc-cream-2)] p-0.5"
                   >
-                    Moves
                     {(
                       [
                         ["auto", "Device"],
@@ -1226,44 +1112,243 @@ export const AssistantDock = () => {
                         type="button"
                         aria-pressed={motionPref === key}
                         onClick={() => chooseMotion(key)}
-                        title={
-                          key === "auto"
-                            ? deviceStill
-                              ? "Your device asks for less motion, so Fay keeps calm"
-                              : "Follow your device's motion setting"
-                            : undefined
-                        }
-                        className={`rounded-full px-2 py-0.5 ${
+                        className={`flex-1 rounded-full py-1 text-[12.5px] transition-colors ${
                           motionPref === key
-                            ? "bg-[color:var(--cc-ink)] text-white"
-                            : "hover:text-[color:var(--cc-ink)]"
+                            ? "bg-white font-medium text-[color:var(--cc-ink)] shadow-sm"
+                            : "text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
                         }`}
                       >
                         {label}
                       </button>
                     ))}
-                  </span>
-                  <span className="flex items-center gap-3">
-                    {!atHome && (
-                      <button
-                        type="button"
-                        onClick={goHome}
-                        className="underline-offset-2 hover:text-[color:var(--cc-ink)] hover:underline"
-                      >
-                        Back to my corner
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={tuckAway}
-                      className="underline-offset-2 hover:text-[color:var(--cc-ink)] hover:underline"
-                    >
-                      Tuck Fay away
-                    </button>
-                  </span>
+                  </div>
+                  {motionPref === "auto" && deviceStill && (
+                    <p className="mt-1.5 text-[12px] leading-snug text-[color:var(--cc-ash)]">
+                      Your device asks for less motion, so Fay keeps still.
+                    </p>
+                  )}
                 </div>
-              </>
+                <div className="my-1 border-t border-[color:var(--cc-hair)]" />
+                {!atHome && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      goHome();
+                    }}
+                    className="w-full rounded-lg px-2.5 py-2 text-left hover:bg-[color:var(--cc-cream-2)]"
+                  >
+                    Back to my corner
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={tuckAway}
+                  className="w-full rounded-lg px-2.5 py-2 text-left hover:bg-[color:var(--cc-cream-2)]"
+                >
+                  Tuck Fay away
+                </button>
+              </div>
             )}
+
+            <div className="px-4 pb-4" aria-live="polite">
+              {latest ? (
+                /* One question and her answer, the pages it mentions as buttons */
+                <>
+                  <p className="cc-font-display mt-1.5 text-[17px] leading-snug">
+                    {latest.question}
+                  </p>
+                  {latest.status === "thinking" ? (
+                    <span
+                      className="mt-3 flex gap-1"
+                      role="status"
+                      aria-label="Fay is thinking"
+                    >
+                      {[0, 1, 2].map((i) => (
+                        <motion.span
+                          key={i}
+                          className="h-1.5 w-1.5 rounded-full bg-[color:var(--cc-ash)]"
+                          animate={
+                            still ? undefined : { opacity: [0.25, 1, 0.25] }
+                          }
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                          }}
+                        />
+                      ))}
+                    </span>
+                  ) : (
+                    <div
+                      className={`mt-2 space-y-2 text-[14.5px] leading-relaxed ${
+                        latest.status === "error"
+                          ? "text-[color:var(--cc-ash)]"
+                          : "text-[color:var(--cc-ink-soft)]"
+                      }`}
+                    >
+                      {blocks.map((block, bi) => (
+                        <p
+                          key={bi}
+                          className={
+                            block.kind === "item" ? "flex gap-2" : undefined
+                          }
+                        >
+                          {block.kind === "item" && (
+                            <span aria-hidden="true">•</span>
+                          )}
+                          <span>
+                            {block.pieces.map((piece, pi) =>
+                              piece.kind === "link" ? (
+                                <button
+                                  key={pi}
+                                  type="button"
+                                  onClick={() => go(piece.path)}
+                                  className="font-medium text-[color:var(--cc-ink)] underline decoration-[color:var(--cc-rust)] decoration-[1.5px] underline-offset-[3px] hover:text-[color:var(--cc-rust)]"
+                                >
+                                  {piece.label}
+                                </button>
+                              ) : (
+                                <span key={pi}>{piece.text}</span>
+                              ),
+                            )}
+                          </span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {pages.length > 0 && (
+                    <div className="mt-3.5 flex flex-wrap gap-2">
+                      {pages.map((path, i) => (
+                        <button
+                          key={path}
+                          type="button"
+                          onClick={() => go(path)}
+                          className={
+                            i === 0
+                              ? "cc-action cc-action--sm"
+                              : "inline-flex items-center gap-1.5 rounded-full border border-[color:var(--cc-hair-strong)] px-3 py-1.5 text-[13px] font-medium transition-colors hover:border-[color:var(--cc-ink)]"
+                          }
+                        >
+                          Open {pageLabel(path)}
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {latest.sources && latest.status === "done" && (
+                    <p className="mt-3 text-[12px] text-[color:var(--cc-ash)]">
+                      Sources:{" "}
+                      {latest.sources.map((src, si) => (
+                        <a
+                          key={src.n}
+                          href={src.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline underline-offset-2 hover:text-[color:var(--cc-ink)]"
+                        >
+                          {src.title || `Source ${si + 1}`}
+                          {si < latest.sources!.length - 1 ? ", " : ""}
+                        </a>
+                      ))}
+                    </p>
+                  )}
+                </>
+              ) : (
+                /* Home: the one next step, then a question box */
+                <>
+                  {met && (
+                    <p className="mt-1 text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+                      {met.line}
+                    </p>
+                  )}
+                  {brief.nudge && (
+                    <div className="mt-3 rounded-xl bg-[color:var(--cc-cream)] p-3">
+                      <p className="text-[14px] leading-relaxed">
+                        {brief.nudge.text}
+                      </p>
+                      {brief.nudge.action && (
+                        <button
+                          type="button"
+                          onClick={() => go(brief.nudge!.action!.path)}
+                          className="cc-action cc-action--sm mt-2.5"
+                        >
+                          {brief.nudge.action.label}
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {mode === "greeting" && (
+                    <p className="mt-3 flex items-start gap-2 text-[13.5px] leading-relaxed text-[color:var(--cc-ash)]">
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="mt-[3px] h-3.5 w-3.5 flex-shrink-0"
+                        aria-hidden="true"
+                      >
+                        <path d={sparkPath(8, 8, 7)} fill="#F5B95F" />
+                      </svg>
+                      {brief.cheer}
+                    </p>
+                  )}
+                </>
+              )}
+
+              {mode === "open" && (
+                <>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void ask(question);
+                    }}
+                    className={`flex items-center gap-2 rounded-full border border-[color:var(--cc-hair-strong)] bg-white py-1 pl-3.5 pr-1 focus-within:border-[color:var(--cc-rust)] ${latest ? "mt-4" : "mt-3.5"}`}
+                  >
+                    <input
+                      ref={askInput}
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      maxLength={500}
+                      aria-label="Ask Fay a question"
+                      placeholder={
+                        latest ? "Ask a follow-up" : "Ask how to do something"
+                      }
+                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-[color:var(--cc-ash)] md:text-[14px]"
+                    />
+                    <button
+                      type="submit"
+                      aria-label="Ask"
+                      disabled={asking || !question.trim()}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--cc-rust)] text-white transition-opacity disabled:opacity-40"
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </button>
+                  </form>
+                  {!latest && (
+                    <>
+                      <p className="mt-3.5 text-[12.5px] text-[color:var(--cc-ash)]">
+                        Common questions
+                      </p>
+                      <ul className="-mx-2 mt-1">
+                        {ASK_EXAMPLES.map((ex) => (
+                          <li key={ex.label}>
+                            <button
+                              type="button"
+                              onClick={() => void ask(ex.question)}
+                              className="group flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-[13.5px] transition-colors hover:bg-[color:var(--cc-cream-2)]"
+                            >
+                              {ex.label}
+                              <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--cc-ash)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--cc-ink)]" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </motion.aside>
         ) : bubble ? (
           <motion.div
