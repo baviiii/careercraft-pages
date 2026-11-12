@@ -45,10 +45,27 @@ import {
  * The chat draws on the same allowance the coach always has: it replaces
  * horus-rag's generative search for this surface rather than adding a new
  * kind of spend, so it keeps that plan_limits row.
+ *
+ * Fay (the assistant in the corner) asks through this same function with
+ * focusArea "fay" and has her own allowance, so asking her the way to the
+ * tracker never uses up a coach conversation. Any other focus area is the
+ * coach's.
  */
-const RESOURCE = "horus-rag-search";
-const RESOURCE_LABEL = "career intelligence search";
-const TASK = "careercraft.coach_chat";
+interface Allowance {
+  resource: string;
+  label: string;
+  task: string;
+}
+const COACH: Allowance = {
+  resource: "horus-rag-search",
+  label: "career intelligence search",
+  task: "careercraft.coach_chat",
+};
+// A Map, not an object literal: focusArea comes from the browser, and a
+// plain object would answer "constructor" or "__proto__" with a built-in.
+const BY_FOCUS = new Map<string, Allowance>([
+  ["fay", { resource: "fay-ask", label: "questions for Fay", task: "careercraft.fay_ask" }],
+]);
 
 const BodySchema = z.object({
   message: z.string().trim().min(1).max(4000),
@@ -114,13 +131,14 @@ Deno.serve(
         throw new ValidationError("Invalid request body", parsed.error.flatten());
       }
       const { message, sessionId, focusArea, personaName } = parsed.data;
+      const { resource, label, task } = BY_FOCUS.get(focusArea) ?? COACH;
 
       // Charged up front so a 429 is an ordinary JSON response, not a broken
       // stream. Refunded below if Horus refuses before generating anything.
       const quota = await enforcePlanQuota({
         userId,
-        resource: RESOURCE,
-        resourceLabel: RESOURCE_LABEL,
+        resource,
+        resourceLabel: label,
       });
       const meter = meterFromQuota(quota, userId);
       const modelTier = clampTier("fast", meter.maxModelTier);
@@ -145,7 +163,7 @@ Deno.serve(
           signal: req.signal,
         });
       } catch (err) {
-        await refundPlanQuota(userId, RESOURCE);
+        await refundPlanQuota(userId, resource);
         throw new ProviderError(
           `Horus unreachable: ${err instanceof Error ? err.message : String(err)}`,
           "horus",
@@ -155,9 +173,9 @@ Deno.serve(
       if (!upstream.ok || !upstream.body) {
         const status = upstream.status;
         const detail = await upstreamMessage(upstream);
-        await refundPlanQuota(userId, RESOURCE);
+        await refundPlanQuota(userId, resource);
         await recordTokenSpend(meter, {
-          task: TASK,
+          task,
           provider: "horus",
           modelTier,
           errorCode: `HTTP_${status}`,
@@ -205,7 +223,7 @@ Deno.serve(
         recorded = true;
         const code = errorCode ?? (runError ? "RUN_ERROR" : undefined);
         await recordTokenSpend(meter, {
-          task: TASK,
+          task,
           provider: "horus",
           modelTier,
           promptTokens: usage?.inputTokens,
