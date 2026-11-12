@@ -69,11 +69,33 @@ export const BUBBLES: string[] = [
   "Take a breath. You're doing fine.",
   "Need a hand? Click me.",
   "Psst, I've got a tip for you.",
+  "Ask me anything about Faircopy!",
 ];
 
-/** A random bubble that isn't the one just shown. */
-export function nextBubble(previous: string | null, random: () => number = Math.random): string {
-  const pool = BUBBLES.filter((b) => b !== previous);
+/* Fay keeps the local clock: lively in the morning, sleepy late at night. */
+export type DayPart = "morning" | "day" | "evening" | "night";
+
+export function dayPart(now: Date): DayPart {
+  const h = now.getHours();
+  if (h >= 22 || h < 5) return "night";
+  if (h < 11) return "morning";
+  if (h < 18) return "day";
+  return "evening";
+}
+
+/* A few lines only make sense at one time of day. */
+const BUBBLES_AT: Partial<Record<DayPart, string[]>> = {
+  morning: ["Morning! What's one thing for today?", "Fresh start. Let's go!"],
+  night: ["It's getting late. Rest counts too.", "*yawn* Still here if you need me."],
+};
+
+/** A random bubble that isn't the one just shown, with the time of day's own lines mixed in. */
+export function nextBubble(
+  previous: string | null,
+  random: () => number = Math.random,
+  part: DayPart | null = null,
+): string {
+  const pool = [...BUBBLES, ...((part && BUBBLES_AT[part]) || [])].filter((b) => b !== previous);
   return pool[Math.floor(random() * pool.length)];
 }
 
@@ -103,11 +125,12 @@ function whenWord(days: number, value: string): string {
 export function introFor(firstName: string): { hello: string; line: string } {
   return {
     hello: firstName ? `Hi ${firstName}, I'm Fay!` : "Hi, I'm Fay!",
-    line: "I'll point you to one useful next step each day. Click me any time to get around.",
+    line: "I'll point you to one useful next step each day. Click me any time to get around, or ask me anything about Faircopy.",
   };
 }
 
 export function helloFor(firstName: string, now: Date): string {
+  if (dayPart(now) === "night") return firstName ? `You're up late, ${firstName}!` : "You're up late!";
   const h = now.getHours();
   const part = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   return firstName ? `${part}, ${firstName}!` : `${part}!`;

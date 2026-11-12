@@ -4,19 +4,36 @@
      a line of encouragement; the first time ever, she introduces herself.
    - The first time someone opens a page, she explains it a tip at a time.
    - Every few minutes she says something short in a bubble.
-   - Her eyes follow the pointer; when something else on the page is
-     clicked she turns to look at it.
+   - She sits in a little round window onto the sky that keeps the local
+     clock: sunrise, blue sky, sunset, then moon, stars and fireflies.
+   - Her eyes follow the pointer in quick darts, as eyes do, and wander a
+     little when it rests; after a while she looks back out at you. When
+     something else on the page is clicked (or a field takes focus) she
+     turns to look at it and cocks her head; a big look comes with a blink.
    - She can be dragged anywhere (she dangles while carried) and remembers
      the spot. Stroke her back and forth and she blushes with hearts.
    - Idle, she hops, looks around or yawns; when nobody has touched the page
-     for a few minutes she dozes off, and wakes with a yawn.
+     for a few minutes she dozes off, and wakes with a yawn. She keeps the
+     local clock: lively in the morning, heavy-eyed in a nightcap late at
+     night (when she dozes off sooner).
+   - Her card takes a question ("ask me anything") and streams her answer
+     through coach-chat with her own persona and allowance (focusArea fay).
+   - She has her own motion setting (device / full / calm), so someone whose
+     device asks for reduced motion can still choose to see her move.
    - She celebrates interviews and offers and comforts on a rejection
      (see fayBus). Tips and bubbles can be switched off; she can be tucked
      away entirely.
    She stays off the pages that are one big panel of their own — the
    interview room, the coach chat, admin. */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   AnimatePresence,
@@ -25,29 +42,41 @@ import {
   useMotionValue,
   useReducedMotion,
   useSpring,
-  type AnimationPlaybackControls,
 } from "framer-motion";
-import { ArrowRight, X } from "lucide-react";
+import { ArrowRight, ArrowUp, ChevronDown, X } from "lucide-react";
 
 import { CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
+import { CoachSessionExpiredError, streamCoachChat } from "@/lib/coachChat";
+import { QuotaExceededError } from "@/lib/quota";
 
-import { introFor, nextBubble } from "./brief";
+import { parseAnswer } from "./askFay";
+import { dayPart, introFor, nextBubble, type DayPart } from "./brief";
 import { Fay, type FayMood } from "./Fay";
+import { fayFrame } from "./fayArt";
 import { useFayEvents, type FayEvent } from "./fayBus";
 import { tipsFor } from "./tips";
 import { useAssistantBrief } from "./useAssistantBrief";
 
-const HIDDEN_ON = ["/interview-prep/room", "/career-coach", "/admin", "/try", "/playground"];
+const HIDDEN_ON = [
+  "/interview-prep/room",
+  "/career-coach",
+  "/admin",
+  "/try",
+  "/playground",
+];
 
 const FAY_SIZE = 62;
+/** Her drawing in its window onto the sky, and where her eyes are in it. */
+const FRAME = fayFrame(FAY_SIZE, true);
 /** The button around her: the drawing plus p-1 padding. */
-const FAY_W = FAY_SIZE + 8;
-const FAY_H = Math.round(FAY_SIZE * 1.2) + 8;
+const FAY_W = Math.round(FRAME.width) + 8;
+const FAY_H = Math.round(FRAME.height) + 8;
 const EDGE = 12;
 
 const TUCKED_KEY = "fc-assistant-tucked";
 const SPOT_KEY = "fc-fay-spot";
 const CHATTY_KEY = "fc-fay-chatty";
+const MOTION_KEY = "fc-fay-motion";
 const greetedKey = (userId: string) => `fc-assistant-greeted:${userId}`;
 const metKey = (userId: string) => `fc-fay-met:${userId}`;
 const tipsKey = (userId: string) => `fc-fay-tips:${userId}`;
@@ -61,14 +90,31 @@ const BUBBLE_GAP_MS = [180_000, 300_000] as const;
 const MAX_BUBBLES = 4;
 /** Something idle (a hop, a look round, a yawn) every so often. */
 const ACTION_GAP_MS = [16_000, 30_000] as const;
-/** Nobody has touched the page for this long: she dozes off. */
+/** Nobody has touched the page for this long: she dozes off (sooner at night). */
 const DOZE_AFTER_MS = 180_000;
+const DOZE_AFTER_NIGHT_MS = 60_000;
+/** A click only makes her start ("!", ears up) if she's been calm this long. */
+const NOTICE_GAP_MS = 8_000;
+/** Questions to start from when the card has no conversation yet. */
+const ASK_EXAMPLES = [
+  "How do I check my résumé against a job?",
+  "Where do I track my applications?",
+  "How do I fit my résumé on fewer pages?",
+];
 /** How long she keeps looking at something that was clicked. */
 const GLANCE_MS = 1_400;
+/** Her eyes jump to a new spot at most this often while following the pointer. */
+const SACCADE_MS = 140;
+/** While the pointer rests, a small dart of the eyes every so often. */
+const WANDER_GAP_MS = [1_200, 3_400] as const;
+/** The pointer has rested this long: she looks back out at you. */
+const LOOK_BACK_MS = 9_000;
 
 const today = () => new Date().toLocaleDateString("en-CA");
-const between = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const between = ([lo, hi]: readonly [number, number]) =>
+  lo + Math.random() * (hi - lo);
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
 
 function readStore(key: string): string | null {
   try {
@@ -106,9 +152,14 @@ function limits() {
 
 function readFractions(): Fractions {
   try {
-    const raw = JSON.parse(readStore(SPOT_KEY) ?? "null") as Partial<Fractions> | null;
+    const raw = JSON.parse(
+      readStore(SPOT_KEY) ?? "null",
+    ) as Partial<Fractions> | null;
     if (raw && Number.isFinite(raw.fx) && Number.isFinite(raw.fy)) {
-      return { fx: clamp(raw.fx as number, 0, 1), fy: clamp(raw.fy as number, 0, 1) };
+      return {
+        fx: clamp(raw.fx as number, 0, 1),
+        fy: clamp(raw.fy as number, 0, 1),
+      };
     }
   } catch {
     /* fall through to home */
@@ -118,7 +169,10 @@ function readFractions(): Fractions {
 
 function spotOf(f: Fractions): Spot {
   const l = limits();
-  return { x: l.minX + f.fx * (l.maxX - l.minX), y: l.minY + f.fy * (l.maxY - l.minY) };
+  return {
+    x: l.minX + f.fx * (l.maxX - l.minX),
+    y: l.minY + f.fy * (l.maxY - l.minY),
+  };
 }
 
 function fractionsOf(s: Spot): Fractions {
@@ -154,13 +208,25 @@ function placeNear(spot: Spot) {
 function seenTips(userId: string): string[] {
   try {
     const raw = JSON.parse(readStore(tipsKey(userId)) ?? "[]");
-    return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
+    return Array.isArray(raw)
+      ? raw.filter((p): p is string => typeof p === "string")
+      : [];
   } catch {
     return [];
   }
 }
 
 type CardMode = "closed" | "greeting" | "open";
+type MotionPref = "auto" | "full" | "calm";
+
+/** One question and Fay's answer to it. */
+type Turn = {
+  id: number;
+  question: string;
+  answer: string;
+  status: "thinking" | "streaming" | "done" | "error";
+  sources?: { n: number; title: string; url: string }[];
+};
 
 type Bubble = {
   kind: "cheer" | "tip" | "event" | "pet";
@@ -174,7 +240,7 @@ export const AssistantDock = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { userId, brief, reload } = useAssistantBrief();
-  const still = useReducedMotion() ?? false;
+  const deviceStill = useReducedMotion() ?? false;
 
   const [mode, setMode] = useState<CardMode>("closed");
   const [tucked, setTucked] = useState(() => readStore(TUCKED_KEY) === "1");
@@ -192,6 +258,19 @@ export const AssistantDock = () => {
   const [idleTick, setIdleTick] = useState(0);
   const [spot, setSpot] = useState<Spot>(() => spotOf(readFractions()));
   const [lim, setLim] = useState(limits);
+  const [motionPref, setMotionPref] = useState<MotionPref>(() => {
+    const v = readStore(MOTION_KEY);
+    return v === "full" || v === "calm" ? v : "auto";
+  });
+  const [part, setPart] = useState<DayPart>(() => dayPart(new Date()));
+  const [notice, setNotice] = useState(0);
+  const [glance, setGlance] = useState({ n: 0, side: 1 });
+  const [blink, setBlink] = useState(0);
+  const [poke, setPoke] = useState(0);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [question, setQuestion] = useState("");
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const still = motionPref === "calm" || (motionPref === "auto" && deviceStill);
 
   // Position (dragged directly) and where she looks (sprung, so it's soft).
   const x = useMotionValue(spot.x);
@@ -199,9 +278,11 @@ export const AssistantDock = () => {
   const gazeRawX = useMotionValue(0);
   const gazeRawY = useMotionValue(0);
   const turnRaw = useMotionValue(0);
-  const gazeX = useSpring(gazeRawX, { stiffness: 140, damping: 18 });
-  const gazeY = useSpring(gazeRawY, { stiffness: 140, damping: 18 });
-  const turn = useSpring(turnRaw, { stiffness: 120, damping: 16 });
+  // The eyes dart and settle fast (a hint of overshoot keeps them lively);
+  // the head follows slower, so her eyes lead and her head comes after.
+  const gazeX = useSpring(gazeRawX, { stiffness: 520, damping: 36 });
+  const gazeY = useSpring(gazeRawY, { stiffness: 520, damping: 36 });
+  const turn = useSpring(turnRaw, { stiffness: 70, damping: 14 });
 
   const rootRef = useRef<HTMLDivElement>(null);
   const modeRef = useRef<CardMode>(mode);
@@ -220,10 +301,36 @@ export const AssistantDock = () => {
   const lastActivity = useRef(Date.now());
   const lastPointerMove = useRef(0);
   const moodTimer = useRef<number>();
-  const lookAround = useRef<AnimationPlaybackControls[]>([]);
-  const petted = useRef({ lastX: 0, dir: 0, flips: [] as number[], last: 0, said: false });
+  /** Where her eyes are pointed (gaze units) and when they last moved. */
+  const aim = useRef({ x: 0, y: 0, at: 0 });
+  /** Where the pointer is, in the same units. */
+  const pointer = useRef({ x: 0, y: 0 });
+  const settle = useRef<number>();
+  const lastBlink = useRef(0);
+  const lastDown = useRef(0);
+  const lookTimers = useRef<number[]>([]);
+  const petted = useRef({
+    lastX: 0,
+    dir: 0,
+    flips: [] as number[],
+    last: 0,
+    said: false,
+  });
+  const lastNotice = useRef(0);
+  const partRef = useRef(part);
+  partRef.current = part;
+  const sessionRef = useRef<string | undefined>();
+  const askAbort = useRef<AbortController | null>(null);
+  const askInput = useRef<HTMLInputElement>(null);
+  const focusAsk = useRef(false);
+  const asking = turns.some(
+    (t) => t.status === "thinking" || t.status === "streaming",
+  );
+  const thinking = turns.some((t) => t.status === "thinking");
 
-  const hidden = HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const hidden = HIDDEN_ON.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
   const quiet = hidden || tucked || carried || mode !== "closed";
 
   /* A mood for a moment, then back to idle. */
@@ -239,6 +346,43 @@ export const AssistantDock = () => {
     setTalking(true);
     window.setTimeout(() => setTalking(false), 1600);
   }, [flash]);
+
+  /* Point her eyes somewhere. A big shift comes with a blink, as ours do. */
+  const lookAt = useCallback(
+    (gx: number, gy: number) => {
+      const jump = Math.hypot(gx - aim.current.x, gy - aim.current.y);
+      aim.current = { x: gx, y: gy, at: Date.now() };
+      gazeRawX.set(gx);
+      gazeRawY.set(gy);
+      if (jump > 0.9 && Date.now() - lastBlink.current > 1_500) {
+        lastBlink.current = Date.now();
+        setBlink((b) => b + 1);
+      }
+    },
+    [gazeRawX, gazeRawY],
+  );
+
+  const stopLookRound = useCallback(() => {
+    lookTimers.current.forEach((t) => window.clearTimeout(t));
+    lookTimers.current = [];
+  }, []);
+
+  /* A look round: to one side, the other, then back to you. */
+  const lookRound = useCallback(() => {
+    stopLookRound();
+    const steps = [
+      [0, -0.9, -0.05, -0.55],
+      [1_000, 0.9, -0.05, 0.55],
+      [2_000, 0, 0.05, 0],
+    ] as const;
+    lookTimers.current = steps.map(([ms, gx, gy, t], i) =>
+      window.setTimeout(() => {
+        lookAt(gx, gy);
+        turnRaw.set(t);
+        if (i === steps.length - 1) lookTimers.current = [];
+      }, ms),
+    );
+  }, [lookAt, stopLookRound, turnRaw]);
 
   const speak = useCallback((b: Bubble) => {
     setBubble(b);
@@ -257,7 +401,11 @@ export const AssistantDock = () => {
     (path: string, index: number) => {
       const tips = tipsFor(path);
       if (!tips[index]) return;
-      speak({ kind: "tip", text: tips[index], tip: { path, index, total: tips.length } });
+      speak({
+        kind: "tip",
+        text: tips[index],
+        tip: { path, index, total: tips.length },
+      });
       if (index === 0) setHop((h) => h + 1);
     },
     [speak],
@@ -277,51 +425,137 @@ export const AssistantDock = () => {
   }, [x, y]);
 
   useEffect(() => {
-    const controls = animate(y, tucked ? tuckedY() : spot.y, { type: "spring", stiffness: 260, damping: 26 });
+    const controls = animate(y, tucked ? tuckedY() : spot.y, {
+      type: "spring",
+      stiffness: 260,
+      damping: 26,
+    });
     return () => controls.stop();
   }, [tucked, spot.y, y]);
 
   // ── Her eyes follow the pointer; a click elsewhere makes her look ──
-  // With reduced motion only her eyes move — no head turns.
+  // With reduced motion only her eyes move — no head turns or tilts.
   useEffect(() => {
-    const centre = () => ({ cx: x.get() + FAY_W / 2, cy: y.get() + FAY_H * 0.36 });
+    const centre = () => ({
+      cx: x.get() + 4 + FRAME.eyeX,
+      cy: y.get() + 4 + FRAME.eyeY,
+    });
+    // Head turn while just following the pointer: a little, toward it.
+    const easyTurn = () => clamp(pointer.current.x * 0.37, -0.3, 0.3);
 
     const onMove = (e: PointerEvent) => {
       lastPointerMove.current = Date.now();
-      lookAround.current.forEach((c) => c.stop());
-      lookAround.current = [];
+      stopLookRound();
       const { cx, cy } = centre();
-      gazeRawX.set(clamp((e.clientX - cx) / 260, -1, 1));
-      gazeRawY.set(clamp((e.clientY - cy) / 220, -1, 1));
-      if (!still && Date.now() > glanceUntil.current) turnRaw.set(clamp((e.clientX - cx) / 700, -0.3, 0.3));
+      const tx = clamp((e.clientX - cx) / 260, -1, 1);
+      const ty = clamp((e.clientY - cy) / 280, -1, 1);
+      pointer.current = { x: tx, y: ty };
+      // Eyes jump to a new spot and hold there, rather than gliding after
+      // the pointer like a painting's; they land where it stops.
+      window.clearTimeout(settle.current);
+      const a = aim.current;
+      if (
+        Date.now() - a.at > SACCADE_MS &&
+        Math.hypot(tx - a.x, ty - a.y) > 0.12
+      )
+        lookAt(tx, ty);
+      else settle.current = window.setTimeout(() => lookAt(tx, ty), SACCADE_MS);
+      if (!still && Date.now() > glanceUntil.current) turnRaw.set(easyTurn());
+    };
+
+    /* Look at a point on the page for a moment, head turned and cocked. */
+    const glanceAt = (px: number, py: number) => {
+      const { cx, cy } = centre();
+      const dx = px - cx;
+      lookAt(clamp(dx / 200, -1, 1), clamp((py - cy) / 260, -1, 1));
+      if (!still) {
+        // As far round as it's worth: a little for something close, more
+        // for something across the page, never so far her face slides off.
+        const t = clamp(dx / 420, -0.8, 0.8);
+        turnRaw.set(
+          Math.abs(dx) > 40 ? Math.sign(t) * Math.max(0.3, Math.abs(t)) : t,
+        );
+      }
+      setGlance((g) => ({ n: g.n + 1, side: dx < 0 ? -1 : 1 }));
+      glanceUntil.current = Date.now() + GLANCE_MS;
+      // Only the latest glance's timer turns her back (a timer can fire a
+      // touch early, so comparing clock times isn't reliable).
+      const seq = ++glanceSeq.current;
+      window.setTimeout(() => {
+        if (seq !== glanceSeq.current) return;
+        glanceUntil.current = 0;
+        turnRaw.set(still ? 0 : easyTurn());
+      }, GLANCE_MS);
     };
 
     const onDown = (e: PointerEvent) => {
       if (rootRef.current?.contains(e.target as Node)) return;
-      const { cx, cy } = centre();
-      const dx = e.clientX - cx;
-      if (!still) turnRaw.set(dx < 0 ? -1 : 1);
-      gazeRawX.set(clamp(dx / 200, -1, 1));
-      gazeRawY.set(clamp((e.clientY - cy) / 200, -1, 1));
-      glanceUntil.current = Date.now() + GLANCE_MS;
-      // Only the latest click's timer turns her back (a timer can fire a
-      // touch early, so comparing clock times isn't reliable).
-      const glance = ++glanceSeq.current;
-      window.setTimeout(() => {
-        if (glance === glanceSeq.current) {
-          glanceUntil.current = 0;
-          turnRaw.set(0);
-        }
-      }, GLANCE_MS);
+      lastDown.current = Date.now();
+      stopLookRound();
+      glanceAt(e.clientX, e.clientY);
+      // After a calm spell, a click makes her start: a blink, ears up, a "!".
+      if (Date.now() - lastNotice.current > NOTICE_GAP_MS)
+        setNotice((n) => n + 1);
+      lastNotice.current = Date.now();
+    };
+
+    // Tabbing into a field makes her look at it too (a click already did).
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target;
+      if (!(el instanceof HTMLElement) || rootRef.current?.contains(el)) return;
+      if (Date.now() - lastDown.current < 400) return;
+      if (!el.matches("input, textarea, select, [contenteditable='true']"))
+        return;
+      const r = el.getBoundingClientRect();
+      glanceAt(r.left + r.width / 2, r.top + r.height / 2);
     };
 
     window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerdown", onDown, { passive: true, capture: true });
+    window.addEventListener("pointerdown", onDown, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener("focusin", onFocus);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onDown, { capture: true });
+      window.removeEventListener("focusin", onFocus);
+      window.clearTimeout(settle.current);
     };
-  }, [still, x, y, gazeRawX, gazeRawY, turnRaw]);
+  }, [still, x, y, turnRaw, lookAt, stopLookRound]);
+
+  // ── While the pointer rests her eyes wander a little; after a while she
+  // looks back out at you ──
+  useEffect(() => {
+    if (hidden || tucked) return;
+    let t: number;
+    const next = () => {
+      t = window.setTimeout(() => {
+        const now = Date.now();
+        const resting = now - lastPointerMove.current;
+        if (
+          document.visibilityState === "visible" &&
+          !dozingRef.current &&
+          now > glanceUntil.current &&
+          !lookTimers.current.length &&
+          resting > 2_500
+        ) {
+          const base =
+            resting > LOOK_BACK_MS ? { x: 0, y: 0 } : pointer.current;
+          lookAt(
+            clamp(base.x + (Math.random() - 0.5) * 0.3, -1, 1),
+            clamp(base.y + (Math.random() - 0.5) * 0.2, -1, 1),
+          );
+        }
+        next();
+      }, between(WANDER_GAP_MS));
+    };
+    next();
+    return () => {
+      window.clearTimeout(t);
+      stopLookRound();
+    };
+  }, [hidden, tucked, lookAt, stopLookRound]);
 
   // ── Dozing off when nobody's around, waking with a yawn ──
   useEffect(() => {
@@ -334,15 +568,40 @@ export const AssistantDock = () => {
       }
     };
     const events = ["pointermove", "pointerdown", "keydown", "scroll"] as const;
-    events.forEach((ev) => window.addEventListener(ev, wake, { passive: true }));
+    events.forEach((ev) =>
+      window.addEventListener(ev, wake, { passive: true }),
+    );
     const check = window.setInterval(() => {
-      if (Date.now() - lastActivity.current > DOZE_AFTER_MS && modeRef.current === "closed") setDozing(true);
+      const after =
+        partRef.current === "night" ? DOZE_AFTER_NIGHT_MS : DOZE_AFTER_MS;
+      if (
+        Date.now() - lastActivity.current > after &&
+        modeRef.current === "closed"
+      )
+        setDozing(true);
     }, 10_000);
     return () => {
       events.forEach((ev) => window.removeEventListener(ev, wake));
       window.clearInterval(check);
     };
   }, [flash]);
+
+  // ── She keeps the local clock ──
+  useEffect(() => {
+    const t = window.setInterval(() => setPart(dayPart(new Date())), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  // A question in flight is dropped if she goes away entirely.
+  useEffect(() => () => askAbort.current?.abort(), []);
+
+  // Opened from the "Ask me anything" bubble: straight to the question box.
+  useEffect(() => {
+    if (mode === "open" && focusAsk.current) {
+      focusAsk.current = false;
+      askInput.current?.focus();
+    }
+  }, [mode]);
 
   // ── The daily hello: once per person per day, not while tucked away ──
   useEffect(() => {
@@ -373,14 +632,18 @@ export const AssistantDock = () => {
     if (quiet || dozing || still) return;
     const t = window.setTimeout(() => {
       if (document.visibilityState === "visible") {
+        // Lively in the morning (mostly hops), yawny late at night.
+        const [look, yawn] =
+          part === "morning"
+            ? [0.2, 0.28]
+            : part === "night"
+              ? [0.15, 0.6]
+              : [0.25, 0.45];
         const roll = Math.random();
         const pointerResting = Date.now() - lastPointerMove.current > 3_000;
-        if (roll < 0.25 && pointerResting) {
-          lookAround.current = [
-            animate(gazeRawX, [0, -1, -1, 1, 1, 0], { duration: 2.6 }),
-            animate(turnRaw, [0, -0.6, -0.6, 0.6, 0.6, 0], { duration: 2.6 }),
-          ];
-        } else if (roll < 0.45) {
+        if (roll < look && pointerResting) {
+          lookRound();
+        } else if (roll < yawn) {
           flash("yawn", 1500);
         } else {
           setHop((h) => h + 1);
@@ -389,7 +652,7 @@ export const AssistantDock = () => {
       setIdleTick((n) => n + 1);
     }, between(ACTION_GAP_MS));
     return () => window.clearTimeout(t);
-  }, [quiet, dozing, still, idleTick, flash, gazeRawX, turnRaw]);
+  }, [quiet, dozing, still, idleTick, part, flash, lookRound]);
 
   // ── Page tips: the first visit to each page, one tip at a time ──
   useEffect(() => {
@@ -403,27 +666,49 @@ export const AssistantDock = () => {
     if (!chatty || tucked || dozing || mode !== "closed") return;
     if (bubble && bubble.kind !== "cheer") return;
     const t = window.setTimeout(() => {
-      writeStore(tipsKey(userId), JSON.stringify([...seenTips(userId), tipRoute]));
+      writeStore(
+        tipsKey(userId),
+        JSON.stringify([...seenTips(userId), tipRoute]),
+      );
       setTipRoute(null);
       showTip(tipRoute, 0);
     }, 1_400);
     return () => window.clearTimeout(t);
-  }, [tipRoute, pathname, userId, chatty, tucked, dozing, mode, bubble, showTip]);
+  }, [
+    tipRoute,
+    pathname,
+    userId,
+    chatty,
+    tucked,
+    dozing,
+    mode,
+    bubble,
+    showTip,
+  ]);
 
   // ── Every few minutes a short bubble, a handful per visit at most ──
   useEffect(() => {
-    if (quiet || dozing || bubble || !brief || !chatty || bubblesShown.current >= MAX_BUBBLES) return;
-    const wait = bubblesShown.current === 0 ? FIRST_BUBBLE_MS : between(BUBBLE_GAP_MS);
+    if (
+      quiet ||
+      dozing ||
+      bubble ||
+      !brief ||
+      !chatty ||
+      bubblesShown.current >= MAX_BUBBLES
+    )
+      return;
+    const wait =
+      bubblesShown.current === 0 ? FIRST_BUBBLE_MS : between(BUBBLE_GAP_MS);
     const t = window.setTimeout(() => {
       if (document.visibilityState !== "visible") return;
-      const line = nextBubble(lastBubble.current);
+      const line = nextBubble(lastBubble.current, Math.random, part);
       lastBubble.current = line;
       bubblesShown.current += 1;
       speak({ kind: "cheer", text: line });
       setHop((h) => h + 1);
     }, wait);
     return () => window.clearTimeout(t);
-  }, [quiet, dozing, bubble, brief, chatty, speak]);
+  }, [quiet, dozing, bubble, brief, chatty, part, speak]);
 
   // Bubbles go on their own (tips wait for a button), and whenever the card
   // opens, she's carried or tucked away.
@@ -434,7 +719,10 @@ export const AssistantDock = () => {
       return;
     }
     if (bubble.kind === "tip" || hovering) return;
-    const t = window.setTimeout(() => setBubble(null), bubble.kind === "event" ? 9_000 : 7_000);
+    const t = window.setTimeout(
+      () => setBubble(null),
+      bubble.kind === "event" ? 9_000 : 7_000,
+    );
     return () => window.clearTimeout(t);
   }, [bubble, quiet, hovering]);
 
@@ -457,10 +745,16 @@ export const AssistantDock = () => {
       } else if (ev.status === "offer") {
         flash("celebrate", 2_400);
         setHop((h) => h + 1);
-        line = { kind: "event", text: `An offer from ${company}! That's huge. Well done!` };
+        line = {
+          kind: "event",
+          text: `An offer from ${company}! That's huge. Well done!`,
+        };
       } else if (ev.status === "rejected") {
         flash("sad", 2_600);
-        line = { kind: "event", text: `Sorry about ${company}. Their loss, and every no gets you closer to a yes.` };
+        line = {
+          kind: "event",
+          text: `Sorry about ${company}. Their loss, and every no gets you closer to a yes.`,
+        };
       } else if (ev.status === "applied") {
         flash("happy", 1_400);
         setHop((h) => h + 1);
@@ -482,7 +776,8 @@ export const AssistantDock = () => {
     if (mode === "closed") return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMode("closed");
     const onDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setMode("closed");
+      if (rootRef.current && !rootRef.current.contains(e.target as Node))
+        setMode("closed");
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onDown);
@@ -499,6 +794,92 @@ export const AssistantDock = () => {
   }, [pathname]);
 
   if (hidden) return null;
+
+  /* Ask Fay something; her answer streams into the card. */
+  const ask = async (raw: string) => {
+    const q = raw.trim().slice(0, 500);
+    if (!q || asking) return;
+    const id = Date.now();
+    setQuestion("");
+    setTurns((ts) => [
+      ...ts.slice(-4),
+      { id, question: q, answer: "", status: "thinking" },
+    ]);
+    const update = (patch: Partial<Turn>) =>
+      setTurns((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    const controller = new AbortController();
+    askAbort.current = controller;
+
+    const run = async () => {
+      let text = "";
+      for await (const ev of streamCoachChat({
+        message: q,
+        sessionId: sessionRef.current,
+        focusArea: "fay",
+        personaName: "Fay",
+        signal: controller.signal,
+      })) {
+        if (ev.kind === "session") sessionRef.current = ev.id;
+        else if (ev.kind === "token") {
+          if (!text) setTalking(true);
+          text += ev.text;
+          update({ answer: text, status: "streaming" });
+        } else if (ev.kind === "citations") {
+          const sources = ev.citations
+            .filter(
+              (c): c is typeof c & { url: string } =>
+                typeof c.url === "string" && /^https:\/\//.test(c.url),
+            )
+            .slice(0, 3)
+            .map((c) => ({ n: c.n, title: c.title, url: c.url }));
+          if (sources.length) update({ sources });
+        } else if (ev.kind === "error") throw new Error(ev.message);
+      }
+      return text;
+    };
+
+    try {
+      let text: string;
+      try {
+        text = await run();
+      } catch (err) {
+        // Horus forgot the conversation: start a fresh one and ask again.
+        if (!(err instanceof CoachSessionExpiredError)) throw err;
+        sessionRef.current = undefined;
+        text = await run();
+      }
+      update({
+        status: "done",
+        answer:
+          text.trim() ||
+          "Sorry, I didn't catch that. Could you ask it another way?",
+      });
+      flash("happy", 900);
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      update({
+        status: "error",
+        answer:
+          err instanceof QuotaExceededError
+            ? err.message
+            : "Sorry, I couldn't answer just now. Try again in a moment.",
+      });
+      flash("sad", 1_200);
+    } finally {
+      setTalking(false);
+    }
+  };
+
+  const startOver = () => {
+    askAbort.current?.abort();
+    sessionRef.current = undefined;
+    setTurns([]);
+  };
+
+  const chooseMotion = (pref: MotionPref) => {
+    setMotionPref(pref);
+    writeStore(MOTION_KEY, pref === "auto" ? null : pref);
+  };
 
   const go = (path: string) => {
     setMode("closed");
@@ -580,7 +961,14 @@ export const AssistantDock = () => {
   const place = placeNear(spot);
   const home = spotOf(HOME);
   const atHome = Math.abs(spot.x - home.x) < 2 && Math.abs(spot.y - home.y) < 2;
-  const shownMood: FayMood = tucked || dozing ? "sleep" : carried ? "carried" : mood;
+  const shownMood: FayMood =
+    tucked || dozing
+      ? "sleep"
+      : carried
+        ? "carried"
+        : thinking
+          ? "think"
+          : mood;
 
   return (
     <div ref={rootRef} className="cc-font-sans">
@@ -593,7 +981,11 @@ export const AssistantDock = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: place.below ? -8 : 8, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
-            style={{ ...place.style, originX: place.right ? 1 : 0, originY: place.below ? 0 : 1 }}
+            style={{
+              ...place.style,
+              originX: place.right ? 1 : 0,
+              originY: place.below ? 0 : 1,
+            }}
             onPointerEnter={() => setHovering(true)}
             onPointerLeave={() => setHovering(false)}
             className="fixed z-[35] w-[min(340px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-[color:var(--cc-hair)] bg-white p-4 text-[color:var(--cc-ink)] shadow-[0_18px_50px_-18px_rgba(20,22,26,0.35)]"
@@ -608,16 +1000,20 @@ export const AssistantDock = () => {
             </button>
 
             <div aria-live="polite">
-              <p className="cc-font-display pr-8 text-[19px] leading-snug">{met ? met.hello : brief.hello}</p>
+              <p className="cc-font-display pr-8 text-[19px] leading-snug">
+                {met ? met.hello : brief.hello}
+              </p>
               {met && (
-                <p className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">{met.line}</p>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+                  {met.line}
+                </p>
               )}
-              {brief.nudge && (
+              {brief.nudge && !turns.length && (
                 <p className="mt-2 text-[14.5px] leading-relaxed text-[color:var(--cc-ink-soft)]">
                   {brief.nudge.text}
                 </p>
               )}
-              {brief.nudge?.action && (
+              {brief.nudge?.action && !turns.length && (
                 <button
                   type="button"
                   onClick={() => go(brief.nudge!.action!.path)}
@@ -627,28 +1023,172 @@ export const AssistantDock = () => {
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               )}
-              <p className="mt-3 border-l-2 border-[#F5B95F] pl-3 text-[13.5px] italic leading-relaxed text-[color:var(--cc-ash)]">
-                {brief.cheer}
-              </p>
+              {!turns.length && (
+                <p className="mt-3 border-l-2 border-[#F5B95F] pl-3 text-[13.5px] italic leading-relaxed text-[color:var(--cc-ash)]">
+                  {brief.cheer}
+                </p>
+              )}
             </div>
 
             {mode === "open" && (
               <>
+                {/* Ask me anything */}
                 <div className="mt-4 border-t border-[color:var(--cc-hair)] pt-3">
-                  <p className="cc-label-sm mb-2 text-[color:var(--cc-ash)]">Take me to</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {shortcuts.map(({ icon: Icon, label, path }) => (
-                      <button
-                        key={path}
-                        type="button"
-                        onClick={() => go(path)}
-                        className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium transition-colors hover:bg-[color:var(--cc-cream-2)]"
-                      >
-                        <Icon className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--cc-rust)]" />
-                        <span className="truncate">{label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {turns.length > 0 && (
+                    <div className="mb-3 space-y-3" aria-live="polite">
+                      {turns.map((t) => (
+                        <div key={t.id} className="space-y-1.5">
+                          <p className="ml-8 rounded-2xl rounded-br-md bg-[color:var(--cc-cream-2)] px-3 py-2 text-[13.5px] leading-snug">
+                            {t.question}
+                          </p>
+                          {t.status === "thinking" ? (
+                            <p className="text-[13.5px] italic text-[color:var(--cc-ash)]">
+                              Fay is thinking…
+                            </p>
+                          ) : (
+                            <div
+                              className={`space-y-1.5 text-[14px] leading-relaxed ${
+                                t.status === "error"
+                                  ? "text-[color:var(--cc-ash)]"
+                                  : "text-[color:var(--cc-ink)]"
+                              }`}
+                            >
+                              {parseAnswer(t.answer).map((block, bi) => (
+                                <p
+                                  key={bi}
+                                  className={
+                                    block.kind === "item"
+                                      ? "flex gap-2"
+                                      : undefined
+                                  }
+                                >
+                                  {block.kind === "item" && (
+                                    <span aria-hidden="true">•</span>
+                                  )}
+                                  <span>
+                                    {block.pieces.map((piece, pi) =>
+                                      piece.kind === "link" ? (
+                                        <button
+                                          key={pi}
+                                          type="button"
+                                          onClick={() => go(piece.path)}
+                                          className="mx-0.5 inline-flex items-center gap-1 rounded-full bg-[color:var(--cc-rust-soft)] px-2 py-0.5 text-[13px] font-semibold text-[color:var(--cc-rust)] hover:bg-[color:var(--cc-rust)] hover:text-white"
+                                        >
+                                          {piece.label}
+                                          <ArrowRight className="h-3 w-3" />
+                                        </button>
+                                      ) : (
+                                        <span key={pi}>{piece.text}</span>
+                                      ),
+                                    )}
+                                  </span>
+                                </p>
+                              ))}
+                              {t.sources && t.status === "done" && (
+                                <p className="text-[12px] text-[color:var(--cc-ash)]">
+                                  Sources:{" "}
+                                  {t.sources.map((src, si) => (
+                                    <a
+                                      key={src.n}
+                                      href={src.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="underline underline-offset-2 hover:text-[color:var(--cc-ink)]"
+                                    >
+                                      {src.title || `Source ${si + 1}`}
+                                      {si < t.sources!.length - 1 ? ", " : ""}
+                                    </a>
+                                  ))}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void ask(question);
+                    }}
+                    className="flex items-center gap-2 rounded-full border border-[color:var(--cc-hair-strong)] bg-white py-1 pl-3.5 pr-1 focus-within:border-[color:var(--cc-rust)]"
+                  >
+                    <input
+                      ref={askInput}
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      maxLength={500}
+                      aria-label="Ask Fay a question"
+                      placeholder={
+                        turns.length
+                          ? "Ask something else…"
+                          : "Ask me anything about Faircopy…"
+                      }
+                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-[color:var(--cc-ash)] md:text-[14px]"
+                    />
+                    <button
+                      type="submit"
+                      aria-label="Ask"
+                      disabled={asking || !question.trim()}
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--cc-rust)] text-white transition-opacity disabled:opacity-40"
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </button>
+                  </form>
+
+                  {turns.length === 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {ASK_EXAMPLES.map((ex) => (
+                        <button
+                          key={ex}
+                          type="button"
+                          onClick={() => void ask(ex)}
+                          className="rounded-full border border-[color:var(--cc-hair)] px-2.5 py-1 text-left text-[12.5px] text-[color:var(--cc-ink-soft)] hover:border-[color:var(--cc-rust)] hover:text-[color:var(--cc-ink)]"
+                        >
+                          {ex}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startOver}
+                      className="mt-2 text-[12.5px] text-[color:var(--cc-ash)] underline-offset-2 hover:text-[color:var(--cc-ink)] hover:underline"
+                    >
+                      Start over
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-4 border-t border-[color:var(--cc-hair)] pt-3">
+                  <button
+                    type="button"
+                    aria-expanded={showShortcuts}
+                    onClick={() => setShowShortcuts((v) => !v)}
+                    className="cc-label-sm flex w-full items-center justify-between text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
+                  >
+                    Take me to
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform ${showShortcuts ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {showShortcuts && (
+                    <div className="mt-2 grid grid-cols-2 gap-1.5">
+                      {shortcuts.map(({ icon: Icon, label, path }) => (
+                        <button
+                          key={path}
+                          type="button"
+                          onClick={() => go(path)}
+                          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] font-medium transition-colors hover:bg-[color:var(--cc-cream-2)]"
+                        >
+                          <Icon className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--cc-rust)]" />
+                          <span className="truncate">{label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-[color:var(--cc-hair)] pt-3 text-[12.5px] text-[color:var(--cc-ash)]">
                   <button
@@ -668,6 +1208,41 @@ export const AssistantDock = () => {
                     </span>
                     Tips and bubbles
                   </button>
+                  <span
+                    className="inline-flex items-center gap-1.5"
+                    role="group"
+                    aria-label="Fay's movement"
+                  >
+                    Moves
+                    {(
+                      [
+                        ["auto", "Device"],
+                        ["full", "Full"],
+                        ["calm", "Calm"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={motionPref === key}
+                        onClick={() => chooseMotion(key)}
+                        title={
+                          key === "auto"
+                            ? deviceStill
+                              ? "Your device asks for less motion, so Fay keeps calm"
+                              : "Follow your device's motion setting"
+                            : undefined
+                        }
+                        className={`rounded-full px-2 py-0.5 ${
+                          motionPref === key
+                            ? "bg-[color:var(--cc-ink)] text-white"
+                            : "hover:text-[color:var(--cc-ink)]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </span>
                   <span className="flex items-center gap-3">
                     {!atHome && (
                       <button
@@ -707,7 +1282,9 @@ export const AssistantDock = () => {
             onPointerEnter={() => setHovering(true)}
             onPointerLeave={() => setHovering(false)}
             className={`fixed z-[35] rounded-2xl border border-[color:var(--cc-hair)] bg-white text-[color:var(--cc-ink)] shadow-[0_12px_30px_-14px_rgba(20,22,26,0.4)] ${
-              bubble.kind === "tip" ? "w-[min(280px,calc(100vw-24px))] p-3.5" : "max-w-[240px] px-3.5 py-2.5"
+              bubble.kind === "tip"
+                ? "w-[min(280px,calc(100vw-24px))] p-3.5"
+                : "max-w-[240px] px-3.5 py-2.5"
             }`}
           >
             {bubble.kind === "tip" && bubble.tip && (
@@ -718,7 +1295,15 @@ export const AssistantDock = () => {
             {bubble.kind === "tip" ? (
               <p className="text-[13.5px] leading-snug">{bubble.text}</p>
             ) : (
-              <button type="button" onClick={open} className="text-left text-[13.5px] font-medium leading-snug">
+              <button
+                type="button"
+                onClick={() => {
+                  if (/^Ask me anything/.test(bubble.text))
+                    focusAsk.current = true;
+                  open();
+                }}
+                className="text-left text-[13.5px] font-medium leading-snug"
+              >
                 {bubble.text}
               </button>
             )}
@@ -744,7 +1329,9 @@ export const AssistantDock = () => {
                 {bubble.tip.index + 1 < bubble.tip.total && (
                   <button
                     type="button"
-                    onClick={() => showTip(bubble.tip!.path, bubble.tip!.index + 1)}
+                    onClick={() =>
+                      showTip(bubble.tip!.path, bubble.tip!.index + 1)
+                    }
                     className="cc-action cc-action--sm"
                   >
                     Tell me more
@@ -770,7 +1357,12 @@ export const AssistantDock = () => {
         drag={!tucked}
         dragMomentum={false}
         dragElastic={0.08}
-        dragConstraints={{ left: lim.minX, right: lim.maxX, top: lim.minY, bottom: lim.maxY }}
+        dragConstraints={{
+          left: lim.minX,
+          right: lim.maxX,
+          top: lim.minY,
+          bottom: lim.maxY,
+        }}
         onDragStart={() => {
           justDragged.current = true;
           setCarried(true);
@@ -790,15 +1382,24 @@ export const AssistantDock = () => {
         }}
         onClick={() => {
           if (justDragged.current) return;
+          setPoke((p) => p + 1);
           onFay();
         }}
         onPointerMove={onStroke}
-        onPointerEnter={() => !tucked && mode === "closed" && mood === "idle" && setMood("happy")}
+        onPointerEnter={() =>
+          !tucked && mode === "closed" && mood === "idle" && setMood("happy")
+        }
         onPointerLeave={() => setMood((m) => (m === "happy" ? "idle" : m))}
-        aria-label={tucked ? "Wake Fay" : mode === "open" ? "Close Fay" : "Open Fay, your Faircopy helper. You can drag her anywhere."}
+        aria-label={
+          tucked
+            ? "Wake Fay"
+            : mode === "open"
+              ? "Close Fay"
+              : "Open Fay, your Faircopy helper. You can drag her anywhere."
+        }
         aria-expanded={mode === "open"}
-        whileHover={tucked ? undefined : { scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
+        whileHover={tucked ? undefined : { scale: 1.05 }}
+        whileTap={{ scale: 0.96 }}
         whileDrag={{ scale: 1.08, cursor: "grabbing" }}
         style={{ x, y, touchAction: "none" }}
         className="fixed left-0 top-0 z-[35] cursor-grab rounded-2xl p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--cc-rust)]"
@@ -811,6 +1412,15 @@ export const AssistantDock = () => {
           gazeX={gazeX}
           gazeY={gazeY}
           turn={turn}
+          notice={notice}
+          glance={glance.n}
+          glanceSide={glance.side}
+          blink={blink}
+          poke={poke}
+          drowsy={part === "night"}
+          nightcap={part === "night"}
+          scene={part}
+          still={still}
           size={FAY_SIZE}
         />
       </motion.button>
