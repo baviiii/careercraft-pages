@@ -13,7 +13,10 @@
     - 600px maximum. Wider is cut off in several desktop clients.
     - No web fonts. They fail silently in Outlook and Gmail, so the stack
       falls back to what is installed. Faircopy's Bricolage Grotesque is not
-      available here; Georgia carries the editorial feel instead.
+      available here; a bold system sans with tight tracking stands in for it.
+    - One image only: the mark in the masthead, a 96px PNG (not WebP, which
+      Outlook can't show) served from the live site. The wordmark beside it
+      is text, so an email with images blocked still says "Faircopy".
     - No background images, no SVG, no JavaScript.
 
   Palette, matched to design-system.css:
@@ -48,15 +51,19 @@
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EFEFEA;">
       <tr>
         <td align="center" style="padding:32px 16px;">
-          <table role="presentation" width="600" cellpadding="0" cellspacing="0"
-                 style="width:600px; max-width:100%; background:#F7F7F4; border:1px solid rgba(20,22,26,0.12);">
+          <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="width:100%; max-width:600px; background:#F7F7F4; border:1px solid rgba(20,22,26,0.12);">
 
             <!-- Masthead -->
             <tr>
               <td style="padding:28px 32px 20px; border-bottom:1px solid rgba(20,22,26,0.12);">
-                <span style="font-family:Georgia,'Times New Roman',serif; font-size:19px; letter-spacing:-0.01em; color:#14161A;">
-                  Faircopy
-                </span>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="vertical-align:middle; padding-right:10px;"><img src="https://www.faircopy.au/brand/faircopy-mark-email.png" width="40" height="40" alt="" style="display:block; width:40px; height:40px; border:0;" /></td>
+                    <td style="vertical-align:middle; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:21px; font-weight:700; letter-spacing:-0.02em; color:#14161A;">Faircopy</td>
+                  </tr>
+                </table>
               </td>
             </tr>
 
@@ -77,6 +84,7 @@
               </td>
             </tr>
           </table>
+          <!--[if mso]></td></tr></table><![endif]-->
         </td>
       </tr>
     </table>

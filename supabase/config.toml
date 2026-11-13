@@ -83,7 +83,7 @@ enable_confirmations = false
 # mail, so a broken link or a mangled variable shows up at Inbucket
 # (http://127.0.0.1:54324) instead of in someone's inbox.
 [auth.email.template.confirmation]
-subject = "Confirm your email"
+subject = "Welcome to Faircopy: confirm your email"
 content_path = "./supabase/templates/confirm-signup.html"
 
 [auth.email.template.recovery]

@@ -39,10 +39,15 @@ stripped subset elsewhere.
 - **Buttons are tables.** Outlook ignores padding on inline elements, so a
   padded `<a>` collapses into bare underlined text.
 - **No web fonts.** They fail silently in Outlook and Gmail. Faircopy's
-  Bricolage Grotesque is unavailable here; Georgia carries the editorial feel
-  and is installed nearly everywhere.
-- **No images, no SVG, no JavaScript.** An image-free email cannot break when
-  images are blocked by default, which they usually are.
+  Bricolage Grotesque is unavailable here; a bold system sans with tight
+  tracking stands in for it in the wordmark and headings.
+- **One image: the mark.** `faircopy-mark-email.png`, a 7 KB 96px PNG served
+  from `https://www.faircopy.au/brand/` and shown at 40px. PNG, not the site's
+  WebP, because Outlook can't show WebP. The wordmark beside it is text, so
+  with images blocked (often the default) the email still says "Faircopy".
+  The image has to be live on the site before a template using it is pasted
+  into the dashboard.
+- **No SVG, no background images, no JavaScript.**
 - **Every email has a preheader** — the grey line beside the subject. Without
   one, clients pull the first visible text, which here would be "Faircopy" alone.
 
@@ -57,7 +62,11 @@ further and tells them to contact support, because an unexpected address change
 is the one case that genuinely suggests a compromised password.
 
 No marketing in transactional mail. Someone resetting a password at 11pm does
-not want a feature tour.
+not want a feature tour. The one exception: the two emails a new person gets
+first — confirm sign-up and invite — end with a short "Your workshop for the
+next move" block, the three stages from the homepage (Figure it out / Get
+ready / Go for it) in one line each. It sits below the button, so the action
+still comes first, and it adds no links.
 
 ## Variables
 
