@@ -678,14 +678,15 @@ export default function Dashboard() {
             {/* Dispatch — personalized news + live roles */}
             <DispatchFeed />
 
-            {/* Workshop + pulse. The tools get the wider column: each card
-                needs room for its drawing, a line and a readable button. */}
-            <section className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_0.8fr]">
-              <div>
-                <SectionHead kicker="Workshop" title="All tools" sub="What each one does, at a glance." />
-                <Workshop resumes={stats.totalResumes} letters={stats.totalCoverLetters} />
-              </div>
+            {/* Workshop gets the whole row. Sharing it with Recent squeezed
+                each card to ~290px beside the sidebar on a laptop, which cut
+                off the words and pushed the buttons out of the card. */}
+            <section className="mt-12">
+              <SectionHead kicker="Workshop" title="All tools" sub="What each one does, at a glance." />
+              <Workshop resumes={stats.totalResumes} letters={stats.totalCoverLetters} />
+            </section>
 
+            <section className="mt-12">
               <div>
                 <SectionHead kicker="Pulse" title="Recent" sub="What moved in your workspace." />
                 <div className="cc-surface mt-5 overflow-hidden">

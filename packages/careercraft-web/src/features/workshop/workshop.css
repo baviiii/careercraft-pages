@@ -21,11 +21,22 @@
   --cc-t-border: rgba(31, 122, 140, 0.26);
 }
 
+/* ── Grid ──────────────────────────────────────────────────── */
+/* As many columns as fit at 330px or wider. The page's width depends on
+   the sidebar and the screen, so the grid decides from the space it has,
+   not from the viewport. */
+.ws-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+}
+
 /* ── Card ──────────────────────────────────────────────────── */
+/* The card is a size container; .ws-card__in lays itself out from the
+   card's own width: drawing on top when narrow, beside the words when
+   there's room. Nothing is clipped at any width. */
 .ws-grid .ws-card {
   position: relative;
-  display: flex;
-  min-height: 136px;
+  display: block;
+  container-type: inline-size;
   overflow: hidden;
   text-align: left;
   border: 1px solid var(--cc-t-border, var(--cc-hair));
@@ -47,16 +58,21 @@
   outline-offset: 2px;
 }
 
-/* The drawing sits on a strip of graph paper washed in the tone, down the
-   card's left side. Each drawing is laid out in a 120×88 box (.ws-art)
-   centred on that strip. */
+.ws-grid .ws-card__in {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* The drawing sits on graph paper washed in the tone. Each drawing is laid
+   out in a 120×88 box (.ws-art) centred on it. */
 .ws-grid .ws-stage {
   position: relative;
   display: block;
   flex: none;
-  width: 124px;
+  height: 104px;
   overflow: hidden;
-  border-right: 1px solid var(--cc-t-border, var(--cc-hair));
+  border-bottom: 1px solid var(--cc-t-border, var(--cc-hair));
   background:
     linear-gradient(rgba(20, 22, 26, 0.045) 1px, transparent 1px) 0 0 / 12px 12px,
     linear-gradient(90deg, rgba(20, 22, 26, 0.045) 1px, transparent 1px) 0 0 / 12px 12px,
@@ -84,8 +100,24 @@
   flex-direction: column;
   padding: 14px 16px 14px;
 }
+
+@container (min-width: 300px) {
+  .ws-grid .ws-card__in { flex-direction: row; min-height: 140px; }
+  .ws-grid .ws-stage {
+    width: 108px;
+    height: auto;
+    border-bottom: 0;
+    border-right: 1px solid var(--cc-t-border, var(--cc-hair));
+  }
+}
+@container (min-width: 420px) {
+  .ws-grid .ws-stage { width: 136px; }
+}
+/* Wraps rather than overflows: if the count and the button can't share a
+   line, the button drops below instead of leaving the card. */
 .ws-grid .ws-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -97,6 +129,8 @@
 .ws-grid .ws-go {
   display: inline-flex;
   flex: none;
+  margin-left: auto;
+  white-space: nowrap;
   align-items: center;
   gap: 5px;
   border-radius: 999px;
