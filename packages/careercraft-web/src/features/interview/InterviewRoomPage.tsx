@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, RotateCcw } from "lucide-react";
 import { useInterviewSession, clearStagedSession } from "./hooks/useInterviewSession";
 import { AnswerComposer } from "./components/room/AnswerComposer";
 import { Debrief } from "./components/room/Debrief";
@@ -126,10 +126,21 @@ export default function InterviewRoomPage() {
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-3">
-              {records.some((r) => r.answerText) && (
+              {records.some((r) => r.answerText) ? (
                 <button type="button" onClick={session.retryFinish} className="cc-action">
                   <Loader2 className="h-3.5 w-3.5" />
                   Try the debrief again
+                </button>
+              ) : (
+                /* Nothing answered yet (usually the start failed): run the
+                   same interview again rather than leave a dead end. */
+                <button
+                  type="button"
+                  onClick={() => session.beginNew(config)}
+                  className="cc-action"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Try again
                 </button>
               )}
               <button type="button" onClick={() => exitToHub()} className="cc-action cc-action--ghost">

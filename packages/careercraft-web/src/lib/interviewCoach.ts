@@ -578,11 +578,31 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new CoachUnavailableError(
-      `Interview coach error (${res.status})${text ? `: ${text.slice(0, 200)}` : ""}`,
-    );
+    console.warn(`[interview-coach] ${path} → HTTP ${res.status}`, text.slice(0, 300));
+    throw new CoachUnavailableError(coachErrorMessage(res.status, text));
   }
   return (await res.json()) as T;
+}
+
+/* What to tell someone when the coach says no. Never its raw reply: that can
+   be a JSON dump from the model service a few layers down. */
+function coachErrorMessage(status: number, body: string): string {
+  // The model service was down or slow for a moment. The coach answers 503
+  // for that; older coach builds answered 400 with the upstream error inside.
+  if (status >= 500 || /Horus (\d{3}\b|timed out|request failed)/.test(body)) {
+    return "The coach's AI is busy right now. Give it a minute and try again.";
+  }
+  if (status === 401) return "Please sign in again to use the interview coach.";
+  // The coach's own reason, when it's a sentence a person can read.
+  try {
+    const reason = (JSON.parse(body) as { error?: unknown }).error;
+    if (typeof reason === "string" && reason.length <= 200 && !/[{}]/.test(reason)) {
+      return reason;
+    }
+  } catch {
+    /* not JSON */
+  }
+  return "Interview coach is not available at the moment.";
 }
 
 /* ── Adapters: wire shape → UI shape ─────────────────────────────────────── */
