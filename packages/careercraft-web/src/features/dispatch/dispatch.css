@@ -1,0 +1,403 @@
+/* ───────────────────────────────────────────────────────────
+   Dispatch — the Home feed's own styles.
+   Roles are tickets (tear line, a stamp when saved); stories sit
+   under their publisher's logo with a topic colour. Pay is marked
+   in the same yellow highlighter the ATS check uses.
+
+   Hover lifts use the individual `translate`/`rotate` properties,
+   because the entrance animation fills `transform` and would
+   otherwise pin it.
+   ─────────────────────────────────────────────────────────── */
+
+/* Topic tones craft.css doesn't have. Same five vars as .cc-tone-*. */
+.fc-dispatch .fc-tone-pen {
+  --cc-t: #C2412D;
+  --cc-t-deep: #9C3424;
+  --cc-t-soft: rgba(194, 65, 45, 0.12);
+  --cc-t-wash: rgba(194, 65, 45, 0.12);
+  --cc-t-border: rgba(194, 65, 45, 0.28);
+}
+.fc-dispatch .fc-tone-teal {
+  --cc-t: #1F7A8C;
+  --cc-t-deep: #155A68;
+  --cc-t-soft: rgba(31, 122, 140, 0.12);
+  --cc-t-wash: rgba(31, 122, 140, 0.12);
+  --cc-t-border: rgba(31, 122, 140, 0.28);
+}
+
+/* ── Logos ─────────────────────────────────────────────────── */
+.fc-dispatch .fc-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 28%;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+    0 6px 14px -8px rgba(20, 22, 26, 0.5);
+  transition: rotate 0.3s cubic-bezier(.2, .8, .2, 1), scale 0.3s cubic-bezier(.2, .8, .2, 1), filter 0.3s;
+}
+.fc-dispatch .fc-logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: 28%;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--cc-hair), 0 6px 14px -10px rgba(20, 22, 26, 0.45);
+  transition: filter 0.3s, opacity 0.3s;
+}
+.fc-dispatch .fc-logo img {
+  width: 62%;
+  height: 62%;
+  object-fit: contain;
+}
+
+/* ── The live dot ──────────────────────────────────────────── */
+.fc-dispatch .fc-live {
+  position: relative;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--cc-signal);
+}
+.fc-dispatch .fc-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: fc-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes fc-ping {
+  75%, 100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* ── Roles strip ───────────────────────────────────────────── */
+.fc-dispatch .fc-roles {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 4px 2px 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cc-hair-strong) transparent;
+}
+.fc-dispatch .fc-roles__slot {
+  display: flex;
+  flex: 0 0 min(80%, 268px);
+  scroll-snap-align: start;
+}
+
+.fc-dispatch .fc-step {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-hair-strong);
+  background: #fff;
+  color: var(--cc-ink);
+  transition: border-color 0.2s, opacity 0.2s;
+}
+.fc-dispatch .fc-step:hover:not(:disabled) { border-color: var(--cc-ink); }
+.fc-dispatch .fc-step:disabled { opacity: 0.35; cursor: default; }
+
+.fc-dispatch .fc-seeall {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cc-rust-deep);
+  background: var(--cc-rust-soft);
+  transition: background 0.2s;
+}
+.fc-dispatch .fc-seeall:hover { background: rgba(42, 82, 204, 0.18); }
+
+/* ── Ticket ────────────────────────────────────────────────── */
+.fc-dispatch .fc-ticket {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  padding: 16px;
+  border: 1px solid var(--cc-hair);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 40px -34px rgba(20, 22, 26, 0.35);
+  transition:
+    translate 0.3s cubic-bezier(.2, .8, .2, 1),
+    rotate 0.3s cubic-bezier(.2, .8, .2, 1),
+    box-shadow 0.3s,
+    border-color 0.3s;
+  animation: fc-rise 0.5s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+.fc-dispatch .fc-ticket:hover {
+  translate: 0 -3px;
+  rotate: -0.5deg;
+  border-color: var(--cc-hair-strong);
+  box-shadow: 0 26px 50px -30px rgba(20, 22, 26, 0.42);
+}
+.fc-dispatch .fc-ticket:hover .fc-badge { rotate: -7deg; scale: 1.06; }
+
+.fc-dispatch .fc-ticket__title {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0 1.5px;
+  transition: background-size 0.35s cubic-bezier(.2, .8, .2, 1), color 0.2s;
+}
+.fc-dispatch .fc-ticket__title:hover {
+  color: var(--cc-rust);
+  background-size: 100% 1.5px;
+}
+.fc-dispatch .fc-ticket__title:focus-visible {
+  outline: 2px solid var(--cc-rust);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The tear line: dashes with a notch bitten out of each edge. It takes
+   the slack, so every ticket's buttons line up along the strip. */
+.fc-dispatch .fc-ticket__tear {
+  position: relative;
+  flex: none;
+  height: 14px;
+  margin: auto -16px 12px;
+  background: linear-gradient(90deg, var(--cc-hair-strong) 50%, transparent 0) left bottom / 8px 1.5px repeat-x;
+}
+.fc-dispatch .fc-ticket__tear::before,
+.fc-dispatch .fc-ticket__tear::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--cc-cream);
+  box-shadow: inset 0 0 0 1px var(--cc-hair);
+}
+.fc-dispatch .fc-ticket__tear::before { left: -7px; }
+.fc-dispatch .fc-ticket__tear::after { right: -7px; }
+
+.fc-dispatch .fc-new {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--cc-signal-soft);
+  color: var(--cc-signal-deep);
+}
+
+.fc-dispatch .fc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  background: var(--cc-cream-2);
+  color: var(--cc-ink-soft);
+}
+/* Pay gets the highlighter: it's the fact people look for first. */
+.fc-dispatch .fc-tag--pay {
+  background: linear-gradient(100deg, rgba(255, 222, 89, 0.35) 0%, rgba(255, 222, 89, 0.85) 8%, rgba(255, 214, 72, 0.75) 92%, rgba(255, 222, 89, 0.35) 100%);
+  color: var(--cc-ink);
+  font-weight: 600;
+}
+.fc-dispatch .fc-tag--remote {
+  background: var(--cc-signal-soft);
+  color: var(--cc-signal-deep);
+  font-weight: 500;
+}
+
+.fc-dispatch .fc-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--cc-rust);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--cc-rust);
+  transition: background 0.2s, translate 0.2s;
+}
+.fc-dispatch .fc-save:hover:not(:disabled) { background: var(--cc-rust-deep); translate: 0 -1px; }
+.fc-dispatch .fc-save:disabled { opacity: 0.6; cursor: default; }
+.fc-dispatch .fc-save:focus-visible { outline: 2px solid var(--cc-rust); outline-offset: 2px; }
+.fc-dispatch .fc-save.is-saved {
+  border-color: transparent;
+  color: var(--cc-signal-deep);
+  background: var(--cc-signal-soft);
+}
+.fc-dispatch .fc-save.is-saved:hover { background: rgba(63, 122, 92, 0.22); }
+
+/* Rubber stamp, double ruled, inked in sage. */
+.fc-dispatch .fc-stamp {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 2px 8px;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cc-signal);
+  opacity: 0.85;
+  transform: rotate(-12deg);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.fc-dispatch .fc-ticket.is-stamping { animation: fc-thump 0.4s 0.12s cubic-bezier(.2, .8, .2, 1) both; }
+.fc-dispatch .is-stamping .fc-stamp { animation: fc-stamp 0.45s cubic-bezier(.2, .9, .3, 1.3) both; }
+
+@keyframes fc-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fc-stamp {
+  0% { opacity: 0; transform: rotate(-12deg) scale(2.2); }
+  60% { opacity: 0.95; transform: rotate(-12deg) scale(0.92); }
+  100% { opacity: 0.85; transform: rotate(-12deg) scale(1); }
+}
+@keyframes fc-thump {
+  0%, 100% { transform: none; }
+  40% { transform: scale(0.985); }
+}
+
+/* ── News ──────────────────────────────────────────────────── */
+
+/* A cover for stories with no photo: the topic word set huge in its own
+   colour, bleeding off the bottom, over a halftone, with the logo pinned. */
+.fc-dispatch .fc-cover {
+  position: relative;
+  height: 9.5rem;
+  overflow: hidden;
+  border-bottom: 1px solid var(--cc-t-border, var(--cc-hair));
+  background: linear-gradient(135deg, var(--cc-t-wash, var(--cc-rust-soft)) 0%, #fff 75%);
+}
+.fc-dispatch .fc-cover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--cc-t, var(--cc-rust)) 1.1px, transparent 1.5px);
+  background-size: 11px 11px;
+  opacity: 0.22;
+  -webkit-mask-image: linear-gradient(115deg, transparent 25%, #000 85%);
+  mask-image: linear-gradient(115deg, transparent 25%, #000 85%);
+}
+.fc-dispatch .fc-cover__word {
+  position: absolute;
+  left: 18px;
+  bottom: -0.2em;
+  font-size: clamp(4rem, 8vw, 6.25rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.055em;
+  color: var(--cc-t, var(--cc-rust));
+  opacity: 0.92;
+  transition: translate 0.6s cubic-bezier(.2, .8, .2, 1);
+}
+.fc-dispatch .group:hover .fc-cover__word { translate: 6px 0; }
+.fc-dispatch .fc-cover__logo {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  rotate: 4deg;
+  transition: rotate 0.5s cubic-bezier(.2, .8, .2, 1), scale 0.5s cubic-bezier(.2, .8, .2, 1);
+}
+.fc-dispatch .group:hover .fc-cover__logo { rotate: -4deg; scale: 1.06; }
+
+.fc-dispatch .fc-topic {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--cc-t-soft, var(--cc-rust-soft));
+  color: var(--cc-t-deep, var(--cc-rust-deep));
+}
+.fc-dispatch .fc-topic::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cc-t, var(--cc-rust));
+}
+.fc-dispatch .fc-topic--on-image {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.45);
+}
+
+.fc-dispatch .fc-rail { transition: background 0.2s; }
+.fc-dispatch .fc-rail:hover { background: color-mix(in srgb, var(--cc-cream-2) 60%, transparent); }
+.fc-dispatch .fc-rail__logo {
+  position: relative;
+  transition: rotate 0.3s cubic-bezier(.2, .8, .2, 1), scale 0.3s cubic-bezier(.2, .8, .2, 1);
+}
+.fc-dispatch .fc-rail:hover .fc-rail__logo { rotate: -6deg; scale: 1.06; }
+.fc-dispatch .fc-rail__tick {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--cc-signal);
+  box-shadow: 0 0 0 2px #fff;
+}
+
+/* Read stories step back, so the unread ones carry the page. */
+.fc-dispatch .fc-is-read .fc-headline { color: var(--cc-ash); }
+.fc-dispatch .fc-is-read .fc-logo,
+.fc-dispatch .fc-is-read .fc-badge { filter: grayscale(0.7); opacity: 0.75; }
+
+/* Reading progress: one pip per story. */
+.fc-dispatch .fc-pip {
+  width: 12px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cc-hair-strong);
+  transition: background 0.3s, width 0.3s cubic-bezier(.2, .8, .2, 1);
+}
+.fc-dispatch .fc-pip.is-on { width: 20px; background: var(--cc-signal); }
+
+/* ── Reduce motion: keep the information, drop the movement ─── */
+@media (prefers-reduced-motion: reduce) {
+  .fc-dispatch .fc-live::after,
+  .fc-dispatch .fc-ticket,
+  .fc-dispatch .fc-ticket.is-stamping,
+  .fc-dispatch .is-stamping .fc-stamp { animation: none; }
+  .fc-dispatch .fc-ticket:hover,
+  .fc-dispatch .fc-ticket:hover .fc-badge,
+  .fc-dispatch .fc-rail:hover .fc-rail__logo,
+  .fc-dispatch .group:hover .fc-cover__word { translate: none; rotate: none; scale: none; }
+  .fc-dispatch .group:hover .fc-cover__logo { rotate: 4deg; scale: none; }
+}

@@ -16,14 +16,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Upload,
   BarChart3,
-  Sparkles,
-  Mail,
   Briefcase,
   LogOut,
   Brain,
-  Newspaper,
   MessageSquareText,
   TrendingUp,
   Search,
@@ -40,6 +36,7 @@ import { CraftGround } from "@/components/craft/CraftGround";
 import { CraftSidebar, CRAFT_SIDEBAR_LINKS } from "@/components/craft/CraftSidebar";
 import { DispatchFeed } from "@/features/dispatch/DispatchFeed";
 import { OnboardingBanner } from "@/features/onboarding/OnboardingBanner";
+import { Workshop } from "@/features/workshop/Workshop";
 import { usePersonalization } from "@/hooks/usePersonalization";
 import { firstNameOf } from "@/lib/names";
 import { clearAccent } from "@/lib/personaTheme";
@@ -387,22 +384,6 @@ export default function Dashboard() {
     stats.totalApplications,
   ]);
 
-  const toolGrid = useMemo(
-    () => [
-      { icon: Upload, title: "My Résumés", path: "/my-resumes", tone: "cobalt" as Tone, meta: stats.totalResumes ? `${stats.totalResumes}` : undefined },
-      /* ATS analysis belongs in this row, which renders regardless of profile
-         state. It was only in `featuredMoves`, and only in the branch for a
-         profile that is NOT personalized — so finishing onboarding removed the
-         one link to it. See the note in CraftSidebar. */
-      { icon: BarChart3, title: "ATS Check", path: "/analysis", tone: "sage" as Tone },
-      { icon: Sparkles, title: "Bullet Rewrite", path: "/rewrite", tone: "cobalt" as Tone },
-      { icon: Mail, title: "Cover Letters", path: "/cover-letter", tone: "wheat" as Tone, meta: stats.totalCoverLetters ? `${stats.totalCoverLetters}` : undefined },
-      { icon: Newspaper, title: "Market News", path: "/job-market-news", tone: "sage" as Tone },
-      { icon: Search, title: "Browse Jobs", path: "/au-jobs", tone: "sage" as Tone },
-    ],
-    [stats.totalResumes, stats.totalCoverLetters]
-  );
-
   if (loading) {
     return (
       <div className="cc-root cc-font-sans flex min-h-screen items-center justify-center bg-[color:var(--cc-cream)] text-[color:var(--cc-ink)]">
@@ -700,20 +681,8 @@ export default function Dashboard() {
             {/* Workshop + pulse */}
             <section className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1.15fr_0.85fr]">
               <div>
-                <SectionHead kicker="Workshop" title="All tools" sub="Everything else, one tap away." />
-                <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                  {toolGrid.map((t, i) => (
-                    <ToolChip
-                      key={t.path}
-                      index={i}
-                      icon={t.icon}
-                      title={t.title}
-                      tone={t.tone}
-                      meta={t.meta}
-                      onClick={() => navigate(t.path)}
-                    />
-                  ))}
-                </div>
+                <SectionHead kicker="Workshop" title="All tools" sub="What each one does, at a glance." />
+                <Workshop resumes={stats.totalResumes} letters={stats.totalCoverLetters} />
               </div>
 
               <div>
@@ -978,45 +947,6 @@ const MoveRow = memo(function MoveRow({
         {cta}
         <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
       </span>
-    </motion.button>
-  );
-});
-
-const ToolChip = memo(function ToolChip({
-  index,
-  icon: Icon,
-  title,
-  tone,
-  meta,
-  onClick,
-}: {
-  index: number;
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  tone: Tone;
-  meta?: string;
-  onClick: () => void;
-}) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      initial={{ opacity: 0, y: 8 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.04, duration: 0.35 }}
-      className={`cc-surface cc-lift group flex items-center gap-3 px-3.5 py-3.5 text-left cc-tone-${tone}`}
-    >
-      <span className="cc-icon-chip h-9 w-9 rounded-xl transition-transform group-hover:scale-105">
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13.5px] font-semibold leading-tight">{title}</span>
-        {meta != null && (
-          <span className="mt-0.5 block text-[11px] text-[color:var(--cc-ash)]">{meta} saved</span>
-        )}
-      </span>
-      <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--cc-ash)] opacity-0 transition-opacity group-hover:opacity-100" />
     </motion.button>
   );
 });

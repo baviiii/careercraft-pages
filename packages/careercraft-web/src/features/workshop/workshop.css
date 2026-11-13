@@ -1,0 +1,394 @@
+/* ───────────────────────────────────────────────────────────
+   Workshop — tool cards with a drawing of what each one does.
+   Every drawing is plain boxes in the card's tone (--cc-t…), so a
+   persona accent re-colours the cobalt one like everything else.
+   Hover uses `translate`/`rotate`/`scale`, not `transform`, which
+   framer-motion owns on the card for its entrance.
+   ─────────────────────────────────────────────────────────── */
+
+.ws-grid .ws-tone-pen {
+  --cc-t: #C2412D;
+  --cc-t-deep: #9C3424;
+  --cc-t-soft: rgba(194, 65, 45, 0.12);
+  --cc-t-wash: rgba(194, 65, 45, 0.12);
+  --cc-t-border: rgba(194, 65, 45, 0.26);
+}
+.ws-grid .ws-tone-teal {
+  --cc-t: #1F7A8C;
+  --cc-t-deep: #155A68;
+  --cc-t-soft: rgba(31, 122, 140, 0.12);
+  --cc-t-wash: rgba(31, 122, 140, 0.13);
+  --cc-t-border: rgba(31, 122, 140, 0.26);
+}
+
+/* ── Card ──────────────────────────────────────────────────── */
+.ws-grid .ws-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  text-align: left;
+  border: 1px solid var(--cc-t-border, var(--cc-hair));
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 40px -34px rgba(20, 22, 26, 0.35);
+  transition:
+    translate 0.3s cubic-bezier(.2, .8, .2, 1),
+    box-shadow 0.3s cubic-bezier(.2, .8, .2, 1),
+    border-color 0.3s;
+}
+.ws-grid .ws-card:hover {
+  translate: 0 -3px;
+  border-color: var(--cc-t, var(--cc-rust));
+  box-shadow: 0 26px 50px -30px rgba(20, 22, 26, 0.4);
+}
+.ws-grid .ws-card:focus-visible {
+  outline: 2px solid var(--cc-t, var(--cc-rust));
+  outline-offset: 2px;
+}
+
+/* The drawing sits on a square of graph paper washed in the tone. */
+.ws-grid .ws-stage {
+  position: relative;
+  display: block;
+  height: 88px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--cc-t-border, var(--cc-hair));
+  background:
+    linear-gradient(rgba(20, 22, 26, 0.045) 1px, transparent 1px) 0 0 / 12px 12px,
+    linear-gradient(90deg, rgba(20, 22, 26, 0.045) 1px, transparent 1px) 0 0 / 12px 12px,
+    linear-gradient(160deg, var(--cc-t-wash, var(--cc-rust-soft)) 0%, #fff 90%);
+}
+
+.ws-grid .ws-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 12px 14px 13px;
+}
+.ws-grid .ws-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+.ws-grid .ws-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cc-t-deep, var(--cc-rust-deep));
+  background: var(--cc-t-soft, var(--cc-rust-soft));
+  transition: background 0.25s, color 0.25s;
+}
+.ws-grid .ws-go svg { transition: translate 0.25s cubic-bezier(.2, .8, .2, 1); }
+.ws-grid .ws-card:hover .ws-go { color: #fff; background: var(--cc-t, var(--cc-rust)); }
+.ws-grid .ws-card:hover .ws-go svg { translate: 2px 0; }
+
+/* A count bubble pinned to a drawing (résumés, letters). */
+.ws-grid .ws-count {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  left: calc(50% + 16px);
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font: 700 12px/1 "Inter", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: var(--cc-t, var(--cc-rust));
+  box-shadow: 0 0 0 2px #fff, 0 6px 12px -6px rgba(20, 22, 26, 0.5);
+}
+
+/* Shared: a sheet of paper. */
+.ws-grid .ws-sheet,
+.ws-grid .ws-env__letter,
+.ws-grid .ws-paper {
+  position: absolute;
+  background: #fff;
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px var(--cc-hair), 0 8px 16px -10px rgba(20, 22, 26, 0.45);
+}
+
+/* ── Résumés: a fanned stack ───────────────────────────────── */
+.ws-grid .ws-sheets { position: absolute; inset: 0; }
+.ws-grid .ws-sheet {
+  top: 18px;
+  left: calc(50% - 20px);
+  width: 40px;
+  height: 54px;
+  transition: rotate 0.45s cubic-bezier(.3, 1.3, .5, 1), translate 0.45s cubic-bezier(.3, 1.3, .5, 1);
+}
+.ws-grid .ws-sheet--back-l { rotate: -10deg; translate: -14px 5px; }
+.ws-grid .ws-sheet--back-r { rotate: 9deg; translate: 14px 5px; }
+.ws-grid .ws-sheet--front {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 7px;
+}
+.ws-grid .ws-sheet--front > span {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--cc-hair-strong);
+}
+.ws-grid .ws-sheet--front > span:first-child { width: 62%; height: 5px; background: var(--cc-t, var(--cc-rust)); }
+.ws-grid .ws-sheet--front > span:last-child { width: 70%; }
+.ws-grid .ws-card:hover .ws-sheet--back-l { rotate: -19deg; translate: -26px 3px; }
+.ws-grid .ws-card:hover .ws-sheet--back-r { rotate: 18deg; translate: 26px 3px; }
+.ws-grid .ws-card:hover .ws-sheet--front { translate: 0 -4px; }
+
+/* ── ATS: the 0–100 ruler, pin slides up the scale ─────────── */
+.ws-grid .ws-ruler { position: absolute; inset: 0; }
+.ws-grid .ws-ruler__track {
+  position: absolute;
+  top: 48px;
+  left: 14%;
+  right: 14%;
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.ws-grid .ws-ruler__track > span:nth-child(1) { flex: 5; background: #C2412D; opacity: 0.7; }
+.ws-grid .ws-ruler__track > span:nth-child(2) { flex: 2.5; background: var(--cc-wheat); }
+.ws-grid .ws-ruler__track > span:nth-child(3) { flex: 2.5; background: var(--cc-signal); }
+.ws-grid .ws-ruler__ticks {
+  position: absolute;
+  top: 60px;
+  left: 14%;
+  right: 14%;
+  height: 6px;
+  background: repeating-linear-gradient(90deg, var(--cc-hair-strong) 0 1px, transparent 1px 10%);
+}
+.ws-grid .ws-ruler__pin {
+  position: absolute;
+  top: 26px;
+  left: calc(14% + 72% * 0.38);
+  width: 2px;
+  height: 30px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--cc-ink);
+  transition: left 0.75s cubic-bezier(.3, 1.35, .5, 1);
+}
+.ws-grid .ws-ruler__pin::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: -5px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--cc-ink);
+  border-radius: 999px;
+  background: #fff;
+}
+.ws-grid .ws-card:hover .ws-ruler__pin { left: calc(14% + 72% * 0.86); }
+
+/* ── Rewrite: red pen through the old line, highlighter on the new ── */
+.ws-grid .ws-rewrite { position: absolute; inset: 0; }
+.ws-grid .ws-rewrite__old,
+.ws-grid .ws-rewrite__new {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  height: 10px;
+}
+.ws-grid .ws-rewrite__old { top: 27px; }
+.ws-grid .ws-rewrite__new { top: 52px; }
+.ws-grid .ws-rewrite__bar {
+  position: absolute;
+  inset: 1px 12% 1px 0;
+  border-radius: 3px;
+  background: var(--cc-hair-strong);
+}
+.ws-grid .ws-rewrite__new .ws-rewrite__bar { inset: 2px 0; background: var(--cc-ink); opacity: 0.82; }
+.ws-grid .ws-rewrite__strike {
+  position: absolute;
+  top: 5px;
+  left: -5%;
+  right: 6%;
+  height: 2.5px;
+  border-radius: 2px;
+  background: #C2412D;
+  rotate: -1.5deg;
+  transform-origin: left center;
+}
+.ws-grid .ws-rewrite__hl {
+  position: absolute;
+  inset: -4px -5%;
+  border-radius: 3px 9px 3px 8px;
+  background: rgba(255, 222, 89, 0.9);
+  rotate: -1.5deg;
+  transform-origin: left center;
+}
+/* Hover redraws both marks, in the order an editor would make them. */
+.ws-grid .ws-card:hover .ws-rewrite__strike { animation: ws-draw 0.4s cubic-bezier(.2, .8, .2, 1) both; }
+.ws-grid .ws-card:hover .ws-rewrite__hl { animation: ws-draw 0.45s 0.3s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes ws-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* ── Cover letters: an envelope, the letter rises out ──────── */
+.ws-grid .ws-env {
+  position: absolute;
+  top: 30px;
+  left: calc(50% - 32px);
+  width: 64px;
+  height: 44px;
+}
+.ws-grid .ws-env__back,
+.ws-grid .ws-env__front {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+}
+.ws-grid .ws-env__back { background: var(--cc-t-deep, var(--cc-rust-deep)); }
+.ws-grid .ws-env__front {
+  z-index: 2;
+  background: var(--cc-t, var(--cc-rust));
+  clip-path: polygon(0 0, 50% 52%, 100% 0, 100% 100%, 0 100%);
+  box-shadow: 0 10px 18px -10px rgba(20, 22, 26, 0.55);
+}
+.ws-grid .ws-env__letter {
+  top: -12px;
+  left: 7px;
+  right: 7px;
+  height: 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 6px;
+  border-radius: 3px;
+  transition: translate 0.45s cubic-bezier(.3, 1.35, .5, 1);
+}
+.ws-grid .ws-env__letter > span { display: block; height: 3px; border-radius: 2px; background: var(--cc-hair-strong); }
+.ws-grid .ws-env__letter > span:first-child { width: 55%; background: var(--cc-ink); opacity: 0.7; }
+.ws-grid .ws-env .ws-count { top: -22px; left: calc(100% - 8px); }
+.ws-grid .ws-card:hover .ws-env__letter { translate: 0 -12px; }
+
+/* ── Market news: a folded front page ──────────────────────── */
+.ws-grid .ws-paper {
+  top: 14px;
+  left: calc(50% - 38px);
+  width: 76px;
+  height: 62px;
+  border-radius: 4px;
+  rotate: -5deg;
+  transition: rotate 0.45s cubic-bezier(.3, 1.3, .5, 1), translate 0.45s cubic-bezier(.3, 1.3, .5, 1);
+}
+.ws-grid .ws-paper__mast {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  height: 3px;
+  background: var(--cc-ink);
+}
+.ws-grid .ws-paper__head {
+  position: absolute;
+  top: 13px;
+  left: 6px;
+  width: 78%;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--cc-ink);
+  opacity: 0.75;
+}
+.ws-grid .ws-paper__pic {
+  position: absolute;
+  top: 24px;
+  left: 6px;
+  width: 28px;
+  height: 30px;
+  border-radius: 2px;
+  background:
+    radial-gradient(circle at 70% 35%, #FFDE59 0 4px, transparent 4.5px),
+    linear-gradient(160deg, var(--cc-ink-soft), var(--cc-ink));
+  opacity: 0.85;
+}
+.ws-grid .ws-paper__cols {
+  position: absolute;
+  top: 25px;
+  left: 39px;
+  right: 6px;
+  height: 29px;
+  background: repeating-linear-gradient(180deg, var(--cc-hair-strong) 0 2px, transparent 2px 5px);
+}
+.ws-grid .ws-card:hover .ws-paper { rotate: 2deg; translate: 0 -3px; }
+
+/* ── Browse jobs: pins on a dotted map, the main one pinging ── */
+.ws-grid .ws-map {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(20, 22, 26, 0.2) 1px, transparent 1.4px);
+  background-size: 10px 10px;
+  background-position: 5px 5px;
+}
+.ws-grid .ws-map__pin {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+}
+/* The shape turns; the wrapper bounces straight up. */
+.ws-grid .ws-map__pin::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50% 50% 50% 0;
+  background: var(--cc-t, var(--cc-rust));
+  rotate: -45deg;
+  box-shadow: -2px 3px 6px -3px rgba(20, 22, 26, 0.55);
+}
+.ws-grid .ws-map__pin::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  background: #fff;
+}
+.ws-grid .ws-map__pin--a { top: 30px; left: calc(50% - 10px); width: 20px; height: 20px; }
+.ws-grid .ws-map__pin--a::after { inset: 6px; }
+.ws-grid .ws-map__pin--b { top: 46px; left: 22%; opacity: 0.8; }
+.ws-grid .ws-map__pin--c { top: 18px; left: 68%; opacity: 0.65; scale: 0.85; }
+.ws-grid .ws-map__ring {
+  position: absolute;
+  top: 54px;
+  left: calc(50% - 14px);
+  width: 28px;
+  height: 10px;
+  border: 2px solid var(--cc-t, var(--cc-rust));
+  border-radius: 50%;
+  animation: ws-ripple 2.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes ws-ripple {
+  0% { opacity: 0.7; scale: 0.4; }
+  80%, 100% { opacity: 0; scale: 1.8; }
+}
+.ws-grid .ws-card:hover .ws-map__pin { animation: ws-hop 0.5s cubic-bezier(.3, 1.4, .5, 1) both; }
+.ws-grid .ws-card:hover .ws-map__pin--b { animation-delay: 0.08s; }
+.ws-grid .ws-card:hover .ws-map__pin--c { animation-delay: 0.16s; }
+@keyframes ws-hop {
+  0%, 100% { translate: 0 0; }
+  45% { translate: 0 -7px; }
+}
+
+/* ── Reduce motion: the drawings stay, still ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ws-grid .ws-card,
+  .ws-grid .ws-card *,
+  .ws-grid .ws-card *::before { transition: none !important; animation: none !important; }
+  .ws-grid .ws-card:hover { translate: none; }
+}

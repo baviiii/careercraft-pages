@@ -1,57 +1,56 @@
-import { ArrowUpRight, Building2, MapPin } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
 
-import type { DispatchItem } from "../types";
-import { WhyChip } from "./WhyChip";
+import type { DispatchStory } from "../types";
+import { categoryOf } from "../lib/brand";
 import { relativeTime } from "../lib/time";
+import { SourceLogo } from "./Logos";
+import { WhyChip } from "./WhyChip";
 
 /**
- * A ruled column entry. Rank ordinals are set in tabular mono so the numbers
- * form a clean vertical spine down the rail — the newspaper index device, and
- * the thing that makes the ordering feel deliberate rather than arbitrary.
+ * A story in the rail: the publisher's logo leads, so you can tell ABC from
+ * HCAMag at a glance, and the topic tag carries the colour.
  */
-export const RailItem = ({ item, index }: { item: DispatchItem; index: number }) => {
-  const isRole = item.kind === "role";
+export const RailItem = ({
+  item,
+  read,
+  onOpen,
+}: {
+  item: DispatchStory;
+  read: boolean;
+  onOpen: () => void;
+}) => {
+  const topic = categoryOf(item.category);
 
   return (
     <a
       href={item.url ?? undefined}
       target="_blank"
       rel="noreferrer"
-      className={`group relative flex gap-3.5 border-b border-[color:var(--cc-hair)] px-1 py-4 transition-colors last:border-b-0 hover:bg-[color:var(--cc-cream-2)]/60 ${
-        isRole ? "cc-tone-sage" : "cc-tone-cobalt"
+      onClick={onOpen}
+      className={`fc-rail group relative flex gap-3.5 border-b border-[color:var(--cc-hair)] px-1 py-4 last:border-b-0 ${topic.tone} ${
+        read ? "fc-is-read" : ""
       }`}
     >
-      <span
-        aria-hidden
-        className="mt-0.5 shrink-0 cc-font-mono cc-tabular text-[11px] leading-none text-[color:var(--cc-t,var(--cc-rust))]"
-      >
-        {String(index + 1).padStart(2, "0")}
+      <span className="fc-rail__logo mt-0.5 shrink-0">
+        <SourceLogo url={item.url} name={item.source} size={36} />
+        {read && (
+          <span className="fc-rail__tick" aria-hidden>
+            <Check className="h-2.5 w-2.5" />
+          </span>
+        )}
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block cc-font-sans text-[14.5px] font-semibold leading-snug text-[color:var(--cc-ink)] line-clamp-2">
+        <span className="fc-headline block cc-font-sans text-[14.5px] font-semibold leading-snug text-[color:var(--cc-ink)] line-clamp-2">
           {item.title}
         </span>
 
         <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 cc-font-sans text-[12px] text-[color:var(--cc-ash)]">
-          {isRole ? (
-            <>
-              <span className="inline-flex items-center gap-1 truncate">
-                <Building2 className="h-3 w-3 shrink-0" />
-                {item.company}
-              </span>
-              {item.location && (
-                <span className="inline-flex items-center gap-1 truncate">
-                  <MapPin className="h-3 w-3 shrink-0" />
-                  {item.location}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="truncate">{item.source}</span>
-          )}
+          <span className="fc-topic">{topic.label}</span>
+          <span className="truncate font-medium text-[color:var(--cc-ink-soft)]">{item.source}</span>
           <span aria-hidden>·</span>
           <span className="cc-tabular whitespace-nowrap">{relativeTime(item.timestamp)}</span>
+          {read && <span className="sr-only">(read)</span>}
         </span>
 
         <span className="mt-2 block">

@@ -7,6 +7,8 @@
    so ranking and rendering stay source-agnostic.
    ─────────────────────────────────────────────────────────── */
 
+import type { JobCatalogJob } from "@/features/job-tracker/types";
+
 /** Raw article shape returned by the `fetch_news` edge action. */
 export interface NewsArticle {
   id: string;
@@ -58,6 +60,8 @@ export interface DispatchRole extends DispatchItemBase {
   isRemote: boolean;
   salary: string | null;
   snippet: string | null;
+  /** The listing as job-search returned it, for saving to the tracker. */
+  job: JobCatalogJob;
 }
 
 export type DispatchItem = DispatchStory | DispatchRole;

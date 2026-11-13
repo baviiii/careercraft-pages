@@ -12,10 +12,10 @@ import type {
   TuningSignal,
 } from "../types";
 
-/** How many items the feed renders in total (1 lead + rail). */
-const FEED_SIZE = 6;
-/** Roles always reserved in the stream, so the feed stays fresh if news lags. */
-const MIN_ROLE_SLOTS = 2;
+/** Stories on the front page: one lead and a rail of four. */
+const STORY_SLOTS = 5;
+/** Roles in the strip. job-search returns up to 12; eight fill two screens. */
+const ROLE_SLOTS = 8;
 /** Recency half-life, in days — older items fade rather than vanish. */
 const DECAY_DAYS = 21;
 
@@ -136,6 +136,8 @@ export function useDispatchFeed() {
 
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [roles, setRoles] = useState<JobCatalogJob[]>([]);
+  /** The place the roles were found in; null once the search had to drop it. */
+  const [rolePlace, setRolePlace] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mutedIds, setMutedIds] = useState<Set<string>>(new Set());
@@ -233,7 +235,7 @@ export function useDispatchFeed() {
    * suburbs poorly and answers 200 with nothing rather than erroring, which
    * looks identical to "there is no work here".
    */
-  const loadRoles = useCallback(async (): Promise<JobCatalogJob[] | null> => {
+  const loadRoles = useCallback(async (): Promise<{ jobs: JobCatalogJob[]; place: string | null } | null> => {
     const search = async (query?: string, location?: string) => {
       const { data, error: fnError } = await supabase.functions.invoke("job-search", {
         body: {
@@ -251,14 +253,14 @@ export function useDispatchFeed() {
 
     const scoped = await search(query, primaryLocation);
     if (scoped === null) return null;
-    if (scoped.length > 0) return scoped;
+    if (scoped.length > 0) return { jobs: scoped, place: primaryLocation || null };
 
     if (query && primaryLocation) {
       const roleOnly = await search(query, "");
-      if (roleOnly?.length) return roleOnly;
+      if (roleOnly?.length) return { jobs: roleOnly, place: null };
     }
 
-    return [];
+    return { jobs: [], place: primaryLocation || null };
   }, [primaryRole, primaryLocation]);
 
   const load = useCallback(async () => {
@@ -271,7 +273,8 @@ export function useDispatchFeed() {
     const found = roleResult.status === "fulfilled" ? roleResult.value : null;
 
     setArticles(news ?? []);
-    setRoles(found ?? []);
+    setRoles(found?.jobs ?? []);
+    setRolePlace(found?.place ?? null);
 
     // Only surface an error when both sources were unreachable — one dead source
     // should degrade the feed, not blank it. Reachable-but-empty is not an error.
@@ -290,7 +293,7 @@ export function useDispatchFeed() {
   }, [perso.loading, load]);
 
   // ── Rank ────────────────────────────────────────────────────────────────
-  const items = useMemo<DispatchItem[]>(() => {
+  const ranked = useMemo(() => {
     const stories: DispatchStory[] = articles.map((a) => {
       const text = `${a.title} ${a.description} ${a.category}`;
       const tuned = scoreAgainstSignals(text, activeSignals);
@@ -320,8 +323,8 @@ export function useDispatchFeed() {
       const text = `${j.title} ${j.company} ${j.location || ""} ${j.description_snippet || ""}`;
       const tuned = scoreAgainstSignals(text, activeSignals);
       const decay = recencyDecay(j.posted_at);
-      // Live roles carry a standing bonus: an open job matching your search is
-      // inherently more actionable than an article about the market.
+      // A standing bonus, so recency doesn't swamp the role's match: every
+      // role here already came back from a search for the user's target.
       const score = tuned.score + 15;
 
       return {
@@ -333,6 +336,7 @@ export function useDispatchFeed() {
         isRemote: j.is_remote,
         salary: formatSalary(j),
         snippet: j.description_snippet,
+        job: j,
         timestamp: j.posted_at,
         url: j.canonical_url,
         relevance: {
@@ -343,27 +347,25 @@ export function useDispatchFeed() {
       };
     });
 
+    // News and roles used to share one ranked stream, which left a single role
+    // stranded among the stories. Each now gets its own lane, ranked on its own.
     const byRank = (a: DispatchItem, b: DispatchItem) => b.relevance.rank - a.relevance.rank;
-    const rankedStories = stories
-      .filter((s) => s.relevance.rank >= MIN_STORY_RANK)
-      .sort(byRank);
-    const rankedRoles = [...roleItems].sort(byRank);
-
-    // Reserve role slots up front, then fill the rest by pure rank, so the feed
-    // never becomes all-articles when the news cache is fresher than the market.
-    const reserved = rankedRoles.slice(0, MIN_ROLE_SLOTS);
-    const reservedKeys = new Set(reserved.map((r) => r.key));
-    const remainder = [...rankedStories, ...rankedRoles.filter((r) => !reservedKeys.has(r.key))]
-      .sort(byRank)
-      .slice(0, Math.max(0, FEED_SIZE - reserved.length));
-
-    return [...reserved, ...remainder].sort(byRank).slice(0, FEED_SIZE);
+    return {
+      stories: stories
+        .filter((s) => s.relevance.rank >= MIN_STORY_RANK)
+        .sort(byRank)
+        .slice(0, STORY_SLOTS),
+      roles: [...roleItems].sort(byRank).slice(0, ROLE_SLOTS),
+    };
   }, [articles, roles, activeSignals, scoreArticle]);
 
   return {
-    lead: items[0] ?? null,
-    rail: items.slice(1),
-    itemCount: items.length,
+    stories: ranked.stories,
+    roles: ranked.roles,
+    /** What the roles were searched for, as the user wrote it. */
+    roleQuery: primaryRole,
+    rolePlace,
+    itemCount: ranked.stories.length + ranked.roles.length,
     signals: allSignals,
     mutedIds,
     toggleSignal,
