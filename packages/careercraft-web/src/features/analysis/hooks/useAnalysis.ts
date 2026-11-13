@@ -756,6 +756,14 @@ export function useAnalysis() {
         return;
       }
 
+      /* `analysis` scored `resumeText`, not a rewrite that hasn't been
+         applied and re-checked, so a rewrite saves with no score rather than
+         the original's. A structured rewrite leaves `enhancementResult`
+         empty, hence both. Once applied, both are cleared and the re-check
+         has scored the new text, so its score is the right one. */
+      const savingRewrite = saveType === "enhanced" && Boolean(enhancementResult || enhancedResumeData);
+      const score = savingRewrite ? null : analysis?.overallScore ?? null;
+
       const savedAt = new Date().toISOString();
       const { data, error } = await supabase
         .from("resumes")
@@ -775,8 +783,8 @@ export function useAnalysis() {
           file_type: "builder",
           template_id: BUILDER_TEMPLATE,
           original_filename: fileName || null,
-          ats_score: analysis?.overallScore ?? null,
-          last_analyzed_at: analysis ? savedAt : null,
+          ats_score: score,
+          last_analyzed_at: score === null ? null : savedAt,
           last_job_description: jobDescription.trim() ? jobDescription : null,
         })
         .select("id")
