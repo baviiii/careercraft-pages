@@ -26,13 +26,18 @@ export const SaveResumeDialog = ({
 }: SaveResumeDialogProps) => (
   <CraftDialog
     open={open}
-    onOpenChange={onOpenChange}
+    /* The save keeps going once started (it can wait on a 15–30s parse), and
+       ends by opening the builder. Closing the dialog mid-way would look like
+       a cancel that then yanks them to the builder anyway. */
+    onOpenChange={(next) => {
+      if (!isSaving) onOpenChange(next);
+    }}
     title="Save and open in builder"
     description="Saved to My résumés, then opened in the builder to pick a template."
     maxWidth="max-w-lg"
     footer={
       <>
-        <CraftButton variant="ghost" onClick={() => onOpenChange(false)}>
+        <CraftButton variant="ghost" onClick={() => onOpenChange(false)} disabled={isSaving}>
           Cancel
         </CraftButton>
         <CraftButton onClick={onConfirm} disabled={isSaving}>

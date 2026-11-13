@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { aiDataToResumeData, parseTextToResumeData } from "@/features/resume-builder/lib/resumeData";
+import type { ResumeData } from "@/features/resume-builder/types";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateCoverLetter } from "@/lib/aiRewriter";
-import { QuotaExceededError, type QuotaDetails } from "@/lib/quota";
 import {
   autoRewriteResume,
   generateAchievements,
@@ -14,6 +15,7 @@ import {
   runATSAIAnalysis,
   type ATSAIAnalysis,
 } from "@/lib/atsAIAnalyzer";
+import { QuotaExceededError, type QuotaDetails } from "@/lib/quota";
 // Text helpers only; the file readers (pdf.js, mammoth) load on upload.
 import { formatResumeDataAsText, parseResumeTextWithAI, type AIResumeData } from "@/lib/resumeParseApi";
 
@@ -31,6 +33,41 @@ import type {
 /* ───────────────── helpers (module scope) ───────────────── */
 
 export { formatResumeDataAsText };
+
+/* The builder's own first save uses this template until the person picks one.
+   Matching it keeps a row written here identical to one written there. */
+const BUILDER_TEMPLATE = "modern1";
+
+/** Turn a parsed résumé, or the raw text if parsing failed, into the builder's shape. */
+function resumeForBuilder(
+  parsed: AIResumeData | null,
+  plain: string,
+): { data: ResumeData; rough: boolean } | null {
+  if (parsed?.contact) {
+    return {
+      rough: false,
+      data: aiDataToResumeData({
+        ...parsed,
+        summary: parsed.summary || "",
+        experience: parsed.experience ?? [],
+        education: parsed.education ?? [],
+        skills: parsed.skills ?? [],
+      }),
+    };
+  }
+
+  const text = plain.trim();
+  if (!text) return null;
+
+  const data = parseTextToResumeData(text);
+  const hasStructure =
+    Boolean(data.summary.trim()) ||
+    data.experience.length > 0 ||
+    data.education.length > 0 ||
+    data.skills.length > 0;
+  if (!hasStructure) data.summary = text;
+  return { data, rough: true };
+}
 
 /** Validate that a rewrite preserves required sections and isn't truncated. */
 const validateRewriteResult = (
@@ -688,15 +725,19 @@ export function useAnalysis() {
       const content =
         saveType === "enhanced" && enhancementResult ? enhancementResult : resumeText;
 
-      toast({
-        title: "Parsing résumé…",
-        description: "Converting to a structured format.",
-      });
-
+      /* A structured rewrite is already in the shape the builder stores.
+         Re-parsing that text would spend another model call and can drop
+         sections the structured pass kept. */
       let parsedData: AIResumeData | null = null;
-      if (parsedResumeData && saveType === "original") {
+      if (saveType === "enhanced" && enhancedResumeData) {
+        parsedData = enhancedResumeData;
+      } else if (saveType === "original" && parsedResumeData) {
         parsedData = parsedResumeData;
-      } else {
+      } else if (content.trim()) {
+        toast({
+          title: "Parsing résumé…",
+          description: "Converting to a structured format.",
+        });
         try {
           parsedData = await parseResumeTextWithAI(content);
         } catch (parseError) {
@@ -705,29 +746,52 @@ export function useAnalysis() {
         }
       }
 
-      if (!parsedData || !parsedData.contact) {
+      const prepared = resumeForBuilder(parsedData, content);
+      if (!prepared) {
         toast({
-          title: "Could not parse résumé",
-          description: "Opening the Builder for manual editing.",
+          title: "Nothing to save",
+          description: "The résumé text is empty.",
           variant: "destructive",
         });
-        sessionStorage.setItem("atsResumeText", content);
-        sessionStorage.setItem("atsResumeName", saveName);
-        navigate("/builder?from=ats-text");
         return;
       }
 
-      sessionStorage.setItem("atsResumeData", JSON.stringify(parsedData));
-      sessionStorage.setItem("atsResumeName", saveName);
-      sessionStorage.setItem("rewriteJobDescription", jobDescription);
+      const savedAt = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("resumes")
+        .insert({
+          user_id: user.id,
+          name: saveName.trim(),
+          content: JSON.stringify({
+            ...prepared.data,
+            metadata: {
+              category: "general",
+              tags: [],
+              is_favorite: false,
+              template: BUILDER_TEMPLATE,
+              created_at: savedAt,
+            },
+          }),
+          file_type: "builder",
+          template_id: BUILDER_TEMPLATE,
+          original_filename: fileName || null,
+          ats_score: analysis?.overallScore ?? null,
+          last_analyzed_at: analysis ? savedAt : null,
+          last_job_description: jobDescription.trim() ? jobDescription : null,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
 
       toast({
-        title: "✓ Résumé parsed",
-        description: "Opening the Builder to pick a template.",
+        title: "✓ Résumé saved",
+        description: prepared.rough
+          ? "It's in My résumés. A few sections may need a look in the builder."
+          : "It's in My résumés. Opening the builder.",
       });
 
       setSaveDialogOpen(false);
-      navigate("/builder?from=ats");
+      navigate(`/builder?id=${data.id}`);
     } catch (error) {
       console.error("Error saving:", error);
       toast({
@@ -742,9 +806,12 @@ export function useAnalysis() {
     saveName,
     saveType,
     enhancementResult,
+    enhancedResumeData,
     resumeText,
     parsedResumeData,
     jobDescription,
+    analysis,
+    fileName,
     navigate,
     toast,
   ]);

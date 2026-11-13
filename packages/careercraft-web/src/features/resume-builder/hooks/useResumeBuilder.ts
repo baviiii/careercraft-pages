@@ -674,11 +674,22 @@ export function useResumeBuilder(dialogs: {
       try {
         const { data, error } = await supabase
           .from("resumes")
-          .select("id, name, content, template_id, created_at")
+          .select("id, name, content, template_id, last_job_description, created_at")
           .eq("id", id)
           .maybeSingle();
         if (error) throw error;
-        if (!data) return;
+        /* RLS hides other people's rows, so "deleted" and "not yours" look the
+           same here. Say so rather than open an empty editor that looks like
+           the save never happened. */
+        if (!data) {
+          toast({
+            title: "Couldn't find that résumé",
+            description:
+              "It may have been deleted, or it's saved under another account. Open it from My résumés.",
+            variant: "destructive",
+          });
+          return;
+        }
 
         const raw =
           typeof data.content === "string"
@@ -701,6 +712,7 @@ export function useResumeBuilder(dialogs: {
         setResumeName(data.name);
         setSaveResumeName(data.name);
         setCurrentResumeId(data.id);
+        if (data.last_job_description) setJobDescription(data.last_job_description);
 
         /* Someone who signed up specifically to download lands on the export
            step with the PDF already rendering, not on the edit form with the
@@ -713,6 +725,11 @@ export function useResumeBuilder(dialogs: {
         );
       } catch (e) {
         console.error("Error loading resume from URL id:", e);
+        toast({
+          title: "Couldn't open that résumé",
+          description: "Reload the page to try again, or open it from My résumés.",
+          variant: "destructive",
+        });
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
