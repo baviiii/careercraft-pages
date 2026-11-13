@@ -10,10 +10,11 @@
 import { useId, type ReactNode } from "react";
 import { AlertCircle, Check, CircleDashed, StickyNote, Target, type LucideIcon } from "lucide-react";
 
+import { CAREER_COACH_AVAILABLE } from "@/lib/careerCoach";
 import type { CoachFinalEvaluation } from "@/lib/interviewCoach";
 
 import type { NoteKind } from "../../lib/debriefText";
-import { dashList, scoreBand } from "../../lib/debriefText";
+import { dashList, scoreBand, scoreOn10 } from "../../lib/debriefText";
 import { normalizeScore100 } from "../../lib/sessions";
 import { roundClass, type RoundType } from "../../lib/roundTypes";
 import { RoundDebriefExtras } from "../RoundDebriefExtras";
@@ -39,18 +40,23 @@ function readinessTone(readiness: string): "good" | "close" | "far" {
   return "far";
 }
 
-function recommendationTone(rec: string): "good" | "close" | "far" {
+/* A no, however it's worded: "No Hire", "Would not hire", "Do not proceed",
+   "Not yet ready to advance", "Reject". */
+const NEGATIVE_CALL =
+  /\b(?:no|not|never|don.?t|do not|would not|wouldn.?t|won.?t|cannot|can.?t)\b[\w\s'-]{0,24}?\b(?:hire|advance|proceed|recommend\w*|ready|forward)\b|\breject|\bdecline/;
+
+/* The panel's call: any no is red, "Lean" is amber, only a plain hire or
+   advance is green, and anything else stays neutral rather than guessed green. */
+function recommendationTone(rec: string): "good" | "close" | "far" | "neutral" {
   const r = rec.toLowerCase();
-  if (r.includes("no hire")) return "far";
-  if (r.includes("lean")) return "close";
-  return "good";
+  if (NEGATIVE_CALL.test(r)) return "far";
+  if (/\blean\b/.test(r)) return "close";
+  if (/\bhire\b|\badvance\b|\brecommend|\bput forward\b|\bproceed\b/.test(r)) return "good";
+  return "neutral";
 }
 
-/** A score the model gave out of 10 or 100, on 0-10. */
-function on10(score: number | null): number | null {
-  if (score === null) return null;
-  return Math.max(0, Math.min(10, score > 10 ? score / 10 : score));
-}
+/** A score the model gave out of 10 or 100, on 0-10; null when there isn't one. */
+const on10 = (score: number | null) => (score === null ? null : scoreOn10(score));
 
 export function DebriefReport({
   evaluation: ev,
@@ -81,10 +87,14 @@ export function DebriefReport({
     document.getElementById(anchor(kind))?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   };
   const groups = debriefGroups(ev);
-  const overall = normalizeScore100(ev.overallScore) ?? ev.overallScore;
+  // No score on file shows as a dash, not as a failing 0.
+  const overall = normalizeScore100(ev.overallScore);
   const shown = GROUPS.filter((g) => groups.items[g.kind].length > 0);
   const next = groups.items.next;
-  const hasNext = ev.improvementPlan.length > 0 || next.length > 0 || offerPlan || Boolean(actions);
+  const showPlan = offerPlan && CAREER_COACH_AVAILABLE;
+  const nextCount = next.length + ev.improvementPlan.length;
+  const hasScores = ev.stageBreakdown.length > 0 || ev.competencyMatrix.length > 0;
+  const hasNext = ev.improvementPlan.length > 0 || next.length > 0 || showPlan || Boolean(actions);
 
   return (
     <div className={`dr ${roundClass(roundType)} ${compact ? "dr--compact" : ""}`}>
@@ -94,8 +104,8 @@ export function DebriefReport({
           <span className="dr-grade cc-font-display">{ev.grade || "—"}</span>
           <div>
             <p className="dr-points cc-tabular">
-              {overall}
-              <span>/100</span>
+              {overall ?? "—"}
+              {overall !== null && <span>/100</span>}
             </p>
             <span className="dr-ready" data-tone={readinessTone(ev.readiness)}>
               {ev.readiness}
@@ -112,6 +122,12 @@ export function DebriefReport({
             <p className="dr-lead">
               <Marked text={groups.lead} onQuestion={onQuestion} />
             </p>
+          ) : shown.length === 0 && nextCount === 0 ? (
+            <p className="dr-lead text-[color:var(--cc-ash)]">
+              {hasScores
+                ? "No written notes came back for this session, only the scores below."
+                : "No written feedback came back for this session."}
+            </p>
           ) : (
             <>
               <p className="dr-verdict__label">The panel's notes, sorted</p>
@@ -124,10 +140,10 @@ export function DebriefReport({
                     </button>
                   </li>
                 ))}
-                {next.length > 0 && (
+                {nextCount > 0 && (
                   <li>
                     <button type="button" onClick={() => jump("next")} className="dr-tally__item" data-kind="next">
-                      <span className="cc-tabular">{next.length}</span>
+                      <span className="cc-tabular">{nextCount}</span>
                       what to do next
                     </button>
                   </li>
@@ -224,7 +240,7 @@ export function DebriefReport({
       {hasNext && (
         <section id={anchor("next")} className="dr-next">
           <h2 className="dr-h2 cc-font-display">What to do next</h2>
-          <div className={`dr-next__grid ${offerPlan ? "has-plan" : ""}`}>
+          <div className={`dr-next__grid ${showPlan ? "has-plan" : ""}`}>
             {(ev.improvementPlan.length > 0 || next.length > 0) && (
               <ol className="dr-steps">
                 {ev.improvementPlan.map((item, i) => (
@@ -249,7 +265,7 @@ export function DebriefReport({
                 ))}
               </ol>
             )}
-            {offerPlan && <StudyPlanOffer field={field} skills={ev.nextFocus.skills} why={ev.nextFocus.why} />}
+            {showPlan && <StudyPlanOffer field={field} skills={ev.nextFocus.skills} why={ev.nextFocus.why} />}
           </div>
           {actions && <div className="dr-actions">{actions}</div>}
         </section>
@@ -295,8 +311,8 @@ function Group({
         <div className="dr-chips dr-chips--head">
           {items
             .filter((item) => item.chip)
-            .map((item) => (
-              <span key={item.text} className="dr-chip">
+            .map((item, i) => (
+              <span key={`${i}-${item.text}`} className="dr-chip">
                 {item.text}
               </span>
             ))}
@@ -313,8 +329,8 @@ function Group({
               <Marked text={list ? list.rest : item.text} onQuestion={onQuestion} />
               {list && (
                 <span className="dr-chips">
-                  {list.items.map((c) => (
-                    <span key={c} className="dr-chip">
+                  {list.items.map((c, j) => (
+                    <span key={`${j}-${c}`} className="dr-chip">
                       {c}
                     </span>
                   ))}

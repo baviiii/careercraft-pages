@@ -14,6 +14,7 @@
  *   05 Explain a concept.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import type { Degradation } from "@/lib/careerCoach";
 import { drillStats, mark, useDrills, type PlanOrigin } from "@/features/interview/lib/drills";
@@ -105,6 +106,18 @@ export default function StudyPanel({
     void refreshPlans();
     void forgetSaved("pathway");
   };
+
+  // A plan built from an interview debrief arrives with the navigation and is
+  // shown as if built here, so an unsaved one isn't lost. The state stays on
+  // that history entry: if this panel remounts (the active role settling),
+  // it reads it again; switching tabs makes a new entry without it.
+  const location = useLocation();
+  useEffect(() => {
+    const handed = (location.state as { builtPlan?: BuiltPlan } | null)?.builtPlan;
+    if (handed?.pathway) onBuilt(handed);
+    // On arrival only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onDeleted = (id: string) => {
     setGone((g) => [...g, id]);

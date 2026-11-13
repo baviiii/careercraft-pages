@@ -91,6 +91,7 @@ const INLINE =
 
 /** A sentence cut into plain runs and the bits worth marking. */
 export function marks(text: string): Mark[] {
+  if (typeof text !== "string") return [];
   const out: Mark[] = [];
   let last = 0;
   for (const m of text.matchAll(INLINE)) {
@@ -107,6 +108,11 @@ export function marks(text: string): Mark[] {
   }
   if (last < text.length) out.push({ t: "text", v: text.slice(last) });
   return out;
+}
+
+/** A score given out of 10 or out of 100, on 0-10. */
+export function scoreOn10(raw: number): number {
+  return Math.max(0, Math.min(10, raw > 10 ? raw / 10 : raw));
 }
 
 /** low / mid / high, for colouring a score out of 10. */

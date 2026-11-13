@@ -97,6 +97,7 @@
 .dr-stamp[data-tone="good"] { color: #8FDBB0; }
 .dr-stamp[data-tone="close"] { color: #F4C870; }
 .dr-stamp[data-tone="far"] { color: #FF9A86; }
+.dr-stamp[data-tone="neutral"] { color: rgba(247, 247, 244, 0.85); }
 
 .dr-verdict__read { padding: 24px 28px; }
 .dr-verdict__label { font-size: 13px; font-weight: 600; color: var(--cc-ash); }
@@ -384,7 +385,8 @@ button.dr-q:focus-visible { outline: 2px solid var(--cc-iv, var(--cc-rust)); out
 }
 .dr-skill {
   border: 1px solid rgba(31, 122, 140, 0.3);
-  border-radius: 999px;
+  border-radius: 10px;
+  line-height: 1.4;
   padding: 4px 11px;
   font-size: 13.5px;
   font-weight: 600;
@@ -458,7 +460,8 @@ button.dr-q:focus-visible { outline: 2px solid var(--cc-iv, var(--cc-rust)); out
 .dr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .dr-chip {
   border: 1px dashed var(--k-edge);
-  border-radius: 999px;
+  border-radius: 10px;
+  line-height: 1.4;
   padding: 3px 10px;
   font-size: 13px;
   font-weight: 500;

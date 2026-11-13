@@ -14,6 +14,7 @@ import { RoundTag } from "../RoundMarks";
 import { AnswerWorking } from "../AnswerFeedback";
 import { DebriefReport } from "../report/DebriefReport";
 import { debriefGroups } from "../report/groups";
+import { scoreOn10 } from "../../lib/debriefText";
 
 interface DebriefProps {
   config: SessionConfig;
@@ -35,11 +36,6 @@ function goToQuestion(n: number) {
   el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
 }
 
-/** Map raw per-question score onto 0–10 for the trajectory chart. */
-function scoreOn10(raw: number): number {
-  if (raw <= 10) return raw;
-  return Math.max(0, Math.min(10, raw / 10));
-}
 
 function Trajectory({ records }: { records: AnswerRecord[] }) {
   const scored = records
@@ -53,7 +49,7 @@ function Trajectory({ records }: { records: AnswerRecord[] }) {
   const x = (idx: number) =>
     PAD + (idx / Math.max(1, records.length - 1)) * (W - PAD * 2);
   const y = (score: number) =>
-    H - PAD - (Math.max(0, Math.min(10, scoreOn10(score))) / 10) * (H - PAD * 2);
+    H - PAD - (scoreOn10(score) / 10) * (H - PAD * 2);
   const points = scored.map((p) => `${x(p.i)},${y(p.score)}`).join(" ");
 
   return (

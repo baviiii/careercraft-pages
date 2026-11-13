@@ -881,10 +881,10 @@ export function adaptFinalEvaluation(raw: unknown): CoachFinalEvaluation {
 function adaptFinal(ev: WireFinal): CoachFinalEvaluation {
   return {
     overallScore: typeof ev.overallScore === "number" ? ev.overallScore : 0,
-    grade: ev.grade ?? "—",
-    readiness: ev.readiness ?? "Needs Development",
+    grade: text(ev.grade) || "—",
+    readiness: text(ev.readiness) || "Needs Development",
     recommendation: text(ev.recommendation),
-    summary: ev.executiveSummary ?? "",
+    summary: text(ev.executiveSummary),
     stageBreakdown: (Array.isArray(ev.stageBreakdown) ? ev.stageBreakdown : [])
       .map((s) => ({ stage: text(s?.stage), score: finiteOrNull(s?.score), verdict: text(s?.verdict) }))
       .filter((s) => s.stage)
@@ -904,10 +904,22 @@ function adaptFinal(ev: WireFinal): CoachFinalEvaluation {
       why: text(ev.nextSessionFocus?.why),
     },
     untested: cleanList(listOrUndefined(ev.untested), 8),
-    strengths: [...(ev.strengths?.top ?? []), ...(ev.strengths?.notable ?? [])],
-    weaknesses: ev.developmentAreas?.important ?? [],
-    mustFix: ev.developmentAreas?.critical ?? [],
-    improvementPlan: ev.improvementPlan?.immediate ?? [],
+    // Model-authored: every entry must be text, or the page that marks it up
+    // would have nothing to read. A plan step needs at least an area or action.
+    strengths: [
+      ...cleanList(listOrUndefined(ev.strengths?.top), 8),
+      ...cleanList(listOrUndefined(ev.strengths?.notable), 8),
+    ],
+    weaknesses: cleanList(listOrUndefined(ev.developmentAreas?.important), 8),
+    mustFix: cleanList(listOrUndefined(ev.developmentAreas?.critical), 8),
+    improvementPlan: (Array.isArray(ev.improvementPlan?.immediate) ? ev.improvementPlan.immediate : [])
+      .map((i: { area?: unknown; action?: unknown; timeline?: unknown } | null) => ({
+        area: text(i?.area),
+        action: text(i?.action),
+        timeline: text(i?.timeline),
+      }))
+      .filter((i) => i.area || i.action)
+      .slice(0, 8),
     // Model-authored lists: an entry missing its name or an unrecognised
     // verdict is dropped, not shown half-filled. An unknown story verdict is
     // not credited as strong.

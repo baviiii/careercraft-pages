@@ -12,9 +12,10 @@
  * with something left.
  */
 import { useState } from "react";
+import { useBuild, type BuiltPlan } from "./useBuild";
 import { ArrowUpRight, Check, Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { careerCoach, CoachUnavailableError, type Degradation, type LearningPathway } from "@/lib/careerCoach";
+import type { Degradation } from "@/lib/careerCoach";
 import { ResourceProgress } from "@/features/interview/components/ResourceProgress";
 import { savedAgo } from "@/lib/savedResults";
 import type { PlanOrigin } from "@/features/interview/lib/drills";
@@ -64,12 +65,7 @@ const ACTIONS: Record<string, { label: string; kind?: SessionAction["kind"]; rev
   build: { label: "Mark as started" },
 };
 
-export interface BuiltPlan {
-  id: string | null;
-  pathway: LearningPathway;
-  degraded: Degradation | null;
-  description: string;
-}
+export type { BuiltPlan } from "./useBuild";
 
 export function PlanShelf({
   field,
@@ -165,41 +161,6 @@ export function PlanShelf({
       </div>
     </div>
   );
-}
-
-function useBuild(onBuilt: (plan: BuiltPlan) => void) {
-  const { toast } = useToast();
-  const [building, setBuilding] = useState(false);
-  const build = async (input: { field?: string; explore?: string; weeks: number; hours: number }) => {
-    setBuilding(true);
-    try {
-      const r = await careerCoach.getLearningPathway({
-        field: input.field || undefined,
-        explore: input.explore || undefined,
-        weeks: input.weeks,
-        hoursPerWeek: input.hours,
-      });
-      if (!r.pathway?.plan?.weeks?.length) {
-        toast({ title: "No plan came back", description: "The coach answered without any weeks. Try again.", variant: "destructive" });
-        return;
-      }
-      onBuilt({
-        id: r.recommendationId,
-        pathway: r.pathway,
-        degraded: r._meta?.degraded ?? null,
-        description: `${input.weeks}w · ${input.hours} h/week · ${r.pathway.field}`,
-      });
-    } catch (e) {
-      toast({
-        title: "Not available",
-        description: e instanceof CoachUnavailableError ? e.message : "The coach isn't available at the moment.",
-        variant: "destructive",
-      });
-    } finally {
-      setBuilding(false);
-    }
-  };
-  return { building, build };
 }
 
 function NewPlanForm({

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, CalendarRange, Loader2 } from "lucide-react";
 
+import { useBuild, type BuiltPlan } from "@/components/career-dev/study/useBuild";
 import { useToast } from "@/hooks/use-toast";
-import { CAREER_COACH_AVAILABLE, CoachUnavailableError, careerCoach } from "@/lib/careerCoach";
 import { useForgetSaved } from "@/lib/savedResults";
 import { rememberPlanId, useRefreshPlans } from "@/lib/studyPlans";
 
@@ -14,9 +14,11 @@ const STEPS = ["Reading this debrief", "Picking what to practise first", "Laying
 
 /**
  * The step after a debrief: a study plan built around what this interview
- * found. It's the Study tab's own plan builder; the coach reads the latest
- * debrief's "focus next" skills, so the plan targets these gaps. Once built
- * it opens in Study, where it can be ticked off, rebuilt or deleted.
+ * found. It's the Study tab's own builder (the coach reads the latest
+ * debrief's "focus next" skills, so the plan targets these gaps), and the
+ * plan is handed to Study and opened there, saved or not.
+ *
+ * Rendered only when the coach is connected (DebriefReport checks).
  */
 export function StudyPlanOffer({
   field,
@@ -34,8 +36,40 @@ export function StudyPlanOffer({
   const forgetSaved = useForgetSaved();
   const [weeks, setWeeks] = useState(4);
   const [hours, setHours] = useState(5);
-  const [building, setBuilding] = useState(false);
   const [step, setStep] = useState(0);
+
+  // The build outlives a click elsewhere (say, starting a drill). If they've
+  // left this debrief by the time it's ready, say so; don't pull them away.
+  const here = useRef(true);
+  useEffect(() => {
+    here.current = true;
+    return () => {
+      here.current = false;
+    };
+  }, []);
+
+  const onBuilt = (built: BuiltPlan) => {
+    // Saved plans open in Study from the list even if Study reloads it.
+    if (built.id) rememberPlanId(built.id);
+    if (here.current) {
+      // Study takes the plan from here (saved or not) and refreshes its list.
+      toast({ title: "Your study plan is ready", description: `${weeks} weeks at ${hours} hours a week.` });
+      navigate("/interview-prep?tab=study", { state: { builtPlan: built } });
+      return;
+    }
+    if (!built.id) {
+      toast({
+        title: "Your study plan couldn't be saved",
+        description: "Build it again from Interview prep, under Study.",
+        variant: "destructive",
+      });
+      return;
+    }
+    void refreshPlans();
+    void forgetSaved("pathway");
+    toast({ title: "Your study plan is ready", description: "It's waiting in Interview prep, under Study." });
+  };
+  const { building, build } = useBuild(onBuilt);
 
   useEffect(() => {
     if (!building) return;
@@ -43,40 +77,6 @@ export function StudyPlanOffer({
     const t = window.setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 7000);
     return () => window.clearInterval(t);
   }, [building]);
-
-  if (!CAREER_COACH_AVAILABLE) return null;
-
-  const build = async () => {
-    setBuilding(true);
-    try {
-      const r = await careerCoach.getLearningPathway({ field: field || undefined, weeks, hoursPerWeek: hours });
-      if (!r.pathway?.plan?.weeks?.length) {
-        toast({ title: "No plan came back", description: "The coach answered without any weeks. Try again.", variant: "destructive" });
-        return;
-      }
-      if (!r.recommendationId) {
-        toast({
-          title: "Your plan was built but couldn't be saved",
-          description: "Build it again from the Study tab.",
-          variant: "destructive",
-        });
-        return;
-      }
-      rememberPlanId(r.recommendationId);
-      await refreshPlans();
-      void forgetSaved("pathway");
-      toast({ title: "Your study plan is ready", description: `${weeks} weeks at ${hours} hours a week. It's open in Study.` });
-      navigate("/interview-prep?tab=study");
-    } catch (e) {
-      toast({
-        title: "Couldn't build a plan just now",
-        description: e instanceof CoachUnavailableError ? e.message : "The coach isn't available at the moment. Try again shortly.",
-        variant: "destructive",
-      });
-    } finally {
-      setBuilding(false);
-    }
-  };
 
   return (
     <div className="dr-plan">
@@ -98,11 +98,16 @@ export function StudyPlanOffer({
         <div className="mt-4">
           <p className="text-[13px] font-medium text-[color:var(--cc-ink-soft)]">It starts with</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {skills.map((s) => (
-              <span key={s} className="dr-skill">
-                {s}
-              </span>
-            ))}
+            {/* The coach often names a skill and then explains it after a
+                colon; the chip shows the name, the rest is on hover. */}
+            {skills.map((s, i) => {
+              const name = s.split(":")[0].trim() || s;
+              return (
+                <span key={`${i}-${s}`} className="dr-skill" title={name === s ? undefined : s}>
+                  {name}
+                </span>
+              );
+            })}
           </div>
           {why && <p className="mt-2 text-[13px] leading-snug text-[color:var(--cc-ash)]">{why}</p>}
         </div>
@@ -114,7 +119,12 @@ export function StudyPlanOffer({
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void build()} disabled={building} className="dr-plan__go">
+        <button
+          type="button"
+          onClick={() => void build({ field: field || undefined, weeks, hours })}
+          disabled={building}
+          className="dr-plan__go"
+        >
           {building ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {building ? STEPS[step] : "Build my study plan"}
           {!building && <ArrowRight className="h-4 w-4" />}

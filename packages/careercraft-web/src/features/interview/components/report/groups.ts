@@ -39,7 +39,14 @@ export function debriefGroups(ev: CoachFinalEvaluation): DebriefGroups {
       gap: structured
         ? [...ev.mustFix.map((text) => ({ text, fixFirst: true })), ...ev.weaknesses.map((text) => ({ text }))]
         : pick("gap"),
-      untested: [...ev.untested.map((text) => ({ text, chip: true })), ...pick("untested")],
+      // The coach's own list wins, as with strengths and gaps; a long
+      // summary's sentences only fill in when there isn't one. A short name
+      // reads as a chip, a longer note stays a line.
+      untested: ev.untested.length
+        ? ev.untested
+            .filter((text, i, all) => all.findIndex((t) => t.toLowerCase() === text.toLowerCase()) === i)
+            .map((text) => ({ text, chip: text.length <= 48 }))
+        : pick("untested"),
       expect: pick("expect"),
       next: pick("next"),
       note: structured ? [] : pick("note"),
