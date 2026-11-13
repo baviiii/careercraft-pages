@@ -14,8 +14,10 @@ import type {
 
 /** Stories on the front page: one lead and a rail of four. */
 const STORY_SLOTS = 5;
-/** Roles in the strip. job-search returns up to 12; eight fill two screens. */
+/** Roles in the strip: the best-fitting eight of up to ROLE_POOL fetched. */
 const ROLE_SLOTS = 8;
+/** Candidates to rank. All of them fit in one similarity batch (Horus takes 100). */
+const ROLE_POOL = 30;
 /** Recency half-life, in days — older items fade rather than vanish. */
 const DECAY_DAYS = 21;
 
@@ -132,12 +134,23 @@ function formatSalary(job: JobCatalogJob): string | null {
 
 export function useDispatchFeed() {
   const perso = usePersonalization();
-  const { profile, scoreArticle, hasPersonalizationData } = perso;
+  const {
+    profile,
+    scoreArticle,
+    hasPersonalizationData,
+    isJobRecommended,
+    getPersonalizedJobQuery,
+    getProfileEmbeddingText,
+  } = perso;
 
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [roles, setRoles] = useState<JobCatalogJob[]>([]);
-  /** The place the roles were found in; null once the search had to drop it. */
+  /** The place the roles were searched near; null when there wasn't one. */
   const [rolePlace, setRolePlace] = useState<string | null>(null);
+  /** True when local roles were too few and Australia-wide ones filled in. */
+  const [roleWidened, setRoleWidened] = useState(false);
+  /** The role the strip was actually searched for, as the user wrote it. */
+  const [roleQuery, setRoleQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mutedIds, setMutedIds] = useState<Set<string>>(new Set());
@@ -226,42 +239,65 @@ export function useDispatchFeed() {
   }, []);
 
   /**
-   * Roles for the home feed, widening once on empty.
+   * Roles for the home feed, searched the way Browse Jobs searches the
+   * profile's own role: the role, the board phrasings saved at onboarding,
+   * and the profile text so job-search can attach a similarity to each job.
+   * The fit ranking below needs all three to agree with what Browse shows.
    *
-   * This used to be a three-rung ladder — local catalog, broader catalog, then
-   * a once-per-session ingest — because the first two rungs read a cache that
-   * was usually cold or stale. Searching the board directly makes the first
-   * rung the real answer, so only the widening remains: Adzuna resolves small
-   * suburbs poorly and answers 200 with nothing rather than erroring, which
-   * looks identical to "there is no work here".
+   * Widens when the local search comes back short of a full strip. Adzuna
+   * resolves small suburbs poorly and answers 200 with nothing rather than
+   * erroring, which looks identical to "there is no work here".
    */
-  const loadRoles = useCallback(async (): Promise<{ jobs: JobCatalogJob[]; place: string | null } | null> => {
-    const search = async (query?: string, location?: string) => {
+  const loadRoles = useCallback(async (): Promise<{
+    jobs: JobCatalogJob[];
+    role: string;
+    place: string | null;
+    widened: boolean;
+  } | null> => {
+    const role = (hasPersonalizationData && getPersonalizedJobQuery()) || primaryRole;
+    const query = role ? searchable(role) : "";
+    const savedTerms = (profile.searchTerms ?? []).filter(Boolean).slice(0, 5);
+    // Same rule as Browse: the phrasings only describe the profile's own role.
+    const terms =
+      role && savedTerms.some((t) => t.toLowerCase() === role.toLowerCase()) ? savedTerms : undefined;
+    const profileText = hasPersonalizationData ? getProfileEmbeddingText() ?? undefined : undefined;
+
+    const search = async (location?: string) => {
       const { data, error: fnError } = await supabase.functions.invoke("job-search", {
         body: {
           action: "search",
           query: query || undefined,
           location: location || undefined,
-          limit: 12,
+          terms,
+          limit: ROLE_POOL,
+          profileText,
         },
       });
       if (fnError) return null;
       return (data?.jobs || []) as JobCatalogJob[];
     };
 
-    const query = primaryRole ? searchable(primaryRole) : "";
-
-    const scoped = await search(query, primaryLocation);
+    const place = primaryLocation || null;
+    const scoped = await search(primaryLocation);
     if (scoped === null) return null;
-    if (scoped.length > 0) return { jobs: scoped, place: primaryLocation || null };
-
-    if (query && primaryLocation) {
-      const roleOnly = await search(query, "");
-      if (roleOnly?.length) return { jobs: roleOnly, place: null };
+    if (scoped.length >= ROLE_SLOTS || !query || !place) {
+      return { jobs: scoped, role, place, widened: false };
     }
 
-    return { jobs: [], place: primaryLocation || null };
-  }, [primaryRole, primaryLocation]);
+    const wider = (await search("")) ?? [];
+    const seen = new Set(scoped.map((j) => j.id));
+    const extra = wider.filter((j) => !seen.has(j.id));
+    // Nothing local at all: these are Australia-wide, not "near" anywhere.
+    if (scoped.length === 0) return { jobs: extra, role, place: null, widened: false };
+    return { jobs: [...scoped, ...extra], role, place, widened: extra.length > 0 };
+  }, [
+    hasPersonalizationData,
+    getPersonalizedJobQuery,
+    getProfileEmbeddingText,
+    primaryRole,
+    primaryLocation,
+    profile.searchTerms,
+  ]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -275,6 +311,8 @@ export function useDispatchFeed() {
     setArticles(news ?? []);
     setRoles(found?.jobs ?? []);
     setRolePlace(found?.place ?? null);
+    setRoleWidened(found?.widened ?? false);
+    setRoleQuery(found?.role ?? "");
 
     // Only surface an error when both sources were unreachable — one dead source
     // should degrade the feed, not blank it. Reachable-but-empty is not an error.
@@ -319,13 +357,27 @@ export function useDispatchFeed() {
       };
     });
 
-    const roleItems: DispatchRole[] = roles.map((j) => {
-      const text = `${j.title} ${j.company} ${j.location || ""} ${j.description_snippet || ""}`;
-      const tuned = scoreAgainstSignals(text, activeSignals);
-      const decay = recencyDecay(j.posted_at);
-      // A standing bonus, so recency doesn't swamp the role's match: every
-      // role here already came back from a search for the user's target.
-      const score = tuned.score + 15;
+    /* Roles are ranked by fit: the same isJobRecommended score and bands
+       Browse Jobs shows, so a role rated "Strong fit" here is rated the same
+       there. Without a profile there's nothing to fit against, and the
+       board's own order stands. */
+    const roleItems: DispatchRole[] = roles.map((j, boardOrder) => {
+      const r = hasPersonalizationData
+        ? isJobRecommended({
+            title: j.title,
+            company: j.company,
+            salaryMin: j.salary_min ?? undefined,
+            salaryMax: j.salary_max ?? undefined,
+            salaryIsPredicted: j.salary_is_predicted,
+            location: j.location ?? undefined,
+            type: j.job_type ?? undefined,
+            category: j.category ?? undefined,
+            description: `${j.title}. ${j.description_snippet ?? ""}`,
+            isRemote: j.is_remote,
+            similarity: j.similarity,
+          })
+        : null;
+      const fit = r ? { match: r.match, band: r.band, reasons: r.reasons } : null;
 
       return {
         kind: "role",
@@ -337,15 +389,27 @@ export function useDispatchFeed() {
         salary: formatSalary(j),
         snippet: j.description_snippet,
         job: j,
+        fit,
         timestamp: j.posted_at,
         url: j.canonical_url,
         relevance: {
-          score,
-          reasons: tuned.reasons.length ? tuned.reasons : ["Open now"],
-          rank: score * decay + 10 * decay,
+          score: fit?.match ?? 0,
+          reasons: fit?.reasons ?? [],
+          rank: fit ? fit.match : -boardOrder,
         },
       };
     });
+
+    const posted = (r: DispatchRole) => (r.timestamp ? new Date(r.timestamp).getTime() || 0 : 0);
+    const byFit = (a: DispatchRole, b: DispatchRole) =>
+      b.relevance.rank - a.relevance.rank || posted(b) - posted(a);
+    // Roles that reach "Worth a look" fill the strip first. Weaker ones only
+    // top it up, so it stays full without passing them off as matches.
+    const rankedRoles = [...roleItems].sort(byFit);
+    const strip = [
+      ...rankedRoles.filter((r) => r.fit?.band !== "low"),
+      ...rankedRoles.filter((r) => r.fit?.band === "low"),
+    ].slice(0, ROLE_SLOTS);
 
     // News and roles used to share one ranked stream, which left a single role
     // stranded among the stories. Each now gets its own lane, ranked on its own.
@@ -355,16 +419,18 @@ export function useDispatchFeed() {
         .filter((s) => s.relevance.rank >= MIN_STORY_RANK)
         .sort(byRank)
         .slice(0, STORY_SLOTS),
-      roles: [...roleItems].sort(byRank).slice(0, ROLE_SLOTS),
+      roles: strip,
     };
-  }, [articles, roles, activeSignals, scoreArticle]);
+  }, [articles, roles, activeSignals, scoreArticle, hasPersonalizationData, isJobRecommended]);
 
   return {
     stories: ranked.stories,
     roles: ranked.roles,
-    /** What the roles were searched for, as the user wrote it. */
-    roleQuery: primaryRole,
+    roleQuery,
     rolePlace,
+    roleWidened,
+    /** Fit is only measured when there's a profile to measure against. */
+    canFit: Boolean(hasPersonalizationData),
     itemCount: ranked.stories.length + ranked.roles.length,
     signals: allSignals,
     mutedIds,

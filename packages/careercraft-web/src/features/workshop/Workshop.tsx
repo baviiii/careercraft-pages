@@ -86,7 +86,7 @@ export const Workshop = ({ resumes, letters }: { resumes: number; letters: numbe
   ];
 
   return (
-    <div className="ws-grid mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+    <div className="ws-grid mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
       {tools.map((t, i) => (
         <motion.button
           key={t.path}
@@ -98,18 +98,20 @@ export const Workshop = ({ resumes, letters }: { resumes: number; letters: numbe
           transition={{ delay: i * 0.05, duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
           className={`ws-card ${t.tone}`}
         >
-          <span className="ws-stage" aria-hidden>
-            <Drawing picture={t.picture} count={t.count?.n} />
+          <span className="ws-stage" data-picture={t.picture} aria-hidden>
+            <span className="ws-art">
+              <Drawing picture={t.picture} count={t.count?.n} />
+            </span>
           </span>
           <span className="ws-body">
-            <span className="cc-font-display text-[15.5px] leading-tight tracking-[-0.01em] text-[color:var(--cc-ink)]">
+            <span className="cc-font-display text-[17px] leading-tight tracking-[-0.01em] text-[color:var(--cc-ink)]">
               {t.title}
             </span>
-            <span className="mt-1 cc-font-sans text-[12.5px] leading-snug text-[color:var(--cc-ink-soft)]">
+            <span className="mt-1 cc-font-sans text-[13.5px] leading-snug text-[color:var(--cc-ink-soft)]">
               {t.line}
             </span>
             <span className="ws-foot cc-font-sans">
-              <span className="whitespace-nowrap text-[12px] text-[color:var(--cc-ash)]">
+              <span className="whitespace-nowrap text-[13px] text-[color:var(--cc-ash)]">
                 {t.count &&
                   (t.count.n > 0 ? (
                     <>

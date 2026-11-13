@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Banknote, Check, Loader2, MapPin, Plus } from "lucide-react";
 
+import type { MatchBand } from "@/hooks/usePersonalization";
+
 import type { DispatchRole } from "../types";
 import { relativeTime } from "../lib/time";
 import { NameBadge } from "./Logos";
@@ -9,9 +11,19 @@ import { NameBadge } from "./Logos";
 /** Posted inside this many days gets the "New" tag. */
 const FRESH_DAYS = 3;
 
+/* Browse Jobs' words and dots (JobAdCard), so a fit reads the same in both. */
+const FIT_WORDS: Record<MatchBand, string> = {
+  strong: "Strong fit",
+  good: "Good fit",
+  fair: "Worth a look",
+  low: "Open role",
+};
+const FIT_DOTS: Record<MatchBand, number> = { strong: 3, good: 2, fair: 1, low: 0 };
+
 /**
- * One open role, as a ticket: who's hiring, the job, the facts, and a tear
- * line above the two things you can do with it. Saving stamps the ticket.
+ * One open role, as a ticket: its fit and place in the ranking across the
+ * top, who's hiring, the job, the facts, and a tear line above the two things
+ * you can do with it. Saving stamps the ticket.
  */
 export const RoleTicket = ({
   item,
@@ -33,13 +45,32 @@ export const RoleTicket = ({
   const posted = item.timestamp ? new Date(item.timestamp).getTime() : NaN;
   const days = Number.isNaN(posted) ? null : (Date.now() - posted) / 86_400_000;
   const fresh = days !== null && days < FRESH_DAYS;
-  const reasons = item.relevance.reasons.filter((r) => r !== "Open now").slice(0, 2);
+  const fit = item.fit;
+  const reasons = (fit?.reasons ?? []).slice(0, 2);
 
   return (
     <article
       className={`fc-ticket ${tracked ? "is-saved" : ""} ${tracked && stampNow ? "is-stamping" : ""}`}
       style={{ ["--i" as string]: Math.min(index, 8) }}
     >
+      {fit && (
+        <div
+          className="fc-fitbar cc-font-sans"
+          data-band={fit.band}
+          title={fit.reasons.length ? fit.reasons.join(" · ") : undefined}
+        >
+          <span className="fc-fitbar__dots" aria-hidden>
+            {[1, 2, 3].map((d) => (
+              <i key={d} className={d <= FIT_DOTS[fit.band] ? "on" : ""} />
+            ))}
+          </span>
+          {FIT_WORDS[fit.band]}
+          <span className="fc-fitbar__rank cc-tabular" aria-label={`Ranked ${index + 1}`}>
+            #{index + 1}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         <NameBadge name={item.company || item.title} size={40} />
         <div className="min-w-0 flex-1">

@@ -33,6 +33,8 @@ export const DispatchFeed = () => {
     roles,
     roleQuery,
     rolePlace,
+    roleWidened,
+    canFit,
     itemCount,
     signals,
     mutedIds,
@@ -104,7 +106,15 @@ export const DispatchFeed = () => {
         />
       ) : (
         <>
-          {roles.length > 0 && <RolesStrip roles={roles} query={roleQuery} place={rolePlace} />}
+          {roles.length > 0 && (
+            <RolesStrip
+              roles={roles}
+              query={roleQuery}
+              place={rolePlace}
+              widened={roleWidened}
+              canFit={canFit}
+            />
+          )}
 
           {lead && (
             <div className="mt-9">

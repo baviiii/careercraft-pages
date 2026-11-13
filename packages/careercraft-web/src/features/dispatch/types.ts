@@ -7,6 +7,7 @@
    so ranking and rendering stay source-agnostic.
    ─────────────────────────────────────────────────────────── */
 
+import type { MatchBand } from "@/hooks/usePersonalization";
 import type { JobCatalogJob } from "@/features/job-tracker/types";
 
 /** Raw article shape returned by the `fetch_news` edge action. */
@@ -62,6 +63,8 @@ export interface DispatchRole extends DispatchItemBase {
   snippet: string | null;
   /** The listing as job-search returned it, for saving to the tracker. */
   job: JobCatalogJob;
+  /** Fit against the profile, as Browse Jobs rates it; null with no profile. */
+  fit: { match: number; band: MatchBand; reasons: string[] } | null;
 }
 
 export type DispatchItem = DispatchStory | DispatchRole;

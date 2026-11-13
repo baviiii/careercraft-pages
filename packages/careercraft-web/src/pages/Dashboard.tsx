@@ -678,8 +678,9 @@ export default function Dashboard() {
             {/* Dispatch — personalized news + live roles */}
             <DispatchFeed />
 
-            {/* Workshop + pulse */}
-            <section className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+            {/* Workshop + pulse. The tools get the wider column: each card
+                needs room for its drawing, a line and a readable button. */}
+            <section className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_0.8fr]">
               <div>
                 <SectionHead kicker="Workshop" title="All tools" sub="What each one does, at a glance." />
                 <Workshop resumes={stats.totalResumes} letters={stats.totalCoverLetters} />

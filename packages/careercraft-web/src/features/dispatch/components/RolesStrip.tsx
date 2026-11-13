@@ -7,17 +7,24 @@ import { useTrackerSaves } from "../hooks/useTrackerSaves";
 import { RoleTicket } from "./RoleTicket";
 
 /**
- * The open roles, side by side in a strip you can swipe or step through.
- * A row of them says "there's work out there" in a way one card can't.
+ * The open roles, side by side in a strip you can swipe or step through,
+ * best fit first. A row of them says "there's work out there" in a way one
+ * card can't.
  */
 export const RolesStrip = ({
   roles,
   query,
   place,
+  widened,
+  canFit,
 }: {
   roles: DispatchRole[];
   query: string;
   place: string | null;
+  /** Local roles ran short and Australia-wide ones filled the strip. */
+  widened: boolean;
+  /** Ranked by fit to the profile, best first. */
+  canFit: boolean;
 }) => {
   const { isTracked, save, savingId } = useTrackerSaves();
   const track = useRef<HTMLDivElement>(null);
@@ -47,7 +54,8 @@ export const RolesStrip = ({
 
   const n = roles.length;
   const what = query ? `${query} role${n === 1 ? "" : "s"}` : `open role${n === 1 ? "" : "s"}`;
-  const where = place ? `near ${place}` : "across Australia";
+  const where = place ? (widened ? `near ${place} and further afield` : `near ${place}`) : "across Australia";
+  const strong = roles.filter((r) => r.fit?.band === "strong").length;
 
   return (
     <div className="mt-6">
@@ -59,6 +67,18 @@ export const RolesStrip = ({
           </h3>
           <p className="mt-0.5 cc-font-sans text-sm text-[color:var(--cc-ash)]">
             <span className="cc-tabular font-semibold text-[color:var(--cc-ink-soft)]">{n}</span> {what} {where}
+            {canFit && (
+              <>
+                {" · "}
+                {strong > 0 ? (
+                  <span className="font-medium text-[color:var(--cc-signal-deep)]">
+                    {strong} strong fit{strong === 1 ? "" : "s"}
+                  </span>
+                ) : (
+                  "best fit first"
+                )}
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1.5">

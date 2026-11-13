@@ -25,7 +25,7 @@
 .ws-grid .ws-card {
   position: relative;
   display: flex;
-  flex-direction: column;
+  min-height: 136px;
   overflow: hidden;
   text-align: left;
   border: 1px solid var(--cc-t-border, var(--cc-hair));
@@ -47,24 +47,42 @@
   outline-offset: 2px;
 }
 
-/* The drawing sits on a square of graph paper washed in the tone. */
+/* The drawing sits on a strip of graph paper washed in the tone, down the
+   card's left side. Each drawing is laid out in a 120×88 box (.ws-art)
+   centred on that strip. */
 .ws-grid .ws-stage {
   position: relative;
   display: block;
-  height: 88px;
+  flex: none;
+  width: 124px;
   overflow: hidden;
-  border-bottom: 1px solid var(--cc-t-border, var(--cc-hair));
+  border-right: 1px solid var(--cc-t-border, var(--cc-hair));
   background:
     linear-gradient(rgba(20, 22, 26, 0.045) 1px, transparent 1px) 0 0 / 12px 12px,
     linear-gradient(90deg, rgba(20, 22, 26, 0.045) 1px, transparent 1px) 0 0 / 12px 12px,
     linear-gradient(160deg, var(--cc-t-wash, var(--cc-rust-soft)) 0%, #fff 90%);
 }
 
+.ws-grid .ws-stage[data-picture="map"] {
+  background:
+    radial-gradient(circle, rgba(20, 22, 26, 0.2) 1px, transparent 1.4px) 5px 5px / 10px 10px,
+    linear-gradient(160deg, var(--cc-t-wash, var(--cc-rust-soft)) 0%, #fff 90%);
+}
+.ws-grid .ws-art {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: 88px;
+  translate: -50% -50%;
+}
+
 .ws-grid .ws-body {
   display: flex;
   flex: 1;
+  min-width: 0;
   flex-direction: column;
-  padding: 12px 14px 13px;
+  padding: 14px 16px 14px;
 }
 .ws-grid .ws-foot {
   display: flex;
@@ -74,21 +92,25 @@
   margin-top: auto;
   padding-top: 12px;
 }
+/* The verb, as a solid button in the tone's deep shade: white on it
+   clears 4.5:1 for every tone, wheat included. */
 .ws-grid .ws-go {
   display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12.5px;
+  padding: 7px 14px;
+  font-size: 13.5px;
   font-weight: 600;
-  color: var(--cc-t-deep, var(--cc-rust-deep));
-  background: var(--cc-t-soft, var(--cc-rust-soft));
-  transition: background 0.25s, color 0.25s;
+  color: #fff;
+  background: var(--cc-t-deep, var(--cc-rust-deep));
+  box-shadow: 0 6px 14px -8px rgba(20, 22, 26, 0.5);
+  transition: translate 0.25s cubic-bezier(.2, .8, .2, 1), box-shadow 0.25s;
 }
 .ws-grid .ws-go svg { transition: translate 0.25s cubic-bezier(.2, .8, .2, 1); }
-.ws-grid .ws-card:hover .ws-go { color: #fff; background: var(--cc-t, var(--cc-rust)); }
-.ws-grid .ws-card:hover .ws-go svg { translate: 2px 0; }
+.ws-grid .ws-card:hover .ws-go { translate: 0 -1px; box-shadow: 0 10px 18px -8px rgba(20, 22, 26, 0.55); }
+.ws-grid .ws-card:hover .ws-go svg { translate: 3px 0; }
 
 /* A count bubble pinned to a drawing (résumés, letters). */
 .ws-grid .ws-count {
@@ -333,9 +355,6 @@
 .ws-grid .ws-map {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(20, 22, 26, 0.2) 1px, transparent 1.4px);
-  background-size: 10px 10px;
-  background-position: 5px 5px;
 }
 .ws-grid .ws-map__pin {
   position: absolute;
