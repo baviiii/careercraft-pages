@@ -133,7 +133,14 @@ export const DispatchFeed = () => {
                 transition={{ duration: 0.45, ease }}
                 className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-start"
               >
-                <LeadStory item={lead} read={read.has(lead.key)} onOpen={() => markRead(lead.key)} />
+                {/* Keyed so a new lead starts fresh rather than inheriting the
+                    last one's broken-photo or missing-logo state. */}
+                <LeadStory
+                  key={lead.key}
+                  item={lead}
+                  read={read.has(lead.key)}
+                  onOpen={() => markRead(lead.key)}
+                />
 
                 {rail.length > 0 && (
                   <div className="cc-surface overflow-hidden px-4 py-1 md:px-5">
