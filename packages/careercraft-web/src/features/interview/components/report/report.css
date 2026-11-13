@@ -1,0 +1,470 @@
+/* ───────────────────────────────────────────────────────────
+   Debrief report — the interview's feedback, laid out to read.
+
+   One colour per kind of note, the same everywhere it appears:
+     worked    sage       what landed
+     gap       red pen    where it fell short (and "fix first")
+     untested  ash        what the round never got to
+     expect    cobalt     what real interviewers will look for
+     next      teal       the plan, and the study plan
+   Scores take low / mid / high colours wherever they show.
+   The round's own colour (--cc-iv) marks question numbers.
+   ─────────────────────────────────────────────────────────── */
+
+.dr {
+  display: grid;
+  /* One column the width of the page, never of its content: the inner grids'
+     min(100%, 340px) would otherwise size it to 340px on a small phone. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  --dr-pen: #C2412D;
+  --dr-pen-deep: #9C3424;
+  --dr-teal: #1F7A8C;
+  --dr-teal-deep: #155A68;
+}
+.dr--compact { gap: 16px; }
+
+/* Kinds → colour */
+.dr [data-kind="worked"]   { --k: var(--cc-signal); --k-deep: var(--cc-signal-deep); --k-soft: rgba(63, 122, 92, 0.11); --k-edge: rgba(63, 122, 92, 0.28); }
+.dr [data-kind="gap"]      { --k: var(--dr-pen);    --k-deep: var(--dr-pen-deep);    --k-soft: rgba(194, 65, 45, 0.09); --k-edge: rgba(194, 65, 45, 0.28); }
+.dr [data-kind="untested"] { --k: #7A7F88;          --k-deep: var(--cc-ink-soft);    --k-soft: rgba(20, 22, 26, 0.05);  --k-edge: rgba(20, 22, 26, 0.16); }
+.dr [data-kind="expect"]   { --k: var(--cc-rust);   --k-deep: var(--cc-rust-deep);   --k-soft: var(--cc-rust-soft);     --k-edge: rgba(42, 82, 204, 0.26); }
+.dr [data-kind="next"]     { --k: var(--dr-teal);   --k-deep: var(--dr-teal-deep);   --k-soft: rgba(31, 122, 140, 0.1); --k-edge: rgba(31, 122, 140, 0.28); }
+.dr [data-kind="note"]     { --k: var(--cc-ink);    --k-deep: var(--cc-ink);         --k-soft: rgba(20, 22, 26, 0.05);  --k-edge: rgba(20, 22, 26, 0.16); }
+
+/* ── Verdict ─────────────────────────────────────────────── */
+.dr-verdict {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--cc-ink);
+  border-radius: 1.5rem;
+  background: var(--cc-cream);
+}
+@media (min-width: 768px) {
+  .dr-verdict { grid-template-columns: auto 1fr; }
+}
+.dr-verdict__score {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 22px;
+  padding: 24px 28px;
+  color: var(--cc-cream);
+  background: var(--cc-ink);
+}
+.dr-grade { font-size: 76px; line-height: 0.9; font-weight: 700; }
+@media (max-width: 420px) {
+  .dr-verdict__score { padding: 20px; }
+  .dr-grade { font-size: 60px; }
+}
+.dr-points {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 26px;
+  line-height: 1;
+}
+.dr-points span { margin-left: 2px; font-size: 13px; opacity: 0.6; }
+.dr-ready {
+  display: inline-block;
+  margin-top: 10px;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--cc-cream);
+}
+.dr-ready[data-tone="good"] { color: var(--cc-signal-deep); }
+.dr-ready[data-tone="close"] { color: var(--cc-wheat-deep); }
+.dr-ready[data-tone="far"] { color: var(--dr-pen-deep); }
+
+/* The panel's call, as a rubber stamp. Light inks, on the dark panel. */
+.dr-stamp {
+  align-self: flex-start;
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  rotate: -7deg;
+}
+.dr-stamp[data-tone="good"] { color: #8FDBB0; }
+.dr-stamp[data-tone="close"] { color: #F4C870; }
+.dr-stamp[data-tone="far"] { color: #FF9A86; }
+
+.dr-verdict__read { padding: 24px 28px; }
+.dr-verdict__label { font-size: 13px; font-weight: 600; color: var(--cc-ash); }
+.dr-lead {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--cc-ink);
+}
+
+/* At a glance: how many of each kind of note, each a jump to its group. */
+.dr-tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.dr-tally__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--k-edge);
+  border-radius: 999px;
+  padding: 6px 13px 6px 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--k-deep);
+  background: var(--k-soft);
+  transition: border-color 0.2s, translate 0.2s;
+}
+.dr-tally__item:hover { border-color: var(--k); translate: 0 -1px; }
+.dr-tally__item span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--k);
+}
+
+/* ── Groups ──────────────────────────────────────────────── */
+.dr-groups {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+}
+.dr-group {
+  scroll-margin-top: 90px;
+  overflow: hidden;
+  border: 1px solid var(--k-edge);
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 16px 36px -32px rgba(20, 22, 26, 0.35);
+}
+.dr-group__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 18px;
+  background: var(--k-soft);
+  border-bottom: 1px solid var(--k-edge);
+}
+.dr-group__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--k);
+}
+.dr-group__title {
+  font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--cc-ink);
+}
+.dr-group__count {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--k-deep);
+}
+.dr-group__list { padding: 4px 18px; }
+.dr-group__list li {
+  position: relative;
+  padding: 12px 0 12px 18px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--cc-ink-soft);
+  border-bottom: 1px solid var(--cc-hair);
+}
+.dr-group__list li:last-child { border-bottom: 0; }
+.dr-group__list li::before {
+  content: "";
+  position: absolute;
+  top: 21px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--k);
+}
+.dr-fixfirst {
+  display: inline-block;
+  margin-right: 7px;
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--dr-pen);
+  vertical-align: 1px;
+}
+
+/* ── Inline marks ────────────────────────────────────────── */
+.dr-q {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 1px;
+  border: 1px solid color-mix(in srgb, var(--cc-iv, var(--cc-rust)) 32%, transparent);
+  border-radius: 6px;
+  padding: 0 6px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--cc-iv, var(--cc-rust));
+  background: color-mix(in srgb, var(--cc-iv, var(--cc-rust)) 9%, #fff);
+  vertical-align: 1px;
+}
+button.dr-q { cursor: pointer; transition: background 0.2s; }
+button.dr-q:hover { background: color-mix(in srgb, var(--cc-iv, var(--cc-rust)) 18%, #fff); }
+button.dr-q:focus-visible { outline: 2px solid var(--cc-iv, var(--cc-rust)); outline-offset: 1px; }
+
+.dr-score {
+  display: inline-block;
+  margin: 0 1px;
+  border-radius: 6px;
+  padding: 0 6px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  vertical-align: 1px;
+}
+.dr-score[data-band="low"] { color: var(--dr-pen-deep); background: rgba(194, 65, 45, 0.12); }
+.dr-score[data-band="mid"] { color: var(--cc-wheat-deep); background: var(--cc-wheat-soft); }
+.dr-score[data-band="high"] { color: var(--cc-signal-deep); background: var(--cc-signal-soft); }
+
+/* Quoted terms get the same highlighter the ATS check uses. */
+.dr-quote {
+  padding: 0 3px;
+  border-radius: 3px 6px 3px 5px;
+  color: var(--cc-ink);
+  background: linear-gradient(100deg, rgba(255, 222, 89, 0.35) 0%, rgba(255, 222, 89, 0.85) 6%, rgba(255, 214, 72, 0.75) 94%, rgba(255, 222, 89, 0.35) 100%);
+}
+
+/* ── Stage and skill scores ──────────────────────────────── */
+.dr-scores {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+}
+.dr-card {
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.25rem;
+  padding: 18px 20px;
+  background: #fff;
+}
+.dr-card__title {
+  font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--cc-ink);
+}
+.dr-bars { display: grid; gap: 14px; margin-top: 14px; }
+.dr-bars__row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dr-bars__name { font-size: 14.5px; font-weight: 600; color: var(--cc-ink); }
+.dr-bars__num { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-weight: 700; color: var(--cc-ink-soft); }
+.dr-bars__note { margin-top: 6px; font-size: 13.5px; line-height: 1.5; color: var(--cc-ink-soft); }
+.dr-bar {
+  display: block;
+  height: 8px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--cc-cream-2);
+}
+.dr-bar i { display: block; height: 100%; border-radius: inherit; }
+.dr-bar[data-band="low"] i { background: var(--dr-pen); }
+.dr-bar[data-band="mid"] i { background: var(--cc-wheat); }
+.dr-bar[data-band="high"] i { background: var(--cc-signal); }
+
+.dr-skills { margin-top: 8px; }
+.dr-skills__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cc-hair);
+}
+.dr-skills__row:last-child { border-bottom: 0; }
+.dr-skills__name { display: block; font-size: 14.5px; font-weight: 600; color: var(--cc-ink); }
+.dr-skills__level { display: block; font-size: 13px; color: var(--cc-ash); }
+.dr-needs {
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dr-pen-deep);
+  background: rgba(194, 65, 45, 0.1);
+  white-space: nowrap;
+}
+.dr-pips { display: inline-flex; gap: 3px; }
+.dr-pips i { width: 14px; height: 7px; border-radius: 3px; background: var(--cc-cream-3, #E5E5DE); }
+.dr-pips[data-band="low"] i.on { background: var(--dr-pen); }
+.dr-pips[data-band="mid"] i.on { background: var(--cc-wheat); }
+.dr-pips[data-band="high"] i.on { background: var(--cc-signal); }
+
+/* ── Next ────────────────────────────────────────────────── */
+.dr-next { scroll-margin-top: 90px; }
+.dr-h2 { font-size: 24px; letter-spacing: -0.02em; color: var(--cc-ink); }
+.dr-next__grid { display: grid; gap: 14px; margin-top: 12px; }
+.dr-next__grid.has-plan {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+  align-items: start;
+}
+.dr-steps {
+  --k: var(--dr-teal);
+  border: 1px solid var(--cc-hair);
+  border-radius: 1.25rem;
+  padding: 6px 20px;
+  background: #fff;
+}
+.dr-steps li {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--cc-hair);
+}
+.dr-steps li:last-child { border-bottom: 0; }
+.dr-steps__n {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--dr-teal);
+}
+.dr-steps__area { font-size: 15px; font-weight: 600; color: var(--cc-ink); }
+.dr-steps__text { margin-top: 2px; font-size: 14.5px; line-height: 1.55; color: var(--cc-ink-soft); }
+.dr-steps__when { margin-top: 5px; font-size: 13px; font-weight: 500; color: var(--dr-teal-deep); }
+
+/* The study plan offer: the clearest thing on the page after the verdict. */
+.dr-plan {
+  border: 1px solid rgba(31, 122, 140, 0.32);
+  border-radius: 1.25rem;
+  padding: 20px;
+  background:
+    radial-gradient(circle, rgba(31, 122, 140, 0.16) 1px, transparent 1.4px) 0 0 / 12px 12px,
+    linear-gradient(150deg, rgba(31, 122, 140, 0.12) 0%, #fff 60%);
+}
+.dr-plan__head { display: flex; gap: 14px; }
+.dr-plan__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: #fff;
+  background: var(--dr-teal);
+  box-shadow: 0 8px 16px -10px rgba(31, 122, 140, 0.8);
+}
+.dr-skill {
+  border: 1px solid rgba(31, 122, 140, 0.3);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--dr-teal-deep);
+  background: #fff;
+}
+.dr-seg {
+  display: inline-flex;
+  border: 1px solid var(--cc-hair-strong);
+  border-radius: 999px;
+  padding: 3px;
+  background: #fff;
+}
+.dr-seg__opt {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--cc-ink-soft);
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+.dr-seg__opt:hover:not(:disabled) { color: var(--cc-ink); }
+.dr-seg__opt[aria-checked="true"] { color: #fff; background: var(--dr-teal-deep); }
+.dr-seg__opt:disabled { cursor: default; opacity: 0.6; }
+.dr-seg__opt:focus-visible { outline: 2px solid var(--dr-teal); outline-offset: 1px; }
+.dr-plan__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 11px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--dr-teal-deep);
+  box-shadow: 0 10px 22px -12px rgba(21, 90, 104, 0.9);
+  transition: translate 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+.dr-plan__go:hover:not(:disabled) { translate: 0 -1px; box-shadow: 0 14px 26px -12px rgba(21, 90, 104, 0.9); }
+.dr-plan__go:disabled { cursor: progress; opacity: 0.85; }
+.dr-plan__go:focus-visible { outline: 2px solid var(--dr-teal); outline-offset: 2px; }
+
+.dr-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+/* The panel's own words in full, when the groups above came from lists. */
+.dr-full summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cc-ink-soft);
+}
+.dr-full summary:hover { color: var(--cc-ink); }
+.dr-full p { margin-top: 10px; font-size: 14.5px; line-height: 1.65; color: var(--cc-ink-soft); }
+
+/* ── Compact (History) ───────────────────────────────────── */
+.dr--compact .dr-verdict { border-radius: 1.1rem; }
+.dr--compact .dr-verdict__score { gap: 16px; padding: 16px 20px; }
+.dr--compact .dr-grade { font-size: 52px; }
+.dr--compact .dr-points { font-size: 20px; }
+.dr--compact .dr-verdict__read { padding: 16px 20px; }
+.dr--compact .dr-lead { font-size: 15.5px; }
+.dr--compact .dr-group__list li { font-size: 14.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dr-tally__item:hover,
+  .dr-plan__go:hover:not(:disabled) { translate: none; }
+}
+
+/* Items pulled out of a sentence (what wasn't tested). */
+.dr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dr-chip {
+  border: 1px dashed var(--k-edge);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--k-deep);
+  background: var(--k-soft);
+}
+.dr-chips--head { margin: 0; padding: 14px 18px 4px; }
+.dr-group__list:empty { display: none; }
+.dr-tally__item { cursor: pointer; }

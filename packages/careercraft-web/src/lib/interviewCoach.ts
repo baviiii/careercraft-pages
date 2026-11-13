@@ -180,7 +180,12 @@ interface WireFinal {
   overallScore?: number;
   grade?: string;
   readiness?: string;
+  recommendation?: unknown;
   executiveSummary?: string;
+  stageBreakdown?: Array<{ stage?: unknown; score?: unknown; verdict?: unknown }>;
+  competencyMatrix?: Array<{ competency?: unknown; score?: unknown; level?: unknown; developmentNeeded?: unknown }>;
+  nextSessionFocus?: { skills?: unknown; questionTypes?: unknown; why?: unknown };
+  untested?: unknown;
   strengths?: { top?: string[]; notable?: string[]; potential?: string[] };
   developmentAreas?: { critical?: string[]; important?: string[]; minor?: string[] };
   improvementPlan?: { immediate?: Array<{ area: string; action: string; timeline: string }> };
@@ -445,7 +450,17 @@ export interface CoachFinalEvaluation {
   overallScore: number;
   grade: string;
   readiness: string;
+  /** The panel's call, e.g. "Lean Hire". Empty on older debriefs. */
+  recommendation: string;
   summary: string;
+  /** Score per stage of the loop (0-10 or 0-100, as the model gave it). */
+  stageBreakdown: Array<{ stage: string; score: number | null; verdict: string }>;
+  /** Each competency the round checked. */
+  competencyMatrix: Array<{ competency: string; score: number | null; level: string; needsWork: boolean }>;
+  /** What the next session and the study plan should hammer. */
+  nextFocus: { skills: string[]; questionTypes: string[]; why: string };
+  /** Competencies the round never got to. Empty on older debriefs. */
+  untested: string[];
   strengths: string[];
   weaknesses: string[];
   mustFix: string[];
@@ -842,6 +857,16 @@ function text(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+/** A model-written number, or null when it isn't one. */
+function finiteOrNull(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** An array the model sent, for cleanList to vet item by item. */
+function listOrUndefined(v: unknown): string[] | undefined {
+  return Array.isArray(v) ? (v as string[]) : undefined;
+}
+
 const STORY_VERDICTS: StoryVerdict[] = ["strong", "usable", "weak"];
 const DEPTH_VERDICTS: DepthVerdict[] = ["solid", "shaky", "gap"];
 
@@ -858,7 +883,27 @@ function adaptFinal(ev: WireFinal): CoachFinalEvaluation {
     overallScore: typeof ev.overallScore === "number" ? ev.overallScore : 0,
     grade: ev.grade ?? "—",
     readiness: ev.readiness ?? "Needs Development",
+    recommendation: text(ev.recommendation),
     summary: ev.executiveSummary ?? "",
+    stageBreakdown: (Array.isArray(ev.stageBreakdown) ? ev.stageBreakdown : [])
+      .map((s) => ({ stage: text(s?.stage), score: finiteOrNull(s?.score), verdict: text(s?.verdict) }))
+      .filter((s) => s.stage)
+      .slice(0, 8),
+    competencyMatrix: (Array.isArray(ev.competencyMatrix) ? ev.competencyMatrix : [])
+      .map((c) => ({
+        competency: text(c?.competency),
+        score: finiteOrNull(c?.score),
+        level: text(c?.level),
+        needsWork: c?.developmentNeeded === true,
+      }))
+      .filter((c) => c.competency)
+      .slice(0, 12),
+    nextFocus: {
+      skills: cleanList(listOrUndefined(ev.nextSessionFocus?.skills), 5),
+      questionTypes: cleanList(listOrUndefined(ev.nextSessionFocus?.questionTypes), 5),
+      why: text(ev.nextSessionFocus?.why),
+    },
+    untested: cleanList(listOrUndefined(ev.untested), 8),
     strengths: [...(ev.strengths?.top ?? []), ...(ev.strengths?.notable ?? [])],
     weaknesses: ev.developmentAreas?.important ?? [],
     mustFix: ev.developmentAreas?.critical ?? [],

@@ -17,95 +17,49 @@ import { ROUND_TYPES, roundClass, roundMeta, type RoundType } from "../lib/round
 import { normalizeScore100, sessionOverallScore, useInterviewSessions, type SessionRow } from "../lib/sessions";
 import { finished, useDrills } from "../lib/drills";
 import { DrillLog, SkillProgressCards } from "./DrillLog";
-import { RoundDebriefExtras } from "./RoundDebriefExtras";
+import { DebriefReport } from "./report/DebriefReport";
 import { RoundDot, RoundTag } from "./RoundMarks";
 import "../interview.css";
 
 function StoredDebrief({
   row,
+  latest,
   onPracticeAgain,
 }: {
   row: SessionRow;
+  /** The newest finished interview: the one a study plan is built from. */
+  latest: boolean;
   onPracticeAgain: () => void;
 }) {
   const ev = adaptFinalEvaluation(row.ai_insights);
-  const score = normalizeScore100(ev.overallScore || sessionOverallScore(row));
+  // Raw: the report puts it on /100 itself, and doing it twice would turn a 0.8 into 80.
+  const raw = ev.overallScore || sessionOverallScore(row) || 0;
+  const score = normalizeScore100(raw);
+  const practise = (
+    <button type="button" onClick={onPracticeAgain} className="cc-action cc-action--sm">
+      Practise this again
+      <ArrowRight className="h-3.5 w-3.5" />
+    </button>
+  );
 
   if (!score && !ev.summary) {
     return (
       <div className="space-y-3">
         <p className="text-sm text-[color:var(--cc-ash)]">No debrief was stored for this session.</p>
-        <button type="button" onClick={onPracticeAgain} className="cc-action cc-action--sm">
-          Practise this again
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
+        {practise}
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <span className="cc-font-display text-4xl leading-none text-[color:var(--cc-ink)]">
-          {ev.grade || "—"}
-        </span>
-        <div>
-          {score != null && (
-            <p className="cc-font-mono text-lg tabular-nums text-[color:var(--cc-ink)]">
-              {score}
-              <span className="text-xs text-[color:var(--cc-ash)]">/100</span>
-            </p>
-          )}
-          <p className="cc-label-sm text-[color:var(--cc-ash)]">{ev.readiness}</p>
-        </div>
-      </div>
-      {ev.summary && (
-        <p className="text-sm leading-relaxed text-[color:var(--cc-ink-soft)]">{ev.summary}</p>
-      )}
-
-      <RoundDebriefExtras roundType={row.round_type} evaluation={ev} compact />
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {ev.strengths.length > 0 && (
-          <div className="rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-signal-soft)]/40 p-4">
-            <p className="cc-label-sm mb-1.5 text-[color:var(--cc-signal-deep)]">Strengths</p>
-            <ul className="space-y-1 text-sm text-[color:var(--cc-ink-soft)]">
-              {ev.strengths.slice(0, 4).map((s, i) => (
-                <li key={i}>— {s}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {(ev.mustFix.length > 0 || ev.weaknesses.length > 0) && (
-          <div className="rounded-xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-wheat-soft)]/40 p-4">
-            <p className="cc-label-sm mb-1.5 text-[color:var(--cc-wheat-deep)]">Improve</p>
-            <ul className="space-y-1 text-sm text-[color:var(--cc-ink-soft)]">
-              {[...ev.mustFix, ...ev.weaknesses].slice(0, 4).map((s, i) => (
-                <li key={i}>— {s}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-      {ev.improvementPlan.length > 0 && (
-        <div>
-          <p className="cc-label-sm mb-1.5 text-[color:var(--cc-ink)]">Plan</p>
-          <ul className="space-y-1.5 text-sm text-[color:var(--cc-ink-soft)]">
-            {ev.improvementPlan.map((item, i) => (
-              <li key={i}>
-                <span className="font-medium text-[color:var(--cc-ink)]">{item.area}:</span>{" "}
-                {item.action}
-                {item.timeline ? ` (${item.timeline})` : ""}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <button type="button" onClick={onPracticeAgain} className="cc-action cc-action--sm">
-        Practise this again
-        <ArrowRight className="h-3.5 w-3.5" />
-      </button>
-    </div>
+    <DebriefReport
+      evaluation={{ ...ev, overallScore: raw }}
+      roundType={row.round_type}
+      field={row.field}
+      compact
+      offerPlan={latest}
+      actions={practise}
+    />
   );
 }
 
@@ -262,6 +216,8 @@ function SessionHistory({ highlightId, onStartPractice, onPracticeType }: Sessio
     return c;
   }, [rows]);
   const shown = filter === "all" ? rows : rows.filter((r) => r.round_type === filter);
+  // Rows come newest first.
+  const latestDoneId = rows.find((r) => r.status === "completed")?.id ?? null;
 
   useEffect(() => {
     if (!highlightId || isLoading) return;
@@ -436,7 +392,7 @@ function SessionHistory({ highlightId, onStartPractice, onPracticeType }: Sessio
               </summary>
               <div className="border-t border-[color:var(--cc-hair)] py-5 pl-6 pr-5">
                 {completed ? (
-                  <StoredDebrief row={row} onPracticeAgain={() => practiceAgain(row)} />
+                  <StoredDebrief row={row} latest={row.id === latestDoneId} onPracticeAgain={() => practiceAgain(row)} />
                 ) : (
                   <div className="space-y-3">
                     <p className="text-sm text-[color:var(--cc-ash)]">

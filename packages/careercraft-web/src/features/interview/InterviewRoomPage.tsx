@@ -193,7 +193,6 @@ export default function InterviewRoomPage() {
                 mode: "coached",
               })
             }
-            onResources={() => exitToHub("resources")}
             onExit={() => exitToHub()}
           />
         )}
