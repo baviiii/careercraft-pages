@@ -3,6 +3,8 @@
    Pure functions, so the wording and the order of priorities live in one
    place and can be read top to bottom. */
 
+import { tidyFileName } from "@/lib/fileNames";
+
 export interface AssistantAction {
   label: string;
   path: string;
@@ -161,26 +163,6 @@ export function cheerFor(seed: string, now: Date): string {
   return CHEERS[h % CHEERS.length];
 }
 
-const FILE_EXT = /\.(pdf|docx?|odt|rtf|txt|pages)$/i;
-
-/* Résumés uploaded from a file keep the file's name, which can be as raw as
-   "Jo_Bloggs_-_Data_Analyst__Cloud_%26_Ops.pdf". Shown in Fay's card that
-   reads "Jo Bloggs - Data Analyst Cloud & Ops". A name someone typed (it has
-   spaces) keeps its own characters, "C++ Developer" included. */
-export function tidyResumeName(raw: string): string {
-  let name = raw.trim().replace(FILE_EXT, "");
-  if (!/\s/.test(name)) {
-    try {
-      name = decodeURIComponent(name);
-    } catch {
-      /* a stray "%" that isn't an escape: keep it as written */
-    }
-    name = name.replace(/_+/g, " ");
-  }
-  name = name.replace(/\s+/g, " ").trim();
-  return name || "Untitled résumé";
-}
-
 /** Every next step that applies, most urgent first. */
 export function pickNudges({ applications, resumes, now }: BriefInput): AssistantNudge[] {
   const nudges: AssistantNudge[] = [];
@@ -252,7 +234,9 @@ export function pickNudges({ applications, resumes, now }: BriefInput): Assistan
       action: { label: "Run a new check", path: "/analysis" },
       score: scored.ats_score as number,
       // Which one, when there's more than one to choose from.
-      ...(resumes.length > 1 && { resume: tidyResumeName(scored.name) }),
+      ...(resumes.length > 1 && {
+        resume: tidyFileName(scored.name) || "Untitled résumé",
+      }),
     });
   }
 

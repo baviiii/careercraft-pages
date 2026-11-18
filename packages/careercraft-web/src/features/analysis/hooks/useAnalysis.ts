@@ -15,6 +15,7 @@ import {
   runATSAIAnalysis,
   type ATSAIAnalysis,
 } from "@/lib/atsAIAnalyzer";
+import { tidyFileName } from "@/lib/fileNames";
 import { QuotaExceededError, type QuotaDetails } from "@/lib/quota";
 // Text helpers only; the file readers (pdf.js, mammoth) load on upload.
 import { formatResumeDataAsText, parseResumeTextWithAI, type AIResumeData } from "@/lib/resumeParseApi";
@@ -695,8 +696,9 @@ export function useAnalysis() {
 
   const openSaveDialog = useCallback(
     (type: SaveType) => {
+      const tidied = tidyFileName(fileName) || fileName;
       setSaveType(type);
-      setSaveName(type === "original" ? fileName : `${fileName} (Enhanced)`);
+      setSaveName(type === "original" ? tidied : `${tidied} (Enhanced)`);
       setSaveDialogOpen(true);
     },
     [fileName]
@@ -923,7 +925,9 @@ export function useAnalysis() {
   const openSaveFromTemplateDialog = useCallback(() => {
     if (!parsedResumeData) return;
     setSaveType("original");
-    setSaveName(parsedResumeData.contact?.name || fileName || "Analyzed Resume");
+    setSaveName(
+      parsedResumeData.contact?.name || tidyFileName(fileName) || fileName || "Analyzed Resume"
+    );
     setShowTemplateDialog(false);
     setSaveDialogOpen(true);
   }, [parsedResumeData, fileName]);
