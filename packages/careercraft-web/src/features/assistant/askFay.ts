@@ -7,6 +7,17 @@
    markers ([1], [2]) and stray markdown emphasis are dropped: the card is a
    few sentences, not a document. */
 
+/** One question and Fay's answer to it. */
+export type FayTurn = {
+  id: number;
+  question: string;
+  answer: string;
+  status: "thinking" | "streaming" | "done" | "error";
+  /** The error is worth asking again (a spent allowance isn't). */
+  canRetry?: boolean;
+  sources?: { n: number; title: string; url: string }[];
+};
+
 export type AnswerPiece =
   | { kind: "text"; text: string }
   | { kind: "link"; label: string; path: string };

@@ -8,15 +8,29 @@ export interface AssistantAction {
   path: string;
 }
 
+/** What a next step is about, which decides the little picture beside it. */
+export type NudgeKind = "interview" | "follow-up" | "resume" | "saved" | "ats" | "track";
+
 export interface AssistantNudge {
+  kind: NudgeKind;
   text: string;
+  /** The same step in a few words, for a one-line row. */
+  short: string;
   action?: AssistantAction;
+  /** The interview's day ("2026-11-20"), for a calendar page. */
+  day?: string;
+  /** How many follow-ups are due, or how many jobs are saved. */
+  count?: number;
+  /** The last ATS score, and the résumé it belongs to (tidied for show). */
+  score?: number;
+  resume?: string;
 }
 
 export interface AssistantBrief {
   firstName: string;
   hello: string;
-  nudge: AssistantNudge | null;
+  /** Up to three next steps, most urgent first. */
+  nudges: AssistantNudge[];
   cheer: string;
 }
 
@@ -102,7 +116,7 @@ export function nextBubble(
 const ACTIVE = new Set(["saved", "applied", "interview"]);
 
 /** A plain "2026-11-12" is a local calendar day; anything else is a timestamp. */
-function parseDay(value: string): Date {
+export function parseDay(value: string): Date {
   const plain = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   return plain
     ? new Date(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3]))
@@ -125,7 +139,7 @@ function whenWord(days: number, value: string): string {
 export function introFor(firstName: string): { hello: string; line: string } {
   return {
     hello: firstName ? `Hi ${firstName}, I'm Fay!` : "Hi, I'm Fay!",
-    line: "I'll point you to one useful next step each day. Click me any time to get around, or ask me anything about Faircopy.",
+    line: "I'll point you to a useful next step each day. Click me any time to find a page or ask how something works.",
   };
 }
 
@@ -147,21 +161,44 @@ export function cheerFor(seed: string, now: Date): string {
   return CHEERS[h % CHEERS.length];
 }
 
-/** The single most useful next step, most urgent first. */
-export function pickNudge({ applications, resumes, now }: BriefInput): AssistantNudge | null {
+const FILE_EXT = /\.(pdf|docx?|odt|rtf|txt|pages)$/i;
+
+/* Résumés uploaded from a file keep the file's name, which can be as raw as
+   "Jo_Bloggs_-_Data_Analyst__Cloud_%26_Ops.pdf". Shown in Fay's card that
+   reads "Jo Bloggs - Data Analyst Cloud & Ops". A name someone typed (it has
+   spaces) keeps its own characters, "C++ Developer" included. */
+export function tidyResumeName(raw: string): string {
+  let name = raw.trim().replace(FILE_EXT, "");
+  if (!/\s/.test(name)) {
+    try {
+      name = decodeURIComponent(name);
+    } catch {
+      /* a stray "%" that isn't an escape: keep it as written */
+    }
+    name = name.replace(/_+/g, " ");
+  }
+  name = name.replace(/\s+/g, " ").trim();
+  return name || "Untitled résumé";
+}
+
+/** Every next step that applies, most urgent first. */
+export function pickNudges({ applications, resumes, now }: BriefInput): AssistantNudge[] {
+  const nudges: AssistantNudge[] = [];
+
   const interview = applications
     .filter((a) => a.interview_date && a.status !== "rejected")
     .map((a) => ({ a, days: daysFromToday(a.interview_date as string, now) }))
     .filter(({ days }) => days >= 0 && days <= 3)
     .sort((x, y) => x.days - y.days)[0];
   if (interview) {
-    return {
-      text: `Your interview with ${interview.a.company} is ${whenWord(
-        interview.days,
-        interview.a.interview_date as string,
-      )}. A practice round now can settle the nerves.`,
+    const when = whenWord(interview.days, interview.a.interview_date as string);
+    nudges.push({
+      kind: "interview",
+      text: `Your interview with ${interview.a.company} is ${when}. A practice round now can settle the nerves.`,
+      short: `Interview with ${interview.a.company} ${when}`,
       action: { label: "Practise now", path: "/interview-prep" },
-    };
+      day: interview.a.interview_date as string,
+    });
   }
 
   const due = applications
@@ -169,60 +206,73 @@ export function pickNudge({ applications, resumes, now }: BriefInput): Assistant
     .map((a) => ({ a, days: daysFromToday(a.reminder_date as string, now) }))
     .filter(({ days }) => days <= 0)
     .sort((x, y) => x.days - y.days);
-  if (due.length === 1) {
-    return {
-      text: `Today's the day to follow up with ${due[0].a.company}.`,
+  if (due.length > 0) {
+    nudges.push({
+      kind: "follow-up",
+      text:
+        due.length === 1
+          ? `Today's the day to follow up with ${due[0].a.company}.`
+          : `${due.length} follow-ups are due. ${due[0].a.company} has waited longest.`,
+      short:
+        due.length === 1 ? `Follow up with ${due[0].a.company}` : `${due.length} follow-ups are due`,
       action: { label: "Open the tracker", path: "/tracker" },
-    };
-  }
-  if (due.length > 1) {
-    return {
-      text: `${due.length} follow-ups are due. ${due[0].a.company} has waited longest.`,
-      action: { label: "Open the tracker", path: "/tracker" },
-    };
+      count: due.length,
+    });
   }
 
   if (resumes.length === 0) {
-    return {
+    nudges.push({
+      kind: "resume",
       text: "Let's start with your résumé. Everything else here builds on it.",
+      short: "Build your résumé",
       action: { label: "Build my résumé", path: "/builder" },
-    };
+    });
   }
 
   const saved = applications.filter((a) => a.status === "saved").length;
   if (saved > 0) {
-    return {
+    nudges.push({
+      kind: "saved",
       text:
         saved === 1
           ? "You've saved a job but haven't applied yet. Today could be the day."
           : `You've saved ${saved} jobs but haven't applied yet. Pick one for today?`,
+      short: saved === 1 ? "A saved job to apply for" : `${saved} saved jobs to apply for`,
       action: { label: "See saved jobs", path: "/tracker" },
-    };
+      count: saved,
+    });
   }
 
   const scored = resumes.find((r) => r.ats_score !== null);
   if (scored && (scored.ats_score as number) < 70) {
-    return {
-      text: `"${scored.name}" scored ${scored.ats_score} on its last ATS check. A few fixes could lift it.`,
+    nudges.push({
+      kind: "ats",
+      text: `Your résumé scored ${scored.ats_score} on its last ATS check. A few fixes could lift it.`,
+      short: `Your résumé scored ${scored.ats_score} on its last ATS check`,
       action: { label: "Run a new check", path: "/analysis" },
-    };
+      score: scored.ats_score as number,
+      // Which one, when there's more than one to choose from.
+      ...(resumes.length > 1 && { resume: tidyResumeName(scored.name) }),
+    });
   }
 
-  if (applications.length === 0) {
-    return {
+  if (resumes.length > 0 && applications.length === 0) {
+    nudges.push({
+      kind: "track",
       text: "Your résumé's ready. Add the jobs you're eyeing to the tracker so nothing slips.",
+      short: "Add the jobs you're eyeing to the tracker",
       action: { label: "Open the tracker", path: "/tracker" },
-    };
+    });
   }
 
-  return null;
+  return nudges;
 }
 
 export function buildBrief(input: BriefInput, seed: string): AssistantBrief {
   return {
     firstName: input.firstName,
     hello: helloFor(input.firstName, input.now),
-    nudge: pickNudge(input),
+    nudges: pickNudges(input).slice(0, 3),
     cheer: cheerFor(seed, input.now),
   };
 }

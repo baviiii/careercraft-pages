@@ -16,8 +16,11 @@
      for a few minutes she dozes off, and wakes with a yawn. She keeps the
      local clock: lively in the morning, heavy-eyed in a nightcap late at
      night (when she dozes off sooner).
-   - Her card takes a question ("ask me anything") and streams her answer
-     through coach-chat with her own persona and allowance (focusArea fay).
+   - Her card (FayCard) finds any page as you type and takes a question
+     ("ask me anything"), streaming her answer through coach-chat with her
+     own persona and allowance (focusArea fay); the question says which page
+     it was asked on. It helps with the page you're on, and Ctrl/⌘ K opens
+     it from anywhere.
    - She has her own motion setting (device / full / calm), so someone whose
      device asks for reduced motion can still choose to see her move.
    - She celebrates interviews and offers and comforts on a rejection
@@ -43,16 +46,18 @@ import {
   useReducedMotion,
   useSpring,
 } from "framer-motion";
-import { ArrowRight, ArrowUp, ChevronLeft, MoreHorizontal, X } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { CoachSessionExpiredError, streamCoachChat } from "@/lib/coachChat";
 import { QuotaExceededError } from "@/lib/quota";
 
-import { pageLabel, pagesIn, parseAnswer } from "./askFay";
+import type { FayTurn } from "./askFay";
 import { dayPart, introFor, nextBubble, type DayPart } from "./brief";
 import { Fay, type FayMood } from "./Fay";
-import { fayFrame, sparkPath } from "./fayArt";
+import { FayCard, type MotionPref } from "./FayCard";
+import { fayFrame } from "./fayArt";
 import { useFayEvents, type FayEvent } from "./fayBus";
+import { guideFor, IS_MAC, type FayAct } from "./guide";
 import { tipsFor } from "./tips";
 import { useAssistantBrief } from "./useAssistantBrief";
 
@@ -94,21 +99,6 @@ const DOZE_AFTER_MS = 180_000;
 const DOZE_AFTER_NIGHT_MS = 60_000;
 /** A click only makes her start ("!", ears up) if she's been calm this long. */
 const NOTICE_GAP_MS = 8_000;
-/** Common questions, offered before anything has been asked. */
-const ASK_EXAMPLES = [
-  {
-    label: "Check my résumé against a job",
-    question: "How do I check my résumé against a job?",
-  },
-  {
-    label: "Track my applications",
-    question: "Where do I track my applications?",
-  },
-  {
-    label: "Fit my résumé on fewer pages",
-    question: "How do I fit my résumé on fewer pages?",
-  },
-];
 /** How long she keeps looking at something that was clicked. */
 const GLANCE_MS = 1_400;
 /** Her eyes jump to a new spot at most this often while following the pointer. */
@@ -225,16 +215,6 @@ function seenTips(userId: string): string[] {
 }
 
 type CardMode = "closed" | "greeting" | "open";
-type MotionPref = "auto" | "full" | "calm";
-
-/** One question and Fay's answer to it. */
-type Turn = {
-  id: number;
-  question: string;
-  answer: string;
-  status: "thinking" | "streaming" | "done" | "error";
-  sources?: { n: number; title: string; url: string }[];
-};
 
 type Bubble = {
   kind: "cheer" | "tip" | "event" | "pet";
@@ -275,9 +255,9 @@ export const AssistantDock = () => {
   const [glance, setGlance] = useState({ n: 0, side: 1 });
   const [blink, setBlink] = useState(0);
   const [poke, setPoke] = useState(0);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [question, setQuestion] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [turns, setTurns] = useState<FayTurn[]>([]);
+  /** The card opened from the keyboard or "Ask me anything": cursor in the box. */
+  const [focusOnOpen, setFocusOnOpen] = useState(false);
   const still = motionPref === "calm" || (motionPref === "auto" && deviceStill);
 
   // Position (dragged directly) and where she looks (sprung, so it's soft).
@@ -330,8 +310,6 @@ export const AssistantDock = () => {
   const sessionRef = useRef<string | undefined>();
   const askAbort = useRef<AbortController | null>(null);
   const askInput = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const focusAsk = useRef(false);
   const asking = turns.some(
     (t) => t.status === "thinking" || t.status === "streaming",
   );
@@ -604,13 +582,49 @@ export const AssistantDock = () => {
   // A question in flight is dropped if she goes away entirely.
   useEffect(() => () => askAbort.current?.abort(), []);
 
-  // Opened from the "Ask me anything" bubble: straight to the question box.
+  /* Open her card: it counts as today's hello, and she wakes and waves. */
+  const open = useCallback(
+    (focus = false) => {
+      // Opening her counts as today's hello, so the daily one won't follow.
+      if (userId) writeStore(greetedKey(userId), today());
+      meet();
+      reload();
+      setBubble(null);
+      dozingRef.current = false;
+      setDozing(false);
+      setFocusOnOpen(focus);
+      setMode("open");
+      perk();
+    },
+    [userId, meet, reload, perk],
+  );
+
+  // ── Ctrl K (⌘ K on a Mac): her card from anywhere, the cursor in its box;
+  // again to close. Only the platform's own key: Ctrl K in a Mac text field
+  // deletes to the end of the line. The key's place on the keyboard counts as
+  // well as its letter, so it works on any layout. ──
   useEffect(() => {
-    if (mode === "open" && focusAsk.current) {
-      focusAsk.current = false;
-      askInput.current?.focus();
-    }
-  }, [mode]);
+    if (hidden) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(IS_MAC ? e.metaKey : e.ctrlKey)) return;
+      if (e.code !== "KeyK" && e.key.toLowerCase() !== "k") return;
+      if (e.altKey || e.shiftKey || e.repeat) return;
+      if ((e.target as HTMLElement | null)?.isContentEditable) return;
+      e.preventDefault();
+      if (modeRef.current === "open") {
+        if (document.activeElement === askInput.current) setMode("closed");
+        else askInput.current?.focus();
+        return;
+      }
+      if (tuckedRef.current) {
+        setTucked(false);
+        writeStore(TUCKED_KEY, null);
+      }
+      open(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hidden, open]);
 
   // ── The daily hello: once per person per day, not while tucked away ──
   useEffect(() => {
@@ -719,6 +733,10 @@ export const AssistantDock = () => {
     return () => window.clearTimeout(t);
   }, [quiet, dozing, bubble, brief, chatty, part, speak]);
 
+  // A card or bubble that closes under the pointer never hears it leave, so
+  // whenever what's shown changes, nothing is being read until it's pointed at.
+  useEffect(() => setHovering(false), [mode, bubble]);
+
   // Bubbles go on their own (tips wait for a button), and whenever the card
   // opens, she's carried or tucked away.
   useEffect(() => {
@@ -796,25 +814,6 @@ export const AssistantDock = () => {
     };
   }, [mode]);
 
-  // Her menu closes on a click outside it, and whenever the card closes.
-  useEffect(() => {
-    if (mode !== "open") setMenuOpen(false);
-  }, [mode]);
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Element | null;
-      if (
-        menuRef.current?.contains(t) ||
-        t?.closest?.('[aria-label="Fay settings"]')
-      )
-        return;
-      setMenuOpen(false);
-    };
-    window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
-  }, [menuOpen]);
-
   // Moving to another page closes the card and any tip from the last page.
   useEffect(() => {
     setMode("closed");
@@ -823,17 +822,21 @@ export const AssistantDock = () => {
 
   if (hidden) return null;
 
-  /* Ask Fay something; her answer streams into the card. */
+  /* Ask Fay something; her answer streams into the card. The page it was
+     asked on goes with it, in the person's own voice so it needs no rule in
+     her persona: "how do I add one?" then means the page in view. Only the
+     question itself is shown in the card. */
   const ask = async (raw: string) => {
     const q = raw.trim().slice(0, 500);
     if (!q || asking) return;
     const id = Date.now();
-    setQuestion("");
+    const where = guideFor(pathname)?.label;
+    const message = where ? `(I'm on the ${where} page.) ${q}` : q;
     setTurns((ts) => [
       ...ts.slice(-4),
       { id, question: q, answer: "", status: "thinking" },
     ]);
-    const update = (patch: Partial<Turn>) =>
+    const update = (patch: Partial<FayTurn>) =>
       setTurns((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     const controller = new AbortController();
     askAbort.current = controller;
@@ -841,7 +844,7 @@ export const AssistantDock = () => {
     const run = async () => {
       let text = "";
       for await (const ev of streamCoachChat({
-        message: q,
+        message,
         sessionId: sessionRef.current,
         focusArea: "fay",
         personaName: "Fay",
@@ -885,13 +888,16 @@ export const AssistantDock = () => {
       flash("happy", 900);
     } catch (err) {
       if (controller.signal.aborted) return;
-      update({
-        status: "error",
-        answer:
-          err instanceof QuotaExceededError
-            ? err.message
-            : "Sorry, I couldn't answer just now. Try again in a moment.",
-      });
+      // A spent allowance won't come back by asking again; a hiccup might.
+      update(
+        err instanceof QuotaExceededError
+          ? { status: "error", answer: err.message }
+          : {
+              status: "error",
+              canRetry: true,
+              answer: "Sorry, I couldn't answer just now. Try again in a moment.",
+            },
+      );
       flash("sad", 1_200);
     } finally {
       setTalking(false);
@@ -914,18 +920,6 @@ export const AssistantDock = () => {
     setMode("closed");
     setBubble(null);
     navigate(path);
-  };
-
-  const open = () => {
-    // Opening her counts as today's hello, so the daily one won't follow.
-    if (userId) writeStore(greetedKey(userId), today());
-    meet();
-    reload();
-    setBubble(null);
-    dozingRef.current = false;
-    setDozing(false);
-    setMode("open");
-    perk();
   };
 
   const onFay = () => {
@@ -960,6 +954,24 @@ export const AssistantDock = () => {
     setHop((h) => h + 1);
   };
 
+  /* "Show me around": this page's tips again, from the first. */
+  const tour = () => {
+    if (!tipsFor(pathname).length) return;
+    setMode("closed");
+    setTipRoute(null);
+    if (userId && !seenTips(userId).includes(pathname))
+      writeStore(tipsKey(userId), JSON.stringify([...seenTips(userId), pathname]));
+    showTip(pathname, 0);
+  };
+
+  /* Something she does herself, from her card's search or menu. */
+  const act = (what: FayAct) => {
+    if (what === "tour") tour();
+    else if (what === "chatty") toggleChatty();
+    else if (what === "tuck") tuckAway();
+    else if (what === "corner") goHome();
+  };
+
   /* Stroking her back and forth: hearts and a blush. */
   const onStroke = (e: ReactPointerEvent) => {
     if (e.pointerType !== "mouse" || carried || tucked) return;
@@ -991,8 +1003,6 @@ export const AssistantDock = () => {
   const atHome = Math.abs(spot.x - home.x) < 2 && Math.abs(spot.y - home.y) < 2;
   // Her card shows one answer at a time: the latest.
   const latest = mode === "open" ? turns[turns.length - 1] : undefined;
-  const blocks = latest ? parseAnswer(latest.answer) : [];
-  const pages = latest?.status === "done" ? pagesIn(blocks).slice(0, 2) : [];
   const shownMood: FayMood =
     tucked || dozing
       ? "sleep"
@@ -1006,350 +1016,34 @@ export const AssistantDock = () => {
     <div ref={rootRef} className="cc-font-sans">
       <AnimatePresence mode="wait">
         {mode !== "closed" && brief ? (
-          <motion.aside
+          <FayCard
             key="card"
-            aria-label="Fay, your Faircopy helper"
-            initial={{ opacity: 0, y: place.below ? -12 : 12, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: place.below ? -8 : 8, scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 380, damping: 30 }}
-            style={{
-              ...place.style,
-              originX: place.right ? 1 : 0,
-              originY: place.below ? 0 : 1,
+            mode={mode}
+            brief={brief}
+            intro={met}
+            part={part}
+            still={still}
+            pathname={pathname}
+            place={place}
+            latest={latest}
+            asking={asking}
+            inputRef={askInput}
+            autoFocus={focusOnOpen}
+            settings={{
+              chatty,
+              motionPref,
+              deviceStill,
+              atHome,
+              canTour: tipsFor(pathname).length > 0,
             }}
-            onPointerEnter={() => setHovering(true)}
-            onPointerLeave={() => setHovering(false)}
-            className="fixed z-[35] w-[min(340px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-[color:var(--cc-hair)] bg-white text-[color:var(--cc-ink)] shadow-[0_18px_50px_-18px_rgba(20,22,26,0.35)]"
-          >
-            {/* The greeting (or the way back from an answer), her menu, close */}
-            <div className="flex items-start gap-2 px-4 pt-3.5">
-              {latest ? (
-                <button
-                  type="button"
-                  onClick={startOver}
-                  className="-ml-2 inline-flex items-center gap-0.5 rounded-full py-1 pl-1 pr-2.5 text-[13.5px] text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Back
-                </button>
-              ) : (
-                <p className="cc-font-display min-w-0 flex-1 pt-0.5 text-[19px] leading-snug">
-                  {met ? met.hello : brief.hello}
-                </p>
-              )}
-              <div className="-mr-2 ml-auto flex flex-shrink-0 items-center">
-                {mode === "open" && (
-                  <button
-                    type="button"
-                    aria-label="Fay settings"
-                    aria-haspopup="menu"
-                    aria-expanded={menuOpen}
-                    onClick={() => setMenuOpen((v) => !v)}
-                    className={`rounded-full p-1.5 transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)] ${
-                      menuOpen
-                        ? "bg-[color:var(--cc-cream-2)] text-[color:var(--cc-ink)]"
-                        : "text-[color:var(--cc-ash)]"
-                    }`}
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setMode("closed")}
-                  aria-label="Close"
-                  className="rounded-full p-1.5 text-[color:var(--cc-ash)] transition-colors hover:bg-[color:var(--cc-cream-2)] hover:text-[color:var(--cc-ink)]"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Her settings, out of the way until wanted */}
-            {menuOpen && mode === "open" && (
-              <div
-                ref={menuRef}
-                role="menu"
-                aria-label="Fay's settings"
-                className="absolute right-3 top-12 z-10 w-[236px] rounded-xl border border-[color:var(--cc-hair)] bg-white p-1.5 text-[13.5px] shadow-[0_14px_34px_-14px_rgba(20,22,26,0.4)]"
-              >
-                <button
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={chatty}
-                  onClick={toggleChatty}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left hover:bg-[color:var(--cc-cream-2)]"
-                >
-                  Tips and bubbles
-                  <span
-                    aria-hidden="true"
-                    className={`relative h-4 w-7 flex-shrink-0 rounded-full transition-colors ${chatty ? "bg-[color:var(--cc-rust)]" : "bg-[color:var(--cc-cream-3)]"}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-[left] ${chatty ? "left-3.5" : "left-0.5"}`}
-                    />
-                  </span>
-                </button>
-                <div className="px-2.5 pb-2 pt-1.5">
-                  <p className="text-[12.5px] text-[color:var(--cc-ash)]">
-                    Movement
-                  </p>
-                  <div
-                    role="group"
-                    aria-label="Fay's movement"
-                    className="mt-1.5 flex rounded-full bg-[color:var(--cc-cream-2)] p-0.5"
-                  >
-                    {(
-                      [
-                        ["auto", "Device"],
-                        ["full", "Full"],
-                        ["calm", "Calm"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        aria-pressed={motionPref === key}
-                        onClick={() => chooseMotion(key)}
-                        className={`flex-1 rounded-full py-1 text-[12.5px] transition-colors ${
-                          motionPref === key
-                            ? "bg-white font-medium text-[color:var(--cc-ink)] shadow-sm"
-                            : "text-[color:var(--cc-ash)] hover:text-[color:var(--cc-ink)]"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  {motionPref === "auto" && deviceStill && (
-                    <p className="mt-1.5 text-[12px] leading-snug text-[color:var(--cc-ash)]">
-                      Your device asks for less motion, so Fay keeps still.
-                    </p>
-                  )}
-                </div>
-                <div className="my-1 border-t border-[color:var(--cc-hair)]" />
-                {!atHome && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      goHome();
-                    }}
-                    className="w-full rounded-lg px-2.5 py-2 text-left hover:bg-[color:var(--cc-cream-2)]"
-                  >
-                    Back to my corner
-                  </button>
-                )}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={tuckAway}
-                  className="w-full rounded-lg px-2.5 py-2 text-left hover:bg-[color:var(--cc-cream-2)]"
-                >
-                  Tuck Fay away
-                </button>
-              </div>
-            )}
-
-            <div className="px-4 pb-4" aria-live="polite">
-              {latest ? (
-                /* One question and her answer, the pages it mentions as buttons */
-                <>
-                  <p className="cc-font-display mt-1.5 text-[17px] leading-snug">
-                    {latest.question}
-                  </p>
-                  {latest.status === "thinking" ? (
-                    <span
-                      className="mt-3 flex gap-1"
-                      role="status"
-                      aria-label="Fay is thinking"
-                    >
-                      {[0, 1, 2].map((i) => (
-                        <motion.span
-                          key={i}
-                          className="h-1.5 w-1.5 rounded-full bg-[color:var(--cc-ash)]"
-                          animate={
-                            still ? undefined : { opacity: [0.25, 1, 0.25] }
-                          }
-                          transition={{
-                            duration: 1,
-                            repeat: Infinity,
-                            delay: i * 0.15,
-                          }}
-                        />
-                      ))}
-                    </span>
-                  ) : (
-                    <div
-                      className={`mt-2 space-y-2 text-[14.5px] leading-relaxed ${
-                        latest.status === "error"
-                          ? "text-[color:var(--cc-ash)]"
-                          : "text-[color:var(--cc-ink-soft)]"
-                      }`}
-                    >
-                      {blocks.map((block, bi) => (
-                        <p
-                          key={bi}
-                          className={
-                            block.kind === "item" ? "flex gap-2" : undefined
-                          }
-                        >
-                          {block.kind === "item" && (
-                            <span aria-hidden="true">•</span>
-                          )}
-                          <span>
-                            {block.pieces.map((piece, pi) =>
-                              piece.kind === "link" ? (
-                                <button
-                                  key={pi}
-                                  type="button"
-                                  onClick={() => go(piece.path)}
-                                  className="font-medium text-[color:var(--cc-ink)] underline decoration-[color:var(--cc-rust)] decoration-[1.5px] underline-offset-[3px] hover:text-[color:var(--cc-rust)]"
-                                >
-                                  {piece.label}
-                                </button>
-                              ) : (
-                                <span key={pi}>{piece.text}</span>
-                              ),
-                            )}
-                          </span>
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  {pages.length > 0 && (
-                    <div className="mt-3.5 flex flex-wrap gap-2">
-                      {pages.map((path, i) => (
-                        <button
-                          key={path}
-                          type="button"
-                          onClick={() => go(path)}
-                          className={
-                            i === 0
-                              ? "cc-action cc-action--sm"
-                              : "inline-flex items-center gap-1.5 rounded-full border border-[color:var(--cc-hair-strong)] px-3 py-1.5 text-[13px] font-medium transition-colors hover:border-[color:var(--cc-ink)]"
-                          }
-                        >
-                          Open {pageLabel(path)}
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {latest.sources && latest.status === "done" && (
-                    <p className="mt-3 text-[12px] text-[color:var(--cc-ash)]">
-                      Sources:{" "}
-                      {latest.sources.map((src, si) => (
-                        <a
-                          key={src.n}
-                          href={src.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline underline-offset-2 hover:text-[color:var(--cc-ink)]"
-                        >
-                          {src.title || `Source ${si + 1}`}
-                          {si < latest.sources!.length - 1 ? ", " : ""}
-                        </a>
-                      ))}
-                    </p>
-                  )}
-                </>
-              ) : (
-                /* Home: the one next step, then a question box */
-                <>
-                  {met && (
-                    <p className="mt-1 text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
-                      {met.line}
-                    </p>
-                  )}
-                  {brief.nudge && (
-                    <div className="mt-3 rounded-xl bg-[color:var(--cc-cream)] p-3">
-                      <p className="text-[14px] leading-relaxed">
-                        {brief.nudge.text}
-                      </p>
-                      {brief.nudge.action && (
-                        <button
-                          type="button"
-                          onClick={() => go(brief.nudge!.action!.path)}
-                          className="cc-action cc-action--sm mt-2.5"
-                        >
-                          {brief.nudge.action.label}
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {mode === "greeting" && (
-                    <p className="mt-3 flex items-start gap-2 text-[13.5px] leading-relaxed text-[color:var(--cc-ash)]">
-                      <svg
-                        viewBox="0 0 16 16"
-                        className="mt-[3px] h-3.5 w-3.5 flex-shrink-0"
-                        aria-hidden="true"
-                      >
-                        <path d={sparkPath(8, 8, 7)} fill="#F5B95F" />
-                      </svg>
-                      {brief.cheer}
-                    </p>
-                  )}
-                </>
-              )}
-
-              {mode === "open" && (
-                <>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void ask(question);
-                    }}
-                    className={`flex items-center gap-2 rounded-full border border-[color:var(--cc-hair-strong)] bg-white py-1 pl-3.5 pr-1 focus-within:border-[color:var(--cc-rust)] ${latest ? "mt-4" : "mt-3.5"}`}
-                  >
-                    <input
-                      ref={askInput}
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      maxLength={500}
-                      aria-label="Ask Fay a question"
-                      placeholder={
-                        latest ? "Ask a follow-up" : "Ask how to do something"
-                      }
-                      className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-[color:var(--cc-ash)] md:text-[14px]"
-                    />
-                    <button
-                      type="submit"
-                      aria-label="Ask"
-                      disabled={asking || !question.trim()}
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--cc-rust)] text-white transition-opacity disabled:opacity-40"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </button>
-                  </form>
-                  {!latest && (
-                    <>
-                      <p className="mt-3.5 text-[12.5px] text-[color:var(--cc-ash)]">
-                        Common questions
-                      </p>
-                      <ul className="-mx-2 mt-1">
-                        {ASK_EXAMPLES.map((ex) => (
-                          <li key={ex.label}>
-                            <button
-                              type="button"
-                              onClick={() => void ask(ex.question)}
-                              className="group flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-[13.5px] transition-colors hover:bg-[color:var(--cc-cream-2)]"
-                            >
-                              {ex.label}
-                              <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--cc-ash)] transition-transform group-hover:translate-x-0.5 group-hover:text-[color:var(--cc-ink)]" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          </motion.aside>
+            onAsk={(q) => void ask(q)}
+            onBack={startOver}
+            onGo={go}
+            onAct={act}
+            onMotion={chooseMotion}
+            onClose={() => setMode("closed")}
+            onHover={setHovering}
+          />
         ) : bubble ? (
           <motion.div
             key={`bubble-${bubble.kind}-${bubble.text}`}
@@ -1373,8 +1067,20 @@ export const AssistantDock = () => {
             }`}
           >
             {bubble.kind === "tip" && bubble.tip && (
-              <p className="cc-label-sm mb-1 text-[color:var(--cc-ash)]">
-                Fay's tip {bubble.tip.index + 1} of {bubble.tip.total}
+              <p className="mb-1.5 flex items-center gap-2 text-[12px] font-medium text-[color:var(--cc-ash)]">
+                Tip {bubble.tip.index + 1} of {bubble.tip.total}
+                <span className="flex gap-1" aria-hidden="true">
+                  {Array.from({ length: bubble.tip.total }, (_, k) => (
+                    <span
+                      key={k}
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        k <= bubble.tip!.index
+                          ? "bg-[color:var(--cc-rust)]"
+                          : "bg-[color:var(--cc-cream-3)]"
+                      }`}
+                    />
+                  ))}
+                </span>
               </p>
             )}
             {bubble.kind === "tip" ? (
@@ -1382,11 +1088,8 @@ export const AssistantDock = () => {
             ) : (
               <button
                 type="button"
-                onClick={() => {
-                  if (/^Ask me anything/.test(bubble.text))
-                    focusAsk.current = true;
-                  open();
-                }}
+                // "Ask me anything" opens with the cursor in her box.
+                onClick={() => open(/^Ask me anything/.test(bubble.text))}
                 className="text-left text-[13.5px] font-medium leading-snug"
               >
                 {bubble.text}

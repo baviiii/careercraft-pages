@@ -1,0 +1,846 @@
+/* ───────────────────────────────────────────────────────────
+   Fay's card — the panel that opens beside her.
+   A band of her sky across the top (it keeps the time, like
+   her window), a find-or-ask box resting on its hills, then
+   plain white rows. Page colours are the Home tools' tones,
+   set with data-fay-tone on any element and read by what's
+   inside it through --fay-t (ink) and --fay-w (wash).
+   ─────────────────────────────────────────────────────────── */
+
+[data-fay-tone] {
+  --fay-t: var(--cc-rust);
+  --fay-w: var(--cc-rust-soft);
+}
+[data-fay-tone="sage"] {
+  --fay-t: var(--cc-signal-deep);
+  --fay-w: var(--cc-signal-soft);
+}
+[data-fay-tone="wheat"] {
+  --fay-t: var(--cc-wheat-deep);
+  --fay-w: var(--cc-wheat-soft);
+}
+[data-fay-tone="pen"] {
+  --fay-t: #b23a28;
+  --fay-w: rgba(194, 65, 45, 0.12);
+}
+[data-fay-tone="teal"] {
+  --fay-t: #1f7a8c;
+  --fay-w: rgba(31, 122, 140, 0.13);
+}
+[data-fay-tone="plum"] {
+  --fay-t: #5f4bb6;
+  --fay-w: rgba(95, 75, 182, 0.12);
+}
+[data-fay-tone="ink"] {
+  --fay-t: var(--cc-ink);
+  --fay-w: rgba(20, 22, 26, 0.07);
+}
+
+.fay-card {
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100vw - 24px));
+  border-radius: 22px;
+  background: #fff;
+  color: var(--cc-ink);
+  border: 1px solid var(--cc-hair);
+  box-shadow:
+    0 1px 2px rgba(20, 22, 26, 0.06),
+    0 28px 60px -26px rgba(20, 22, 26, 0.5);
+}
+
+/* ── The sky ─────────────────────────────────────────────── */
+
+.fay-sky {
+  position: relative;
+  isolation: isolate;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 21px 21px 0 0;
+  padding: 18px 18px 46px;
+  min-height: 120px;
+  color: var(--cc-ink);
+}
+.fay-sky[data-slim] {
+  min-height: 0;
+  padding: 10px 12px 22px;
+}
+/* Little room (a short screen, or Fay high up): the greeting on one line */
+.fay-sky[data-slim][data-under-ask] {
+  padding: 10px 12px 34px 16px;
+}
+.fay-sky[data-slim] .fay-hello {
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 30px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fay-sky[data-dark] {
+  color: #fff;
+}
+.fay-sky__art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+.fay-sky__words {
+  padding-right: 72px;
+}
+.fay-hello {
+  font-size: 21px;
+  line-height: 1.18;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.fay-date {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+.fay-sky[data-dark] .fay-hello,
+.fay-sky[data-dark] .fay-date {
+  text-shadow: 0 1px 14px rgba(24, 20, 70, 0.45);
+}
+.fay-sky__tools {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+}
+
+/* Frosted buttons that sit on the sky */
+.fay-glass {
+  color: var(--cc-ink);
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: background-color 0.15s;
+}
+.fay-glass:hover,
+.fay-glass[data-on] {
+  background: rgba(255, 255, 255, 0.92);
+}
+.fay-sky[data-dark] .fay-glass {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.fay-sky[data-dark] .fay-glass:hover,
+.fay-sky[data-dark] .fay-glass[data-on] {
+  background: rgba(255, 255, 255, 0.3);
+}
+.fay-glass:focus-visible {
+  outline: 2px solid var(--cc-rust);
+  outline-offset: 2px;
+}
+.fay-round {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+}
+.fay-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 30px;
+  padding: 0 12px 0 6px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* ── The find-or-ask box ─────────────────────────────────── */
+
+.fay-ask {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 46px;
+  margin: -25px 14px 0;
+  padding: 0 7px 0 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  box-shadow:
+    0 1px 2px rgba(20, 22, 26, 0.06),
+    0 12px 26px -16px rgba(20, 22, 26, 0.55);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.fay-ask:focus-within {
+  border-color: var(--cc-rust);
+  box-shadow:
+    0 0 0 3px var(--cc-rust-soft),
+    0 12px 26px -16px rgba(20, 22, 26, 0.55);
+}
+.fay-ask[data-docked] {
+  margin: 0;
+  height: 44px;
+  padding-left: 13px;
+  border-radius: 999px;
+  border-color: var(--cc-hair-strong);
+  box-shadow: none;
+}
+.fay-ask[data-docked]:focus-within {
+  box-shadow: 0 0 0 3px var(--cc-rust-soft);
+}
+.fay-ask__icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  color: var(--cc-ash);
+}
+.fay-ask:focus-within .fay-ask__icon {
+  color: var(--cc-rust);
+}
+.fay-ask input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  outline: none;
+  font-size: 16px; /* 16px or more: phones don't zoom in on focus */
+  color: var(--cc-ink);
+}
+@media (min-width: 768px) {
+  .fay-ask input {
+    font-size: 14.5px;
+  }
+}
+.fay-ask input::placeholder {
+  color: var(--cc-ash);
+}
+.fay-kbd {
+  flex-shrink: 0;
+  margin-right: 5px;
+  padding: 4px 6px 3px;
+  border: 1px solid var(--cc-hair-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  font: 500 11.5px/1 "Inter", system-ui, sans-serif;
+  color: var(--cc-ash);
+  white-space: nowrap;
+}
+@media (hover: none) {
+  .fay-kbd {
+    display: none;
+  }
+}
+.fay-send {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--cc-rust);
+  transition: background-color 0.15s;
+}
+.fay-send:hover:not(:disabled) {
+  background: var(--cc-rust-deep);
+}
+.fay-send:disabled {
+  color: var(--cc-ash);
+  background: var(--cc-cream-2);
+}
+
+/* ── Below the sky ───────────────────────────────────────── */
+
+.fay-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 16px 16px;
+}
+.fay-body[data-under-ask] {
+  padding-top: 14px;
+}
+.fay-foot {
+  flex-shrink: 0;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--cc-hair);
+}
+.fay-section + .fay-section {
+  margin-top: 18px;
+}
+.fay-h {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cc-ink-soft);
+}
+.fay-intro {
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--cc-ink-soft);
+}
+.fay-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-signal-deep);
+  background: var(--cc-signal-soft);
+}
+
+/* Tiles: an icon on its page's wash */
+.fay-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--fay-t, var(--cc-rust));
+  background: var(--fay-w, var(--cc-rust-soft));
+}
+.fay-tile > svg {
+  width: 16px;
+  height: 16px;
+}
+.fay-tile[data-size="lg"] {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+}
+.fay-tile[data-size="lg"] > svg {
+  width: 21px;
+  height: 21px;
+}
+.fay-count {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font: 600 10.5px/18px "Inter", system-ui, sans-serif;
+  text-align: center;
+  color: #fff;
+  background: var(--fay-t, var(--cc-rust));
+  box-shadow: 0 0 0 2px #fff;
+}
+
+/* The next step, open */
+.fay-next {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--cc-cream);
+  border: 1px solid var(--cc-hair);
+}
+.fay-next__body {
+  flex: 1;
+  min-width: 0;
+}
+.fay-next__text {
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.fay-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  width: fit-content;
+  margin-top: 7px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--cc-ink-soft);
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+}
+.fay-file > svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--cc-ash);
+}
+.fay-file > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fay-next__go {
+  margin-top: 10px;
+}
+
+/* An ATS score as a ring */
+.fay-dial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+}
+.fay-dial > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.fay-dial__track {
+  fill: #fff;
+  stroke: var(--fay-w);
+  stroke-width: 4.5;
+}
+.fay-dial__arc {
+  fill: none;
+  stroke: var(--fay-t);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+}
+.fay-dial__n {
+  position: relative;
+  font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fay-t);
+}
+.fay-dial[data-small] {
+  width: 30px;
+  height: 30px;
+}
+.fay-dial[data-small] .fay-dial__n {
+  font-size: 11px;
+}
+
+/* A page off a desk calendar */
+.fay-cal {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 44px;
+  height: 46px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid var(--cc-hair-strong);
+}
+.fay-cal__top {
+  padding: 4px 0 3px;
+  font: 600 10.5px/1 "Inter", system-ui, sans-serif;
+  text-align: center;
+  color: #fff;
+  background: #c2412d;
+}
+.fay-cal__day {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  font-family: "Bricolage Grotesque", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1;
+}
+.fay-cal[data-small] {
+  width: 30px;
+  height: 32px;
+  border-radius: 8px;
+}
+.fay-cal[data-small] .fay-cal__top {
+  padding: 2px 0;
+  font-size: 8.5px;
+}
+.fay-cal[data-small] .fay-cal__day {
+  font-size: 13px;
+}
+
+/* Rows: other next steps, questions */
+.fay-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  transition: background-color 0.12s;
+}
+.fay-next + .fay-row {
+  margin-top: 6px;
+}
+.fay-row:hover:not(:disabled) {
+  background: var(--cc-cream-2);
+}
+.fay-row:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.fay-row:focus-visible {
+  outline: 2px solid var(--cc-rust);
+  outline-offset: -2px;
+}
+.fay-row__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fay-row__go {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--cc-ash);
+  transition:
+    transform 0.15s,
+    color 0.15s;
+}
+.fay-row:hover:not(:disabled) .fay-row__go {
+  transform: translateX(2px);
+  color: var(--cc-ink);
+}
+
+/* Help for this page, in its colour */
+.fay-page {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.fay-page__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15.5px;
+  line-height: 1.2;
+}
+.fay-tour {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fay-t);
+  background: var(--fay-w);
+  transition: filter 0.15s;
+}
+.fay-tour:hover {
+  filter: brightness(0.94) saturate(1.2);
+}
+.fay-questions .fay-row {
+  padding-left: 48px;
+  position: relative;
+}
+.fay-questions .fay-row::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 999px;
+  background: var(--fay-t);
+  opacity: 0.45;
+}
+
+.fay-cheer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--cc-ash);
+}
+.fay-cheer > svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+/* Search results */
+.fay-results {
+  margin: -4px -8px 0;
+}
+.fay-result {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.fay-result[aria-selected="true"] {
+  background: var(--cc-cream-2);
+}
+.fay-result[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+.fay-result__text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+.fay-result__label {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.fay-result__hint {
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--cc-ash);
+}
+.fay-result__quote {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fay-result__enter {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--cc-ash);
+  opacity: 0;
+}
+.fay-result[aria-selected="true"] .fay-result__enter {
+  opacity: 1;
+}
+
+/* An answer */
+.fay-q {
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.fay-answer {
+  margin-top: 8px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--cc-ink-soft);
+  overflow-wrap: anywhere;
+}
+.fay-answer[data-error] {
+  color: var(--cc-ash);
+}
+.fay-answer > p + p {
+  margin-top: 8px;
+}
+.fay-answer__item {
+  display: flex;
+  gap: 8px;
+}
+.fay-answer__link {
+  font-weight: 500;
+  color: var(--cc-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--cc-rust);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.fay-answer__link:hover {
+  color: var(--cc-rust);
+}
+.fay-thinking {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+.fay-thinking > span {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--cc-cream-2) 0%, var(--cc-cream-3) 50%, var(--cc-cream-2) 100%);
+  background-size: 200% 100%;
+  animation: fay-shimmer 1.3s linear infinite;
+}
+.fay-thinking > span:nth-child(1) {
+  width: 94%;
+}
+.fay-thinking > span:nth-child(2) {
+  width: 80%;
+}
+.fay-thinking > span:nth-child(3) {
+  width: 52%;
+}
+.fay-thinking[data-still] > span {
+  animation: none;
+}
+@keyframes fay-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.fay-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--cc-hair-strong);
+  transition: border-color 0.15s;
+}
+.fay-retry:hover {
+  border-color: var(--cc-ink);
+}
+.fay-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.fay-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--cc-hair-strong);
+  transition: border-color 0.15s;
+}
+.fay-pill:hover {
+  border-color: var(--cc-ink);
+}
+.fay-sources {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--cc-ash);
+}
+.fay-sources a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.fay-sources a:hover {
+  color: var(--cc-ink);
+}
+
+/* ── Her menu ────────────────────────────────────────────── */
+
+.fay-menu {
+  position: absolute;
+  top: 46px;
+  right: 10px;
+  z-index: 10;
+  width: 240px;
+  padding: 6px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  box-shadow: 0 16px 36px -14px rgba(20, 22, 26, 0.45);
+}
+.fay-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 9px;
+  text-align: left;
+}
+.fay-menu__item:hover {
+  background: var(--cc-cream-2);
+}
+.fay-menu__group {
+  padding: 6px 10px 8px;
+}
+.fay-menu__group > p:first-child {
+  font-size: 12.5px;
+  color: var(--cc-ash);
+}
+.fay-menu__fine {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--cc-ash);
+}
+.fay-menu__rule {
+  margin: 4px 0;
+  border-top: 1px solid var(--cc-hair);
+}
+.fay-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--cc-cream-3);
+  transition: background-color 0.15s;
+}
+.fay-switch > span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 22, 26, 0.3);
+  transition: left 0.15s;
+}
+.fay-switch[data-on] {
+  background: var(--cc-rust);
+}
+.fay-switch[data-on] > span {
+  left: 14px;
+}
+.fay-segment {
+  display: flex;
+  margin-top: 6px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--cc-cream-2);
+}
+.fay-segment > button {
+  flex: 1;
+  padding: 4px 0;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--cc-ash);
+  transition: color 0.15s;
+}
+.fay-segment > button:hover {
+  color: var(--cc-ink);
+}
+.fay-segment > button[aria-pressed="true"] {
+  font-weight: 500;
+  color: var(--cc-ink);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 22, 26, 0.12);
+}

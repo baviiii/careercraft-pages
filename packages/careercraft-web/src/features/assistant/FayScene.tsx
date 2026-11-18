@@ -6,7 +6,8 @@
    for depth, and dims while she sleeps. With reduced motion it holds still —
    only the time of day changes it.
 
-   It draws inside Fay's own SVG, in her coordinates (see SCENE). */
+   It draws inside Fay's own SVG, in her coordinates (see SCENE). SkyBand
+   draws the same sky wider, across the top of her card. */
 
 import { useId, type ReactNode } from "react";
 import {
@@ -417,6 +418,166 @@ const Sky = ({ part, id, still, skyX, hillX }: SkyProps) => {
         fill="none"
       />
     </>
+  );
+};
+
+/* ── The same world, wider: the band across the top of Fay's card ──────
+   Drawn in a 240 × 66 box that's scaled to cover the band from its bottom
+   right, so the hills always show. Everything in the sky keeps to the right,
+   under her card's buttons and clear of the greeting, or to a sliver along
+   the top; a slimmer band just shows less sky. */
+
+const BAND = { w: 240, h: 66 } as const;
+
+const BandThings = ({
+  part,
+  id,
+  still,
+}: {
+  part: DayPart;
+  id: string;
+  still: boolean;
+}) => {
+  if (part === "morning")
+    return (
+      <>
+        <Sun
+          x={215}
+          y={40}
+          r={8.5}
+          fill="#FFBC62"
+          glow="#FFE3AA"
+          ray="#FFC978"
+          still={still}
+        />
+        <Drift still={still} by={-4} duration={18}>
+          <Cloud x={196} y={30} s={0.8} fill="#FFF7F1" />
+        </Drift>
+        <Drift still={still} by={3} duration={22}>
+          <Cloud x={128} y={5} s={0.45} fill="#FFF7F1" />
+        </Drift>
+      </>
+    );
+  if (part === "day")
+    return (
+      <>
+        <Sun
+          x={221}
+          y={31}
+          r={7}
+          fill="#FFD35C"
+          glow="#FFF1B8"
+          ray="#FFD86B"
+          still={still}
+        />
+        <Drift still={still} by={-5} duration={20}>
+          <Cloud x={200} y={36} s={0.85} fill="#FFFFFF" />
+        </Drift>
+        <Drift still={still} by={4} duration={16}>
+          <Cloud x={120} y={5} s={0.45} fill="#FFFFFF" />
+        </Drift>
+        <Drift still={still} by={-3} duration={24}>
+          <Cloud x={176} y={6} s={0.4} fill="#FFFFFF" />
+        </Drift>
+      </>
+    );
+  if (part === "evening")
+    return (
+      <>
+        <Sun
+          x={212}
+          y={44}
+          r={10}
+          fill="#FF9A6B"
+          glow="#FFC28F"
+          ray={null}
+          still={still}
+        />
+        <Drift still={still} by={-3} duration={22}>
+          <g fill="#C9A3D6" opacity={0.85}>
+            <rect x={190} y={31} width={20} height={3.2} rx={1.6} />
+            <rect x={198} y={25} width={12} height={2.8} rx={1.4} />
+            <rect x={222} y={35} width={16} height={3} rx={1.5} />
+          </g>
+        </Drift>
+        <Twinkle x={150} y={4.5} r={1.7} still={still} />
+        <Twinkle x={92} y={4} r={1.4} still={still} delay={1.1} />
+      </>
+    );
+  return (
+    <>
+      <defs>
+        <mask id={`${id}-moon`}>
+          <circle cx={216} cy={31} r={8} fill="#FFFFFF" />
+          <circle cx={220.5} cy={27.5} r={7} fill="#000000" />
+        </mask>
+      </defs>
+      <motion.circle
+        cx={216}
+        cy={31}
+        r={14}
+        fill={MOON}
+        opacity={0.16}
+        style={at(216, 31)}
+        animate={still ? undefined : { scale: [1, 1.12, 1] }}
+        transition={forever(5)}
+      />
+      <circle cx={216} cy={31} r={8} fill={MOON} mask={`url(#${id}-moon)`} />
+      <Twinkle x={235} y={36} r={1.8} still={still} delay={0.8} duration={3.1} />
+      <Twinkle x={198} y={26} r={1.5} still={still} delay={1.6} />
+      <Twinkle x={128} y={4.5} r={1.6} still={still} />
+      <Twinkle x={70} y={4} r={1.4} still={still} delay={2.1} />
+      <g fill={STAR} opacity={0.75}>
+        <circle cx={160} cy={4} r={0.8} />
+        <circle cx={100} cy={3.5} r={0.7} />
+        <circle cx={204} cy={38} r={0.7} />
+      </g>
+    </>
+  );
+};
+
+export const SkyBand = ({ part, still }: { part: DayPart; still: boolean }) => {
+  const id = `fay-band-${useId().replace(/:/g, "")}`;
+  const p = PALETTE[part];
+  return (
+    <svg
+      viewBox={`0 0 ${BAND.w} ${BAND.h}`}
+      preserveAspectRatio="xMaxYMax slice"
+      aria-hidden="true"
+      className="fay-sky__art"
+    >
+      <defs>
+        <linearGradient id={`${id}-sky`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={p.sky[0]} />
+          <stop offset="0.6" stopColor={p.sky[1]} />
+          <stop offset="1" stopColor={p.sky[2]} />
+        </linearGradient>
+      </defs>
+      <rect width={BAND.w} height={BAND.h} fill={`url(#${id}-sky)`} />
+      <BandThings part={part} id={id} still={still} />
+      <path
+        d="M0 47 C20 40 44 39 62 44 C84 37 112 36 134 42 C156 36 186 35 206 41 C220 37 232 37 240 40 V66 H0 Z"
+        fill={p.back}
+      />
+      {(part === "evening" || part === "night") && (
+        <>
+          <Firefly x={150} y={40} still={still} delay={0} />
+          <Firefly x={186} y={44} still={still} delay={1.3} />
+          {part === "night" && <Firefly x={230} y={44} still={still} delay={2.2} />}
+        </>
+      )}
+      <path
+        d="M0 53 C30 49 64 49 92 52 C122 48 160 48 190 52 C210 49 228 49 240 51 V66 H0 Z"
+        fill={p.front}
+      />
+      <path
+        d={`${tuft(60, 51)} ${tuft(150, 50)} ${tuft(232, 51)}`}
+        stroke={p.tuft}
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
   );
 };
 
