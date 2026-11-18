@@ -27,9 +27,12 @@ import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
 import { attachSimilarity } from "../_shared/ai/similarity.ts";
-import { detectRemote, normalizeJobType, stripHtml } from "./normalize.ts";
+import { relatedTitles, termShares } from "./families.ts";
+import { dedupeJobs, detectRemote, normalizeJobType, stripHtml } from "./normalize.ts";
 
 const RESOURCE = "job-search";
+/** The last page a search may ask for. */
+const MAX_PAGE = 20;
 
 /** The shape the UI renders. Mirrors features/job-tracker/types.ts. */
 const JobSchema = z.object({
@@ -87,7 +90,7 @@ const RequestSchema = z.discriminatedUnion("action", [
     // Care Registered Nurse". Each term is a separate query, merged and deduped.
     terms: z.array(z.string().max(120)).max(5).optional(),
     limit: z.number().int().min(1).max(50).optional(),
-    page: z.number().int().min(1).max(20).optional(),
+    page: z.number().int().min(1).max(MAX_PAGE).optional(),
     /**
      * The caller's profile as a short sentence, for ranking by meaning. Sent
      * by the client, which already has it loaded — see the note in job-news.
@@ -229,18 +232,30 @@ serve(handler(async (req) => {
     const perPage = body.limit ?? 30;
     const page = body.page ?? 1;
 
-    // Terms first, falling back to the plain query. Capped at 3 so a broad
-    // profile cannot fan out into a dozen paid calls per search.
-    const terms = (body.terms?.length ? body.terms : [body.query ?? ""])
-      .map((t) => t.trim())
-      .filter((t, i, a) => a.indexOf(t) === i)
+    // The caller's own phrasings first (the profile's, for its own role).
+    // Otherwise the query plus other names for the same job, since the board
+    // matches words: "Software Developer" alone misses the "Software Engineer"
+    // ads (see families.ts). Capped at 3 so no search fans out into a dozen
+    // paid calls.
+    const query = body.query?.trim() ?? "";
+    const explicit = (body.terms ?? []).map((t) => t.trim()).filter(Boolean);
+    const candidates = (explicit.length ? explicit : [query, ...relatedTitles(query)])
+      .filter((t, i, a) => a.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i)
       .slice(0, 3);
+    // Each term's share of the page (termShares); a page too small to share
+    // goes to the first term alone, and the others aren't searched.
+    const allShares = termShares(perPage, candidates.length);
+    const terms = candidates.filter((_, i) => allShares[i] > 0);
+    const shares = allShares.filter((s) => s > 0);
 
     // Settled, not all: one term hitting a board error should still let the
     // other terms return their jobs. What must not happen is the whole search
     // failing silently and rendering as "no roles found".
     const settled = await Promise.allSettled(
-      terms.map((t) => searchAdzuna(t, location, perPage, page)),
+      // Each term brings its share of the page (termShares), so page 2
+      // carries on where page 1 stopped for every term. A full page each,
+      // trimmed to one, dropped the rest for good.
+      terms.map((t, i) => searchAdzuna(t, location, shares[i], page)),
     );
 
     const failures = settled.filter((r) => r.status === "rejected");
@@ -272,7 +287,9 @@ serve(handler(async (req) => {
       }
     }
 
-    const results = jobs.slice(0, perPage);
+    // The same ad often arrives more than once, under a second id: an agency's
+    // copy, or the board's own repeat (see dedupeJobs).
+    const results = dedupeJobs(jobs).slice(0, perPage);
 
     /* Rank by meaning as well as keyword. This board is keyword-matched, so
        "ICU Nurse" misses "Critical Care Registered Nurse" — the `terms` list
@@ -288,6 +305,11 @@ serve(handler(async (req) => {
     return json({
       jobs: results,
       terms,
+      // Any term that filled its share may have another page. Said outright
+      // because merging copies can leave a page short of `limit`.
+      more:
+        page < MAX_PAGE &&
+        settled.some((r, i) => r.status === "fulfilled" && r.value.length >= shares[i]),
       partial: failures.length > 0,
       similarityStatus,
     });

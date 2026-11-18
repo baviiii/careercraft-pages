@@ -4,6 +4,8 @@
 
 import type { JobCatalogJob } from "@/features/job-tracker/types";
 
+import { companyKey, isPlaceholderCompany, sameCompany } from "./sameJob";
+
 export interface SearchSummary {
   total: number;
   /** Ads where the employer stated pay, at any rate (yearly, hourly, daily). */
@@ -20,8 +22,6 @@ export interface SearchSummary {
 }
 
 const DAY = 86_400_000;
-/* Stand-in names for hidden advertisers. They aren't one company hiring. */
-const PLACEHOLDER = /^(unknown company|company|confidential|private advertiser)$/i;
 
 function quantile(sorted: number[], q: number): number {
   const pos = (sorted.length - 1) * q;
@@ -42,16 +42,21 @@ export function summarise(jobs: JobCatalogJob[]): SearchSummary {
     .filter((mid) => mid >= 20_000)
     .sort((a, b) => a - b);
 
-  const counts = new Map<string, number>();
+  /* One count per company, however the board spells it ("Softtest pays pty"
+     and "Softtest pays pty ltd", "Topcon Positioning" and "Topcon
+     Positioning Systems, Inc"); shown under the first spelling seen.
+     Stand-in names for hidden advertisers aren't one company hiring. */
+  const companies: { name: string; count: number }[] = [];
   for (const j of jobs) {
-    if (!j.company || PLACEHOLDER.test(j.company.trim())) continue;
-    counts.set(j.company, (counts.get(j.company) ?? 0) + 1);
+    if (!companyKey(j.company) || isPlaceholderCompany(j.company)) continue;
+    const entry = companies.find((c) => sameCompany(c.name, j.company));
+    if (entry) entry.count += 1;
+    else companies.push({ name: j.company, count: 1 });
   }
-  const topCompanies = [...counts.entries()]
-    .filter(([, n]) => n > 1)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([name, count]) => ({ name, count }));
+  const topCompanies = companies
+    .filter((c) => c.count > 1)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
 
   const now = Date.now();
   return {

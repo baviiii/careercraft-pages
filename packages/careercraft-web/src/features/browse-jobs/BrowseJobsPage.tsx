@@ -30,6 +30,7 @@ import { SearchSentence } from "./components/SearchSentence";
 import { SearchSummary } from "./components/SearchSummary";
 import { flyToTracker } from "./lib/flyToTracker";
 import { REFINE_CHIPS, applyRefine, chipCounts, type RefineKey } from "./lib/refine";
+import { mergeCopies } from "./lib/sameJob";
 import { summarise } from "./lib/summary";
 import "./browse-jobs.css";
 
@@ -91,6 +92,8 @@ export default function BrowseJobsPage() {
   const [place, setPlace] = useState(readLastPlace);
   /** What the results on screen were searched for. */
   const [searched, setSearched] = useState<{ role: string; place: string } | null>(null);
+  /** Other names for the job the board was also searched for (job-search's `terms`). */
+  const [alsoSearched, setAlsoSearched] = useState<string[]>([]);
   const [jobs, setJobs] = useState<JobCatalogJob[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [loadingMore, setLoadingMore] = useState(false);
@@ -168,12 +171,20 @@ export default function BrowseJobsPage() {
         if (error) throw error;
 
         const got = (data?.jobs ?? []) as JobCatalogJob[];
-        setJobs((prev) => {
-          if (!append) return got;
-          const seen = new Set(prev.map((j) => j.id));
-          return [...prev, ...got.filter((j) => !seen.has(j.id))];
-        });
-        setHasMore(got.length >= PAGE_SIZE);
+        // A copy of an ad already on screen can come back on the next page
+        // under another id (job-search merges copies only within a page).
+        setJobs((prev) => (append ? mergeCopies(prev, got) : got));
+        // Merging copies can leave a page short, so the function says whether
+        // there's more; older responses didn't, hence the fallback.
+        setHasMore(typeof data?.more === "boolean" ? data.more : got.length >= PAGE_SIZE);
+        if (!append) {
+          const searchedTerms = Array.isArray(data?.terms) ? (data.terms as unknown[]) : [];
+          setAlsoSearched(
+            searchedTerms.filter(
+              (t): t is string => typeof t === "string" && t.trim() !== "" && t.toLowerCase() !== q.toLowerCase(),
+            ),
+          );
+        }
         setPartial(Boolean(data?.partial));
         setPage(pageNo);
         setSearched({ role: q, place: where });
@@ -383,6 +394,13 @@ export default function BrowseJobsPage() {
           <h1 className="mt-3 cc-font-display text-4xl leading-[0.95] tracking-tight md:text-5xl">{heading}</h1>
           {headline && (
             <p className="mt-3 cc-font-sans text-base text-[color:var(--cc-ink-soft)] md:text-lg">{headline}</p>
+          )}
+          {/* The board matches words, so the search also ran other names for
+              the same job; say which, so the extra results make sense. */}
+          {status === "ready" && searched?.role && alsoSearched.length > 0 && (
+            <p className="mt-1.5 cc-font-sans text-[14px] text-[color:var(--cc-ash)]">
+              Also searched: {alsoSearched.map(sentenceCase).join(", ")}
+            </p>
           )}
         </header>
 
