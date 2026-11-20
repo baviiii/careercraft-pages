@@ -62,19 +62,27 @@ export type SimilarityStatus =
 export async function attachSimilarity(
   items: Array<Record<string, unknown>>,
   profileText: string | undefined,
+  /**
+   * What was searched for. Each item is also scored against it, as
+   * `relevance`, for ordering ads the search widened into (job-search).
+   */
+  query?: string,
 ): Promise<SimilarityStatus> {
   const profile = (profileText ?? "").trim();
-  /* No profile means nothing to compare against — a user who has not
-     onboarded. Skipping here is what keeps them off the bill entirely. */
-  if (!profile || items.length === 0) return "no-profile";
+  const search = (query ?? "").trim();
+  /* Nothing to compare against: a user who has not onboarded, and no search
+     to score. Skipping here is what keeps them off the bill entirely. */
+  if ((!profile && !search) || items.length === 0) return "no-profile";
   if (!horusKnowledgeConfigured()) return "not-configured";
 
   try {
-    /* One request for the profile and every job. Horus caps the batch, and a
-       page beyond that cap simply goes unranked rather than being split into
-       sequential calls whose latencies would add up inside a user's search. */
-    const ranked = items.slice(0, HORUS_EMBED_MAX_INPUTS - 1);
-    const texts = [profile, ...ranked.map((j) => itemEmbedText(j as { title?: string; description?: string }))];
+    /* One request for the profile, the search and every job. Horus caps the
+       batch, and a page beyond that cap simply goes unranked rather than being
+       split into sequential calls whose latencies would add up inside a
+       user's search. */
+    const anchors = [profile, search].filter(Boolean);
+    const ranked = items.slice(0, HORUS_EMBED_MAX_INPUTS - anchors.length);
+    const texts = [...anchors, ...ranked.map((j) => itemEmbedText(j as { title?: string; description?: string }))];
 
     const { vectors } = await horusEmbed(texts, {
       model: "small",
@@ -83,14 +91,19 @@ export async function attachSimilarity(
       dimensions: 512,
     });
 
-    const profileVector = vectors[0];
-    if (!profileVector) return "unavailable";
+    const profileVector = profile ? vectors[0] : undefined;
+    const searchVector = search ? vectors[anchors.length - 1] : undefined;
+    if (!profileVector && !searchVector) return "unavailable";
 
     for (let i = 0; i < ranked.length; i++) {
-      const vector = vectors[i + 1];
+      const vector = vectors[i + anchors.length];
       if (!vector) continue;
-      ranked[i].similarity = cosineSimilarity(profileVector, vector);
+      if (profileVector) ranked[i].similarity = cosineSimilarity(profileVector, vector);
+      if (searchVector) ranked[i].relevance = cosineSimilarity(searchVector, vector);
     }
+    /* The status is about the profile: scored against the search alone,
+       there's still no fit to show. */
+    if (!profileVector) return "no-profile";
 
     if (ranked.length > 0) {
       const scores = ranked

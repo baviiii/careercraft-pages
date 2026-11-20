@@ -70,6 +70,31 @@ function readLastPlace(): string {
 
 const sentenceCase = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+/** What "Show more" asks job-search for: more matches, or more similar ads. */
+type Next =
+  | { page: number; field?: { tag: string; label: string } }
+  | { wider: { category: string; words: string; page: number } }
+  | null;
+
+function readNext(raw: unknown): Next {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as {
+    page?: unknown;
+    field?: { tag?: unknown; label?: unknown };
+    wider?: { category?: unknown; words?: unknown; page?: unknown };
+  };
+  if (typeof r.page === "number") {
+    const f = r.field;
+    return typeof f?.tag === "string" && typeof f?.label === "string"
+      ? { page: r.page, field: { tag: f.tag, label: f.label } }
+      : { page: r.page };
+  }
+  const w = r.wider;
+  return w && typeof w.category === "string" && typeof w.words === "string" && typeof w.page === "number"
+    ? { wider: { category: w.category, words: w.words, page: w.page } }
+    : null;
+}
+
 export default function BrowseJobsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -94,11 +119,16 @@ export default function BrowseJobsPage() {
   const [searched, setSearched] = useState<{ role: string; place: string } | null>(null);
   /** Other names for the job the board was also searched for (job-search's `terms`). */
   const [alsoSearched, setAlsoSearched] = useState<string[]>([]);
+  /** What was typed, when the search ran a correction of it instead ("Did you mean"). */
+  const [correctedFrom, setCorrectedFrom] = useState<string | null>(null);
+  /** Where the similar ads after the matches are from (job-search's `related`). */
+  const [related, setRelated] = useState<{ name: string } | null>(null);
   const [jobs, setJobs] = useState<JobCatalogJob[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [loadingMore, setLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
+  /** What "Show more" asks for (job-search's `next`). */
+  const [next, setNext] = useState<Next>(null);
+  const hasMore = next !== null;
   const [partial, setPartial] = useState(false);
   const [active, setActive] = useState<Set<RefineKey>>(new Set());
   const [sort, setSort] = useState<Sort>("fit");
@@ -146,9 +176,19 @@ export default function BrowseJobsPage() {
   const latest = useRef(0);
 
   const runSearch = useCallback(
-    async (opts: { role: string; place: string; page?: number; append?: boolean; remember?: boolean }) => {
+    async (opts: {
+      role: string;
+      place: string;
+      /** Where "Show more" carries on from (an earlier `next`). */
+      from?: Next;
+      append?: boolean;
+      remember?: boolean;
+      /** What was typed, not a correction of it. */
+      exact?: boolean;
+    }) => {
       if (!checkLimit().allowed) return;
-      const pageNo = opts.page ?? 1;
+      const from = opts.from ?? null;
+      const pageNo = from && "page" in from ? from.page : 1;
       const append = Boolean(opts.append);
       const run = ++latest.current;
       if (append) setLoadingMore(true);
@@ -165,7 +205,20 @@ export default function BrowseJobsPage() {
 
       try {
         const { data, error } = await supabase.functions.invoke("job-search", {
-          body: { action: "search", query: q, location: where, terms, limit: PAGE_SIZE, page: pageNo, profileText },
+          body: {
+            action: "search",
+            query: q,
+            location: where,
+            terms,
+            limit: PAGE_SIZE,
+            page: pageNo,
+            // When the matches run out, carry on with similar ads (job-search's search.ts).
+            widen: true,
+            wider: from && "wider" in from ? from.wider : undefined,
+            field: from && "page" in from ? from.field : undefined,
+            exact: opts.exact || undefined,
+            profileText,
+          },
         });
         if (run !== latest.current) return;
         if (error) throw error;
@@ -174,20 +227,29 @@ export default function BrowseJobsPage() {
         // A copy of an ad already on screen can come back on the next page
         // under another id (job-search merges copies only within a page).
         setJobs((prev) => (append ? mergeCopies(prev, got) : got));
-        // Merging copies can leave a page short, so the function says whether
-        // there's more; older responses didn't, hence the fallback.
-        setHasMore(typeof data?.more === "boolean" ? data.more : got.length >= PAGE_SIZE);
+        // Merging copies can leave a page short, so the function says what
+        // comes next; older responses only said whether, hence the fallback.
+        const more = typeof data?.more === "boolean" ? data.more : got.length >= PAGE_SIZE;
+        setNext(data && typeof data === "object" && "next" in data ? readNext(data.next) : more ? { page: pageNo + 1 } : null);
+        // Similar ads start on this page: say where they're from.
+        const r = data?.related as { name?: unknown } | null | undefined;
+        const startsHere = typeof r?.name === "string" ? { name: r.name } : null;
+        if (!append || startsHere) setRelated(startsHere);
         if (!append) {
+          // What was searched: what was typed, or its correction.
+          const shown = typeof data?.correctedFrom === "string" && typeof data?.query === "string" ? data.query : q;
+          setCorrectedFrom(shown !== q ? q : null);
+          // Only if the box still holds what was searched: not over new typing.
+          if (shown !== q) setRole((cur) => (cur.trim() === opts.role.trim() ? shown : cur));
           const searchedTerms = Array.isArray(data?.terms) ? (data.terms as unknown[]) : [];
           setAlsoSearched(
             searchedTerms.filter(
-              (t): t is string => typeof t === "string" && t.trim() !== "" && t.toLowerCase() !== q.toLowerCase(),
+              (t): t is string => typeof t === "string" && t.trim() !== "" && t.toLowerCase() !== shown.toLowerCase(),
             ),
           );
+          setSearched({ role: shown, place: where });
         }
         setPartial(Boolean(data?.partial));
-        setPage(pageNo);
-        setSearched({ role: q, place: where });
         setStatus("ready");
         if (!append) setActive(new Set());
         if (import.meta.env.DEV && data?.similarityStatus) {
@@ -286,9 +348,20 @@ export default function BrowseJobsPage() {
     return list;
   }, [jobs, fits, effectiveSort, active]);
 
+  /* The matches, then the similar ads job-search carried on with when they
+     ran out (`related`), each in the chosen order. */
+  const matchCount = useMemo(() => jobs.filter((j) => !j.related).length, [jobs]);
+  const visibleMatches = useMemo(() => visible.filter((j) => !j.related), [visible]);
+  const visibleSimilar = useMemo(() => visible.filter((j) => j.related), [visible]);
+
   const counts = useMemo(() => chipCounts(jobs), [jobs]);
-  const summary = useMemo(() => summarise(jobs), [jobs]);
-  const strongFits = useMemo(() => [...fits.values()].filter((f) => f.band === "strong").length, [fits]);
+  /* What's in this search, and how many fit: its matches, not the similar
+     ads after them, which the headline doesn't count either. */
+  const summary = useMemo(() => summarise(jobs.filter((j) => !j.related)), [jobs]);
+  const strongFits = useMemo(
+    () => jobs.filter((j) => !j.related && fits.get(j.id)?.band === "strong").length,
+    [jobs, fits],
+  );
 
   const toggleChip = (key: RefineKey) =>
     setActive((prev) => {
@@ -356,12 +429,16 @@ export default function BrowseJobsPage() {
       : status === "ready"
         ? [
             // The heading already says where when no role was given.
-            `${jobs.length === 0 ? "No" : jobs.length}${hasMore ? "+" : ""} open role${jobs.length === 1 ? "" : "s"} ${searched?.role ? where : ""}`.trim(),
+            // Matches only: the similar ads after them are counted apart.
+            `${matchCount === 0 ? "No" : matchCount}${next && "page" in next ? "+" : ""} open role${matchCount === 1 ? "" : "s"} ${searched?.role ? where : ""}`.trim(),
             canFit && strongFits > 0 && `${strongFits} look like a strong fit for you`,
           ]
             .filter(Boolean)
             .join(" · ")
         : null;
+
+  /* "More IT jobs in Adelaide". */
+  const similarHeading = related ? `More ${related.name} jobs ${where}` : "Similar jobs";
 
   const suggestions = useMemo(
     () =>
@@ -395,8 +472,26 @@ export default function BrowseJobsPage() {
           {headline && (
             <p className="mt-3 cc-font-sans text-base text-[color:var(--cc-ink-soft)] md:text-lg">{headline}</p>
           )}
-          {/* The board matches words, so the search also ran other names for
-              the same job; say which, so the extra results make sense. */}
+          {/* What was typed found nothing, and a word of it was one slip
+              away from a word the ads use: that was searched instead. */}
+          {status === "ready" && searched?.role && correctedFrom && (
+            <p className="mt-1.5 cc-font-sans text-[14px] text-[color:var(--cc-ash)]">
+              Showing results for{" "}
+              <strong className="font-semibold text-[color:var(--cc-ink)]">{sentenceCase(searched.role)}</strong>.{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setRole(correctedFrom);
+                  void runSearch({ role: correctedFrom, place: searched.place, exact: true });
+                }}
+                className="underline underline-offset-2 hover:text-[color:var(--cc-ink)]"
+              >
+                Search for “{correctedFrom}” instead
+              </button>
+            </p>
+          )}
+          {/* The profile's own phrasings of its role; say which, so the extra
+              results make sense. */}
           {status === "ready" && searched?.role && alsoSearched.length > 0 && (
             <p className="mt-1.5 cc-font-sans text-[14px] text-[color:var(--cc-ash)]">
               Also searched: {alsoSearched.map(sentenceCase).join(", ")}
@@ -509,7 +604,7 @@ export default function BrowseJobsPage() {
             )}
 
             {/* The facts, above the list on smaller screens */}
-            {status === "ready" && jobs.length > 0 && (
+            {status === "ready" && matchCount > 0 && (
               <details className="xl:hidden">
                 <summary className="cursor-pointer cc-font-sans text-[14px] font-medium text-[color:var(--cc-ink-soft)] hover:text-[color:var(--cc-ink)]">
                   What's in this search
@@ -568,11 +663,13 @@ export default function BrowseJobsPage() {
               </div>
             )}
 
-            {status === "ready" && jobs.length === 0 && (
+            {status === "ready" && matchCount === 0 && (
               <div className="rounded-2xl border border-[color:var(--cc-hair)] bg-white px-6 py-10 text-center">
                 <div className="cc-font-display text-xl tracking-tight">No jobs for that search</div>
                 <p className="mx-auto mt-2 max-w-sm cc-font-sans text-[14px] text-[color:var(--cc-ink-soft)]">
-                  Try a broader role, or look across all of Australia.
+                  {jobs.length > 0
+                    ? "Nothing matches it exactly. Similar jobs are below, or look across all of Australia."
+                    : "Try a broader role, or look across all of Australia."}
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {searched?.place && (
@@ -618,9 +715,9 @@ export default function BrowseJobsPage() {
               </div>
             )}
 
-            {status === "ready" && visible.length > 0 && (
+            {status === "ready" && visibleMatches.length > 0 && (
               <div className="grid gap-4 md:grid-cols-2">
-                {visible.map((job, i) => (
+                {visibleMatches.map((job, i) => (
                   <JobAdCard
                     key={job.id}
                     job={job}
@@ -635,12 +732,42 @@ export default function BrowseJobsPage() {
               </div>
             )}
 
+            {/* The matches ran out, so the list carries on with similar ads:
+                the search's field in the board's category for it. Apart, so
+                nobody takes them for matches. */}
+            {status === "ready" && visibleSimilar.length > 0 && (
+              <section className="space-y-4 pt-3">
+                <div>
+                  <h2 className="cc-font-display text-xl tracking-tight">{similarHeading}</h2>
+                  {searched?.role && (
+                    <p className="mt-1 cc-font-sans text-[14px] text-[color:var(--cc-ash)]">
+                      Not an exact match for “{searched.role}”.
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {visibleSimilar.map((job, i) => (
+                    <JobAdCard
+                      key={job.id}
+                      job={job}
+                      index={visibleMatches.length + i}
+                      fit={fits.get(job.id) ?? null}
+                      tracked={isTracked(job)}
+                      saving={savingId === job.id}
+                      onSave={save}
+                      onOpenTracker={() => navigate("/tracker")}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
             {status === "ready" && hasMore && (
               <div className="flex justify-center pt-2">
                 <button
                   type="button"
                   disabled={loadingMore}
-                  onClick={() => void runSearch({ role: searched?.role ?? role, place: searched?.place ?? place, page: page + 1, append: true })}
+                  onClick={() => void runSearch({ role: searched?.role ?? role, place: searched?.place ?? place, from: next, append: true })}
                   className="cc-action cc-action--ghost"
                 >
                   {loadingMore ? (
@@ -669,7 +796,7 @@ export default function BrowseJobsPage() {
           </section>
 
           <aside className="hidden xl:block">
-            {status === "ready" && jobs.length > 0 && (
+            {status === "ready" && matchCount > 0 && (
               <div className="sticky top-6">
                 <SearchSummary summary={summary} onRefine={turnOn} />
               </div>

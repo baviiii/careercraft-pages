@@ -112,6 +112,13 @@ Deno.test("mergeCopies: a copy on the next page is dropped, unless it states the
   if (out.map((j) => j.id).join() !== "3,2,4") throw new Error(`got ${out.map((j) => j.id).join()}`);
 });
 
+Deno.test("mergeCopies: a match stays a match when its pay comes with the similar ads", () => {
+  const shown = [{ id: "1", ...job("Software Engineer I", "Flywire Pacific", FLYWIRE) }];
+  const next = [{ id: "3", related: true, ...job("Software Engineer I", "Flywire Pacific", FLYWIRE, 120_000) }];
+  const [kept] = browser.mergeCopies<{ id: string; related?: boolean } & ReturnType<typeof job>>(shown, next);
+  if (kept.id !== "3" || kept.related) throw new Error(`got ${JSON.stringify({ id: kept.id, related: kept.related })}`);
+});
+
 Deno.test("dedupeJobs keeps the first place and the copy that states pay", () => {
   const out = dedupeJobs([
     job("Software Engineer I", "Flywire Pacific Pty [Australia]", FLYWIRE),

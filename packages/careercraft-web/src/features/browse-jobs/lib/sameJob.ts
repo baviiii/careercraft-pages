@@ -101,7 +101,10 @@ export const statesPay = (j: AdPay) => !j.salary_is_predicted && Boolean(j.salar
  * case it takes that one's place. Only ads with the same title are compared,
  * so a long list stays quick.
  */
-export function mergeCopies<T extends AdText & AdPay & { id: string }>(shown: T[], next: T[]): T[] {
+export function mergeCopies<T extends AdText & AdPay & { id: string; related?: boolean }>(
+  shown: T[],
+  next: T[],
+): T[] {
   const out = [...shown];
   const ids = new Set(shown.map((j) => j.id));
   const byTitle = new Map<string, number[]>();
@@ -118,7 +121,9 @@ export function mergeCopies<T extends AdText & AdPay & { id: string }>(shown: T[
       byTitle.set(key, [...(byTitle.get(key) ?? []), out.length]);
       out.push(job);
     } else if (!statesPay(out[same]) && statesPay(job)) {
-      out[same] = job;
+      // Its pay, not its standing: a match stays a match even when the copy
+      // that states the pay came in with the similar ads.
+      out[same] = { ...job, related: out[same].related };
     }
   }
   return out;

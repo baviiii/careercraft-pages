@@ -27,12 +27,15 @@ import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 import { optEnv } from "../_shared/env.ts";
 import { attachSimilarity } from "../_shared/ai/similarity.ts";
-import { relatedTitles, termShares } from "./families.ts";
-import { dedupeJobs, detectRemote, normalizeJobType, stripHtml } from "./normalize.ts";
+import { categoryName } from "./terms.ts";
+import { type Board, type BoardPage, type BoardSearch, planSearch } from "./search.ts";
+import { dedupeJobs, detectRemote, isSameJob, normalizeJobType, statesPay, stripHtml } from "./normalize.ts";
 
 const RESOURCE = "job-search";
 /** The last page a search may ask for. */
 const MAX_PAGE = 20;
+/** A board category's tag, as the board writes them ("it-jobs"). Only ever narrows a search. */
+const CATEGORY_TAG = /^[a-z0-9-]{1,80}$/;
 
 /** The shape the UI renders. Mirrors features/job-tracker/types.ts. */
 const JobSchema = z.object({
@@ -91,6 +94,23 @@ const RequestSchema = z.discriminatedUnion("action", [
     terms: z.array(z.string().max(120)).max(5).optional(),
     limit: z.number().int().min(1).max(50).optional(),
     page: z.number().int().min(1).max(MAX_PAGE).optional(),
+    /**
+     * Carry on with similar ads when the matches run out (see search.ts).
+     * Browse Jobs asks; the home feed and the tracker want matches only.
+     */
+    widen: z.boolean().optional(),
+    /** Carrying on with the similar ads: an earlier response's `next.wider`. */
+    wider: z
+      .object({
+        category: z.string().regex(CATEGORY_TAG),
+        words: z.string().max(300),
+        page: z.number().int().min(1).max(MAX_PAGE),
+      })
+      .optional(),
+    /** Where the matches on earlier pages are filed: an earlier response's `next.field`. */
+    field: z.object({ tag: z.string().regex(CATEGORY_TAG), label: z.string().max(100) }).optional(),
+    /** Search what was typed, never a correction of it ("Search for … instead"). */
+    exact: z.boolean().optional(),
     /**
      * The caller's profile as a short sentence, for ranking by meaning. Sent
      * by the client, which already has it loaded — see the note in job-news.
@@ -172,23 +192,30 @@ async function toJob(raw: Record<string, unknown>): Promise<Job> {
   };
 }
 
-async function searchAdzuna(
-  term: string,
-  location: string,
-  perPage: number,
-  page: number,
-): Promise<Job[]> {
+function adzunaUrl(path: string): URL {
   const appId = optEnv("ADZUNA_APP_ID");
   const appKey = optEnv("ADZUNA_APP_KEY");
   if (!appId || !appKey) {
     throw new ValidationError("Adzuna credentials are not configured");
   }
-
-  const url = new URL(`https://api.adzuna.com/v1/api/jobs/au/search/${page}`);
+  const url = new URL(`https://api.adzuna.com/v1/api/jobs/au/${path}`);
   url.searchParams.set("app_id", appId);
   url.searchParams.set("app_key", appKey);
+  return url;
+}
+
+async function searchAdzuna(
+  search: BoardSearch,
+  location: string,
+  perPage: number,
+  page: number,
+): Promise<BoardPage<Job>> {
+  const url = adzunaUrl(`search/${page}`);
   url.searchParams.set("results_per_page", String(perPage));
-  if (term) url.searchParams.set("what", term);
+  if (search.what) url.searchParams.set("what", search.what);
+  // Ads with any of these words rather than all of them.
+  if (search.anyOf) url.searchParams.set("what_or", search.anyOf);
+  if (search.category) url.searchParams.set("category", search.category);
   if (location) url.searchParams.set("where", location);
 
   // Throws rather than returning []. One term failing still must not empty the
@@ -197,7 +224,15 @@ async function searchAdzuna(
   // refused us and a board that genuinely has no matches are different answers,
   // and collapsing them here is what made an exhausted API allowance look like
   // an empty job market.
-  const res = await fetch(url.toString());
+  let res: Response;
+  try {
+    res = await fetch(url.toString());
+  } catch {
+    // Never reached the board. The runtime's own message names the URL, and
+    // the URL carries the API key, so it goes no further than here: not into
+    // the logs, nor back to the page.
+    throw new ProviderError("Could not reach Adzuna", "adzuna");
+  }
   if (!res.ok) {
     throw new ProviderError(
       `Adzuna returned ${res.status}`,
@@ -207,7 +242,14 @@ async function searchAdzuna(
   }
 
   const body = (await res.json()) as { results?: Record<string, unknown>[] };
-  return await Promise.all((body.results || []).map(toJob));
+  const results = body.results || [];
+  return {
+    jobs: await Promise.all(results.map(toJob)),
+    categories: results.flatMap((r) => {
+      const c = r.category as { tag?: unknown; label?: unknown } | undefined;
+      return typeof c?.tag === "string" && typeof c?.label === "string" ? [{ tag: c.tag, label: c.label }] : [];
+    }),
+  };
 }
 
 serve(handler(async (req) => {
@@ -232,41 +274,34 @@ serve(handler(async (req) => {
     const perPage = body.limit ?? 30;
     const page = body.page ?? 1;
 
-    // The caller's own phrasings first (the profile's, for its own role).
-    // Otherwise the query plus other names for the same job, since the board
-    // matches words: "Software Developer" alone misses the "Software Engineer"
-    // ads (see families.ts). Capped at 3 so no search fans out into a dozen
-    // paid calls.
-    const query = body.query?.trim() ?? "";
-    const explicit = (body.terms ?? []).map((t) => t.trim()).filter(Boolean);
-    const candidates = (explicit.length ? explicit : [query, ...relatedTitles(query)])
-      .filter((t, i, a) => a.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i)
-      .slice(0, 3);
-    // Each term's share of the page (termShares); a page too small to share
-    // goes to the first term alone, and the others aren't searched.
-    const allShares = termShares(perPage, candidates.length);
-    const terms = candidates.filter((_, i) => allShares[i] > 0);
-    const shares = allShares.filter((s) => s > 0);
+    // Which board searches to make and how to carry on from them: see
+    // search.ts. Settled, not all: one term hitting a board error should
+    // still let the other terms return their jobs. What must not happen is
+    // the whole search failing silently and rendering as "no roles found".
+    const board: Board<Job> = { search: (s, n, p) => searchAdzuna(s, location, n, p) };
+    const plan = await planSearch(board, {
+      query: body.query?.trim() ?? "",
+      terms: body.terms ?? [],
+      perPage,
+      page,
+      maxPage: MAX_PAGE,
+      widen: Boolean(body.widen),
+      wider: body.wider,
+      field: body.field,
+      exact: body.exact,
+    });
+    const { wider } = plan;
+    const searches = wider ? [...plan.matches, wider] : plan.matches;
 
-    // Settled, not all: one term hitting a board error should still let the
-    // other terms return their jobs. What must not happen is the whole search
-    // failing silently and rendering as "no roles found".
-    const settled = await Promise.allSettled(
-      // Each term brings its share of the page (termShares), so page 2
-      // carries on where page 1 stopped for every term. A full page each,
-      // trimmed to one, dropped the rest for good.
-      terms.map((t, i) => searchAdzuna(t, location, shares[i], page)),
-    );
-
-    const failures = settled.filter((r) => r.status === "rejected");
+    const failures = searches.filter((r) => r.status === "rejected");
     for (const f of failures as PromiseRejectedResult[]) {
-      console.warn(`[job-search] term failed: ${f.reason?.message ?? f.reason}`);
+      console.warn(`[job-search] search failed: ${f.reason?.message ?? f.reason}`);
     }
 
-    // Every term failed, so we have nothing to say about the job market — only
-    // about the board. Refund the unit first: charging someone an allowance for
-    // a search that never reached Adzuna is the wrong way round.
-    if (failures.length === terms.length) {
+    // Every search failed, so we have nothing to say about the job market —
+    // only about the board. Refund the unit first: charging someone an
+    // allowance for a search that never reached Adzuna is the wrong way round.
+    if (failures.length === searches.length) {
       await refundPlanQuota(userId, RESOURCE);
       const first = (failures[0] as PromiseRejectedResult).reason;
       throw first instanceof ProviderError
@@ -276,40 +311,63 @@ serve(handler(async (req) => {
 
     // Merge, keeping the first appearance of each job. Terms are ordered by how
     // well they describe the person, so an earlier term's match ranks higher.
-    const seen = new Set<string>();
-    const jobs: Job[] = [];
-    for (const r of settled) {
-      if (r.status !== "fulfilled") continue;
-      for (const job of r.value) {
-        if (seen.has(job.id)) continue;
-        seen.add(job.id);
-        jobs.push(job);
-      }
-    }
-
+    const unique = (rs: typeof searches) => {
+      const seen = new Set<string>();
+      return rs.flatMap((r) => (r.status === "fulfilled" ? r.value.jobs : [])).filter((j) => {
+        if (seen.has(j.id)) return false;
+        seen.add(j.id);
+        return true;
+      });
+    };
     // The same ad often arrives more than once, under a second id: an agency's
     // copy, or the board's own repeat (see dedupeJobs).
-    const results = dedupeJobs(jobs).slice(0, perPage);
+    const matches = dedupeJobs(unique(plan.matches));
+    // A similar ad that's a match (the wider search finds them again) or a
+    // copy of one is that match: its pay, if only the copy states it, and
+    // its place in the list.
+    const matchIds = new Set(matches.map((m) => m.id));
+    const similar: Job[] = [];
+    for (const job of dedupeJobs(wider ? unique([wider]) : [])) {
+      if (matchIds.has(job.id)) continue;
+      const i = matches.findIndex((m) => isSameJob(m, job));
+      if (i === -1) similar.push(job);
+      else if (!statesPay(matches[i]) && statesPay(job)) matches[i] = job;
+    }
 
     /* Rank by meaning as well as keyword. This board is keyword-matched, so
        "ICU Nurse" misses "Critical Care Registered Nurse" — the `terms` list
        above is the blunt fix for that, and this is the one that does not need
-       every phrasing enumerated in advance. Degrades silently; see job-news. */
-    const similarityStatus = await attachSimilarity(
-      results as unknown as Array<Record<string, unknown>>,
-      body.profileText,
-    );
+       every phrasing enumerated in advance. Degrades silently; see job-news.
+       Similar ads are also scored against what was searched. Two calls side
+       by side, so a slow one for the similar ads can't cost the matches
+       their fit. */
+    const [matchStatus, similarStatus] = await Promise.all([
+      attachSimilarity(matches as unknown as Array<Record<string, unknown>>, body.profileText),
+      attachSimilarity(similar as unknown as Array<Record<string, unknown>>, body.profileText, plan.query),
+    ]);
+    const similarityStatus = matches.length ? matchStatus : similarStatus;
+
+    // Similar ads after the matches, marked, the closest in meaning to what
+    // was searched first: "Software Engineer" before "Software Support
+    // Analyst" for "Software Developer". Board order without Horus.
+    const relevance = (j: Job) => ((j as Record<string, unknown>).relevance as number | undefined) ?? -1;
+    similar.sort((a, b) => relevance(b) - relevance(a));
 
     // `partial` tells the caller these results are thinner than they should be,
     // so a short result set reads as a degraded search rather than a quiet one.
     return json({
-      jobs: results,
-      terms,
-      // Any term that filled its share may have another page. Said outright
-      // because merging copies can leave a page short of `limit`.
-      more:
-        page < MAX_PAGE &&
-        settled.some((r, i) => r.status === "fulfilled" && r.value.length >= shares[i]),
+      jobs: [...matches, ...similar.map((j) => ({ ...j, related: true }))],
+      terms: plan.terms,
+      // What was searched, and what was typed when that was corrected.
+      query: plan.query,
+      correctedFrom: plan.correctedFrom,
+      // Where the similar ads are from, on the page they start.
+      related: plan.related ? { tag: plan.related.tag, name: categoryName(plan.related.label) } : null,
+      // What "Show more" asks for: more matches ({ page }), more similar ads
+      // ({ wider }), or nothing. Said outright because merging copies can
+      // leave a page short of `limit`. `more` is for pages from before.
+      next: plan.next,
+      more: plan.next !== null,
       partial: failures.length > 0,
       similarityStatus,
     });

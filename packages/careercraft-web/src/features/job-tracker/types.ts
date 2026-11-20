@@ -49,6 +49,8 @@ export interface JobCatalogJob {
   salary_is_predicted: boolean;
   /** Closeness to the user's profile, 0-1, attached server-side by job-search. */
   similarity?: number;
+  /** Not a match for the search: a similar ad job-search carried on with when the matches ran out. */
+  related?: boolean;
   description_snippet: string | null;
   /* Was `full_description`. Adzuna never sent a full description — see the
      note in supabase/functions/job-search/index.ts. */
