@@ -3,12 +3,13 @@ import { useState } from "react";
 
 import { STAGE_EMPTY } from "../lib/cardBits";
 import { STATUS_META } from "../types";
-import type { ApplicationStatus, JobApplication } from "../types";
+import type { ApplicationStatus, AtsCheckRef, JobApplication } from "../types";
 import { JobCard } from "./JobCard";
 
 interface TrackerBoardProps {
   lanes: { status: ApplicationStatus; items: JobApplication[] }[];
   getResumeName: (resumeId: string | null) => string | null;
+  getLatestAtsCheck?: (applicationId: string) => AtsCheckRef | null;
   onView: (app: JobApplication) => void;
   onEdit: (app: JobApplication) => void;
   onDelete: (app: JobApplication) => void;
@@ -20,7 +21,15 @@ interface TrackerBoardProps {
  * while a card hovers over it. Cards share one LayoutGroup so a card that
  * changes stage glides to its new lane (still under reduce motion).
  */
-export const TrackerBoard = ({ lanes, getResumeName, onView, onEdit, onDelete, onMove }: TrackerBoardProps) => {
+export const TrackerBoard = ({
+  lanes,
+  getResumeName,
+  getLatestAtsCheck,
+  onView,
+  onEdit,
+  onDelete,
+  onMove,
+}: TrackerBoardProps) => {
   const [dropLane, setDropLane] = useState<ApplicationStatus | null>(null);
 
   return (
@@ -73,6 +82,7 @@ export const TrackerBoard = ({ lanes, getResumeName, onView, onEdit, onDelete, o
                         application={app}
                         resumeName={getResumeName(app.resume_id)}
                         hasCoverLetter={Boolean(app.cover_letter_id)}
+                        atsScore={getLatestAtsCheck?.(app.id)?.overall_score ?? null}
                         onView={onView}
                         onEdit={onEdit}
                         onDelete={onDelete}

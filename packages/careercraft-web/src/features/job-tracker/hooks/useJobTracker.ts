@@ -4,11 +4,12 @@ import type { Session } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { isMissingColumn } from "@/lib/schemaLag";
+import { isMissingColumn, isNotMigratedYet } from "@/lib/schemaLag";
 import { fayReact } from "@/features/assistant/fayBus";
 
 import type {
   ApplicationStatus,
+  AtsCheckRef,
   CoverLetterRef,
   JobApplication,
   JobFormValues,
@@ -51,6 +52,7 @@ export function useJobTracker() {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [resumes, setResumes] = useState<ResumeRef[]>([]);
   const [coverLetters, setCoverLetters] = useState<CoverLetterRef[]>([]);
+  const [atsChecks, setAtsChecks] = useState<AtsCheckRef[]>([]);
 
   const [filters, setFilters] = useState<Filters>({
     search: "",
@@ -120,11 +122,26 @@ export function useJobTracker() {
     }
   };
 
+  const fetchAtsChecks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("ats_checks")
+        .select("id, application_id, overall_score, resume_name, created_at")
+        .not("application_id", "is", null)
+        .order("created_at", { ascending: false });
+      if (isNotMigratedYet(error)) return;
+      if (!error && data) setAtsChecks(data as unknown as AtsCheckRef[]);
+    } catch (e) {
+      console.error("Error fetching ATS checks:", e);
+    }
+  };
+
   useEffect(() => {
     if (!session) return;
     fetchApplications();
     fetchResumes();
     fetchCoverLetters();
+    fetchAtsChecks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
@@ -165,6 +182,9 @@ export function useJobTracker() {
     const cl = coverLetters.find((c) => c.id === clId);
     return cl ? cl.content.substring(0, 50) + "..." : null;
   };
+
+  const getLatestAtsCheck = (applicationId: string): AtsCheckRef | null =>
+    atsChecks.find((c) => c.application_id === applicationId) ?? null;
 
   /* ── Mutations ───────────────────────────────────────────────── */
   const buildPayload = (form: JobFormValues) => ({
@@ -312,6 +332,7 @@ export function useJobTracker() {
     setFilters,
     getResumeName,
     getCoverLetterPreview,
+    getLatestAtsCheck,
     refreshApplications: fetchApplications,
     mutations: {
       createApplication,

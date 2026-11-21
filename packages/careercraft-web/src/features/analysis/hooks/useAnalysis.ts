@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import { applicationLabel } from "@/features/cover-letter/lib/letterLabel";
 import { aiDataToResumeData, parseTextToResumeData } from "@/features/resume-builder/lib/resumeData";
 import type { ResumeData } from "@/features/resume-builder/types";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +20,7 @@ import { tidyFileName } from "@/lib/fileNames";
 import { QuotaExceededError, type QuotaDetails } from "@/lib/quota";
 // Text helpers only; the file readers (pdf.js, mammoth) load on upload.
 import { formatResumeDataAsText, parseResumeTextWithAI, type AIResumeData } from "@/lib/resumeParseApi";
+import { isMissingColumn } from "@/lib/schemaLag";
 
 import type {
   AnalysisStep,
@@ -114,12 +116,25 @@ const validateRewriteResult = (
     ats_checks, the history under the form. */
 export const HELD_CHECK = "atsCheckId";
 
+export interface AnalysisApplication {
+  id: string;
+  job_title: string;
+  company: string;
+  job_url: string | null;
+  job_description: string | null;
+  resume_id: string | null;
+  cover_letter_id: string | null;
+}
+
+const APPLICATION_SELECT =
+  "id, job_title, company, job_url, job_description, resume_id, cover_letter_id";
+
 /* ───────────────── hook ───────────────── */
 
 export function useAnalysis() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   /* ── core workflow ─────────────────────────────────── */
   const [step, setStep] = useState<AnalysisStep>("upload");
@@ -158,6 +173,8 @@ export function useAnalysis() {
   /* ── library data ──────────────────────────────────── */
   const [savedResumes, setSavedResumes] = useState<SavedResume[]>([]);
   const [savedCoverLetters, setSavedCoverLetters] = useState<SavedCoverLetter[]>([]);
+  const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [forApplication, setForApplication] = useState<AnalysisApplication | null>(null);
   const [selectedResumeId, setSelectedResumeId] = useState<string>("");
   const [parsedResumeData, setParsedResumeData] = useState<AIResumeData | null>(null);
   const [resumeSource, setResumeSource] = useState<ResumeSource>("upload");
@@ -176,43 +193,67 @@ export function useAnalysis() {
 
   /* ───── Rehydrate from sessionStorage ───────────────── */
   useEffect(() => {
+    // Explicit handoffs (?application= or ?check=) bring their own job ad and
+    // résumé, so never let an earlier check's sessionStorage overwrite them.
+    if (searchParams.get("application") || searchParams.get("check")) return;
     const storedResume = sessionStorage.getItem("resumeText");
     const storedJob = sessionStorage.getItem("jobDescription");
     const storedFileName = sessionStorage.getItem("fileName");
-    if (storedResume) setResumeText(storedResume);
+    if (storedResume && !searchParams.get("id")) setResumeText(storedResume);
     if (storedJob) setJobDescription(storedJob);
-    if (storedFileName) setFileName(storedFileName);
+    if (storedFileName && !searchParams.get("id")) setFileName(storedFileName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ───── Fetch saved resumes + cover letters ─────────── */
   useEffect(() => {
     const fetchSavedData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const [resumesRes, coverLettersRes] = await Promise.all([
-        supabase
-          .from("resumes")
-          .select("id, name, content, created_at, template_id")
-          .eq("user_id", user.id)
-          .order("updated_at", { ascending: false }),
-        supabase
-          .from("cover_letters")
-          .select("id, content, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false }),
-      ]);
+        const [resumesRes, coverLettersRes, appsRes] = await Promise.all([
+          supabase
+            .from("resumes")
+            .select("id, name, content, created_at, template_id")
+            .eq("user_id", user.id)
+            .order("updated_at", { ascending: false }),
+          supabase
+            .from("cover_letters")
+            .select("id, title, content, job_description, created_at")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("job_applications")
+            .select("cover_letter_id, job_title, company")
+            .eq("user_id", user.id)
+            .not("cover_letter_id", "is", null)
+            // A letter sent more than once is named for its latest application.
+            .order("created_at", { ascending: false }),
+        ]);
 
-      if (resumesRes.data) setSavedResumes(resumesRes.data as unknown as SavedResume[]);
-      if (coverLettersRes.data) setSavedCoverLetters(coverLettersRes.data);
+        if (resumesRes.data) setSavedResumes(resumesRes.data as unknown as SavedResume[]);
+        if (coverLettersRes.data) {
+          const apps = appsRes.data ?? [];
+          setSavedCoverLetters(
+            coverLettersRes.data.map((cl) => ({
+              ...cl,
+              sentWith: apps.find((a) => a.cover_letter_id === cl.id) ?? null,
+            })),
+          );
+        }
+      } finally {
+        setLibraryLoaded(true);
+      }
     };
-    fetchSavedData();
+    void fetchSavedData();
   }, []);
 
   /* ───── Auto-select from ?id= query param ───────────── */
   useEffect(() => {
+    if (searchParams.get("application") || searchParams.get("check")) return;
     const id = searchParams.get("id");
     if (!id || savedResumes.length === 0) return;
     if (selectedResumeId === id) return;
@@ -224,7 +265,7 @@ export function useAnalysis() {
   /* ───── Actions ─────────────────────────────────────── */
 
   const handleSelectSavedResume = useCallback(
-    (resumeId: string) => {
+    (resumeId: string, opts?: { quiet?: boolean }) => {
       const resume = savedResumes.find((r) => r.id === resumeId);
       if (!resume) return;
 
@@ -255,14 +296,123 @@ export function useAnalysis() {
         setSelectedResumeTemplateId(null);
       }
 
-      toast({
-        title: "Resume loaded",
-        description: resume.template_id
-          ? `"${resume.name}" loaded with its template — edit in Builder after the audit.`
-          : `"${resume.name}" selected for the audit.`,
-      });
+      if (!opts?.quiet) {
+        toast({
+          title: "Resume loaded",
+          description: resume.template_id
+            ? `"${resume.name}" loaded with its template — edit in Builder after the audit.`
+            : `"${resume.name}" selected for the audit.`,
+        });
+      }
     },
     [savedResumes, toast]
+  );
+
+  /* ───── Load tracked job from ?application=<id> ────── */
+  const applicationParam = searchParams.get("application");
+  const checkParam = searchParams.get("check");
+  useEffect(() => {
+    if (!applicationParam) {
+      // Navigating from ?application=<id> back to plain /analysis (e.g. via the
+      // sidebar) clears the tracked-job context unless ?check=<id> owns it.
+      if (!checkParam) setForApplication(null);
+      return;
+    }
+    if (!libraryLoaded) return;
+    let cancelled = false;
+    sessionStorage.removeItem(HELD_CHECK);
+    setStep("upload");
+    setAnalysis(null);
+    setQuotaBlock(null);
+
+    void supabase
+      .from("job_applications")
+      .select(APPLICATION_SELECT)
+      .eq("id", applicationParam)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (!data) {
+          setForApplication(null);
+          return;
+        }
+        const app = data as AnalysisApplication;
+        setForApplication(app);
+        const desc = app.job_description ?? "";
+        setJobDescription(desc);
+        try {
+          sessionStorage.setItem("jobDescription", desc);
+        } catch {
+          /* Private mode: page still works in memory. */
+        }
+
+        const resumeParam = searchParams.get("id");
+        const targetResumeId =
+          (app.resume_id && savedResumes.some((r) => r.id === app.resume_id)
+            ? app.resume_id
+            : null) ??
+          (resumeParam && savedResumes.some((r) => r.id === resumeParam)
+            ? resumeParam
+            : null) ??
+          savedResumes[0]?.id ??
+          null;
+        if (targetResumeId) {
+          handleSelectSavedResume(targetResumeId, { quiet: true });
+        }
+
+        if (app.cover_letter_id) {
+          const cl = savedCoverLetters.find((c) => c.id === app.cover_letter_id);
+          if (cl) {
+            setSelectedCoverLetterId(cl.id);
+            setCoverLetterText(cl.content);
+          }
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationParam, checkParam, libraryLoaded]);
+
+  /** Keep the tracked job in sync when an ATS check runs: save back the full
+      job ad if they pasted it here, record the score, and attach the résumé
+      when none was chosen on the job yet. */
+  const syncTrackedApplication = useCallback(
+    async (
+      app: AnalysisApplication,
+      newScore: number,
+      adText: string,
+      checkedResumeId: string,
+    ) => {
+      const patch: Record<string, unknown> = {
+        fit_score_latest: Math.round(newScore),
+      };
+      const trimmedAd = adText.trim();
+      if (trimmedAd.length > (app.job_description?.trim().length ?? 0)) {
+        patch.job_description = trimmedAd;
+      }
+      if (!app.resume_id && checkedResumeId) {
+        patch.resume_id = checkedResumeId;
+      }
+      const { error } = await supabase
+        .from("job_applications")
+        .update(patch)
+        .eq("id", app.id);
+      if (!error) {
+        setForApplication((prev) =>
+          prev && prev.id === app.id
+            ? {
+                ...prev,
+                job_description:
+                  (patch.job_description as string | undefined) ?? prev.job_description,
+                resume_id: (patch.resume_id as string | undefined) ?? prev.resume_id,
+              }
+            : prev,
+        );
+      }
+    },
+    [],
   );
 
   const onDrop = useCallback(
@@ -320,10 +470,22 @@ export function useAnalysis() {
       const result = await runATSAIAnalysis(resumeText, jobDescription, {
         resumeId: selectedResumeId,
         resumeName: fileName,
+        applicationId: forApplication?.id,
+        jobTitle: forApplication ? applicationLabel(forApplication) : undefined,
+        coverLetterText,
       });
       setAnalysis(result);
       setStep("results");
       if (result.checkId) sessionStorage.setItem(HELD_CHECK, result.checkId);
+
+      if (forApplication) {
+        await syncTrackedApplication(
+          forApplication,
+          result.overallScore,
+          jobDescription,
+          selectedResumeId,
+        );
+      }
 
       if (selectedResumeId) {
         await supabase
@@ -332,7 +494,7 @@ export function useAnalysis() {
             ats_score: result.overallScore,
             last_analyzed_at: new Date().toISOString(),
             last_job_description: jobDescription.substring(0, 500),
-          } as any)
+          })
           .eq("id", selectedResumeId);
       }
 
@@ -360,7 +522,16 @@ export function useAnalysis() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [resumeText, jobDescription, selectedResumeId, fileName, toast]);
+  }, [
+    resumeText,
+    jobDescription,
+    selectedResumeId,
+    fileName,
+    forApplication,
+    coverLetterText,
+    syncTrackedApplication,
+    toast,
+  ]);
 
   const handleEnhancement = useCallback(
     async (type: EnhancementType) => {
@@ -394,10 +565,21 @@ export function useAnalysis() {
             const result = await runATSAIAnalysis(resumeText, jobDescription, {
               resumeId: selectedResumeId,
               resumeName: fileName,
+              applicationId: forApplication?.id,
+              jobTitle: forApplication ? applicationLabel(forApplication) : undefined,
+              coverLetterText,
             });
             setAnalysis(result);
             setStep("results");
             if (result.checkId) sessionStorage.setItem(HELD_CHECK, result.checkId);
+            if (forApplication) {
+              await syncTrackedApplication(
+                forApplication,
+                result.overallScore,
+                jobDescription,
+                selectedResumeId,
+              );
+            }
             toast({
               title: "Audit complete",
               description: `The reading: ${result.overallScore} / 100.`,
@@ -556,6 +738,9 @@ export function useAnalysis() {
       parsedResumeData,
       selectedResumeId,
       fileName,
+      forApplication,
+      coverLetterText,
+      syncTrackedApplication,
       toast,
     ]
   );
@@ -584,9 +769,21 @@ export function useAnalysis() {
       const result = await runATSAIAnalysis(newResumeText, jobDescription, {
         resumeId: selectedResumeId,
         resumeName: `${fileName || "Résumé"} (rewritten)`,
+        applicationId: forApplication?.id,
+        jobTitle: forApplication ? applicationLabel(forApplication) : undefined,
+        coverLetterText,
       });
       setAnalysis(result);
       if (result.checkId) sessionStorage.setItem(HELD_CHECK, result.checkId);
+
+      if (forApplication) {
+        await syncTrackedApplication(
+          forApplication,
+          result.overallScore,
+          jobDescription,
+          selectedResumeId,
+        );
+      }
 
       if (selectedResumeId) {
         await supabase
@@ -594,7 +791,7 @@ export function useAnalysis() {
           .update({
             ats_score: result.overallScore,
             last_analyzed_at: new Date().toISOString(),
-          } as any)
+          })
           .eq("id", selectedResumeId);
       }
 
@@ -616,6 +813,9 @@ export function useAnalysis() {
     jobDescription,
     selectedResumeId,
     fileName,
+    forApplication,
+    coverLetterText,
+    syncTrackedApplication,
     toast,
   ]);
 
@@ -834,7 +1034,13 @@ export function useAnalysis() {
     setEnhancedResumeData(null);
     // It's still in the history; it just isn't the one held open any more.
     sessionStorage.removeItem(HELD_CHECK);
-  }, []);
+    if (searchParams.get("check")) {
+      setSearchParams(
+        forApplication ? { application: forApplication.id } : {},
+        { replace: true },
+      );
+    }
+  }, [searchParams, setSearchParams, forApplication]);
 
   const clearResume = useCallback(() => {
     setResumeText("");
@@ -860,8 +1066,12 @@ export function useAnalysis() {
       const resume = savedResumes.find((r) => r.id === selectedResumeId);
       if (resume) sessionStorage.setItem("atsResumeName", resume.name);
     }
-    navigate("/cover-letter?from=ats");
-  }, [resumeText, jobDescription, selectedResumeId, savedResumes, navigate]);
+    navigate(
+      forApplication
+        ? `/cover-letter?application=${forApplication.id}&from=ats`
+        : "/cover-letter?from=ats",
+    );
+  }, [resumeText, jobDescription, selectedResumeId, savedResumes, forApplication, navigate]);
 
   const goToBuilderWithEnhanced = useCallback(() => {
     if (!enhancedResumeData) return;
@@ -873,6 +1083,11 @@ export function useAnalysis() {
   }, [enhancedResumeData, selectedResumeTemplateId, navigate]);
 
   const addToJobTracker = useCallback(async () => {
+    if (forApplication) {
+      setShowTemplateDialog(false);
+      navigate("/tracker");
+      return;
+    }
     try {
       const {
         data: { user },
@@ -901,7 +1116,7 @@ export function useAnalysis() {
     } catch {
       toast({ title: "Couldn't file the job", variant: "destructive" });
     }
-  }, [jobDescription, selectedResumeId, analysis, toast]);
+  }, [forApplication, navigate, jobDescription, selectedResumeId, analysis, toast]);
 
   const goBuilderFromTemplate = useCallback(() => {
     if (isBuilderResume && selectedResumeId) {
@@ -942,11 +1157,20 @@ export function useAnalysis() {
      and job ad it was run on (rewrites and the cover letter work from those). */
   const openCheck = useCallback(
     async (id: string, { quiet = false }: { quiet?: boolean } = {}) => {
-      const { data: check, error } = await supabase
+      let { data: check, error } = await supabase
         .from("ats_checks")
-        .select("id, resume_id, resume_name, resume_text, job_description, analysis")
+        .select("id, application_id, resume_id, resume_name, resume_text, job_description, analysis")
         .eq("id", id)
         .maybeSingle();
+      if (isMissingColumn(error, "application_id")) {
+        const retry = await supabase
+          .from("ats_checks")
+          .select("id, resume_id, resume_name, resume_text, job_description, analysis")
+          .eq("id", id)
+          .maybeSingle();
+        check = retry.data ? { ...retry.data, application_id: null } : null;
+        error = retry.error;
+      }
       if (error || !check) {
         sessionStorage.removeItem(HELD_CHECK);
         if (!quiet) {
@@ -981,6 +1205,19 @@ export function useAnalysis() {
         templateId = resume?.template_id ?? null;
       }
 
+      // If this check belonged to a tracked job, load that job so "Back to
+      // tracker", "Cover letter", and any re-audit stay tied to it.
+      if (check.application_id) {
+        const { data: app } = await supabase
+          .from("job_applications")
+          .select(APPLICATION_SELECT)
+          .eq("id", check.application_id)
+          .maybeSingle();
+        setForApplication((app as AnalysisApplication | null) ?? null);
+      } else {
+        setForApplication(null);
+      }
+
       setAnalysis({ ...(check.analysis as unknown as ATSAIAnalysis), checkId: check.id });
       setResumeText(check.resume_text);
       setJobDescription(check.job_description);
@@ -1004,18 +1241,29 @@ export function useAnalysis() {
     [toast]
   );
 
-  // Coming back to the page shows the check that was open, unless they came
-  // to check a particular résumé (?id=). Once, on arrival.
+  // ?check=<id> opens a specific check (e.g. from Job Tracker). ?application=
+  // and ?id= start a fresh check and clear any held check from another job.
+  // Only bare /analysis reopens the check held in this tab.
+  const resumeQueryParam = searchParams.get("id");
   useEffect(() => {
+    if (checkParam) {
+      void openCheck(checkParam);
+      return;
+    }
+    if (applicationParam || resumeQueryParam) {
+      sessionStorage.removeItem(HELD_CHECK);
+      return;
+    }
     const held = sessionStorage.getItem(HELD_CHECK);
-    if (held && !searchParams.get("id")) void openCheck(held, { quiet: true });
+    if (held) void openCheck(held, { quiet: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [checkParam, applicationParam, resumeQueryParam]);
 
   return {
     /* state */
     step,
     analysis,
+    forApplication,
     fileName,
     resumeText,
     jobDescription,

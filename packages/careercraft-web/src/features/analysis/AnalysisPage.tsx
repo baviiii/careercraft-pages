@@ -1,12 +1,13 @@
 import { useRef, type CSSProperties } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ScanSearch } from "lucide-react";
+import { ArrowRight, Briefcase, ExternalLink, ScanSearch } from "lucide-react";
 
 import {
   CraftAppBody,
   CraftAppHeader,
   CraftAppShell,
 } from "@/components/craft/AppPrimitives";
+import { applicationLabel } from "@/features/cover-letter/lib/letterLabel";
 
 import { ActionableRewritesPanel } from "./components/ActionableRewritesPanel";
 import { AnalyzingScreen } from "./components/AnalyzingScreen";
@@ -43,6 +44,32 @@ export default function AnalysisPage() {
   const reduce = useReducedMotion();
   const tabsAnchor = useRef<HTMLDivElement>(null);
 
+  const backTo = a.forApplication ? "/tracker" : "/dashboard";
+  const backLabel = a.forApplication ? "Back to tracker" : "Back to dashboard";
+  const trackedBanner = a.forApplication ? (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[color:var(--cc-hair)] bg-[color:var(--cc-cream-2)] px-4 py-3 text-[14px] text-[color:var(--cc-ink-soft)]">
+      <span className="inline-flex items-center gap-2">
+        <Briefcase className="h-4 w-4 shrink-0 text-[color:var(--cc-rust)]" />
+        <span>
+          For your tracked job:{" "}
+          <strong className="font-semibold text-[color:var(--cc-ink)]">
+            {applicationLabel(a.forApplication)}
+          </strong>
+        </span>
+      </span>
+      {a.forApplication.job_url && (
+        <a
+          href={a.forApplication.job_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-semibold text-[color:var(--cc-rust)] underline-offset-2 hover:underline"
+        >
+          Open job ad <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+    </div>
+  ) : null;
+
   /* ─── Step: analyzing ────────────────────────────────── */
   if (a.step === "analyzing") return <AnalyzingScreen />;
 
@@ -50,9 +77,15 @@ export default function AnalysisPage() {
   if (a.step === "upload") {
     return (
       <CraftAppShell className="cc-proof">
-        <CraftAppHeader kicker="ATS check" title="Check your résumé against a job." />
+        <CraftAppHeader
+          kicker="ATS check"
+          title="Check your résumé against a job."
+          backTo={backTo}
+          backLabel={backLabel}
+        />
 
         <CraftAppBody className="!pt-0">
+          {trackedBanner}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -72,6 +105,7 @@ export default function AnalysisPage() {
             <JobDescriptionInput
               value={a.jobDescription}
               onChange={a.setJobDescription}
+              jobUrl={a.forApplication?.job_url}
             />
           </motion.div>
 
@@ -159,10 +193,13 @@ export default function AnalysisPage() {
       <ReanalyzingOverlay open={a.isReanalyzing} />
 
       <CraftAppHeader
+        backTo={backTo}
+        backLabel={backLabel}
         rightSlot={<div className="hidden md:flex items-center gap-2">{actions}</div>}
       />
 
       <CraftAppBody className="!pt-5 md:!pt-7">
+        {trackedBanner}
         <motion.section
           className="cc-proof-card"
           style={{ "--pf-tone": toneVar(tone) } as CSSProperties}

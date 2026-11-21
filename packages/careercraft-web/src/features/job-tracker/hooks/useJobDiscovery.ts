@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
+import { ToastAction, type ToastActionElement } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,6 +46,7 @@ export function useJobDiscovery(
   onSavedToTracker?: () => Promise<void> | void,
   personalized?: DiscoveryPersonalization,
 ) {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [jobs, setJobs] = useState<JobCatalogJob[]>([]);
   const [filters, setFilters] = useState<DiscoveryFilters>({ query: "", location: "" });
@@ -89,7 +92,7 @@ export function useJobDiscovery(
         setIsLoading(false);
       }
     },
-    [filters.location, filters.query, personalized?.terms, toast],
+    [filters.location, filters.query, personalized?.profileText, personalized?.terms, toast],
   );
 
   /** The explicit refresh button — the same search, but it announces itself. */
@@ -129,13 +132,27 @@ export function useJobDiscovery(
       }
 
       try {
-        const { error } = await supabase.functions.invoke("job-search", {
-          body: { action: "save_to_tracker", job },
-        });
+        const { data, error } = await supabase.functions.invoke<{ applicationId?: string }>(
+          "job-search",
+          {
+            body: { action: "save_to_tracker", job },
+          },
+        );
         if (error) throw error;
+        const action = data?.applicationId
+          ? (createElement(
+              ToastAction,
+              {
+                altText: "Run ATS check",
+                onClick: () => navigate(`/analysis?application=${data.applicationId}`),
+              },
+              "ATS check",
+            ) as unknown as ToastActionElement)
+          : undefined;
         toast({
           title: "Saved to your board",
           description: "It's in the Saved lane.",
+          action,
         });
         await onSavedToTracker?.();
       } catch (e) {
@@ -146,7 +163,7 @@ export function useJobDiscovery(
         });
       }
     },
-    [onSavedToTracker, toast],
+    [navigate, onSavedToTracker, toast],
   );
 
   // One-time init: wait for the profile, then search the market for the user's

@@ -13,6 +13,7 @@ import { JOB_TYPE_OPTIONS, STATUS_META, appToForm, formatAppliedDate } from "../
 import type {
   ApplicationEvent,
   ApplicationStatus,
+  AtsCheckRef,
   CoverLetterRef,
   JobApplication,
   JobFormValues,
@@ -27,6 +28,8 @@ interface JobDetailPanelProps {
   hasCoverLetter: boolean;
   /** The attached letter, when it's one we could load. */
   coverLetter?: { id: string; label: string; excerpt: string } | null;
+  /** Latest ATS check run for this tracked job, if any. */
+  atsCheck?: AtsCheckRef | null;
   /** Open straight into the edit view (the card menu's "Edit"). */
   initialMode?: "view" | "edit";
   resumes: ResumeRef[];
@@ -36,8 +39,10 @@ interface JobDetailPanelProps {
   /** Move the job to another stage. The panel stays open on the live row. */
   onStatusChange?: (id: string, status: ApplicationStatus) => void;
   events?: ApplicationEvent[];
-  /** Hand this application to /analysis with its résumé and ad prefilled. */
+  /** Hand this application to /analysis?application=<id> with its résumé and ad. */
   onAnalyse?: (app: JobApplication) => void;
+  /** Open the saved ATS check for this application directly. */
+  onOpenAtsCheck?: (checkId: string) => void;
   /** Open the cover letter desk for this application; saving there attaches. */
   onWriteCoverLetter?: (app: JobApplication) => void;
   onOpenCoverLetter?: (letterId: string) => void;
@@ -76,6 +81,7 @@ export const JobDetailPanel = ({
   resumeName,
   hasCoverLetter,
   coverLetter,
+  atsCheck,
   initialMode = "view",
   resumes,
   coverLetters,
@@ -83,6 +89,7 @@ export const JobDetailPanel = ({
   onStatusChange,
   events = [],
   onAnalyse,
+  onOpenAtsCheck,
   onWriteCoverLetter,
   onOpenCoverLetter,
   onLoadTimeline,
@@ -407,25 +414,56 @@ export const JobDetailPanel = ({
                     </span>
                   )}
                 </p>
-                <p className="text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
-                  {hasFullDescription
-                    ? "See how your résumé scores against this ad, and which keywords an applicant tracking system would miss."
-                    : "To check your résumé against this job, paste the full ad on the next screen."}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {onAnalyse && (
-                    <CraftButton size="sm" onClick={() => onAnalyse(application)}>
-                      <Brain className="h-4 w-4" />
-                      {hasFullDescription ? "Check my résumé" : "Paste the ad and check"}
-                    </CraftButton>
-                  )}
-                  {!hasFullDescription && application.job_url && (
-                    <CraftButton size="sm" variant="ghost" onClick={openAd}>
-                      <ExternalLink className="h-4 w-4" />
-                      Open the ad to copy
-                    </CraftButton>
-                  )}
-                </div>
+                {atsCheck ? (
+                  <>
+                    <p className="text-[15px] text-[color:var(--cc-ink)]">
+                      ATS check:{" "}
+                      <strong className="cc-tabular font-semibold">
+                        {atsCheck.overall_score} / 100
+                      </strong>
+                      {atsCheck.resume_name ? ` · ${atsCheck.resume_name}` : ""}
+                      <span className="text-[13px] text-[color:var(--cc-ash)]">
+                        {" "}
+                        · {formatAppliedDate(atsCheck.created_at)}
+                      </span>
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {onOpenAtsCheck && (
+                        <CraftButton size="sm" onClick={() => onOpenAtsCheck(atsCheck.id)}>
+                          <Brain className="h-4 w-4" />
+                          Open ATS check
+                        </CraftButton>
+                      )}
+                      {onAnalyse && (
+                        <CraftButton size="sm" variant="ghost" onClick={() => onAnalyse(application)}>
+                          Check again
+                        </CraftButton>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[14px] leading-relaxed text-[color:var(--cc-ink-soft)]">
+                      {hasFullDescription
+                        ? "No ATS check run for this job yet. See how your résumé scores against this ad, and which keywords an applicant tracking system would look for."
+                        : "No ATS check run yet. We only got a short preview from the job board — open the ad on the next screen and paste the full description to check your résumé."}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {onAnalyse && (
+                        <CraftButton size="sm" onClick={() => onAnalyse(application)}>
+                          <Brain className="h-4 w-4" />
+                          {hasFullDescription ? "Check my résumé" : "Paste the ad and check"}
+                        </CraftButton>
+                      )}
+                      {!hasFullDescription && application.job_url && (
+                        <CraftButton size="sm" variant="ghost" onClick={openAd}>
+                          <ExternalLink className="h-4 w-4" />
+                          Open the ad to copy
+                        </CraftButton>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
               {onWriteCoverLetter && (

@@ -16,6 +16,10 @@ export interface SavedCoverLetter {
   id: string;
   content: string;
   created_at: string;
+  title?: string | null;
+  job_description?: string | null;
+  /** The tracked application this letter was attached to, when there is one. */
+  sentWith?: { job_title: string; company: string } | null;
 }
 
 export type CoverLetterTone = "professional" | "confident" | "casual";

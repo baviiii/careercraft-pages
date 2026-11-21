@@ -34,6 +34,7 @@ export default function JobTrackerPage() {
     filters,
     setFilters,
     getResumeName,
+    getLatestAtsCheck,
     refreshApplications,
     mutations,
   } = useJobTracker();
@@ -141,23 +142,20 @@ export default function JobTrackerPage() {
     automation.loadEvents(viewTarget.id).catch(() => undefined);
   }, [viewTarget, automation.loadEvents]);
 
-  /* Hand an application to the real analyser rather than scoring it here.
-     /analysis already reads both of these on mount — `?id=` preselects the
-     saved résumé (useAnalysis.ts), and the `jobDescription` sessionStorage key
-     prefills the textarea — so the user arrives with the work done and can
-     paste over the description when the job board only gave an extract.
-
-     sessionStorage rather than route state because that is the channel
-     /analysis already listens on, and it survives the page's own reloads. */
+  /* Hand an application to /analysis?application=<id>. /analysis loads the
+     tracked job directly (its URL, description, résumé, and cover letter),
+     never reopens an earlier job's held check, and writes the full ad back
+     onto this job when the user pastes it there. */
   const analyseApplication = useCallback(
     (app: JobApplication) => {
-      try {
-        sessionStorage.setItem("jobDescription", app.job_description ?? "");
-      } catch {
-        /* Private mode or a full quota. The page still opens; they paste. */
-      }
-      navigate(app.resume_id ? `/analysis?id=${app.resume_id}` : "/analysis");
+      const qs = new URLSearchParams({ application: app.id });
+      if (app.resume_id) qs.set("id", app.resume_id);
+      navigate(`/analysis?${qs.toString()}`);
     },
+    [navigate],
+  );
+  const openAtsCheck = useCallback(
+    (checkId: string) => navigate(`/analysis?check=${checkId}`),
     [navigate],
   );
 
@@ -294,6 +292,7 @@ export default function JobTrackerPage() {
                 <TrackerBoard
                   lanes={lanes}
                   getResumeName={getResumeName}
+                  getLatestAtsCheck={getLatestAtsCheck}
                   onView={(app) => openJob(app)}
                   onEdit={(app) => openJob(app, "edit")}
                   onDelete={setDeleteTarget}
@@ -343,6 +342,7 @@ export default function JobTrackerPage() {
         resumeName={viewing ? getResumeName(viewing.resume_id) : null}
         hasCoverLetter={Boolean(viewing?.cover_letter_id)}
         coverLetter={viewLetter}
+        atsCheck={viewing ? getLatestAtsCheck(viewing.id) : null}
         initialMode={panelMode}
         resumes={resumes}
         coverLetters={coverLetters}
@@ -350,6 +350,7 @@ export default function JobTrackerPage() {
         onStatusChange={(id, status) => void moveTo(id, status)}
         events={viewing ? automation.eventsByApplication[viewing.id] || [] : []}
         onAnalyse={analyseApplication}
+        onOpenAtsCheck={openAtsCheck}
         onWriteCoverLetter={writeCoverLetter}
         onOpenCoverLetter={openCoverLetter}
         onLoadTimeline={(id) => automation.loadEvents(id).then(() => undefined)}

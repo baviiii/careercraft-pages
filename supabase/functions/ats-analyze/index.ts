@@ -370,8 +370,9 @@ function jobLabel(jobDescription: string): string | null {
 /**
  * Keep a full analysis in ats_checks so it can be reopened later (see the
  * 20261113000000_ats_checks migration). Written with the person's own client,
- * so RLS decides what they may save — including that resume_id, if any, is
- * their own résumé. A failed save is logged and never costs them the result.
+ * so RLS decides what they may save — including that resume_id and
+ * application_id, if any, belong to them. A failed save is logged and never
+ * costs them the result.
  */
 async function saveCheck(
   userClient: Awaited<ReturnType<typeof requireUser>>["userClient"],
@@ -381,27 +382,55 @@ async function saveCheck(
     jobDescription: string;
     resumeId: unknown;
     resumeName: unknown;
+    applicationId: unknown;
+    jobTitle: unknown;
     analysis: z.infer<typeof AtsAnalysisSchema>;
   },
 ): Promise<string | null> {
   try {
     const score = Math.round(Number(input.analysis.overallScore));
-    const { data, error } = await userClient
+    const appId =
+      typeof input.applicationId === "string" && UUID.test(input.applicationId)
+        ? input.applicationId
+        : null;
+    const explicitLabel =
+      typeof input.jobTitle === "string" ? input.jobTitle.replace(/\s+/g, " ").trim().slice(0, 160) : "";
+    const baseRow = {
+      user_id: userId,
+      resume_id:
+        typeof input.resumeId === "string" && UUID.test(input.resumeId) ? input.resumeId : null,
+      resume_name:
+        typeof input.resumeName === "string" ? input.resumeName.trim().slice(0, 200) || null : null,
+      job_label: explicitLabel || jobLabel(input.jobDescription),
+      job_description: input.jobDescription.slice(0, 20000),
+      resume_text: input.resumeText.slice(0, 40000),
+      overall_score: Number.isFinite(score) ? Math.min(100, Math.max(0, score)) : 0,
+      analysis: input.analysis,
+    };
+
+    const insertRow = appId ? { ...baseRow, application_id: appId } : baseRow;
+    let { data, error } = await userClient
       .from("ats_checks")
-      .insert({
-        user_id: userId,
-        resume_id:
-          typeof input.resumeId === "string" && UUID.test(input.resumeId) ? input.resumeId : null,
-        resume_name:
-          typeof input.resumeName === "string" ? input.resumeName.trim().slice(0, 200) || null : null,
-        job_label: jobLabel(input.jobDescription),
-        job_description: input.jobDescription.slice(0, 20000),
-        resume_text: input.resumeText.slice(0, 40000),
-        overall_score: Number.isFinite(score) ? Math.min(100, Math.max(0, score)) : 0,
-        analysis: input.analysis,
-      })
+      .insert(insertRow)
       .select("id")
       .single();
+
+    // Only retry without application_id when the column hasn't migrated yet
+    // (42703 / PGRST204) or the tracked job was removed mid-request (23503).
+    const isAppColumnOrFkError =
+      error &&
+      (error.code === "42703" ||
+        error.code === "PGRST204" ||
+        error.code === "23503" ||
+        (error.message ?? "").includes("application_id"));
+    if (isAppColumnOrFkError && appId) {
+      ({ data, error } = await userClient
+        .from("ats_checks")
+        .insert(baseRow)
+        .select("id")
+        .single());
+    }
+
     if (error) {
       console.warn("[ats-analyze] check not saved:", error.message);
       return null;
@@ -433,9 +462,12 @@ serve(handler(async (req) => {
       analysisType,
       resumeData,
       analysisContext,
-      // Full analyses only: which résumé was checked, for the history.
+      // Full analyses only: which résumé and tracked job were checked, for the history.
       resumeId,
       resumeName,
+      applicationId,
+      jobTitle,
+      coverLetterText,
     } = await req.json();
     
     if ((!resumeText && !resumeData) || !jobDescription) {
@@ -456,7 +488,10 @@ serve(handler(async (req) => {
     let userPrompt = "";
 
     if (analysisType === "full-analysis") {
-      systemPrompt = `You are an Enterprise-grade ATS Resume Analyzer & Optimizer Engine trained on top recruitment systems (Greenhouse, Lever, Workday, Taleo, BambooHR, Seek, LinkedIn Talent Insights). You evaluate resumes + job descriptions, simulate an ATS scan, and produce a complete breakdown.
+      const trimmedLetter =
+        typeof coverLetterText === "string" ? coverLetterText.trim().slice(0, 12000) : "";
+
+      systemPrompt = `You are an Enterprise-grade ATS Resume Analyzer & Optimizer Engine trained on top recruitment systems (Greenhouse, Lever, Workday, Taleo, BambooHR, Seek, LinkedIn Talent Insights). You evaluate resumes + job descriptions${trimmedLetter ? " + cover letters" : ""}, simulate an ATS scan, and produce a complete breakdown.
 
 Resumes come from every profession — healthcare, trades, education, hospitality, finance, retail, engineering. Ground every skill, keyword, and improvement in what the resume and job description actually contain, in the language of that profession. Never inject tech-industry skills or advice into a non-tech resume.
 
@@ -465,17 +500,25 @@ ${AU_RESUME_CONVENTIONS}
 SCORING IMPLICATIONS FOR THE AUSTRALIAN MARKET:
 - Do NOT penalise 2-3 page length, a Referees section, AQF qualification names, or Australian spelling — these are correct for this market, not red flags.
 - DO flag as improvements: photos, date of birth, marital status, US spelling in an Australian resume, and missing right-to-work information when the job description asks for it.
-- If the job description lists selection criteria, add a red flag noting that this employer expects a separate selection-criteria statement which the resume alone does not satisfy.
+- If the job description lists selection criteria, add a red flag noting that this employer expects a separate selection-criteria statement which the resume alone does not satisfy.${
+        trimmedLetter
+          ? `\n- A COVER LETTER is attached below: audit it alongside the resume. Check whether it addresses the role's core requirements/selection criteria, flag any cover-letter issues (wrong company/role, clichés, repeating the resume word-for-word, unaddressed criteria) in redFlags (with location: "Cover Letter") and improvements.quickFixes, and mention how well the letter supports the application in summary.overallVerdict.`
+          : ""
+      }
 
 ${ATS_ANALYSIS_SHAPE}`;
 
-      userPrompt = `Analyze this resume against the job description and provide a comprehensive ATS analysis.
+      userPrompt = `Analyze this resume${trimmedLetter ? " and cover letter" : ""} against the job description and provide a comprehensive ATS analysis.
 
 JOB DESCRIPTION:
 ${jobDescription}
 
 RESUME:
-${resumeText}
+${resumeText}${
+        trimmedLetter
+          ? `\n\nCOVER LETTER:\n${trimmedLetter}`
+          : ""
+      }
 
 Provide a detailed analysis covering all aspects.`;
 
@@ -1092,6 +1135,8 @@ RETURN: ONLY valid JSON with the same structure but improved content. No explana
         jobDescription: String(jobDescription),
         resumeId,
         resumeName,
+        applicationId,
+        jobTitle,
         analysis: analysisResult,
       });
       return json({ analysis: analysisResult, checkId });

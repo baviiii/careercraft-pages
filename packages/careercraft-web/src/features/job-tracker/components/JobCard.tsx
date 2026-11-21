@@ -28,6 +28,7 @@ interface JobCardProps {
   application: JobApplication;
   resumeName: string | null;
   hasCoverLetter: boolean;
+  atsScore?: number | null;
   onView: (app: JobApplication) => void;
   onEdit: (app: JobApplication) => void;
   onDelete: (app: JobApplication) => void;
@@ -49,6 +50,7 @@ export const JobCard = ({
   application,
   resumeName,
   hasCoverLetter,
+  atsScore,
   onView,
   onEdit,
   onDelete,
@@ -206,10 +208,13 @@ export const JobCard = ({
           </DropdownMenu>
         </div>
 
-        {(resumeName || hasCoverLetter || followUp) && (
+        {(resumeName || hasCoverLetter || atsScore != null || followUp) && (
           <div className="flex flex-wrap gap-1.5">
             {resumeName && <span className="cc-ticket__chip">✓ Résumé</span>}
             {hasCoverLetter && <span className="cc-ticket__chip">✓ Letter</span>}
+            {atsScore != null && (
+              <span className="cc-ticket__chip cc-tabular">ATS {atsScore}</span>
+            )}
             {followUp && !closed && (
               <span className={`cc-ticket__chip ${due ? "cc-ticket__chip--due" : ""}`}>
                 {due && <Bell className="h-3 w-3" />}

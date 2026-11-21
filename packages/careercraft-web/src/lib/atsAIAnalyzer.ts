@@ -103,10 +103,13 @@ export interface ATSAIAnalysis {
   checkId?: string;
 }
 
-/** Which résumé is being checked, so the saved check can say. */
+/** Which résumé and tracked job are being checked, so the saved check can say. */
 export interface CheckedResume {
   resumeId?: string;
   resumeName?: string;
+  applicationId?: string;
+  jobTitle?: string;
+  coverLetterText?: string;
 }
 
 /** Run a full check. The server keeps every one in the person's history. */
@@ -126,6 +129,9 @@ export async function runATSAIAnalysis(
         analysisType: "full-analysis",
         resumeId: checked.resumeId || undefined,
         resumeName: checked.resumeName || undefined,
+        applicationId: checked.applicationId || undefined,
+        jobTitle: checked.jobTitle || undefined,
+        coverLetterText: checked.coverLetterText?.trim() || undefined,
       }),
     }
   );

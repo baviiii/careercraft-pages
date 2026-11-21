@@ -1,5 +1,15 @@
+import { useLayoutEffect, useRef } from "react";
+
+import { coverLetterChoiceLabel, letterDate } from "@/features/cover-letter/lib/letterLabel";
+
 import type { SavedCoverLetter } from "../types";
 import { Ready } from "./proof";
+
+/** Name, then the date; just the date when nothing names it. */
+function choiceText(cl: SavedCoverLetter): string {
+  const name = coverLetterChoiceLabel(cl, cl.sentWith);
+  return name ? `${name} · ${letterDate(cl.created_at)}` : `Letter · ${letterDate(cl.created_at)}`;
+}
 
 interface CoverLetterPairingProps {
   savedCoverLetters: SavedCoverLetter[];
@@ -17,8 +27,27 @@ export const CoverLetterPairing = ({
   coverLetterText,
   onChangeText,
   onClearSelection,
-}: CoverLetterPairingProps) => (
-  <section className="rounded-[1.25rem] border-2 border-dashed border-[color:var(--cc-hair-strong)] p-6 md:p-8 mt-6">
+}: CoverLetterPairingProps) => {
+  const letterRef = useRef<HTMLTextAreaElement>(null);
+  const selected = savedCoverLetters.find((cl) => cl.id === selectedCoverLetterId) ?? null;
+
+  /* Setting the value puts the caret at the end, and the box scrolls there,
+     so a picked letter opened on "Sincerely" instead of on itself. The
+     browser does that again after paint, so pin it twice. */
+  useLayoutEffect(() => {
+    const el = letterRef.current;
+    if (!el || !selectedCoverLetterId) return;
+    const pin = () => {
+      el.scrollTop = 0;
+      el.setSelectionRange(0, 0);
+    };
+    pin();
+    const frame = requestAnimationFrame(pin);
+    return () => cancelAnimationFrame(frame);
+  }, [selectedCoverLetterId]);
+
+  return (
+    <section className="rounded-[1.25rem] border-2 border-dashed border-[color:var(--cc-hair-strong)] p-6 md:p-8 mt-6">
     <div className="flex items-center justify-between gap-4 mb-5">
       <h3 className="cc-font-display text-[22px] leading-tight text-[color:var(--cc-ink)]">
         Cover letter{" "}
@@ -40,15 +69,20 @@ export const CoverLetterPairing = ({
           <option value="">Pick a cover letter…</option>
           {savedCoverLetters.map((cl) => (
             <option key={cl.id} value={cl.id}>
-              {new Date(cl.created_at).toLocaleDateString()} ·{" "}
-              {cl.content.substring(0, 40)}…
+              {choiceText(cl)}
             </option>
           ))}
         </select>
+        {selected && (
+          <p className="mt-3 cc-font-sans text-[15px] leading-snug text-[color:var(--cc-ink)]">
+            {choiceText(selected)}
+          </p>
+        )}
       </div>
     )}
 
     <textarea
+      ref={letterRef}
       placeholder={savedCoverLetters.length > 0 ? "…or paste one here." : "Paste a cover letter to check it too."}
       aria-label="Cover letter"
       value={coverLetterText}
@@ -56,7 +90,8 @@ export const CoverLetterPairing = ({
         onChangeText(e.target.value);
         onClearSelection();
       }}
-      className="cc-textarea w-full min-h-[150px]"
+      className="cc-textarea w-full min-h-[150px] max-h-[280px]"
     />
-  </section>
-);
+    </section>
+  );
+};

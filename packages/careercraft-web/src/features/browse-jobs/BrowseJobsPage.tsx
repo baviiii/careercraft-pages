@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CraftAppLayout } from "@/components/craft/CraftAppLayout";
+import { ToastAction } from "@/components/ui/toast";
 import type { JobCatalogJob } from "@/features/job-tracker/types";
 import { useToast } from "@/hooks/use-toast";
 import { usePersonalization } from "@/hooks/usePersonalization";
@@ -397,15 +398,29 @@ export default function BrowseJobsPage() {
   const save = async (job: JobCatalogJob, from: HTMLElement | null) => {
     setSavingId(job.id);
     try {
-      const { error } = await supabase.functions.invoke("job-search", {
-        body: { action: "save_to_tracker", job },
-      });
+      const { data, error } = await supabase.functions.invoke<{ applicationId?: string }>(
+        "job-search",
+        {
+          body: { action: "save_to_tracker", job },
+        },
+      );
       if (error) throw error;
       flyToTracker(from);
       if (job.canonical_url) setTrackedUrls((s) => new Set(s).add(job.canonical_url as string));
       setTrackedTitles((s) => new Set(s).add(titleKey(job.title, job.company, job.location)));
       setSavedCount((n) => n + 1);
-      toast({ title: "Saved to your tracker", description: `${job.title} is in the Saved lane.` });
+      toast({
+        title: "Saved to your tracker",
+        description: `${job.title} is in the Saved lane.`,
+        action: data?.applicationId ? (
+          <ToastAction
+            altText="Run ATS check"
+            onClick={() => navigate(`/analysis?application=${data.applicationId}`)}
+          >
+            ATS check
+          </ToastAction>
+        ) : undefined,
+      });
     } catch (e) {
       toast({
         title: "Couldn't save that job",

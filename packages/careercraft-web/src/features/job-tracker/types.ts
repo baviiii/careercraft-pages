@@ -89,6 +89,14 @@ export interface CoverLetterRef {
   created_at: string;
 }
 
+export interface AtsCheckRef {
+  id: string;
+  application_id: string;
+  overall_score: number;
+  resume_name: string | null;
+  created_at: string;
+}
+
 export type StatusFilter = ApplicationStatus | "all";
 
 export interface StatusMeta {
