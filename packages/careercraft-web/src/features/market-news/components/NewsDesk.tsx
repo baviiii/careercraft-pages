@@ -206,17 +206,19 @@ export const NewsDesk = ({ scoreArticle, profileText, role, trackedCompanies, on
       {status === "loading" && (
         <div className="space-y-4" aria-hidden>
           <div className="cc-story cc-story--lead" style={{ animation: "none" }}>
-            <div className="w-full space-y-3">
+            <div className="cc-story__pic cc-skel" />
+            <div className="cc-story__body space-y-3">
               <div className="cc-skel h-3 w-40" />
               <div className="cc-skel h-7 w-4/5" />
               <div className="cc-skel h-3 w-full" />
               <div className="cc-skel h-3 w-2/3" />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, i) => (
+          <div className="cc-story-grid">
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="cc-story" style={{ animation: "none" }}>
-                <div className="w-full space-y-2.5">
+                <div className="cc-story__pic cc-skel" />
+                <div className="cc-story__body space-y-2.5">
                   <div className="cc-skel h-3 w-32" />
                   <div className="cc-skel h-5 w-11/12" />
                   <div className="cc-skel h-3 w-full" />
@@ -263,9 +265,10 @@ export const NewsDesk = ({ scoreArticle, profileText, role, trackedCompanies, on
 
       {status === "ready" && visible.length > 0 && (
         <>
-          <StoryCard article={visible[0]} fit={fits.get(visible[0].id) ?? null} lead index={0} />
+          {/* Keyed, so a new lead never keeps the last one's "picture failed". */}
+          <StoryCard key={visible[0].id} article={visible[0]} fit={fits.get(visible[0].id) ?? null} lead index={0} />
           {visible.length > 1 && (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="cc-story-grid">
               {visible.slice(1).map((a, i) => (
                 <StoryCard key={a.id} article={a} fit={fits.get(a.id) ?? null} index={i + 1} />
               ))}

@@ -185,14 +185,85 @@ function linkOf(item: Node): string {
   return alt ? decodeEntities(text(alt["@_href"]) || text(alt)) : "";
 }
 
-function imageOf(item: Node): string | null {
-  const media = item["media:content"] as Node[] | undefined;
-  const fromMedia = media?.find((m) => !m["@_medium"] || m["@_medium"] === "image")?.["@_url"];
-  const thumb = (item["media:thumbnail"] as Node | undefined)?.["@_url"];
-  const enclosure = item["enclosure"] as Node | undefined;
-  const fromEnclosure = enclosure && String(enclosure["@_type"] ?? "").startsWith("image/") ? enclosure["@_url"] : null;
-  const url = decodeEntities(text(fromMedia ?? thumb ?? fromEnclosure ?? ""));
+/** A picture's address as stored: entities decoded, protocol-relative made https, https only. */
+function pictureUrl(raw: unknown): string | null {
+  const url = decodeEntities(text(raw).trim()).replace(/^\/\//, "https://");
   return /^https:\/\//.test(url) ? url : null;
+}
+
+/** One HTML tag's attributes, by lower-case name (the first of each wins). */
+function attributesOf(tag: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const m of tag.matchAll(/([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g)) {
+    const name = m[1].toLowerCase();
+    if (!(name in attrs)) attrs[name] = m[2] ?? m[3] ?? m[4] ?? "";
+  }
+  return attrs;
+}
+
+/* Images in a story's HTML that aren't its photo: view counters and spacers
+   (The Conversation puts a 1×1 count.gif in every item, sometimes as the
+   only image; a GIF is never a story's photo), WordPress emoji and avatars. */
+const NOT_A_PHOTO =
+  /\.gif(?:$|\?)|\/(?:count|pixel|spacer|blank|1x1|tracking|beacon)(?:[-_.]?\d+(?:x\d+)?)?\.png(?:$|\?)|\/emoji\/|gravatar\.com|\/avatars?\//i;
+const NOT_A_PHOTO_CLASS = /\b(?:wp-smiley|emoji|avatar)\b/i;
+/** Declared narrower or shorter than this, it's an icon, a counter or an emoji. */
+const MIN_DECLARED_PX = 100;
+
+/** The first real photo inside the item's own HTML (HCAMag, The Conversation). */
+function inlineImageOf(item: Node): string | null {
+  const raw = text(item["content:encoded"] ?? item.content ?? item.description ?? item.summary);
+  // Twice, because some feeds encode their HTML once more (see plainText).
+  const html = decodeEntities(decodeEntities(raw));
+  for (const tag of html.match(/<img\b[^>]*>/gi) ?? []) {
+    const a = attributesOf(tag);
+    if (NOT_A_PHOTO_CLASS.test(a.class ?? "")) continue;
+    // Only the tag's own width and height count, not numbers in its address.
+    const declared = [a.width, a.height].map((v) => parseInt(v ?? "", 10)).filter(Number.isFinite);
+    if (declared.some((px) => px < MIN_DECLARED_PX)) continue;
+    // Lazy-loading markup keeps the real address in data-src.
+    const url = [a.src, a["data-src"], a["data-lazy-src"], a["data-original"]].map((v) => pictureUrl(v)).find(Boolean);
+    if (url && !NOT_A_PHOTO.test(url)) return url;
+  }
+  return null;
+}
+
+/** A media:content that is a picture: medium="image", or no medium, an image type or none, and not a video file. */
+function isPicture(m: Node): boolean {
+  if (m["@_medium"]) return m["@_medium"] === "image";
+  const type = String(m["@_type"] ?? "");
+  return (!type || type.startsWith("image/")) && !/\.(?:mp4|m4v|mov|webm|m3u8)(?:$|\?)/i.test(text(m["@_url"]));
+}
+
+/** The width to rank a picture by: as given ("700", "700px"), or a middling 600 when the feed doesn't say. */
+function widthOf(m: Node): number {
+  const w = parseInt(text(m["@_width"]), 10);
+  return Number.isFinite(w) ? w : 600;
+}
+
+function imageOf(item: Node): string | null {
+  // ABC wraps its pictures in <media:group>; others put them on the item.
+  const groups = ([] as Node[]).concat((item["media:group"] as Node | Node[] | undefined) ?? []);
+  /* Widest first: The Guardian lists 140, 460 and 700 pixels, and the first
+     is too small for a card. The sort keeps the feed's order on a tie, which
+     for ABC puts its 16:9 crop first. */
+  const media = [item, ...groups]
+    .flatMap((n) => (n["media:content"] as Node[] | undefined) ?? [])
+    .filter(isPicture)
+    .sort((a, b) => widthOf(b) - widthOf(a));
+  const thumbs = ([] as Node[]).concat((item["media:thumbnail"] as Node | Node[] | undefined) ?? []);
+  const enclosure = item["enclosure"] as Node | undefined;
+  // Each in turn, so one address that isn't https doesn't hide the others.
+  const candidates = [
+    ...media.map((m) => m["@_url"]),
+    ...thumbs.map((t) => t["@_url"]),
+    enclosure && String(enclosure["@_type"] ?? "").startsWith("image/") ? enclosure["@_url"] : null,
+  ];
+  for (const candidate of candidates) {
+    const url = pictureUrl(candidate);
+    if (url) return url;
+  }
+  return inlineImageOf(item);
 }
 
 export interface FeedStory {

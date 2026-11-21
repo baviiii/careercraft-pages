@@ -3,9 +3,11 @@
    styles/craft.css. Names avoid the global .cc-chip / .cc-bar / .cc-meter /
    .cc-gauge / .cc-select in craft.css.
 
-   Text-led: most feeds send no pictures, so a story is a headline, its
-   publisher's summary and why it's here. Motion only plays once as stories
-   arrive, and every bit of it has a still version under "reduce motion". */
+   Every story leads with a picture: the publisher's photo, or a cover in
+   its topic's colour with the publisher's logo when the feed sent none.
+   The topic colours and covers match Home's feed (features/dispatch).
+   Motion only plays once as stories arrive or on hover, and every bit of it
+   has a still version under "reduce motion". */
 
 /* ── Topic chips ─────────────────────────────────────────────── */
 .cc-mnews .cc-topic {
@@ -39,72 +41,260 @@
 .cc-mnews .cc-window:hover { border-color: var(--cc-ink-soft); }
 
 /* ── A story ─────────────────────────────────────────────────── */
+
+/* As many columns as fit at 300px or wider: three on most laptops, two on a
+   tablet, one on a phone. */
+.cc-mnews .cc-story-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
 .cc-mnews .cc-story {
   position: relative;
   display: flex;
-  gap: 20px;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
   border-radius: 18px;
   background: #fff;
   border: 1px solid var(--cc-hair);
-  padding: 18px 20px;
-  transition: border-color .25s ease, box-shadow .25s ease;
+  transition: border-color .25s ease, box-shadow .25s ease, translate .25s ease;
   animation: cc-mnews-rise .45s cubic-bezier(.2, .8, .2, 1) both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
 @media (hover: hover) {
   .cc-mnews .cc-story:hover {
     border-color: var(--cc-hair-strong);
-    box-shadow: 0 18px 32px -26px rgba(20, 22, 26, 0.45);
+    box-shadow: 0 22px 36px -28px rgba(20, 22, 26, 0.5);
+    translate: 0 -2px;
+  }
+}
+/* The headline's link covers the card, as Home's story cards are links
+   whole (anything clickable added to a card needs position: relative and
+   z-index: 2 to sit above it). Its focus ring goes round the card where
+   :has() works, and round the headline where it doesn't. */
+.cc-mnews .cc-story__link:focus-visible {
+  outline: 2px solid var(--cc-rust);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+@supports selector(:has(*)) {
+  .cc-mnews .cc-story__link:focus-visible { outline: none; }
+  .cc-mnews .cc-story:has(.cc-story__link:focus-visible) {
+    outline: 2px solid var(--cc-rust);
+    outline-offset: 2px;
   }
 }
 @keyframes cc-mnews-rise {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
-.cc-mnews .cc-story--lead { padding: 24px 26px; }
-.cc-mnews .cc-story--lead.has-image > :first-child { flex: 1 1 0; }
+
+.cc-mnews .cc-story__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px 18px 16px;
+}
+.cc-mnews .cc-story--lead .cc-story__body { padding: 20px 24px 22px; }
+
+/* The picture, or the cover in its place: the same 16:9 box either way, so
+   a row of cards lines up. */
+.cc-mnews .cc-story__pic {
+  position: relative;
+  flex: none;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--cc-cream-2);
+  border-bottom: 1px solid var(--cc-hair);
+}
+.cc-mnews .cc-story__pic > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: scale .7s cubic-bezier(.2, .8, .2, 1);
+}
+@media (hover: hover) {
+  .cc-mnews .cc-story:hover .cc-story__pic > img { scale: 1.04; }
+}
+
+/* The lead: the picture beside the words once there's room. */
+@media (min-width: 768px) {
+  .cc-mnews .cc-story--lead { flex-direction: row; }
+  .cc-mnews .cc-story--lead .cc-story__pic {
+    flex: 0 0 46%;
+    aspect-ratio: auto;
+    min-height: 280px;
+    border-bottom: 0;
+    border-right: 1px solid var(--cc-hair);
+  }
+}
+.cc-mnews .cc-story--lead .cc-cover__word {
+  font-size: clamp(3rem, calc(140cqi / var(--len, 6)), 10rem);
+}
+
+/* The topic, pinned on a photo. */
+.cc-mnews .cc-story__topic {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 10px 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cc-t-deep, var(--cc-ink));
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.45);
+}
+.cc-mnews .cc-story__topic::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--cc-t, var(--cc-rust));
+}
+
+/* No photo: the topic word set huge in its colour, bleeding off the bottom,
+   over a halftone, with the publisher's logo pinned (as on Home). */
+.cc-mnews .cc-cover {
+  container-type: inline-size;
+  background: linear-gradient(135deg, var(--cc-t-wash, var(--cc-rust-soft)) 0%, #fff 78%);
+  border-bottom-color: var(--cc-t-border, var(--cc-hair));
+}
+.cc-mnews .cc-cover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--cc-t, var(--cc-rust)) 1.1px, transparent 1.5px);
+  background-size: 11px 11px;
+  opacity: 0.22;
+  -webkit-mask-image: linear-gradient(115deg, transparent 25%, #000 85%);
+  mask-image: linear-gradient(115deg, transparent 25%, #000 85%);
+}
+/* Sized to its length (--len, in letters) so it spans most of the cover:
+   "Pay" big, "Workplace" smaller but whole. */
+.cc-mnews .cc-cover__word {
+  position: absolute;
+  left: 16px;
+  bottom: -0.2em;
+  font-size: 3.25rem;
+  font-size: clamp(2.5rem, calc(140cqi / var(--len, 6)), 7rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
+  color: var(--cc-t, var(--cc-rust));
+  opacity: 0.92;
+  transition: translate .6s cubic-bezier(.2, .8, .2, 1);
+}
+.cc-mnews .cc-cover__logo {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  rotate: 4deg;
+  transition: rotate .5s cubic-bezier(.2, .8, .2, 1), scale .5s cubic-bezier(.2, .8, .2, 1);
+}
+@media (hover: hover) {
+  .cc-mnews .cc-story:hover .cc-cover__word { translate: 6px 0; }
+  .cc-mnews .cc-story:hover .cc-cover__logo { rotate: -4deg; scale: 1.06; }
+}
+
+/* Topic colours craft.css doesn't have, and the logo tiles below: copies of
+   Home's in features/dispatch/dispatch.css, where SourceLogo and these tones
+   come from. Styles stay per feature here, so change both together. */
+.cc-mnews .fc-tone-pen {
+  --cc-t: #C2412D;
+  --cc-t-deep: #9C3424;
+  --cc-t-soft: rgba(194, 65, 45, 0.12);
+  --cc-t-wash: rgba(194, 65, 45, 0.12);
+  --cc-t-border: rgba(194, 65, 45, 0.28);
+}
+.cc-mnews .fc-tone-teal {
+  --cc-t: #1F7A8C;
+  --cc-t-deep: #155A68;
+  --cc-t-soft: rgba(31, 122, 140, 0.12);
+  --cc-t-wash: rgba(31, 122, 140, 0.12);
+  --cc-t-border: rgba(31, 122, 140, 0.28);
+}
+
+/* Publisher logos (SourceLogo): the favicon on a white tile, or a lettered
+   badge when there isn't one. Copied from dispatch.css (see above). */
+.cc-mnews .fc-logo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: 28%;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--cc-hair), 0 6px 14px -10px rgba(20, 22, 26, 0.45);
+}
+.cc-mnews .fc-logo img {
+  width: 62%;
+  height: 62%;
+  object-fit: contain;
+}
+.cc-mnews .fc-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 28%;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+    0 6px 14px -8px rgba(20, 22, 26, 0.5);
+}
 
 .cc-mnews .cc-story__meta {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0 8px;
+  gap: 8px;
+  min-width: 0;
   font-size: 12.5px;
   color: var(--cc-ash);
 }
-.cc-mnews .cc-story__meta > * + *::before {
-  content: "·";
-  margin-right: 8px;
-  color: var(--cc-hair-strong);
-}
 .cc-mnews .cc-story__title {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 17px;
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.01em;
 }
 .cc-mnews .cc-story__title--lead {
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: clamp(22px, 2.6vw, 30px);
   font-weight: 600;
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
 .cc-mnews .cc-story__link { transition: color .18s ease; }
-.cc-mnews .cc-story__link:hover { color: var(--cc-rust); }
-.cc-mnews .cc-story__image {
-  display: none;
-  flex: 0 0 auto;
-  width: 240px;
-  aspect-ratio: 3 / 2;
-  object-fit: cover;
-  border-radius: 12px;
-  background: var(--cc-cream-2);
+.cc-mnews .cc-story__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
-@media (min-width: 768px) {
-  .cc-mnews .cc-story__image { display: block; }
+.cc-mnews .cc-story:hover .cc-story__link { color: var(--cc-rust); }
+.cc-mnews .cc-story__read {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-ink);
+  transition: color .18s ease;
 }
+.cc-mnews .cc-story:hover .cc-story__read { color: var(--cc-rust); }
 
 /* A company from the tracker, named outright. */
 .cc-mnews .cc-tracked {
@@ -194,6 +384,7 @@
 }
 
 /* ── Loading ─────────────────────────────────────────────────── */
+.cc-mnews .cc-story__pic.cc-skel { border-radius: 0; }
 .cc-mnews .cc-skel {
   border-radius: 8px;
   background: linear-gradient(90deg, var(--cc-cream-2) 0%, #fff 50%, var(--cc-cream-2) 100%) 0 0 / 200% 100%;
@@ -204,6 +395,14 @@
 /* ── Reduce motion: keep the information, drop the movement ─── */
 @media (prefers-reduced-motion: reduce) {
   .cc-mnews .cc-story { animation: none; transition: none; }
+  .cc-mnews .cc-story:hover { translate: none; }
+  .cc-mnews .cc-story__pic > img,
+  .cc-mnews .cc-cover__word,
+  .cc-mnews .cc-cover__logo,
+  .cc-mnews .cc-story__read { transition: none; }
+  .cc-mnews .cc-story:hover .cc-story__pic > img { scale: none; }
+  .cc-mnews .cc-story:hover .cc-cover__word { translate: none; }
+  .cc-mnews .cc-story:hover .cc-cover__logo { rotate: 4deg; scale: none; }
   .cc-mnews .cc-skel { animation: none; }
   .cc-mnews .cc-bars__bar { transition: none; }
   .cc-mnews .cc-topic,

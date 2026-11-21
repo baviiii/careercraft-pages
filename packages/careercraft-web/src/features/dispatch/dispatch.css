@@ -9,7 +9,9 @@
    otherwise pin it.
    ─────────────────────────────────────────────────────────── */
 
-/* Topic tones craft.css doesn't have. Same five vars as .cc-tone-*. */
+/* Topic tones craft.css doesn't have. Same five vars as .cc-tone-*.
+   Market News copies these and the .fc-logo/.fc-badge tiles below
+   (features/market-news/market-news.css): change both together. */
 .fc-dispatch .fc-tone-pen {
   --cc-t: #C2412D;
   --cc-t-deep: #9C3424;

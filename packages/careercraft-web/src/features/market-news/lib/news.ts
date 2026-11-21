@@ -25,21 +25,26 @@ export interface NewsArticle {
   similarity?: number;
 }
 
-/** The topics job-news files stories under (supabase/functions/job-news/feeds.ts). */
+/** The topics job-news files stories under (supabase/functions/job-news/feeds.ts).
+    `cover` is the word set big on a story's cover when there's no picture. */
 export const TOPICS = [
-  { value: "all", label: "All", noun: "" },
-  { value: "hiring", label: "Hiring", noun: "hiring" },
-  { value: "pay", label: "Pay", noun: "pay" },
-  { value: "layoffs", label: "Job cuts", noun: "job-cut" },
-  { value: "visas", label: "Visas", noun: "visa" },
-  { value: "ai", label: "AI", noun: "AI" },
-  { value: "skills", label: "Skills & study", noun: "skills and study" },
-  { value: "workplace", label: "Workplace", noun: "workplace" },
+  { value: "all", label: "All", noun: "", cover: "" },
+  { value: "hiring", label: "Hiring", noun: "hiring", cover: "Hiring" },
+  { value: "pay", label: "Pay", noun: "pay", cover: "Pay" },
+  { value: "layoffs", label: "Job cuts", noun: "job-cut", cover: "Job cuts" },
+  { value: "visas", label: "Visas", noun: "visa", cover: "Visas" },
+  { value: "ai", label: "AI", noun: "AI", cover: "AI" },
+  { value: "skills", label: "Skills & study", noun: "skills and study", cover: "Skills" },
+  { value: "workplace", label: "Workplace", noun: "workplace", cover: "Workplace" },
 ] as const;
 export type Topic = (typeof TOPICS)[number]["value"];
 
-export const topicLabel = (category: string) =>
-  TOPICS.find((t) => t.value === category && t.value !== "all")?.label ?? null;
+const topicOf = (category: string) => TOPICS.find((t) => t.value === category && t.value !== "all");
+
+export const topicLabel = (category: string) => topicOf(category)?.label ?? null;
+
+/** The cover word; a story filed under no topic is still about work. */
+export const coverWord = (category: string) => topicOf(category)?.cover ?? "Work";
 
 export const RANGES = [
   { value: 7, label: "Past week", short: "week" },

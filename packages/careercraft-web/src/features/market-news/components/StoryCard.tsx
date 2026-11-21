@@ -1,40 +1,46 @@
 import { ArrowUpRight, Briefcase } from "lucide-react";
 import { useState } from "react";
 
+import { SourceLogo } from "@/features/dispatch/components/Logos";
 import { relativeTime } from "@/features/dispatch/lib/time";
 
-import { publisher, topicLabel, type NewsArticle, type StoryFit } from "../lib/news";
+import { publisher, type NewsArticle, type StoryFit } from "../lib/news";
+import { StoryPicture } from "./StoryPicture";
 
 interface StoryCardProps {
   article: NewsArticle;
   fit: StoryFit | null;
-  /** The first story gets more room, and its picture if the feed sent one. */
+  /** The first story gets more room: its picture beside the words on wide screens. */
   lead?: boolean;
   /** Position in the list, for the staggered entrance. */
   index: number;
 }
 
 /**
- * One story. The headline is the link; it opens the publisher's page, since
- * the summary is all we have. Why it sits where it does is said in words
- * under it, and a company from your tracker gets named outright.
+ * One story: its picture (or a cover in its topic's colour), the publisher
+ * by logo and name, the headline, the summary, and why it sits where it
+ * does. The headline is the link and covers the whole card, so anywhere on
+ * it opens the publisher's page; the summary is all we have.
  */
 export const StoryCard = ({ article, fit, lead = false, index }: StoryCardProps) => {
-  const [imageOk, setImageOk] = useState(true);
   const source = publisher(article);
-  const topic = topicLabel(article.category);
-  const showImage = lead && article.imageUrl && imageOk;
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = Boolean(article.imageUrl) && !photoFailed;
 
   return (
     <article
-      className={`cc-story ${lead ? "cc-story--lead" : ""} ${showImage ? "has-image" : ""}`}
+      className={`cc-story ${lead ? "cc-story--lead" : ""}`}
       style={{ ["--i" as string]: Math.min(index, 10) }}
     >
-      <div className="min-w-0">
+      <StoryPicture article={article} lead={lead} photo={photo} onPhotoFail={() => setPhotoFailed(true)} />
+
+      <div className="cc-story__body">
         <p className="cc-story__meta cc-font-sans">
-          {source && <span className="font-semibold text-[color:var(--cc-ink-soft)]">{source}</span>}
-          <span>{relativeTime(article.publishedAt)}</span>
-          {topic && <span>{topic}</span>}
+          {/* The cover already carries the logo, big. */}
+          {photo && <SourceLogo url={article.url} name={source} size={20} />}
+          {source && <span className="truncate font-semibold text-[color:var(--cc-ink-soft)]">{source}</span>}
+          <span aria-hidden>·</span>
+          <span className="whitespace-nowrap">{relativeTime(article.publishedAt)}</span>
         </p>
 
         <h3 className={`cc-font-display text-[color:var(--cc-ink)] ${lead ? "cc-story__title--lead" : "cc-story__title"}`}>
@@ -42,7 +48,7 @@ export const StoryCard = ({ article, fit, lead = false, index }: StoryCardProps)
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="cc-story__link rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--cc-rust)]"
+            className="cc-story__link rounded-sm"
           >
             {article.title}
           </a>
@@ -72,29 +78,11 @@ export const StoryCard = ({ article, fit, lead = false, index }: StoryCardProps)
           </div>
         )}
 
-        <a
-          href={article.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          tabIndex={-1}
-          aria-hidden
-          className="mt-4 inline-flex items-center gap-0.5 cc-font-sans text-[13px] font-medium text-[color:var(--cc-ink)] hover:text-[color:var(--cc-rust)]"
-        >
+        <span aria-hidden className="cc-story__read cc-font-sans">
           Read {source ? `at ${source}` : "the story"}
           <ArrowUpRight className="h-3.5 w-3.5" />
-        </a>
+        </span>
       </div>
-
-      {showImage && (
-        <img
-          src={article.imageUrl ?? undefined}
-          alt=""
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => setImageOk(false)}
-          className="cc-story__image"
-        />
-      )}
     </article>
   );
 };
