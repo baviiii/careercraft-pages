@@ -13,17 +13,37 @@ export interface MarketSnapshot {
   partial: boolean;
 }
 
-const STATE_SHORT: Record<string, string> = {
-  "new south wales": "NSW",
-  victoria: "VIC",
-  queensland: "QLD",
-  "western australia": "WA",
-  "south australia": "SA",
-  tasmania: "TAS",
-  "australian capital territory": "ACT",
-  "northern territory": "NT",
-};
-export const shortPlace = (name: string) => STATE_SHORT[name.toLowerCase()] ?? name;
+/** Each state and territory by name, to its short form. A Map, so a name
+    like "constructor" is just a name. */
+export const STATE_NAMES: ReadonlyMap<string, string> = new Map([
+  ["new south wales", "NSW"],
+  ["victoria", "VIC"],
+  ["queensland", "QLD"],
+  ["western australia", "WA"],
+  ["south australia", "SA"],
+  ["tasmania", "TAS"],
+  ["australian capital territory", "ACT"],
+  ["northern territory", "NT"],
+]);
+
+/** "NSW" from "New South Wales", or from "New South Wales, Australia" as Adzuna sends it. */
+export function shortPlace(name: string): string {
+  const state = name.replace(/,\s*australia\s*$/i, "").trim();
+  return STATE_NAMES.get(state.toLowerCase()) ?? state;
+}
+
+/** The role as job-news keys its cache (its normaliseRole, lower-cased), so
+    this page's cache agrees with it: "Full-Stack" and "full stack" are one.
+    job-news/market_test.ts holds the two together. */
+export function roleKey(role: string): string {
+  const what = role
+    .replace(/[-–—/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  // No letter or digit ("*", "?") is no role: every job.
+  return /[\p{L}\p{N}]/u.test(what) ? what.toLowerCase() : "";
+}
 
 /** $92k, or $92.4k when the decimal matters for a comparison. */
 export function money(n: number, precise = false): string {

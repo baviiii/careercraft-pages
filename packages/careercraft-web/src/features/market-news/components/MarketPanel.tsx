@@ -3,9 +3,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom";
 
 import { relativeTime } from "@/features/dispatch/lib/time";
-import { supabase } from "@/integrations/supabase/client";
-import { sanitize } from "@/lib/security/sanitizers";
 
+import { loadMarketSnapshot, MarketQuota, MarketResting } from "../lib/loadSnapshot";
 import { bandRows, count, middleBand, money, monthLabel, shortPlace, type MarketSnapshot } from "../lib/market";
 import { trackedCompanyIn } from "../lib/news";
 import { BarList } from "./BarList";
@@ -14,11 +13,14 @@ import { SalaryLine } from "./SalaryLine";
 /** For someone with no role saved: a spread of common Australian jobs. */
 const STARTERS = ["Registered Nurse", "Electrician", "Accountant", "Software Engineer", "Teacher", "Retail Assistant"];
 
-type Status = "idle" | "loading" | "ready" | "error";
+/** "resting": job-news has paused new lookups (its ration), not a fault. */
+type Status = "idle" | "loading" | "ready" | "error" | "resting" | "quota";
 
 interface MarketPanelProps {
   /** The profile's role, searched first. Empty means every job in Australia. */
   profileRole: string;
+  /** A role to show first instead, from a link (Browse jobs' market band); "" is every job. */
+  startWith?: string | null;
   suggestions: string[];
   trackedCompanies: string[];
 }
@@ -30,27 +32,35 @@ interface MarketPanelProps {
  * comes from, and a block whose figure didn't come back is left out rather
  * than filled in.
  */
-export const MarketPanel = ({ profileRole, suggestions, trackedCompanies }: MarketPanelProps) => {
+export const MarketPanel = ({ profileRole, startWith, suggestions, trackedCompanies }: MarketPanelProps) => {
   const navigate = useNavigate();
-  const [role, setRole] = useState(profileRole);
+  const opening = (startWith ?? profileRole).trim();
+  const [role, setRole] = useState(opening);
   const [data, setData] = useState<MarketSnapshot | null>(null);
   const [status, setStatus] = useState<Status>("idle");
+  /** What the quota said, when the person's own allowance is spent. */
+  const [quotaSay, setQuotaSay] = useState("");
   const latest = useRef(0);
 
   const load = useCallback(async (asked: string) => {
     const run = ++latest.current;
     setStatus("loading");
     try {
-      const query = sanitize(asked.trim(), { maxLength: 120, sqlSafe: false });
-      const { data: body, error } = await supabase.functions.invoke("job-news", {
-        body: { action: "market_snapshot", query },
-      });
+      const body = await loadMarketSnapshot(asked);
       if (run !== latest.current) return;
-      if (error) throw error;
-      setData(body as MarketSnapshot);
+      setData(body);
       setStatus("ready");
     } catch (e) {
       if (run !== latest.current) return;
+      if (e instanceof MarketResting) {
+        setStatus("resting");
+        return;
+      }
+      if (e instanceof MarketQuota) {
+        setQuotaSay(e.message);
+        setStatus("quota");
+        return;
+      }
       console.error("[market-news] snapshot failed:", e);
       setStatus("error");
     }
@@ -60,9 +70,9 @@ export const MarketPanel = ({ profileRole, suggestions, trackedCompanies }: Mark
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    setRole(profileRole);
-    void load(profileRole);
-  }, [profileRole, load]);
+    setRole(opening);
+    void load(opening);
+  }, [opening, load]);
 
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
@@ -137,11 +147,22 @@ export const MarketPanel = ({ profileRole, suggestions, trackedCompanies }: Mark
         </div>
       )}
 
-      {status === "error" && (
+      {status === "quota" && (
         <div className="rounded-2xl border border-[color:var(--cc-hair)] bg-white px-6 py-10 text-center">
-          <div className="cc-font-display text-xl tracking-tight">We couldn't reach the job board</div>
+          <div className="cc-font-display text-xl tracking-tight">Market figures are on hold for you</div>
+          <p className="mx-auto mt-2 max-w-sm cc-font-sans text-[14px] text-[color:var(--cc-ink-soft)]">{quotaSay}</p>
+        </div>
+      )}
+
+      {(status === "error" || status === "resting") && (
+        <div className="rounded-2xl border border-[color:var(--cc-hair)] bg-white px-6 py-10 text-center">
+          <div className="cc-font-display text-xl tracking-tight">
+            {status === "resting" ? "New market figures are paused for a while" : "We couldn't reach the job board"}
+          </div>
           <p className="mx-auto mt-2 max-w-sm cc-font-sans text-[14px] text-[color:var(--cc-ink-soft)]">
-            It's usually a blip on Adzuna's side. Give it another go.
+            {status === "resting"
+              ? "We ration how often we ask the job board for figures on a new role, so job search keeps working. Roles looked up earlier still show."
+              : "It's usually a blip on Adzuna's side. Give it another go."}
           </p>
           <button type="button" onClick={() => submit()} className="cc-action cc-action--sm mt-5">
             Try again
@@ -149,7 +170,7 @@ export const MarketPanel = ({ profileRole, suggestions, trackedCompanies }: Mark
         </div>
       )}
 
-      {data && status !== "error" && (
+      {data && status !== "error" && status !== "resting" && status !== "quota" && (
         <div className={`space-y-6 transition-opacity ${refetching ? "opacity-50" : ""}`} aria-busy={refetching}>
           {data.total !== null && (
             <div>

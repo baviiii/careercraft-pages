@@ -1,0 +1,291 @@
+/* The market band on Browse jobs (components/RoleMarket.tsx), scoped under
+   .cc-browse like browse-jobs.css. One card, split into panels: one
+   colour each, from the tone families in styles/craft.css (--cc-t…). On a
+   phone the panels sit in a row you swipe, so the ads stay near the top. */
+
+.cc-browse .cc-rmkt {
+  border-radius: 22px;
+  background: #fff;
+  border: 1px solid var(--cc-hair);
+  box-shadow: 0 1px 0 rgba(20, 22, 26, 0.04), 0 24px 48px -40px rgba(20, 22, 26, 0.35);
+  overflow: hidden;
+  transition: opacity .25s ease;
+}
+.cc-browse .cc-rmkt.is-dim { opacity: 0.55; }
+
+/* Title, then "Full picture" and the fold; on a phone the two are icons. */
+.cc-browse .cc-rmkt__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 14px 20px;
+}
+.cc-browse .cc-rmkt__title {
+  min-width: 0;
+  font-size: 17px;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--cc-ink);
+}
+@media (min-width: 640px) {
+  .cc-browse .cc-rmkt__title { font-size: 20px; }
+}
+.cc-browse .cc-rmkt__role { color: var(--cc-rust); }
+.cc-browse .cc-rmkt__acts { display: flex; flex: none; gap: 6px; }
+.cc-browse .cc-rmkt__act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--cc-hair-strong);
+  background: #fff;
+  padding: 0 9px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cc-ink);
+  transition: border-color .18s ease, background-color .18s ease;
+}
+@media (min-width: 640px) {
+  .cc-browse .cc-rmkt__act { padding: 0 12px; }
+}
+.cc-browse .cc-rmkt__act:hover:not(:disabled) { border-color: var(--cc-ink-soft); background: var(--cc-cream); }
+.cc-browse .cc-rmkt__act:disabled { opacity: 0.6; cursor: default; }
+
+/* Figures that didn't come: said over still placeholders the panels'
+   height, so the ads under the band stay put. */
+.cc-browse .cc-rmkt__none { position: relative; }
+.cc-browse .cc-rmkt__panels.is-still .cc-skel { animation: none; opacity: 0.55; }
+.cc-browse .cc-rmkt__none-say {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.88);
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--cc-ink-soft);
+}
+.cc-browse .cc-rmkt__none-say > p { max-width: 34rem; }
+
+.cc-browse .cc-rmkt__foot {
+  padding: 10px 20px 12px;
+  box-shadow: 0 -1px 0 var(--cc-hair);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--cc-ash);
+}
+
+/* Panels: a swipe row on phones, two across on tablets, all in one row on
+   laptops (--n is how many came back). Hairlines between them are drawn by
+   each panel's own shadow, so any count of panels lines up. */
+.cc-browse .cc-rmkt__panels {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 84%);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.cc-browse .cc-rmkt__panels::-webkit-scrollbar { display: none; }
+@media (max-width: 639px) {
+  /* The swipe row clips each panel's own top hairline, so it draws one. */
+  .cc-browse .cc-rmkt__panels { border-top: 1px solid var(--cc-hair); }
+}
+@media (min-width: 640px) {
+  .cc-browse .cc-rmkt__panels {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+}
+.cc-browse .cc-rmkt__panels--n1 { grid-template-columns: minmax(0, 1fr); }
+/* Three (a role's) fit across sooner than four. */
+@media (min-width: 900px) {
+  .cc-browse .cc-rmkt__panels--n3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Narrower than this, four panels can't fit "$120k–$140k" beside the sidebar. */
+@media (min-width: 1280px) {
+  .cc-browse .cc-rmkt__panels { grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); }
+}
+.cc-browse .cc-rmkt__slot {
+  min-width: 0;
+  scroll-snap-align: start;
+  box-shadow: -1px 0 0 var(--cc-hair), 0 -1px 0 var(--cc-hair);
+  animation: cc-rise .45s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+.cc-browse .cc-rmkt__panel {
+  height: 100%;
+  padding: 15px 20px 16px;
+  /* A wash of the panel's colour at the top, fading into the card. */
+  background: linear-gradient(180deg, var(--cc-t-wash, transparent) 0, rgba(255, 255, 255, 0) 72px);
+}
+.cc-browse .cc-rmkt__label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cc-t-deep, var(--cc-ash));
+}
+.cc-browse .cc-rmkt__label::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--cc-t, var(--cc-ash));
+}
+.cc-browse .cc-rmkt__figure {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 9px;
+  font-family: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  font-size: clamp(25px, 2.2vw, 31px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: var(--cc-ink);
+  white-space: nowrap;
+}
+.cc-browse .cc-rmkt__arrow { width: 0.8em; height: 0.8em; color: var(--cc-t-deep); stroke-width: 2.5; }
+.cc-browse .cc-rmkt__note { margin-top: 6px; font-size: 13px; line-height: 1.4; color: var(--cc-ink-soft); }
+.cc-browse .cc-rmkt__note strong { font-weight: 600; color: var(--cc-ink); }
+/* The figure, with the tile map beside it (under it when the panel is narrow). */
+.cc-browse .cc-rmkt__split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+
+/* The tile map: each state a tile, shaded by its share of the ads. */
+.cc-browse .cc-rmkt__map {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, 34px);
+  grid-template-rows: repeat(4, 22px);
+  gap: 3px;
+  margin-top: 9px;
+}
+.cc-browse .cc-rmkt__state {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--cc-cream-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  /* Ink on every shade: the shading stops at 66%, where it still reads 5:1
+     in every persona accent (harbor is the darkest). */
+  color: var(--cc-ink);
+  cursor: default;
+}
+.cc-browse .cc-rmkt__state::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--cc-t);
+  opacity: calc(0.08 + var(--share, 0) * 0.58);
+}
+.cc-browse .cc-rmkt__state.is-here { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--cc-ink); }
+
+/* Pay bands as columns. */
+.cc-browse .cc-rmkt__cols {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 50px;
+  margin-top: 12px;
+}
+.cc-browse .cc-rmkt__cols > li {
+  flex: 1;
+  height: calc(var(--h, 0) * 100%);
+  min-height: 3px;
+  border-radius: 3px 3px 1px 1px;
+  background: var(--cc-t);
+  opacity: 0.32;
+  transform-origin: bottom;
+  animation: cc-rmkt-grow .6s cubic-bezier(.2, .8, .2, 1) both;
+}
+.cc-browse .cc-rmkt__cols > li.is-mid { opacity: 1; }
+@keyframes cc-rmkt-grow { from { transform: scaleY(0); } }
+.cc-browse .cc-rmkt__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--cc-ash);
+}
+
+/* Pay over the months. */
+.cc-browse .cc-rmkt__spark { display: block; width: 100%; height: auto; margin-top: 12px; overflow: visible; }
+.cc-browse .cc-rmkt__spark-area { fill: var(--cc-t); opacity: 0.12; }
+.cc-browse .cc-rmkt__spark-line {
+  fill: none;
+  stroke: var(--cc-t);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.cc-browse .cc-rmkt__spark-dot { fill: var(--cc-t); stroke: #fff; stroke-width: 2; }
+
+/* Who advertises most. */
+.cc-browse .cc-rmkt__who { display: grid; gap: 9px; margin-top: 11px; }
+.cc-browse .cc-rmkt__who > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 5px;
+  font-size: 13.5px;
+}
+.cc-browse .cc-rmkt__who-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--cc-ink);
+}
+.cc-browse .cc-rmkt__who-n { font-size: 12px; color: var(--cc-ash); }
+.cc-browse .cc-rmkt__who-bar {
+  position: relative;
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--cc-cream-2);
+  overflow: hidden;
+}
+.cc-browse .cc-rmkt__who-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--w, 0) * 100%);
+  border-radius: inherit;
+  background: var(--cc-t);
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-browse .cc-rmkt,
+  .cc-browse .cc-rmkt__act { transition: none; }
+  .cc-browse .cc-rmkt__slot,
+  .cc-browse .cc-rmkt__cols > li { animation: none; }
+}

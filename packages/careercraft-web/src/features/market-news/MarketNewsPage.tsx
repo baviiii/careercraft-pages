@@ -30,7 +30,20 @@ export default function MarketNewsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get("tab") === "market" ? "market" : "news";
+  /* Browse jobs links here with the role it searched (?role=, empty for
+     every job). Read once and dropped from the address, so a refresh after
+     the person's own search here doesn't bring the link's role back; and
+     forgotten on a change of tab, so coming back to Your market opens the
+     profile's role as before. */
+  const [linkedRole, setLinkedRole] = useState(() => params.get("role"));
   const setTab = (t: Tab) => setParams(t === "news" ? {} : { tab: t }, { replace: true });
+  useEffect(() => {
+    if (params.has("role")) setParams(tab === "news" ? {} : { tab }, { replace: true });
+  }, [params, setParams, tab]);
+  // However the tab changes: its buttons, the sidebar, or Fay.
+  useEffect(() => {
+    if (tab !== "market") setLinkedRole(null);
+  }, [tab]);
 
   const perso = usePersonalization();
   const canFit = Boolean(perso.hasPersonalizationData);
@@ -116,7 +129,12 @@ export default function MarketNewsPage() {
           />
         )}
         {!perso.loading && trackerReady && tab === "market" && (
-          <MarketPanel profileRole={profileRole} suggestions={suggestions} trackedCompanies={trackerCompanies} />
+          <MarketPanel
+            profileRole={profileRole}
+            startWith={linkedRole}
+            suggestions={suggestions}
+            trackedCompanies={trackerCompanies}
+          />
         )}
       </div>
     </CraftAppLayout>

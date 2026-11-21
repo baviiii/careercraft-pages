@@ -26,6 +26,7 @@ import { RATE_LIMITS } from "@/lib/security/rateLimiter";
 import { sanitize } from "@/lib/security/sanitizers";
 
 import { JobAdCard, type Fit } from "./components/JobAdCard";
+import { RoleMarket } from "./components/RoleMarket";
 import { SearchSentence } from "./components/SearchSentence";
 import { SearchSummary } from "./components/SearchSummary";
 import { flyToTracker } from "./lib/flyToTracker";
@@ -550,6 +551,13 @@ export default function BrowseJobsPage() {
               </button>
             </div>
           )
+        )}
+
+        {/* Adzuna's own figures for the role across Australia: how many ads,
+            where, what they pay and who posts the most. The same figures as
+            Market news' "Your market", which it links to. */}
+        {(status === "loading" || status === "ready") && (
+          <RoleMarket role={searched?.role ?? null} place={searched?.place ?? ""} busy={status === "loading"} />
         )}
 
         <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_290px]">

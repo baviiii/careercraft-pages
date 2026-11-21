@@ -11,7 +11,7 @@ import { requireUser } from "../_shared/http/auth.ts";
 import { handler, json } from "../_shared/http/responses.ts";
 
 import { lastFetchedAt, refreshNews } from "./feeds.ts";
-import { adzunaSnapshot, fillFrom, isEmptySnapshot, normaliseRole, type MarketSnapshot } from "./market.ts";
+import { adzunaSnapshot, normaliseRole, snapshotServer, type MarketSnapshot } from "./market.ts";
 
 /**
  * The request body.
@@ -81,16 +81,17 @@ const JOB_APIS = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** How old the stored news may get before fetch_news reads the feeds again. */
 const NEWS_TTL_MS = 3 * 60 * 60 * 1000;
-/** How long one role's Adzuna figures are reused. */
-const SNAPSHOT_TTL_MS = 12 * 60 * 60 * 1000;
+/** How long one role's Adzuna figures are reused: a day, which also keeps
+    the ration's count of stored rows close to the fetches made. */
+const SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 /** How long an answer with a missing figure is reused before trying again. */
 const PARTIAL_TTL_MS = 60 * 60 * 1000;
 /** Snapshots untouched this long are deleted. */
 const SNAPSHOT_KEEP_MS = 7 * DAY_MS;
-/** After Adzuna refuses every request, wait this long before asking again. */
+/** After every request fails, or a role comes back empty, stop asking for this long. */
 const ADZUNA_BACKOFF_MS = 10 * 60 * 1000;
-/** Per instance, like the news refresh guard in feeds.ts. */
-let adzunaBackoffUntil = 0;
+/** Per instance, like the news refresh guard in feeds.ts: its backoff and its one-at-a-time queue. */
+const snapshots = snapshotServer({ fullMs: SNAPSHOT_TTL_MS, retryMs: PARTIAL_TTL_MS, backoffMs: ADZUNA_BACKOFF_MS });
 
 const TrendAnalysisSchema = z.object({
   trends: z.array(z.object({
@@ -136,11 +137,12 @@ serve(handler(async (req) => {
   // Broad allowance for the function as a whole. Most actions here are Adzuna
   // and Postgres reads that cost nothing; only `trends` reaches a model, and it
   // consumes a separate, much tighter allowance below.
-  await enforcePlanQuota({
-    userId,
-    resource: "job-news",
-    resourceLabel: "job and market data",
-  });
+  const charge = () =>
+    enforcePlanQuota({
+      userId,
+      resource: "job-news",
+      resourceLabel: "job and market data",
+    });
 
   try {
     const rawBody = await req.json().catch(() => null);
@@ -149,6 +151,10 @@ serve(handler(async (req) => {
       throw new ValidationError("Invalid request body", parsedBody.error.flatten());
     }
     const { action, query, country, industry, category, page, location, startDate, endDate, pageNumber, limit, profileText } = parsedBody.data;
+    // market_snapshot is charged only when it asks Adzuna (snapshotServer):
+    // most of its answers come from the shared cache, and Browse jobs asks
+    // for one on every role searched.
+    if (action !== "market_snapshot") await charge();
     const ADZUNA_APP_ID = Deno.env.get("ADZUNA_APP_ID");
     const ADZUNA_APP_KEY = Deno.env.get("ADZUNA_APP_KEY");
     const JSEARCH_API_KEY = Deno.env.get("JSEARCH_API_KEY");
@@ -436,47 +442,57 @@ serve(handler(async (req) => {
       const key = role.toLowerCase() || "*";
       const db = getSupabaseClient();
 
-      /* Five Adzuna requests per role, against a daily allowance shared with
-         every job search on the site, so each role is fetched at most twice
-         a day whoever asks. An answer with a gap is kept for an hour, so a
-         failing endpoint is retried soon but not by every visitor. */
-      const { data: cached } = await db
-        .from("market_snapshots")
-        .select("payload, fetched_at")
-        .eq("query_key", key)
-        .maybeSingle();
-      const older = cached?.payload as MarketSnapshot | undefined;
-      const age = cached ? Date.now() - new Date(cached.fetched_at).getTime() : Infinity;
-      if (older && age < (older.partial ? PARTIAL_TTL_MS : SNAPSHOT_TTL_MS)) return json(older);
-
-      // Adzuna refused everything recently (down, or the day's allowance is
-      // spent): don't spend five more calls finding that out again.
-      if (Date.now() < adzunaBackoffUntil) {
-        if (older) return json(older);
-        throw new ProviderError("The job board isn't answering just now", "adzuna");
-      }
-
-      if (!ADZUNA_APP_ID || !ADZUNA_APP_KEY) throw new ProviderError("The job board isn't set up", "adzuna");
-      const fresh = await adzunaSnapshot(role, ADZUNA_APP_ID, ADZUNA_APP_KEY);
-
-      if (isEmptySnapshot(fresh)) {
-        adzunaBackoffUntil = Date.now() + ADZUNA_BACKOFF_MS;
-        // An older answer beats none; its fetchedAt tells the page how old.
-        if (older) return json(older);
-        throw new ProviderError("Couldn't reach the job board", "adzuna");
-      }
-
-      const snapshot = fillFrom(fresh, older);
-      const { error: saveError } = await db
-        .from("market_snapshots")
-        .upsert({ query_key: key, payload: snapshot, fetched_at: snapshot.fetchedAt });
-      if (saveError) console.error("[market] cache write failed:", saveError.message);
-      // Keys are whatever people type, so old ones are cleared as new ones land.
-      await db
-        .from("market_snapshots")
-        .delete()
-        .lt("fetched_at", new Date(Date.now() - SNAPSHOT_KEEP_MS).toISOString());
-      return json(snapshot);
+      /* Four requests per role (five for every job), against an allowance
+         shared with every job search on the site, so each role is fetched
+         about once a day whoever asks. A gap that may come back (a timeout,
+         a rate limit) is retried after an hour, then two, then four, and one
+         Adzuna refused waits the full time (keepFor). Browse jobs asks for
+         every role searched there, so new roles are rationed too
+         (overRation), and a person is charged only when Adzuna is asked. */
+      const answer = await snapshots(key, {
+        // A read that fails stops here: taken for "nothing stored, nothing
+        // fetched today", it would let every request past the ration.
+        stored: async () => {
+          const { data, error } = await db
+            .from("market_snapshots")
+            .select("payload, fetched_at")
+            .eq("query_key", key)
+            .maybeSingle();
+          if (error) throw new Error(`market_snapshots read failed: ${error.message}`);
+          return data ? { snapshot: data.payload as MarketSnapshot, fetchedAt: String(data.fetched_at) } : null;
+        },
+        recent: async () => {
+          const { data, error } = await db
+            .from("market_snapshots")
+            .select("fetched_at")
+            .gte("fetched_at", new Date(Date.now() - DAY_MS).toISOString());
+          if (error) throw new Error(`market_snapshots read failed: ${error.message}`);
+          return (data ?? []).map((r) => String(r.fetched_at));
+        },
+        // Without the keys nothing is charged: what's stored is served, and
+        // a role with nothing stored is told the board isn't set up.
+        charge:
+          ADZUNA_APP_ID && ADZUNA_APP_KEY
+            ? charge
+            : () => Promise.reject(new ProviderError("The job board isn't set up", "adzuna")),
+        fetch: () => adzunaSnapshot(role, ADZUNA_APP_ID ?? "", ADZUNA_APP_KEY ?? ""),
+        save: async (snapshot) => {
+          const { error: saveError } = await db
+            .from("market_snapshots")
+            .upsert({ query_key: key, payload: snapshot, fetched_at: snapshot.fetchedAt });
+          if (saveError) console.error("[market] cache write failed:", saveError.message);
+          // Keys are whatever people type, so old ones are cleared as new ones land.
+          await db
+            .from("market_snapshots")
+            .delete()
+            .lt("fetched_at", new Date(Date.now() - SNAPSHOT_KEEP_MS).toISOString());
+        },
+      });
+      if (answer.kind === "snapshot") return json(answer.snapshot);
+      // Its own code, and a 429 rather than a fault, so the pages can say
+      // "paused" instead of calling it a blip.
+      if (answer.kind === "resting") throw new AppError("New market figures are paused for now", 429, "MARKET_RESTING");
+      throw new ProviderError("Couldn't reach the job board", "adzuna");
     }
 
     // ============================================
