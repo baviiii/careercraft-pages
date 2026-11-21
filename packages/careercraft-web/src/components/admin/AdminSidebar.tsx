@@ -1,15 +1,16 @@
-import { 
-  LayoutDashboard, 
-  Users, 
-  Activity, 
-  Shield, 
-  AlertTriangle, 
-  LogOut,
-  Monitor,
-  MessageSquare,
-  Gauge,
+import {
+  Activity,
+  AlertTriangle,
   Coins,
-  ShieldOff
+  Gauge,
+  Inbox,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Monitor,
+  Shield,
+  ShieldOff,
+  Users,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import {
@@ -36,6 +37,7 @@ const mainNavItems = [
   { title: 'AI Prompts', url: '/admin/prompts', icon: MessageSquare },
   { title: 'AI Usage', url: '/admin/usage', icon: Coins },
   { title: 'Plans & Limits', url: '/admin/plans', icon: Gauge },
+  { title: 'Messages', url: '/admin/messages', icon: Inbox },
 ];
 
 const securityNavItems = [

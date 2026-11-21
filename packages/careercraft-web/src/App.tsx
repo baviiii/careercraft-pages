@@ -30,6 +30,7 @@ const InterviewRoom = lazy(() => import("./features/interview/InterviewRoomPage"
 const BrowseJobs = lazy(() => import("./features/browse-jobs/BrowseJobsPage"));
 const MarketNews = lazy(() => import("./features/market-news/MarketNewsPage"));
 const Settings = lazy(() => import("./pages/Settings"));
+const ContactUsApp = lazy(() => import("./pages/ContactUsApp"));
 const Playground = lazy(() => import("./pages/Playground"));
 const IntelligenceOverview = lazy(() => import("./pages/IntelligenceOverview"));
 const CareerExplorer = lazy(() => import("./pages/CareerExplorer"));
@@ -51,6 +52,7 @@ const PlansAndLimits = lazy(() => import("./pages/admin/PlansAndLimits"));
 const AiUsage = lazy(() => import("./pages/admin/AiUsage"));
 const UserUsageDetail = lazy(() => import("./pages/admin/UserUsageDetail"));
 const BlockedIps = lazy(() => import("./pages/admin/BlockedIps"));
+const ContactMessages = lazy(() => import("./pages/admin/ContactMessages"));
 
 // Optimized QueryClient with better caching
 const queryClient = new QueryClient({
@@ -191,6 +193,7 @@ const App = () => (
               <Route path="/market-trends" element={<MarketTrends />} />
               <Route path="/policy" element={<PolicyVisualizer />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/contact-us" element={<ContactUsApp />} />
 
               {/* Admin Routes */}
               <Route path="/admin" element={<AdminLayout />}>
@@ -205,6 +208,7 @@ const App = () => (
                 <Route path="usage" element={<AiUsage />} />
                 <Route path="usage/:userId" element={<UserUsageDetail />} />
                 <Route path="blocked-ips" element={<BlockedIps />} />
+                <Route path="messages" element={<ContactMessages />} />
                 {/* Retired pages — keep bookmarks working */}
                 <Route path="documents" element={<Navigate to="/admin" replace />} />
                 <Route path="settings" element={<Navigate to="/admin" replace />} />

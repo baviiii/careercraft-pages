@@ -187,3 +187,8 @@ verify_jwt = false
 # a person.
 [functions.voice-session]
 verify_jwt = false
+# Contact form. The gateway checks the session; the function saves the row
+# and emails hello@faircopy.au.
+[functions.contact-message]
+verify_jwt = true
+

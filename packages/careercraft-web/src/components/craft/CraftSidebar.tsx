@@ -19,6 +19,7 @@ import {
   Newspaper,
   Plus,
   Search,
+  LifeBuoy,
   Settings,
   TrendingUp,
   X,
@@ -63,6 +64,7 @@ export const CRAFT_SIDEBAR_LINKS: CraftSidebarLink[] = [
   { icon: Search, label: "Browse Jobs", path: "/au-jobs", group: "market" },
   { icon: Newspaper, label: "Market News", path: "/job-market-news", group: "market" },
   { icon: Settings, label: "Settings", path: "/settings", group: "account" },
+  { icon: LifeBuoy, label: "Contact", path: "/contact-us", group: "account" },
 ];
 
 const GROUPS: { id: CraftSidebarLink["group"]; label: string }[] = [

@@ -260,6 +260,7 @@ export type Database = {
       ats_checks: {
         Row: {
           analysis: Json
+          application_id: string | null
           created_at: string
           id: string
           job_description: string
@@ -272,6 +273,7 @@ export type Database = {
         }
         Insert: {
           analysis: Json
+          application_id?: string | null
           created_at?: string
           id?: string
           job_description: string
@@ -284,6 +286,7 @@ export type Database = {
         }
         Update: {
           analysis?: Json
+          application_id?: string | null
           created_at?: string
           id?: string
           job_description?: string
@@ -295,6 +298,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ats_checks_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "job_applications"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ats_checks_resume_id_fkey"
             columns: ["resume_id"]
@@ -427,6 +437,33 @@ export type Database = {
           messages?: Json | null
           updated_at?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          kind: string
+          message: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          kind: string
+          message: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          kind?: string
+          message?: string
+          user_id?: string
         }
         Relationships: []
       }
